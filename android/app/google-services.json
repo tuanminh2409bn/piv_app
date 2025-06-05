@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "435533952242",
+    "project_id": "piv-fertilizer-app",
+    "storage_bucket": "piv-fertilizer-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:435533952242:android:1fea7d3c939a79bc004c6b",
+        "android_client_info": {
+          "package_name": "com.piv.fertilizer.piv_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAcn3v0PcMwc1jQe7S427oteWsq1q_F2_s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
