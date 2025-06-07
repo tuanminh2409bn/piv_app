@@ -56,7 +56,7 @@ class _LoginFormState extends State<LoginForm> {
             ..hideCurrentSnackBar()
             ..showSnackBar(
               SnackBar(
-                content: Text(state.errorMessage ?? 'Lỗi đăng nhập không xác định.'),
+                content: Text(state.errorMessage ?? 'Email hoặc mật khẩu không đúng.'),
                 backgroundColor: Theme.of(context).colorScheme.error,
               ),
             );

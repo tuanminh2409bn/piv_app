@@ -1,21 +1,26 @@
+// 1. TẤT CẢ CÁC IMPORT PHẢI ĐẶT LÊN ĐẦU TIÊN
 import 'package:bloc/bloc.dart';
-import 'package:equatable/equatable.dart';
-import 'package:dartz/dartz.dart';
-import 'package:piv_app/core/error/failure.dart';
+import 'package:equatable/equatable.dart';    // HomeState và các model giả trong HomeState dùng Equatable
+import 'package:dartz/dartz.dart';             // Cho Either
+import 'package:piv_app/core/error/failure.dart';     // Cho Failure
 import 'package:piv_app/features/home/domain/repositories/home_repository.dart';
-import 'package:piv_app/features/home/data/models/category_model.dart';
-import 'package:piv_app/features/home/data/models/banner_model.dart';
-// Import ProductModel thật
-import 'package:piv_app/features/home/data/models/product_model.dart';
+// Import CÁC MODEL THẬT mà HomeCubit và HomeState sẽ sử dụng
+import 'package:piv_app/features/home/data/models/category_model.dart'; // Đường dẫn đã ghi nhớ
+import 'package:piv_app/features/home/data/models/banner_model.dart'; // Đường dẫn đã ghi nhớ
+import 'package:piv_app/features/home/data/models/product_model.dart'; // Đường dẫn đã ghi nhớ
+import 'package:piv_app/data/models/news_article_model.dart'; // Model NewsArticle thật
 import 'dart:developer' as developer;
 
-part 'home_state.dart'; // HomeState giờ sẽ dùng ProductModel thật
+// 2. PART DIRECTIVE ĐẶT SAU TẤT CẢ CÁC IMPORT
+part 'home_state.dart'; // home_state.dart chứa HomeState và các model giả còn lại (nếu có)
 
 class HomeCubit extends Cubit<HomeState> {
   final HomeRepository _homeRepository;
 
   HomeCubit({required HomeRepository homeRepository})
       : _homeRepository = homeRepository,
+  // HomeState, HomeStatus, và các model giả (ProductModel, NewsArticleModel nếu còn trong home_state.dart)
+  // sẽ được "nhìn thấy" từ home_state.dart do khai báo 'part'.
         super(const HomeState());
 
   Future<void> fetchHomeScreenData() async {
@@ -24,22 +29,17 @@ class HomeCubit extends Cubit<HomeState> {
 
     try {
       final results = await Future.wait([
-        _homeRepository.getBanners(),
-        _homeRepository.getFeaturedCategories(),
-        _homeRepository.getFeaturedProducts(), // << THÊM LỜI GỌI NÀY
-        // TODO: Thêm lời gọi repository cho tin tức ở đây
-        // _homeRepository.getNewsArticles(),
+        _homeRepository.getBanners(),           // Trả về Either<Failure, List<BannerModel thật>>
+        _homeRepository.getFeaturedCategories(),// Trả về Either<Failure, List<CategoryModel thật>>
+        _homeRepository.getFeaturedProducts(),  // Trả về Either<Failure, List<ProductModel thật>>
+        _homeRepository.getLatestNewsArticles(),// Trả về Either<Failure, List<NewsArticleModel thật>>
       ]);
 
+      // results[0] là cho banners, results[1] là cho categories, etc.
       final bannersResult = results[0] as Either<Failure, List<BannerModel>>;
       final categoriesResult = results[1] as Either<Failure, List<CategoryModel>>;
-      final productsResult = results[2] as Either<Failure, List<ProductModel>>; // << KẾT QUẢ SẢN PHẨM
-      // final newsResult = results[3] as Either<Failure, List<NewsArticleModel>>; // Ví dụ
-
-      // Dữ liệu giả cho tin tức
-      final mockNews = [
-        const NewsArticleModel(id: 'news1', title: 'Hội thảo Kỹ thuật Canh tác PIV', summary: 'Giải pháp phân bón tiên tiến...', imageUrl: 'https://placehold.co/80x80/a9d8c8/1B5E20?text=HoiThao'),
-      ];
+      final productsResult = results[2] as Either<Failure, List<ProductModel>>;
+      final newsResult = results[3] as Either<Failure, List<NewsArticleModel>>;
 
       List<BannerModel> finalBanners = [];
       String? bannerError;
@@ -55,15 +55,22 @@ class HomeCubit extends Cubit<HomeState> {
             (categories) => finalCategories = categories,
       );
 
-      List<ProductModel> finalProducts = []; // << DANH SÁCH SẢN PHẨM THẬT
+      List<ProductModel> finalProducts = [];
       String? productError;
       productsResult.fold(
             (failure) => productError = 'Lỗi tải sản phẩm: ${failure.message}',
             (products) => finalProducts = products,
       );
 
+      List<NewsArticleModel> finalNews = [];
+      String? newsError;
+      newsResult.fold(
+            (failure) => newsError = 'Lỗi tải tin tức: ${failure.message}',
+            (news) => finalNews = news,
+      );
+
       String? combinedErrorMessage;
-      final errors = [bannerError, categoryError, productError].where((e) => e != null).toList();
+      final errors = [bannerError, categoryError, productError, newsError].where((e) => e != null).toList();
       if (errors.isNotEmpty) {
         combinedErrorMessage = errors.join('\n');
       }
@@ -75,17 +82,17 @@ class HomeCubit extends Cubit<HomeState> {
           errorMessage: combinedErrorMessage,
           banners: finalBanners.isNotEmpty ? finalBanners : state.banners,
           categories: finalCategories.isNotEmpty ? finalCategories : state.categories,
-          featuredProducts: finalProducts.isNotEmpty ? finalProducts : state.featuredProducts, // Giữ SP cũ nếu lỗi và SP mới rỗng
-          newsArticles: mockNews,
+          featuredProducts: finalProducts.isNotEmpty ? finalProducts : state.featuredProducts,
+          newsArticles: finalNews.isNotEmpty ? finalNews : state.newsArticles,
         ));
       } else {
-        developer.log('HomeCubit: All main data fetched successfully.', name: 'HomeCubit');
+        developer.log('HomeCubit: All data fetched successfully.', name: 'HomeCubit');
         emit(state.copyWith(
           status: HomeStatus.success,
           banners: finalBanners,
           categories: finalCategories,
-          featuredProducts: finalProducts, // << SỬ DỤNG SẢN PHẨM THẬT
-          newsArticles: mockNews,
+          featuredProducts: finalProducts,
+          newsArticles: finalNews,
         ));
       }
 
@@ -98,4 +105,3 @@ class HomeCubit extends Cubit<HomeState> {
     }
   }
 }
-    

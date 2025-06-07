@@ -9,35 +9,25 @@ enum HomeStatus {
 
 // KHÔNG CÓ BẤT KỲ LỆNH IMPORT NÀO Ở ĐÂY
 
-// XÓA ĐỊNH NGHĨA ProductModel GIẢ Ở ĐÂY
-// class ProductModel extends Equatable {
+// XÓA ĐỊNH NGHĨA NewsArticleModel GIẢ Ở ĐÂY (NẾU CÓ)
+// class NewsArticleModel extends Equatable {
 //   final String id;
-//   final String name;
+//   final String title;
+//   final String summary;
 //   final String imageUrl;
-//   final String price;
-//   const ProductModel({required this.id, required this.name, required this.imageUrl, required this.price});
-//   @override List<Object?> get props => [id, name, imageUrl, price];
+//   const NewsArticleModel({required this.id, required this.title, required this.summary, required this.imageUrl});
+//   @override List<Object?> get props => [id, title, summary, imageUrl];
 // }
-
-
-// Giữ lại NewsArticleModel giả nếu bạn vẫn đang dùng nó
-class NewsArticleModel extends Equatable {
-  final String id;
-  final String title;
-  final String summary;
-  final String imageUrl;
-  const NewsArticleModel({required this.id, required this.title, required this.summary, required this.imageUrl});
-  @override List<Object?> get props => [id, title, summary, imageUrl];
-}
 
 
 class HomeState extends Equatable {
   final HomeStatus status;
-  // Kiểu BannerModel, CategoryModel, ProductModel ở đây sẽ là kiểu được import trong home_cubit.dart
+  // Các kiểu BannerModel, CategoryModel, ProductModel, NewsArticleModel ở đây
+  // sẽ là các kiểu được import trong file home_cubit.dart (là các model thật)
   final List<BannerModel> banners;
   final List<CategoryModel> categories;
-  final List<ProductModel> featuredProducts; // Sẽ sử dụng ProductModel thật
-  final List<NewsArticleModel> newsArticles; // Vẫn là model giả
+  final List<ProductModel> featuredProducts;
+  final List<NewsArticleModel> newsArticles; // Sẽ sử dụng NewsArticleModel thật
   final String? errorMessage;
 
   const HomeState({
@@ -53,8 +43,8 @@ class HomeState extends Equatable {
     HomeStatus? status,
     List<BannerModel>? banners,
     List<CategoryModel>? categories,
-    List<ProductModel>? featuredProducts, // Sẽ sử dụng ProductModel thật
-    List<NewsArticleModel>? newsArticles,
+    List<ProductModel>? featuredProducts,
+    List<NewsArticleModel>? newsArticles, // Sẽ sử dụng NewsArticleModel thật
     String? errorMessage,
     bool clearErrorMessage = false,
   }) {

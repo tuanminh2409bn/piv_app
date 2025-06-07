@@ -11,9 +11,24 @@ import 'package:piv_app/features/auth/presentation/bloc/register_cubit.dart';
 
 // Home Feature
 import 'package:piv_app/features/home/presentation/bloc/home_cubit.dart';
-// Import HomeRepository và Impl
 import 'package:piv_app/features/home/domain/repositories/home_repository.dart';
 import 'package:piv_app/features/home/data/repositories/home_repository_impl.dart';
+
+// News Feature
+import 'package:piv_app/features/news/presentation/bloc/news_detail_cubit.dart';
+
+// Product Feature
+import 'package:piv_app/features/products/presentation/bloc/product_detail_cubit.dart';
+
+// Cart Feature
+import 'package:piv_app/features/cart/domain/repositories/cart_repository.dart';
+import 'package:piv_app/features/cart/data/repositories/cart_repository_impl.dart';
+import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
+
+// Profile Feature
+import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
+import 'package:piv_app/features/profile/data/repositories/user_profile_repository_impl.dart';
+import 'package:piv_app/features/profile/presentation/bloc/profile_cubit.dart';
 
 
 final sl = GetIt.instance;
@@ -26,30 +41,30 @@ Future<void> initializeDependencies() async {
   // --- Features ---
 
   // == Auth ==
-  sl.registerLazySingleton<AuthRepository>(
-        () => AuthRepositoryImpl(
-      firebaseAuth: sl<firebase_auth.FirebaseAuth>(),
-      firestore: sl<FirebaseFirestore>(),
-    ),
-  );
-  sl.registerLazySingleton<AuthBloc>(
-        () => AuthBloc(authRepository: sl<AuthRepository>()),
-  );
-  sl.registerFactory<LoginCubit>(
-        () => LoginCubit(authRepository: sl<AuthRepository>()),
-  );
-  sl.registerFactory<RegisterCubit>(
-        () => RegisterCubit(authRepository: sl<AuthRepository>()),
-  );
+  sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(firebaseAuth: sl(), firestore: sl()));
+  sl.registerLazySingleton<AuthBloc>(() => AuthBloc(authRepository: sl()));
+  sl.registerFactory<LoginCubit>(() => LoginCubit(authRepository: sl()));
+  sl.registerFactory<RegisterCubit>(() => RegisterCubit(authRepository: sl()));
 
   // == Home ==
-  // Đăng ký HomeRepository
-  sl.registerLazySingleton<HomeRepository>(
-        () => HomeRepositoryImpl(firestore: sl<FirebaseFirestore>()),
+  sl.registerLazySingleton<HomeRepository>(() => HomeRepositoryImpl(firestore: sl()));
+  sl.registerFactory<HomeCubit>(() => HomeCubit(homeRepository: sl()));
+
+  // == News ==
+  sl.registerFactory<NewsDetailCubit>(
+        () => NewsDetailCubit(homeRepository: sl<HomeRepository>()),
   );
 
-  sl.registerFactory<HomeCubit>(
-        () => HomeCubit(homeRepository: sl<HomeRepository>()), // Truyền HomeRepository vào HomeCubit
+  // == Product ==
+  sl.registerFactory<ProductDetailCubit>(
+        () => ProductDetailCubit(homeRepository: sl<HomeRepository>()),
   );
+
+  // == Cart ==
+  sl.registerLazySingleton<CartRepository>(() => CartRepositoryImpl(firestore: sl()));
+  sl.registerLazySingleton<CartCubit>(() => CartCubit(cartRepository: sl(), authBloc: sl()));
+
+  // == Profile == (BỎ BÌNH LUẬN CÁC ĐĂNG KÝ NÀY)
+  sl.registerLazySingleton<UserProfileRepository>(() => UserProfileRepositoryImpl(firestore: sl()));
+  sl.registerLazySingleton<ProfileCubit>(() => ProfileCubit(userProfileRepository: sl(), authBloc: sl()));
 }
-    
