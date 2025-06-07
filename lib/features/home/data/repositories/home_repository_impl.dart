@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
-// Import các model thật với đường dẫn bạn đã cung cấp
+// Import các model thật
 import 'package:piv_app/features/home/data/models/category_model.dart';
 import 'package:piv_app/features/home/data/models/banner_model.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
@@ -82,10 +82,8 @@ class HomeRepositoryImpl implements HomeRepository {
   Future<Either<Failure, NewsArticleModel>> getNewsArticleById(String articleId) async {
     try {
       final docSnapshot = await _firestore.collection('newsArticles').doc(articleId).get();
-
       if (docSnapshot.exists && docSnapshot.data() != null) {
-        final article = NewsArticleModel.fromSnapshot(docSnapshot);
-        return Right(article);
+        return Right(NewsArticleModel.fromSnapshot(docSnapshot));
       } else {
         return Left(ServerFailure('Không tìm thấy bài viết.'));
       }
@@ -96,27 +94,41 @@ class HomeRepositoryImpl implements HomeRepository {
     }
   }
 
-  // IMPLEMENT PHƯƠNG THỨC MỚI
   @override
   Future<Either<Failure, ProductModel>> getProductById(String productId) async {
     try {
       final docSnapshot = await _firestore.collection('products').doc(productId).get();
-
       if (docSnapshot.exists && docSnapshot.data() != null) {
-        final product = ProductModel.fromSnapshot(docSnapshot);
-        developer.log('Fetched product with ID: ${product.id}', name: 'HomeRepository');
-        return Right(product);
+        return Right(ProductModel.fromSnapshot(docSnapshot));
       } else {
-        developer.log('Product not found for ID: $productId', name: 'HomeRepository');
         return Left(ServerFailure('Không tìm thấy sản phẩm.'));
       }
     } on FirebaseException catch (e) {
-      developer.log('FirebaseException in getProductById: ${e.message}', name: 'HomeRepository');
       return Left(ServerFailure('Lỗi Firebase khi tải chi tiết sản phẩm: ${e.message}'));
     } catch (e) {
-      developer.log('Unknown error in getProductById: ${e.toString()}', name: 'HomeRepository');
       return Left(ServerFailure('Lỗi không xác định khi tải chi tiết sản phẩm: ${e.toString()}'));
     }
   }
+
+  // ** IMPLEMENT PHƯƠNG THỨC MỚI **
+  @override
+  Future<Either<Failure, List<CategoryModel>>> getAllCategories() async {
+    try {
+      // Sắp xếp theo tên để danh sách ổn định
+      final querySnapshot = await _firestore.collection('categories').orderBy('name').get();
+
+      final categories = querySnapshot.docs
+          .map((doc) => CategoryModel.fromSnapshot(doc))
+          .toList();
+      developer.log('Fetched all ${categories.length} categories from Firestore.', name: 'HomeRepository');
+      return Right(categories);
+
+    } on FirebaseException catch (e) {
+      developer.log('FirebaseException in getAllCategories: ${e.message}', name: 'HomeRepository');
+      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+    } catch (e) {
+      developer.log('Unknown error in getAllCategories: ${e.toString()}', name: 'HomeRepository');
+      return Left(ServerFailure('Lỗi không xác định khi tải danh mục: ${e.toString()}'));
+    }
+  }
 }
-    

@@ -30,6 +30,10 @@ import 'package:piv_app/features/profile/domain/repositories/user_profile_reposi
 import 'package:piv_app/features/profile/data/repositories/user_profile_repository_impl.dart';
 import 'package:piv_app/features/profile/presentation/bloc/profile_cubit.dart';
 
+// Checkout & Order Feature
+import 'package:piv_app/features/checkout/presentation/bloc/checkout_cubit.dart';
+import 'package:piv_app/features/orders/domain/repositories/order_repository.dart'; // Import interface
+import 'package:piv_app/features/orders/data/repositories/order_repository_impl.dart'; // Import implementation
 
 final sl = GetIt.instance;
 
@@ -39,7 +43,6 @@ Future<void> initializeDependencies() async {
   sl.registerLazySingleton<FirebaseFirestore>(() => FirebaseFirestore.instance);
 
   // --- Features ---
-
   // == Auth ==
   sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(firebaseAuth: sl(), firestore: sl()));
   sl.registerLazySingleton<AuthBloc>(() => AuthBloc(authRepository: sl()));
@@ -51,20 +54,27 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<HomeCubit>(() => HomeCubit(homeRepository: sl()));
 
   // == News ==
-  sl.registerFactory<NewsDetailCubit>(
-        () => NewsDetailCubit(homeRepository: sl<HomeRepository>()),
-  );
+  sl.registerFactory<NewsDetailCubit>(() => NewsDetailCubit(homeRepository: sl()));
 
   // == Product ==
-  sl.registerFactory<ProductDetailCubit>(
-        () => ProductDetailCubit(homeRepository: sl<HomeRepository>()),
-  );
+  sl.registerFactory<ProductDetailCubit>(() => ProductDetailCubit(homeRepository: sl()));
 
   // == Cart ==
   sl.registerLazySingleton<CartRepository>(() => CartRepositoryImpl(firestore: sl()));
   sl.registerLazySingleton<CartCubit>(() => CartCubit(cartRepository: sl(), authBloc: sl()));
 
-  // == Profile == (BỎ BÌNH LUẬN CÁC ĐĂNG KÝ NÀY)
+  // == Profile ==
   sl.registerLazySingleton<UserProfileRepository>(() => UserProfileRepositoryImpl(firestore: sl()));
   sl.registerLazySingleton<ProfileCubit>(() => ProfileCubit(userProfileRepository: sl(), authBloc: sl()));
+
+  // == Order & Checkout ==
+  sl.registerLazySingleton<OrderRepository>(() => OrderRepositoryImpl(firestore: sl()));
+  sl.registerFactory<CheckoutCubit>(
+        () => CheckoutCubit(
+      userProfileRepository: sl(),
+      orderRepository: sl(), // << THÊM VÀO
+      authBloc: sl(),
+      cartCubit: sl(), // << THÊM VÀO
+    ),
+  );
 }

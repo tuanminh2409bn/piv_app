@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Import để sử dụng FilteringTextInputFormatter
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
 import 'package:piv_app/data/models/cart_item_model.dart';
+// Import CheckoutPage
+import 'package:piv_app/features/checkout/presentation/pages/checkout_page.dart';
 
 class CartPage extends StatelessWidget {
   const CartPage({super.key});
@@ -90,7 +92,7 @@ class CartView extends StatelessWidget {
   }
 }
 
-// Widget cho một sản phẩm trong giỏ hàng (Không thay đổi)
+// ... (_buildCartItemCard và _buildQuantityAdjuster không đổi) ...
 Widget _buildCartItemCard(BuildContext context, CartItemModel item, NumberFormat formatter) {
   return Card(
     elevation: 2,
@@ -145,13 +147,13 @@ Widget _buildCartItemCard(BuildContext context, CartItemModel item, NumberFormat
   );
 }
 
-// Widget cho bộ chọn số lượng (ĐÃ SỬA)
 Widget _buildQuantityAdjuster(BuildContext context, CartItemModel item) {
   return Row(
     mainAxisSize: MainAxisSize.min,
     children: [
       SizedBox(
-        width: 30, height: 30,
+        width: 30,
+        height: 30,
         child: IconButton(
           padding: EdgeInsets.zero,
           icon: const Icon(Icons.remove_circle_outline, size: 22),
@@ -161,13 +163,12 @@ Widget _buildQuantityAdjuster(BuildContext context, CartItemModel item) {
               : null,
         ),
       ),
-      // ** THAY ĐỔI: Bọc Text trong GestureDetector để mở dialog **
       GestureDetector(
         onTap: () {
           _showQuantityInputDialog(context, item);
         },
         child: Container(
-          width: 50, // Tăng chiều rộng để dễ nhấn hơn
+          width: 50,
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(vertical: 4),
           decoration: BoxDecoration(
@@ -181,7 +182,8 @@ Widget _buildQuantityAdjuster(BuildContext context, CartItemModel item) {
         ),
       ),
       SizedBox(
-        width: 30, height: 30,
+        width: 30,
+        height: 30,
         child: IconButton(
           padding: EdgeInsets.zero,
           icon: const Icon(Icons.add_circle, size: 22),
@@ -193,7 +195,6 @@ Widget _buildQuantityAdjuster(BuildContext context, CartItemModel item) {
   );
 }
 
-// ** HÀM MỚI: HIỂN THỊ DIALOG ĐỂ NHẬP SỐ LƯỢNG **
 void _showQuantityInputDialog(BuildContext context, CartItemModel item) {
   final TextEditingController controller = TextEditingController(text: item.quantity.toString());
   final formKey = GlobalKey<FormState>();
@@ -209,7 +210,7 @@ void _showQuantityInputDialog(BuildContext context, CartItemModel item) {
             controller: controller,
             autofocus: true,
             keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly], // Chỉ cho phép nhập số
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: const InputDecoration(
               hintText: 'Số lượng',
             ),
@@ -222,7 +223,6 @@ void _showQuantityInputDialog(BuildContext context, CartItemModel item) {
               if (quantity == null || quantity <= 0) {
                 return 'Số lượng phải lớn hơn 0';
               }
-              // Thêm logic kiểm tra tồn kho nếu có
               return null;
             },
           ),
@@ -239,7 +239,6 @@ void _showQuantityInputDialog(BuildContext context, CartItemModel item) {
             onPressed: () {
               if (formKey.currentState!.validate()) {
                 final newQuantity = int.parse(controller.text);
-                // Gọi cubit để cập nhật số lượng
                 context.read<CartCubit>().updateQuantity(item.productId, newQuantity);
                 Navigator.of(dialogContext).pop();
               }
@@ -252,7 +251,7 @@ void _showQuantityInputDialog(BuildContext context, CartItemModel item) {
 }
 
 
-// Widget cho phần tổng kết
+// CẬP NHẬT PHẦN NÀY
 Widget _buildSummarySection(BuildContext context, CartState state, NumberFormat formatter) {
   return Container(
     padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -274,12 +273,11 @@ Widget _buildSummarySection(BuildContext context, CartState state, NumberFormat 
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            child: const Text('Tiến hành Thanh toán'),
             onPressed: state.items.isEmpty ? null : () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Chức năng Thanh toán sẽ được làm sau!')),
-              );
+              // Điều hướng đến trang thanh toán
+              Navigator.of(context).push(CheckoutPage.route());
             },
+            child: const Text('Tiến hành Thanh toán'),
           ),
         )
       ],

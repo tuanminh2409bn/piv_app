@@ -5,13 +5,11 @@ import 'package:intl/intl.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/home/presentation/bloc/home_cubit.dart';
 import 'package:piv_app/core/di/injection_container.dart';
-
 // Import các Model thật
 import 'package:piv_app/features/home/data/models/category_model.dart';
 import 'package:piv_app/features/home/data/models/banner_model.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/data/models/news_article_model.dart';
-
 // Import các trang và widget liên quan
 import 'package:piv_app/features/news/presentation/pages/news_detail_page.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
@@ -61,14 +59,12 @@ class HomeView extends StatelessWidget {
         centerTitle: true,
         elevation: 4.0,
         actionsIconTheme: const IconThemeData(color: Colors.white),
-        // ** SỬA LỖI Ở ĐÂY: THÊM LẠI ICON BUTTON CHO PROFILE **
         actions: [
           // Nút Hồ sơ
           IconButton(
             icon: const Icon(Icons.person_outline_rounded),
             tooltip: 'Hồ sơ cá nhân',
             onPressed: () {
-              // Điều hướng đến ProfilePage (đảm bảo bạn đã tạo trang này)
               Navigator.of(context).push(ProfilePage.route());
             },
           ),
