@@ -5,8 +5,8 @@ import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/checkout/presentation/bloc/checkout_cubit.dart';
 import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
 import 'package:piv_app/data/models/address_model.dart';
+// Import các trang liên quan
 import 'package:piv_app/features/checkout/presentation/pages/address_selection_page.dart';
-// Import trang đặt hàng thành công
 import 'package:piv_app/features/orders/presentation/pages/order_success_page.dart';
 
 class CheckoutPage extends StatelessWidget {
@@ -39,14 +39,18 @@ class CheckoutView extends StatelessWidget {
         title: const Text('Thanh toán'),
         centerTitle: true,
       ),
-      // ** SỬA LỖI Ở ĐÂY: DÙNG BlocConsumer để xử lý cả UI và điều hướng **
+      // Sử dụng BlocConsumer để xử lý cả UI và các hành động phụ (điều hướng, SnackBar)
       body: BlocConsumer<CheckoutCubit, CheckoutState>(
         listener: (context, state) {
+          // Khi đặt hàng thành công, điều hướng đến trang thành công
           if (state.status == CheckoutStatus.orderSuccess) {
-            // Khi đặt hàng thành công, điều hướng đến trang thành công
-            Navigator.of(context).pushReplacement(OrderSuccessPage.route());
-          } else if (state.status == CheckoutStatus.error && state.errorMessage != null) {
-            // Hiển thị lỗi nếu có
+            Navigator.of(context).pushAndRemoveUntil(
+              OrderSuccessPage.route(),
+                  (route) => route.isFirst, // Xóa tất cả các trang trước đó cho đến trang chủ
+            );
+          }
+          // Hiển thị lỗi nếu có
+          else if (state.status == CheckoutStatus.error && state.errorMessage != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.errorMessage!),
@@ -56,6 +60,7 @@ class CheckoutView extends StatelessWidget {
           }
         },
         builder: (context, checkoutState) {
+          // Lấy trạng thái của giỏ hàng
           final cartState = context.watch<CartCubit>().state;
 
           if (checkoutState.status == CheckoutStatus.loading) {
@@ -95,7 +100,8 @@ class CheckoutView extends StatelessWidget {
     );
   }
 
-  // ... (Các hàm helper _buildSectionTitle, _buildAddressSection, _buildProductSummaryList, _buildPaymentMethodSection không đổi) ...
+  // --- WIDGET HELPER FUNCTIONS ---
+
   Widget _buildSectionTitle(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),

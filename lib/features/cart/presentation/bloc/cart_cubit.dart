@@ -39,7 +39,6 @@ class CartCubit extends Cubit<CartState> {
 
   String get _userId {
     if (_currentUserId.isEmpty) {
-      developer.log('CartCubit: User is not logged in.', name: 'CartCubit');
       emit(state.copyWith(status: CartStatus.error, errorMessage: 'Vui lòng đăng nhập để sử dụng giỏ hàng.'));
     }
     return _currentUserId;
@@ -57,11 +56,13 @@ class CartCubit extends Cubit<CartState> {
     );
   }
 
+  // ** SỬA LẠI PHƯƠNG THỨC NÀY **
   Future<void> addProduct(ProductModel product, int quantity) async {
     final userId = _userId;
     if (userId.isEmpty) return;
 
     emit(state.copyWith(status: CartStatus.itemAdding));
+    // Gọi phương thức đã được đơn giản hóa, không còn variant
     final result = await _cartRepository.addProductToCart(
       userId: userId,
       product: product,
@@ -75,7 +76,6 @@ class CartCubit extends Cubit<CartState> {
     );
   }
 
-  // ** PHƯƠNG THỨC MỚI: CẬP NHẬT SỐ LƯỢNG **
   Future<void> updateQuantity(String productId, int newQuantity) async {
     final userId = _userId;
     if (userId.isEmpty) return;
@@ -88,11 +88,10 @@ class CartCubit extends Cubit<CartState> {
     );
     result.fold(
           (failure) => emit(state.copyWith(status: CartStatus.error, errorMessage: failure.message)),
-          (_) => loadCart(), // Tải lại giỏ hàng
+          (_) => loadCart(),
     );
   }
 
-  // ** PHƯƠNG THỨC MỚI: XÓA SẢN PHẨM **
   Future<void> removeProduct(String productId) async {
     final userId = _userId;
     if (userId.isEmpty) return;
@@ -104,7 +103,7 @@ class CartCubit extends Cubit<CartState> {
     );
     result.fold(
           (failure) => emit(state.copyWith(status: CartStatus.error, errorMessage: failure.message)),
-          (_) => loadCart(), // Tải lại giỏ hàng
+          (_) => loadCart(),
     );
   }
 

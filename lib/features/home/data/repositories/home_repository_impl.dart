@@ -16,17 +16,70 @@ class HomeRepositoryImpl implements HomeRepository {
   HomeRepositoryImpl({FirebaseFirestore? firestore})
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
-  // ... (các phương thức khác không đổi) ...
   @override
   Future<Either<Failure, List<CategoryModel>>> getFeaturedCategories() async {
     try {
-      final querySnapshot = await _firestore.collection('categories').limit(3).get();
+      final querySnapshot = await _firestore
+          .collection('categories')
+          .where('parentId', isNull: true) // Chỉ lấy các danh mục gốc
+          .limit(3)
+          .get();
       final categories = querySnapshot.docs.map((doc) => CategoryModel.fromSnapshot(doc)).toList();
       return Right(categories);
     } on FirebaseException catch (e) {
       return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
     } catch (e) {
       return Left(ServerFailure('Lỗi không xác định khi tải danh mục: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<CategoryModel>>> getAllCategories() async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('categories')
+          .where('parentId', isNull: true) // Chỉ lấy các danh mục gốc
+          .orderBy('name') // Sắp xếp theo tên
+          .get();
+      final categories = querySnapshot.docs.map((doc) => CategoryModel.fromSnapshot(doc)).toList();
+      return Right(categories);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định khi tải danh mục: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<CategoryModel>>> getSubCategories(String parentId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('categories')
+          .where('parentId', isEqualTo: parentId)
+          .orderBy('name')
+          .get();
+      final categories = querySnapshot.docs.map((doc) => CategoryModel.fromSnapshot(doc)).toList();
+      return Right(categories);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<ProductModel>>> getProductsByCategoryId(String categoryId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('products')
+          .where('categoryId', isEqualTo: categoryId)
+          .get();
+      final products = querySnapshot.docs.map((doc) => ProductModel.fromSnapshot(doc)).toList();
+      return Right(products);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
     }
   }
 
@@ -107,28 +160,6 @@ class HomeRepositoryImpl implements HomeRepository {
       return Left(ServerFailure('Lỗi Firebase khi tải chi tiết sản phẩm: ${e.message}'));
     } catch (e) {
       return Left(ServerFailure('Lỗi không xác định khi tải chi tiết sản phẩm: ${e.toString()}'));
-    }
-  }
-
-  // ** IMPLEMENT PHƯƠNG THỨC MỚI **
-  @override
-  Future<Either<Failure, List<CategoryModel>>> getAllCategories() async {
-    try {
-      // Sắp xếp theo tên để danh sách ổn định
-      final querySnapshot = await _firestore.collection('categories').orderBy('name').get();
-
-      final categories = querySnapshot.docs
-          .map((doc) => CategoryModel.fromSnapshot(doc))
-          .toList();
-      developer.log('Fetched all ${categories.length} categories from Firestore.', name: 'HomeRepository');
-      return Right(categories);
-
-    } on FirebaseException catch (e) {
-      developer.log('FirebaseException in getAllCategories: ${e.message}', name: 'HomeRepository');
-      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
-    } catch (e) {
-      developer.log('Unknown error in getAllCategories: ${e.toString()}', name: 'HomeRepository');
-      return Left(ServerFailure('Lỗi không xác định khi tải danh mục: ${e.toString()}'));
     }
   }
 }

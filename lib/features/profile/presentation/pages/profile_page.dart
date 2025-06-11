@@ -4,6 +4,8 @@ import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/profile/presentation/bloc/profile_cubit.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/data/models/address_model.dart';
+// Import trang Lịch sử đơn hàng
+import 'package:piv_app/features/orders/presentation/pages/my_orders_page.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -30,7 +32,7 @@ class ProfileView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Hồ Sơ Cá Nhân'),
+        title: const Text('Tài khoản'),
         actions: [
           BlocBuilder<ProfileCubit, ProfileState>(
             buildWhen: (previous, current) => previous.status != current.status || previous.isEditing != current.isEditing,
@@ -73,19 +75,20 @@ class ProfileView extends StatelessWidget {
           }
 
           return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const SizedBox(height: 16),
+                // ** THÊM WIDGET MỚI: CÁC LỰA CHỌN QUẢN LÝ **
+                _buildManagementOptions(context),
+                const Divider(thickness: 8, height: 24, color: Color(0xFFF2F2F7)),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: _ProfileForm(user: state.user, isEditing: state.isEditing),
                 ),
                 const SizedBox(height: 24),
-                const Divider(thickness: 8, color: Color(0xFFF2F2F7)),
-                const SizedBox(height: 16),
+                const Divider(thickness: 8, height: 24, color: Color(0xFFF2F2F7)),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 16.0),
                   child: _AddressSection(addresses: state.user.addresses),
                 )
               ],
@@ -97,6 +100,31 @@ class ProfileView extends StatelessWidget {
   }
 }
 
+// ** WIDGET MỚI **
+Widget _buildManagementOptions(BuildContext context) {
+  return Column(
+    children: [
+      ListTile(
+        leading: const Icon(Icons.receipt_long_outlined),
+        title: const Text('Đơn hàng của tôi'),
+        subtitle: const Text('Xem lịch sử các đơn hàng đã đặt'),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: () {
+          Navigator.of(context).push(MyOrdersPage.route());
+        },
+      ),
+      // Thêm các ListTile khác ở đây nếu cần, ví dụ:
+      // ListTile(
+      //   leading: const Icon(Icons.notifications_outlined),
+      //   title: const Text('Thông báo'),
+      //   onTap: () {},
+      // ),
+    ],
+  );
+}
+
+// ... (các widget và hàm khác không đổi: _ProfileForm, _AddressSection, _AddressCard, _showAddressFormDialog) ...
+// ... (Hãy đảm bảo bạn giữ lại toàn bộ code cho các widget này từ lần cập nhật trước) ...
 class _ProfileForm extends StatefulWidget {
   final UserModel user;
   final bool isEditing;
@@ -193,7 +221,6 @@ class _ProfileFormState extends State<_ProfileForm> {
   }
 }
 
-// Widget cho phần Sổ địa chỉ
 class _AddressSection extends StatelessWidget {
   final List<AddressModel> addresses;
   const _AddressSection({required this.addresses});
@@ -228,7 +255,6 @@ class _AddressSection extends StatelessWidget {
             icon: const Icon(Icons.add),
             label: const Text('Thêm địa chỉ mới'),
             onPressed: () {
-              // Mở Dialog để thêm địa chỉ mới
               _showAddressFormDialog(context);
             },
           ),
@@ -238,7 +264,6 @@ class _AddressSection extends StatelessWidget {
   }
 }
 
-// Widget cho một card địa chỉ
 class _AddressCard extends StatelessWidget {
   final AddressModel address;
   const _AddressCard({required this.address});
@@ -281,7 +306,6 @@ class _AddressCard extends StatelessWidget {
                       constraints: const BoxConstraints(),
                       icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.blueGrey),
                       onPressed: () {
-                        // Mở Dialog để sửa địa chỉ, truyền vào địa chỉ hiện tại
                         _showAddressFormDialog(context, address: address);
                       },
                     ),
@@ -344,14 +368,10 @@ class _AddressCard extends StatelessWidget {
   }
 }
 
-// ** HÀM MỚI ĐỂ HIỂN THỊ DIALOG THÊM/SỬA ĐỊA CHỈ **
 void _showAddressFormDialog(BuildContext context, {AddressModel? address}) {
-  // Lấy ProfileCubit từ context để có thể sử dụng trong dialog
   final profileCubit = context.read<ProfileCubit>();
-
   showDialog(
     context: context,
-    // Cung cấp lại ProfileCubit cho cây widget của dialog
     builder: (_) => BlocProvider.value(
       value: profileCubit,
       child: _AddressFormDialog(address: address),
@@ -359,11 +379,9 @@ void _showAddressFormDialog(BuildContext context, {AddressModel? address}) {
   );
 }
 
-// Widget cho Dialog Form
 class _AddressFormDialog extends StatefulWidget {
   final AddressModel? address;
   const _AddressFormDialog({this.address});
-
   @override
   State<_AddressFormDialog> createState() => _AddressFormDialogState();
 }
@@ -377,7 +395,6 @@ class _AddressFormDialogState extends State<_AddressFormDialog> {
   late TextEditingController _districtController;
   late TextEditingController _cityController;
   late bool _isDefault;
-
   bool get _isEditing => widget.address != null;
 
   @override
@@ -406,7 +423,7 @@ class _AddressFormDialogState extends State<_AddressFormDialog> {
   void _onSave() {
     if (_formKey.currentState!.validate()) {
       final newAddress = AddressModel(
-        id: widget.address?.id, // Giữ lại ID cũ nếu đang sửa, ngược lại sẽ tự tạo mới
+        id: widget.address?.id,
         recipientName: _nameController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
         street: _streetController.text.trim(),
@@ -415,7 +432,6 @@ class _AddressFormDialogState extends State<_AddressFormDialog> {
         city: _cityController.text.trim(),
         isDefault: _isDefault,
       );
-
       if (_isEditing) {
         context.read<ProfileCubit>().updateAddress(newAddress);
       } else {
@@ -456,14 +472,8 @@ class _AddressFormDialogState extends State<_AddressFormDialog> {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('HỦY'),
-        ),
-        ElevatedButton(
-          onPressed: _onSave,
-          child: const Text('LƯU'),
-        ),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('HỦY')),
+        ElevatedButton(onPressed: _onSave, child: const Text('LƯU')),
       ],
     );
   }
@@ -477,10 +487,7 @@ class _AddressFormDialogState extends State<_AddressFormDialog> {
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: TextFormField(
         controller: controller,
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-        ),
+        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
         keyboardType: keyboardType,
         validator: (value) {
           if (value == null || value.trim().isEmpty) {

@@ -1,40 +1,37 @@
 import 'package:equatable/equatable.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CategoryModel extends Equatable {
-  final String id; // Document ID từ Firestore
+  final String id;
   final String name;
   final String imageUrl;
-  // Bạn có thể thêm các trường khác nếu cần, ví dụ:
-  // final int? sortOrder; // Để sắp xếp thứ tự hiển thị
+  final String? parentId; // Có thể null cho danh mục gốc
 
   const CategoryModel({
     required this.id,
     required this.name,
     required this.imageUrl,
-    // this.sortOrder,
+    this.parentId,
   });
 
   @override
-  List<Object?> get props => [id, name, imageUrl, /*sortOrder*/];
+  List<Object?> get props => [id, name, imageUrl, parentId];
 
-  // Factory constructor để tạo CategoryModel từ một DocumentSnapshot (Firestore)
   factory CategoryModel.fromSnapshot(DocumentSnapshot snap) {
-    final data = snap.data() as Map<String, dynamic>?; // Ép kiểu an toàn
+    final data = snap.data() as Map<String, dynamic>?;
     return CategoryModel(
       id: snap.id,
-      name: data?['name'] as String? ?? '', // Xử lý null với giá trị mặc định
+      name: data?['name'] as String? ?? '',
       imageUrl: data?['imageUrl'] as String? ?? '',
-      // sortOrder: data?['sortOrder'] as int?,
+      parentId: data?['parentId'] as String?, // Đọc parentId từ Firestore
     );
   }
 
-  // Phương thức để chuyển CategoryModel thành Map để lưu vào Firestore (nếu cần)
   Map<String, dynamic> toJson() {
     return {
       'name': name,
       'imageUrl': imageUrl,
-      // 'sortOrder': sortOrder,
+      'parentId': parentId,
     };
   }
 }

@@ -12,6 +12,7 @@ class CartRepositoryImpl implements CartRepository {
   CartRepositoryImpl({FirebaseFirestore? firestore})
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
+  // Hàm helper để lấy tham chiếu đến document giỏ hàng của người dùng
   DocumentReference<Map<String, dynamic>> _userCartRef(String userId) =>
       _firestore.collection('carts').doc(userId);
 
@@ -28,16 +29,17 @@ class CartRepositoryImpl implements CartRepository {
       await _firestore.runTransaction((transaction) async {
         final cartSnapshot = await transaction.get(cartRef);
 
+        final newItem = CartItemModel(
+          productId: product.id,
+          productName: product.name,
+          imageUrl: product.imageUrl,
+          price: product.displayPrice,
+          unit: product.unit,
+          quantity: quantity,
+        );
+
         if (!cartSnapshot.exists) {
           // Nếu giỏ hàng chưa tồn tại, tạo mới
-          final newItem = CartItemModel(
-            productId: product.id,
-            productName: product.name,
-            imageUrl: product.imageUrls.isNotEmpty ? product.imageUrls.first : '',
-            price: product.displayPrice,
-            unit: product.unit,
-            quantity: quantity,
-          );
           transaction.set(cartRef, {
             'items': [newItem.toMap()],
             'lastUpdated': FieldValue.serverTimestamp(),
@@ -59,14 +61,6 @@ class CartRepositoryImpl implements CartRepository {
           items[itemIndex] = currentItem;
         } else {
           // Nếu chưa có, thêm sản phẩm mới
-          final newItem = CartItemModel(
-            productId: product.id,
-            productName: product.name,
-            imageUrl: product.imageUrls.isNotEmpty ? product.imageUrls.first : '',
-            price: product.displayPrice,
-            unit: product.unit,
-            quantity: quantity,
-          );
           items.add(newItem.toMap());
         }
 
@@ -81,10 +75,8 @@ class CartRepositoryImpl implements CartRepository {
       return const Right(unit);
 
     } on FirebaseException catch (e) {
-      developer.log('FirebaseException in addProductToCart: ${e.message}', name: 'CartRepository');
       return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
     } catch (e) {
-      developer.log('Unknown error in addProductToCart: ${e.toString()}', name: 'CartRepository');
       return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
     }
   }
@@ -166,12 +158,14 @@ class CartRepositoryImpl implements CartRepository {
         }
 
         final List<dynamic> items = List<dynamic>.from(cartSnapshot.data()!['items'] ?? []);
-        items.removeWhere((item) => item['productId'] == productId);
+        // Tìm địa chỉ cần xóa và tạo map của nó để dùng với arrayRemove
+        final itemToRemove = items.firstWhere((item) => item['productId'] == productId, orElse: () => null);
 
-        transaction.update(cartRef, {
-          'items': items,
-          'lastUpdated': FieldValue.serverTimestamp(),
-        });
+        if (itemToRemove != null) {
+          transaction.update(cartRef, {
+            'items': FieldValue.arrayRemove([itemToRemove])
+          });
+        }
       });
       return const Right(unit);
     } on FirebaseException catch (e) {
@@ -184,6 +178,7 @@ class CartRepositoryImpl implements CartRepository {
   @override
   Future<Either<Failure, Unit>> clearCart(String userId) async {
     try {
+      // Thay vì xóa document, chúng ta chỉ cần cập nhật mảng items thành rỗng
       await _userCartRef(userId).update({
         'items': [],
         'lastUpdated': FieldValue.serverTimestamp(),

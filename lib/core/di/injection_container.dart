@@ -19,6 +19,7 @@ import 'package:piv_app/features/news/presentation/bloc/news_detail_cubit.dart';
 
 // Product Feature
 import 'package:piv_app/features/products/presentation/bloc/product_detail_cubit.dart';
+import 'package:piv_app/features/products/presentation/bloc/category_products_cubit.dart';
 
 // Cart Feature
 import 'package:piv_app/features/cart/domain/repositories/cart_repository.dart';
@@ -32,8 +33,11 @@ import 'package:piv_app/features/profile/presentation/bloc/profile_cubit.dart';
 
 // Checkout & Order Feature
 import 'package:piv_app/features/checkout/presentation/bloc/checkout_cubit.dart';
-import 'package:piv_app/features/orders/domain/repositories/order_repository.dart'; // Import interface
-import 'package:piv_app/features/orders/data/repositories/order_repository_impl.dart'; // Import implementation
+import 'package:piv_app/features/orders/domain/repositories/order_repository.dart';
+import 'package:piv_app/features/orders/data/repositories/order_repository_impl.dart';
+import 'package:piv_app/features/orders/presentation/bloc/my_orders_cubit.dart';
+import 'package:piv_app/features/orders/presentation/bloc/order_detail_cubit.dart';
+
 
 final sl = GetIt.instance;
 
@@ -43,6 +47,7 @@ Future<void> initializeDependencies() async {
   sl.registerLazySingleton<FirebaseFirestore>(() => FirebaseFirestore.instance);
 
   // --- Features ---
+
   // == Auth ==
   sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(firebaseAuth: sl(), firestore: sl()));
   sl.registerLazySingleton<AuthBloc>(() => AuthBloc(authRepository: sl()));
@@ -54,10 +59,17 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<HomeCubit>(() => HomeCubit(homeRepository: sl()));
 
   // == News ==
-  sl.registerFactory<NewsDetailCubit>(() => NewsDetailCubit(homeRepository: sl()));
+  sl.registerFactory<NewsDetailCubit>(
+        () => NewsDetailCubit(homeRepository: sl<HomeRepository>()),
+  );
 
-  // == Product ==
-  sl.registerFactory<ProductDetailCubit>(() => ProductDetailCubit(homeRepository: sl()));
+  // == Product & Category ==
+  sl.registerFactory<ProductDetailCubit>(
+        () => ProductDetailCubit(homeRepository: sl<HomeRepository>()),
+  );
+  sl.registerFactory<CategoryProductsCubit>(
+        () => CategoryProductsCubit(homeRepository: sl<HomeRepository>()),
+  );
 
   // == Cart ==
   sl.registerLazySingleton<CartRepository>(() => CartRepositoryImpl(firestore: sl()));
@@ -72,9 +84,18 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<CheckoutCubit>(
         () => CheckoutCubit(
       userProfileRepository: sl(),
-      orderRepository: sl(), // << THÊM VÀO
+      orderRepository: sl(),
       authBloc: sl(),
-      cartCubit: sl(), // << THÊM VÀO
+      cartCubit: sl(),
     ),
+  );
+  sl.registerLazySingleton<MyOrdersCubit>(
+        () => MyOrdersCubit(
+      orderRepository: sl<OrderRepository>(),
+      authBloc: sl<AuthBloc>(),
+    ),
+  );
+  sl.registerFactory<OrderDetailCubit>(
+        () => OrderDetailCubit(orderRepository: sl<OrderRepository>()),
   );
 }
