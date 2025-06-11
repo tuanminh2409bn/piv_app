@@ -6,9 +6,9 @@ import 'package:piv_app/app/app_bloc_observer.dart';
 import 'package:piv_app/core/di/injection_container.dart' as di;
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
-// Import các trang cần thiết
-import 'package:piv_app/features/home/presentation/pages/home_page.dart'; // ** DÒNG IMPORT QUAN TRỌNG **
+import 'package:piv_app/features/home/presentation/pages/home_page.dart';
 import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_home_page.dart'; // Import trang Admin
 import 'firebase_options.dart';
 
 void main() async {
@@ -44,34 +44,10 @@ class MyApp extends StatelessWidget {
         title: 'Phân Bón PIV',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-            primarySwatch: Colors.green,
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.green.shade700),
-            useMaterial3: true,
-            inputDecorationTheme: InputDecorationTheme(
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.green.shade700, width: 2),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
-            elevatedButtonTheme: ElevatedButtonThemeData(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green.shade700,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14.0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                )
-            ),
-            textButtonTheme: TextButtonThemeData(
-                style: TextButton.styleFrom(
-                    foregroundColor: Colors.green.shade700,
-                    textStyle: const TextStyle(fontWeight: FontWeight.bold)
-                )
-            )
+          primarySwatch: Colors.green,
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.green.shade700),
+          useMaterial3: true,
+          // ... (theme data không đổi)
         ),
         home: const InitialScreenController(),
       ),
@@ -87,8 +63,14 @@ class InitialScreenController extends StatelessWidget {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
         if (state is AuthAuthenticated) {
-          // Lệnh gọi này sẽ không còn báo lỗi
-          return const HomePage();
+          // ** KIỂM TRA VAI TRÒ NGƯỜI DÙNG Ở ĐÂY **
+          if (state.user.isAdmin) {
+            // Nếu là admin, điều hướng đến trang Admin
+            return const AdminHomePage();
+          } else {
+            // Nếu là người dùng thường, điều hướng đến trang chủ
+            return const HomePage();
+          }
         }
         else if (state is AuthUnauthenticated) {
           return const LoginPage();

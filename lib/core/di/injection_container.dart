@@ -38,6 +38,9 @@ import 'package:piv_app/features/orders/data/repositories/order_repository_impl.
 import 'package:piv_app/features/orders/presentation/bloc/my_orders_cubit.dart';
 import 'package:piv_app/features/orders/presentation/bloc/order_detail_cubit.dart';
 
+// Import AdminOrdersCubit
+import 'package:piv_app/features/admin/presentation/bloc/admin_orders_cubit.dart';
+
 
 final sl = GetIt.instance;
 
@@ -97,5 +100,10 @@ Future<void> initializeDependencies() async {
   );
   sl.registerFactory<OrderDetailCubit>(
         () => OrderDetailCubit(orderRepository: sl<OrderRepository>()),
+  );
+
+  // ** THÊM ĐĂNG KÝ MỚI CHO ADMIN **
+  sl.registerFactory<AdminOrdersCubit>(
+        () => AdminOrdersCubit(orderRepository: sl<OrderRepository>()),
   );
 }
