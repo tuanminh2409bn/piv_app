@@ -38,8 +38,12 @@ import 'package:piv_app/features/orders/data/repositories/order_repository_impl.
 import 'package:piv_app/features/orders/presentation/bloc/my_orders_cubit.dart';
 import 'package:piv_app/features/orders/presentation/bloc/order_detail_cubit.dart';
 
-// Import AdminOrdersCubit
+// Admin Feature
+import 'package:piv_app/features/admin/data/repositories/storage_repository.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_orders_cubit.dart';
+import 'package:piv_app/features/admin/presentation/bloc/admin_products_cubit.dart';
+import 'package:piv_app/features/admin/presentation/bloc/product_form_cubit.dart';
+import 'package:piv_app/features/admin/presentation/bloc/admin_categories_cubit.dart';
 
 
 final sl = GetIt.instance;
@@ -62,17 +66,11 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<HomeCubit>(() => HomeCubit(homeRepository: sl()));
 
   // == News ==
-  sl.registerFactory<NewsDetailCubit>(
-        () => NewsDetailCubit(homeRepository: sl<HomeRepository>()),
-  );
+  sl.registerFactory<NewsDetailCubit>(() => NewsDetailCubit(homeRepository: sl()));
 
   // == Product & Category ==
-  sl.registerFactory<ProductDetailCubit>(
-        () => ProductDetailCubit(homeRepository: sl<HomeRepository>()),
-  );
-  sl.registerFactory<CategoryProductsCubit>(
-        () => CategoryProductsCubit(homeRepository: sl<HomeRepository>()),
-  );
+  sl.registerFactory<ProductDetailCubit>(() => ProductDetailCubit(homeRepository: sl()));
+  sl.registerFactory<CategoryProductsCubit>(() => CategoryProductsCubit(homeRepository: sl()));
 
   // == Cart ==
   sl.registerLazySingleton<CartRepository>(() => CartRepositoryImpl(firestore: sl()));
@@ -92,18 +90,20 @@ Future<void> initializeDependencies() async {
       cartCubit: sl(),
     ),
   );
-  sl.registerLazySingleton<MyOrdersCubit>(
-        () => MyOrdersCubit(
-      orderRepository: sl<OrderRepository>(),
-      authBloc: sl<AuthBloc>(),
+  sl.registerLazySingleton<MyOrdersCubit>(() => MyOrdersCubit(orderRepository: sl(), authBloc: sl()));
+  sl.registerFactory<OrderDetailCubit>(() => OrderDetailCubit(orderRepository: sl()));
+
+  // == Admin ==
+  sl.registerLazySingleton<StorageRepository>(() => StorageRepository());
+  sl.registerFactory<AdminOrdersCubit>(() => AdminOrdersCubit(orderRepository: sl()));
+  sl.registerFactory<AdminProductsCubit>(() => AdminProductsCubit(homeRepository: sl()));
+  sl.registerFactory<ProductFormCubit>(
+        () => ProductFormCubit(
+      homeRepository: sl(),
+      storageRepository: sl(),
     ),
   );
-  sl.registerFactory<OrderDetailCubit>(
-        () => OrderDetailCubit(orderRepository: sl<OrderRepository>()),
-  );
-
-  // ** THÊM ĐĂNG KÝ MỚI CHO ADMIN **
-  sl.registerFactory<AdminOrdersCubit>(
-        () => AdminOrdersCubit(orderRepository: sl<OrderRepository>()),
+  sl.registerFactory<AdminCategoriesCubit>(
+        () => AdminCategoriesCubit(homeRepository: sl<HomeRepository>()),
   );
 }

@@ -29,6 +29,12 @@
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
 	<key>UISupportedInterfaceOrientations</key>
+	<key>NSPhotoLibraryUsageDescription</key>
+    <string>Ứng dụng cần truy cập thư viện để bạn có thể chọn ảnh sản phẩm.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Ứng dụng cần truy cập camera để bạn có thể chụp ảnh sản phẩm.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Ứng dụng cần truy cập micro để quay video sản phẩm (nếu có).</string>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
