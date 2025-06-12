@@ -12,7 +12,20 @@
           "package_name": "com.piv.fertilizer.piv_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "435533952242-hrjbpqg0afppi9qqrt4lsd1efg4573gs.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.piv.fertilizer.piv_app",
+            "certificate_hash": "0de61dea689e3842b92471b8c317fcf26b4da804"
+          }
+        },
+        {
+          "client_id": "435533952242-8n673mvm4t37l3i82f5j48hdv4h8uv8m.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAcn3v0PcMwc1jQe7S427oteWsq1q_F2_s"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "435533952242-8n673mvm4t37l3i82f5j48hdv4h8uv8m.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "435533952242-ghv5fujaiq52p5r3d9bounsugmeh5bsa.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.piv.fertilizer.pivApp"
+              }
+            }
+          ]
         }
       }
     }

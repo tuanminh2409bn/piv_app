@@ -1,6 +1,7 @@
 import 'package:get_it/get_it.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 // Auth Feature
 import 'package:piv_app/features/auth/data/repositories/auth_repository_impl.dart';
@@ -8,6 +9,7 @@ import 'package:piv_app/features/auth/domain/repositories/auth_repository.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/auth/presentation/bloc/login_cubit.dart';
 import 'package:piv_app/features/auth/presentation/bloc/register_cubit.dart';
+import 'package:piv_app/features/auth/presentation/bloc/social_sign_in_cubit.dart';
 
 // Home Feature
 import 'package:piv_app/features/home/presentation/bloc/home_cubit.dart';
@@ -56,10 +58,18 @@ Future<void> initializeDependencies() async {
   // --- Features ---
 
   // == Auth ==
-  sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(firebaseAuth: sl(), firestore: sl()));
+  sl.registerLazySingleton<GoogleSignIn>(() => GoogleSignIn());
+  sl.registerLazySingleton<AuthRepository>(
+        () => AuthRepositoryImpl(
+      firebaseAuth: sl(),
+      firestore: sl(),
+      googleSignIn: sl(),
+    ),
+  );
   sl.registerLazySingleton<AuthBloc>(() => AuthBloc(authRepository: sl()));
   sl.registerFactory<LoginCubit>(() => LoginCubit(authRepository: sl()));
   sl.registerFactory<RegisterCubit>(() => RegisterCubit(authRepository: sl()));
+  sl.registerFactory<SocialSignInCubit>(() => SocialSignInCubit(authRepository: sl()));
 
   // == Home ==
   sl.registerLazySingleton<HomeRepository>(() => HomeRepositoryImpl(firestore: sl()));
@@ -82,14 +92,7 @@ Future<void> initializeDependencies() async {
 
   // == Order & Checkout ==
   sl.registerLazySingleton<OrderRepository>(() => OrderRepositoryImpl(firestore: sl()));
-  sl.registerFactory<CheckoutCubit>(
-        () => CheckoutCubit(
-      userProfileRepository: sl(),
-      orderRepository: sl(),
-      authBloc: sl(),
-      cartCubit: sl(),
-    ),
-  );
+  sl.registerFactory<CheckoutCubit>(() => CheckoutCubit(userProfileRepository: sl(), orderRepository: sl(), authBloc: sl(), cartCubit: sl()));
   sl.registerLazySingleton<MyOrdersCubit>(() => MyOrdersCubit(orderRepository: sl(), authBloc: sl()));
   sl.registerFactory<OrderDetailCubit>(() => OrderDetailCubit(orderRepository: sl()));
 

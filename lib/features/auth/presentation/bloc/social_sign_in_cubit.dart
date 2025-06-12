@@ -1,0 +1,24 @@
+import 'package:bloc/bloc.dart';
+import 'package:equatable/equatable.dart';
+import 'package:piv_app/features/auth/domain/repositories/auth_repository.dart';
+
+part 'social_sign_in_state.dart';
+
+class SocialSignInCubit extends Cubit<SocialSignInState> {
+  final AuthRepository _authRepository;
+
+  SocialSignInCubit({required AuthRepository authRepository})
+      : _authRepository = authRepository,
+        super(const SocialSignInState());
+
+  Future<void> logInWithGoogle() async {
+    emit(state.copyWith(status: SocialSignInStatus.submitting));
+    final result = await _authRepository.signInWithGoogle();
+    result.fold(
+          (failure) => emit(state.copyWith(status: SocialSignInStatus.error, errorMessage: failure.message)),
+          (_) => emit(state.copyWith(status: SocialSignInStatus.success)),
+    );
+  }
+
+// (Sẽ thêm phương thức logInWithFacebook ở đây sau)
+}

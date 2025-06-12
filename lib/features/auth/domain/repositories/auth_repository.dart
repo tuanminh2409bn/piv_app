@@ -1,40 +1,36 @@
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth; // Alias để tránh trùng tên
-import 'package:piv_app/data/models/user_model.dart'; // Đường dẫn tới UserModel
-import 'package:dartz/dartz.dart'; // Cho Either
-import 'package:piv_app/core/error/failure.dart'; // Sẽ tạo file này sau
+import 'package:dartz/dartz.dart';
+import 'package:piv_app/core/error/failure.dart';
+import 'package:piv_app/data/models/user_model.dart';
 
-// Định nghĩa các phương thức mà AuthRepository phải implement
 abstract class AuthRepository {
-  // Theo dõi trạng thái đăng nhập của người dùng
-  // Trả về một Stream của UserModel. Khi người dùng đăng nhập, stream sẽ phát ra UserModel.
-  // Khi đăng xuất, stream sẽ phát ra UserModel.empty.
+  /// Stream để theo dõi trạng thái xác thực của người dùng.
   Stream<UserModel> get user;
 
-  // Lấy UserModel hiện tại (nếu có)
-  // Có thể hữu ích trong một số trường hợp không muốn lắng nghe stream
+  /// Lấy thông tin người dùng hiện tại (nếu có).
   Future<Either<Failure, UserModel>> getCurrentUser();
 
-  // Đăng ký bằng email và mật khẩu
-  // Trả về Right(Unit) nếu thành công, Left(Failure) nếu thất bại
-  // Unit là một kiểu từ dartz, biểu thị một hàm không trả về giá trị gì (void) nhưng thành công
+  /// Đăng ký bằng email và mật khẩu.
   Future<Either<Failure, Unit>> signUp({
     required String email,
     required String password,
-    String? displayName, // Tùy chọn: tên hiển thị khi đăng ký
+    String? displayName,
   });
 
-  // Đăng nhập bằng email và mật khẩu
+  /// Đăng nhập bằng email và mật khẩu.
   Future<Either<Failure, Unit>> logInWithEmailAndPassword({
     required String email,
     required String password,
   });
 
-  // Đăng xuất
+  /// Đăng xuất.
   Future<Either<Failure, Unit>> logOut();
 
-  // (Tùy chọn) Gửi email xác thực
+  /// Gửi email xác thực.
   Future<Either<Failure, Unit>> sendEmailVerification();
 
-  // (Tùy chọn) Đặt lại mật khẩu
+  /// Gửi email đặt lại mật khẩu.
   Future<Either<Failure, Unit>> sendPasswordResetEmail({required String email});
+
+  /// Đăng nhập bằng tài khoản Google.
+  Future<Either<Failure, Unit>> signInWithGoogle();
 }

@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:piv_app/core/di/injection_container.dart'; // Để lấy LoginCubit từ Service Locator
-import 'package:piv_app/features/auth/presentation/bloc/login_cubit.dart'; // Import LoginCubit và LoginState
-// Import RegisterPage để điều hướng
+import 'package:piv_app/core/di/injection_container.dart';
+import 'package:piv_app/features/auth/presentation/bloc/login_cubit.dart';
+import 'package:piv_app/features/auth/presentation/bloc/social_sign_in_cubit.dart';
 import 'package:piv_app/features/auth/presentation/pages/register_page.dart';
 
-// Lớp LoginPage là một StatelessWidget vì nó không quản lý trạng thái trực tiếp.
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
 
@@ -20,6 +19,7 @@ class LoginPage extends StatelessWidget {
         title: const Text('Đăng Nhập PIV'),
         centerTitle: true,
       ),
+      // Cung cấp LoginCubit cho LoginForm
       body: BlocProvider(
         create: (_) => sl<LoginCubit>(),
         child: const LoginForm(),
@@ -28,7 +28,6 @@ class LoginPage extends StatelessWidget {
   }
 }
 
-// LoginForm là một StatefulWidget.
 class LoginForm extends StatefulWidget {
   const LoginForm({super.key});
 
@@ -56,7 +55,7 @@ class _LoginFormState extends State<LoginForm> {
             ..hideCurrentSnackBar()
             ..showSnackBar(
               SnackBar(
-                content: Text(state.errorMessage ?? 'Email hoặc mật khẩu không đúng.'),
+                content: Text(state.errorMessage ?? 'Lỗi đăng nhập không xác định.'),
                 backgroundColor: Theme.of(context).colorScheme.error,
               ),
             );
@@ -69,7 +68,7 @@ class _LoginFormState extends State<LoginForm> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             Text(
-              'Chào mừng trở lại!',
+              'Chào mừng!',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.bold,
@@ -83,17 +82,35 @@ class _LoginFormState extends State<LoginForm> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 48.0),
-            _EmailInput( // Sử dụng widget _EmailInput
-              emailFocusNode: _emailFocusNode,
-              passwordFocusNode: _passwordFocusNode,
-            ),
+
+            _EmailInput(emailFocusNode: _emailFocusNode, passwordFocusNode: _passwordFocusNode),
             const SizedBox(height: 16.0),
-            _PasswordInput( // Sử dụng widget _PasswordInput
-              passwordFocusNode: _passwordFocusNode,
-            ),
+            _PasswordInput(passwordFocusNode: _passwordFocusNode),
             const SizedBox(height: 24.0),
-            const _LoginButton(), // Sử dụng widget _LoginButton
+
+            const _LoginButton(),
             const SizedBox(height: 16.0),
+
+            Row(
+              children: [
+                const Expanded(child: Divider()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: Text('HOẶC', style: TextStyle(color: Colors.grey.shade600)),
+                ),
+                const Expanded(child: Divider()),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Nút đăng nhập Google
+            BlocProvider(
+              create: (_) => sl<SocialSignInCubit>(),
+              child: const _GoogleLoginButton(),
+            ),
+
+            const SizedBox(height: 16.0),
+
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -113,15 +130,12 @@ class _LoginFormState extends State<LoginForm> {
   }
 }
 
-// ĐỊNH NGHĨA _EmailInput NHƯ MỘT CLASS RIÊNG BIỆT Ở TOP-LEVEL (CÙNG CẤP VỚI LoginPage)
+// ** ĐỊNH NGHĨA LẠI CÁC WIDGET HELPER BỊ THIẾU **
+
 class _EmailInput extends StatelessWidget {
   final FocusNode emailFocusNode;
   final FocusNode passwordFocusNode;
-  const _EmailInput({
-    // super.key, // super.key có thể thêm nếu cần, nhưng không bắt buộc cho private widget
-    required this.emailFocusNode,
-    required this.passwordFocusNode,
-  });
+  const _EmailInput({required this.emailFocusNode, required this.passwordFocusNode});
 
   @override
   Widget build(BuildContext context) {
@@ -133,7 +147,7 @@ class _EmailInput extends StatelessWidget {
           focusNode: emailFocusNode,
           decoration: InputDecoration(
             labelText: 'Email',
-            hintText: 'Nhập Email của bạn',
+            hintText: 'nhapemail@example.com',
             prefixIcon: const Icon(Icons.email_outlined),
           ),
           keyboardType: TextInputType.emailAddress,
@@ -150,13 +164,9 @@ class _EmailInput extends StatelessWidget {
   }
 }
 
-// ĐỊNH NGHĨA _PasswordInput NHƯ MỘT CLASS RIÊNG BIỆT Ở TOP-LEVEL
 class _PasswordInput extends StatefulWidget {
   final FocusNode passwordFocusNode;
-  const _PasswordInput({
-    // super.key,
-    required this.passwordFocusNode,
-  });
+  const _PasswordInput({required this.passwordFocusNode});
 
   @override
   State<_PasswordInput> createState() => _PasswordInputState();
@@ -168,7 +178,7 @@ class _PasswordInputState extends State<_PasswordInput> {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<LoginCubit, LoginState>(
-      buildWhen: (previous, current) => previous.password != current.password || previous.status != current.status,
+      buildWhen: (previous, current) => previous.password != current.password,
       builder: (context, state) {
         return TextFormField(
           initialValue: state.password,
@@ -178,9 +188,7 @@ class _PasswordInputState extends State<_PasswordInput> {
             hintText: 'Nhập mật khẩu của bạn',
             prefixIcon: const Icon(Icons.lock_outline),
             suffixIcon: IconButton(
-              icon: Icon(
-                _obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-              ),
+              icon: Icon(_obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined),
               onPressed: () {
                 setState(() {
                   _obscureText = !_obscureText;
@@ -194,7 +202,7 @@ class _PasswordInputState extends State<_PasswordInput> {
           },
           textInputAction: TextInputAction.done,
           onFieldSubmitted: (_) {
-            if (state.isFormValid) {
+            if (context.read<LoginCubit>().state.isFormValid) {
               context.read<LoginCubit>().logInWithCredentials();
             }
           },
@@ -204,24 +212,56 @@ class _PasswordInputState extends State<_PasswordInput> {
   }
 }
 
-// ĐỊNH NGHĨA _LoginButton NHƯ MỘT CLASS RIÊNG BIỆT Ở TOP-LEVEL
 class _LoginButton extends StatelessWidget {
-  const _LoginButton({super.key}); // Thêm super.key ở đây
+  const _LoginButton();
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<LoginCubit, LoginState>(
-      buildWhen: (previous, current) => previous.status != current.status || previous.isFormValid != current.isFormValid,
+      buildWhen: (previous, current) => previous.status != current.status,
       builder: (context, state) {
         return state.status == LoginStatus.submitting
-            ? const Center(child: CircularProgressIndicator(color: Colors.green))
+            ? const Center(child: CircularProgressIndicator())
             : ElevatedButton(
-          onPressed: state.isFormValid
+          onPressed: context.watch<LoginCubit>().state.isFormValid
               ? () => context.read<LoginCubit>().logInWithCredentials()
               : null,
           child: const Text('ĐĂNG NHẬP'),
         );
       },
+    );
+  }
+}
+
+class _GoogleLoginButton extends StatelessWidget {
+  const _GoogleLoginButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<SocialSignInCubit, SocialSignInState>(
+      listener: (context, state) {
+        if (state.status == SocialSignInStatus.error) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(state.errorMessage ?? 'Đăng nhập Google thất bại.')));
+        }
+      },
+      child: BlocBuilder<SocialSignInCubit, SocialSignInState>(
+        builder: (context, state) {
+          return state.status == SocialSignInStatus.submitting
+              ? const Center(child: CircularProgressIndicator())
+              : OutlinedButton.icon(
+            icon: Image.asset('assets/google_logo.png', height: 22.0),
+            label: const Text('Đăng nhập với Google', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w500)),
+            onPressed: () => context.read<SocialSignInCubit>().logInWithGoogle(),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: Colors.grey.shade300),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        },
+      ),
     );
   }
 }
