@@ -4,9 +4,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
 import 'package:piv_app/data/models/cart_item_model.dart';
-// Import CheckoutPage
 import 'package:piv_app/features/checkout/presentation/pages/checkout_page.dart';
 
+/// Trang Giỏ hàng chính.
+/// Cung cấp một route tĩnh để dễ dàng điều hướng.
 class CartPage extends StatelessWidget {
   const CartPage({super.key});
 
@@ -18,10 +19,13 @@ class CartPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // CartCubit đã được cung cấp ở cấp cao nhất (main.dart),
+    // nên chúng ta có thể sử dụng trực tiếp trong CartView.
     return const CartView();
   }
 }
 
+/// Widget chứa toàn bộ giao diện của trang Giỏ hàng.
 class CartView extends StatelessWidget {
   const CartView({super.key});
 
@@ -52,24 +56,32 @@ class CartView extends StatelessWidget {
 
           if (state.items.isEmpty) {
             return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey.shade400),
-                  const SizedBox(height: 16),
-                  Text('Giỏ hàng của bạn đang trống', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  Text('Hãy thêm sản phẩm để mua sắm nhé!', style: Theme.of(context).textTheme.bodyMedium),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Tiếp tục mua sắm')
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey.shade400),
+                    const SizedBox(height: 16),
+                    Text('Giỏ hàng của bạn đang trống', style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Hãy thêm sản phẩm để mua sắm nhé!',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Tiếp tục mua sắm')
+                    ),
+                  ],
+                ),
               ),
             );
           }
 
+          // Khi có sản phẩm trong giỏ hàng
           return Column(
             children: [
               Expanded(
@@ -83,6 +95,7 @@ class CartView extends StatelessWidget {
                   },
                 ),
               ),
+              // Phần tổng kết và thanh toán ở dưới cùng
               _buildSummarySection(context, state, currencyFormatter),
             ],
           );
@@ -92,7 +105,7 @@ class CartView extends StatelessWidget {
   }
 }
 
-// ... (_buildCartItemCard và _buildQuantityAdjuster không đổi) ...
+// Widget cho một sản phẩm trong giỏ hàng
 Widget _buildCartItemCard(BuildContext context, CartItemModel item, NumberFormat formatter) {
   return Card(
     elevation: 2,
@@ -147,26 +160,27 @@ Widget _buildCartItemCard(BuildContext context, CartItemModel item, NumberFormat
   );
 }
 
+// Widget cho bộ chọn số lượng
 Widget _buildQuantityAdjuster(BuildContext context, CartItemModel item) {
+  final cartStatus = context.watch<CartCubit>().state.status;
+  final bool isUpdatingThisItem = cartStatus == CartStatus.itemUpdating;
+
   return Row(
     mainAxisSize: MainAxisSize.min,
     children: [
       SizedBox(
-        width: 30,
-        height: 30,
+        width: 30, height: 30,
         child: IconButton(
           padding: EdgeInsets.zero,
           icon: const Icon(Icons.remove_circle_outline, size: 22),
           color: Colors.grey.shade600,
-          onPressed: item.quantity > 1
+          onPressed: (item.quantity > 1 && !isUpdatingThisItem)
               ? () => context.read<CartCubit>().updateQuantity(item.productId, item.quantity - 1)
               : null,
         ),
       ),
       GestureDetector(
-        onTap: () {
-          _showQuantityInputDialog(context, item);
-        },
+        onTap: isUpdatingThisItem ? null : () => _showQuantityInputDialog(context, item),
         child: Container(
           width: 50,
           alignment: Alignment.center,
@@ -175,26 +189,30 @@ Widget _buildQuantityAdjuster(BuildContext context, CartItemModel item) {
             border: Border.all(color: Colors.grey.shade300, width: 1.0),
             borderRadius: BorderRadius.circular(4),
           ),
-          child: Text(
+          child: isUpdatingThisItem
+              ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : Text(
               item.quantity.toString(),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)
           ),
         ),
       ),
       SizedBox(
-        width: 30,
-        height: 30,
+        width: 30, height: 30,
         child: IconButton(
           padding: EdgeInsets.zero,
           icon: const Icon(Icons.add_circle, size: 22),
           color: Theme.of(context).colorScheme.primary,
-          onPressed: () => context.read<CartCubit>().updateQuantity(item.productId, item.quantity + 1),
+          onPressed: !isUpdatingThisItem
+              ? () => context.read<CartCubit>().updateQuantity(item.productId, item.quantity + 1)
+              : null,
         ),
       ),
     ],
   );
 }
 
+// Hàm hiển thị dialog để nhập số lượng
 void _showQuantityInputDialog(BuildContext context, CartItemModel item) {
   final TextEditingController controller = TextEditingController(text: item.quantity.toString());
   final formKey = GlobalKey<FormState>();
@@ -211,9 +229,7 @@ void _showQuantityInputDialog(BuildContext context, CartItemModel item) {
             autofocus: true,
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: const InputDecoration(
-              hintText: 'Số lượng',
-            ),
+            decoration: const InputDecoration(hintText: 'Số lượng'),
             textAlign: TextAlign.center,
             validator: (value) {
               if (value == null || value.isEmpty) {
@@ -228,12 +244,7 @@ void _showQuantityInputDialog(BuildContext context, CartItemModel item) {
           ),
         ),
         actions: <Widget>[
-          TextButton(
-            child: const Text('HỦY'),
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-            },
-          ),
+          TextButton(child: const Text('HỦY'), onPressed: () => Navigator.of(dialogContext).pop()),
           ElevatedButton(
             child: const Text('XÁC NHẬN'),
             onPressed: () {
@@ -250,8 +261,7 @@ void _showQuantityInputDialog(BuildContext context, CartItemModel item) {
   );
 }
 
-
-// CẬP NHẬT PHẦN NÀY
+// Widget cho phần tổng kết
 Widget _buildSummarySection(BuildContext context, CartState state, NumberFormat formatter) {
   return Container(
     padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -274,7 +284,6 @@ Widget _buildSummarySection(BuildContext context, CartState state, NumberFormat 
           width: double.infinity,
           child: ElevatedButton(
             onPressed: state.items.isEmpty ? null : () {
-              // Điều hướng đến trang thanh toán
               Navigator.of(context).push(CheckoutPage.route());
             },
             child: const Text('Tiến hành Thanh toán'),

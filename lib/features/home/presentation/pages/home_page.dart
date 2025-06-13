@@ -13,25 +13,16 @@ import 'package:piv_app/data/models/news_article_model.dart';
 // Import các trang và widget liên quan
 import 'package:piv_app/features/news/presentation/pages/news_detail_page.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
-import 'package:piv_app/features/cart/presentation/widgets/cart_icon_with_badge.dart';
-import 'package:piv_app/features/cart/presentation/pages/cart_page.dart';
-import 'package:piv_app/features/profile/presentation/pages/profile_page.dart';
 import 'package:piv_app/features/products/presentation/pages/category_products_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
-  static PageRoute<void> route() {
-    return MaterialPageRoute<void>(builder: (_) => const HomePage());
-  }
-
   @override
   Widget build(BuildContext context) {
-    // Cung cấp HomeCubit và bắt đầu tải dữ liệu ngay khi trang được tạo
-    return BlocProvider(
-      create: (_) => sl<HomeCubit>()..fetchHomeScreenData(),
-      child: const HomeView(),
-    );
+    // HomePage không cần cung cấp HomeCubit nữa vì MainScreen đã làm điều đó.
+    // Nó sẽ tự động lấy HomeCubit từ context.
+    return const HomeView();
   }
 }
 
@@ -48,130 +39,92 @@ class HomeView extends StatelessWidget {
       userIdentifier = authState.user.displayName ?? authState.user.email ?? authState.user.id;
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.green.shade800, Colors.green.shade600],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    // Bắt đầu trực tiếp với BlocBuilder, không có Scaffold hay AppBar
+    return BlocBuilder<HomeCubit, HomeState>(
+      builder: (context, state) {
+        if (state.status == HomeStatus.loading || state.status == HomeStatus.initial) {
+          return const Center(child: CircularProgressIndicator(color: Colors.green));
+        }
+        if (state.status == HomeStatus.error) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    state.errorMessage ?? 'Không thể tải dữ liệu trang chủ.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      context.read<HomeCubit>().fetchHomeScreenData();
+                    },
+                    child: const Text('Thử lại'),
+                  )
+                ],
+              ),
             ),
-          ),
-        ),
-        title: const Text('Phân Bón PIV', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        centerTitle: true,
-        elevation: 4.0,
-        actionsIconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_outline_rounded),
-            tooltip: 'Hồ sơ cá nhân',
-            onPressed: () {
-              Navigator.of(context).push(ProfilePage.route());
+          );
+        }
+        if (state.status == HomeStatus.success) {
+          return RefreshIndicator(
+            onRefresh: () async {
+              context.read<HomeCubit>().fetchHomeScreenData();
             },
-          ),
-          CartIconWithBadge(
-            iconColor: Colors.white,
-            onPressed: () {
-              Navigator.of(context).push(CartPage.route());
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Đăng xuất',
-            onPressed: () {
-              context.read<AuthBloc>().add(AuthLogoutRequested());
-            },
-          ),
-        ],
-      ),
-      body: BlocBuilder<HomeCubit, HomeState>(
-        builder: (context, state) {
-          if (state.status == HomeStatus.loading || state.status == HomeStatus.initial) {
-            return const Center(child: CircularProgressIndicator(color: Colors.green));
-          }
-          if (state.status == HomeStatus.error) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      state.errorMessage ?? 'Không thể tải dữ liệu trang chủ.',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () {
-                        context.read<HomeCubit>().fetchHomeScreenData();
-                      },
-                      child: const Text('Thử lại'),
-                    )
-                  ],
-                ),
-              ),
-            );
-          }
-          if (state.status == HomeStatus.success) {
-            return RefreshIndicator(
-              onRefresh: () async {
-                context.read<HomeCubit>().fetchHomeScreenData();
-              },
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0),
-                      child: Text(
-                        'Chào mừng trở lại, $userIdentifier!',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.green.shade800,
-                        ),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 0),
+                    child: Text(
+                      'Chào mừng trở lại, $userIdentifier!',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.green.shade800,
                       ),
                     ),
-                    if (state.banners.isNotEmpty)
-                      _buildBannerCarousel(context, state.banners)
-                    else
-                      _buildPlaceholderContainer(context, 'Không có banner', height: MediaQuery.of(context).size.width * (9 / 16)),
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildSectionTitle(context, 'Danh Mục Nổi Bật'),
-                          if (state.categories.isNotEmpty)
-                            _buildCategoriesRow(context, state.categories)
-                          else
-                            _buildPlaceholderContainer(context, 'Không có danh mục', height: 120),
-                          const SizedBox(height: 24),
-                          _buildSectionTitle(context, 'Sản Phẩm Nổi Bật'),
-                          if (state.featuredProducts.isNotEmpty)
-                            _buildFeaturedProductsGrid(context, state.featuredProducts)
-                          else
-                            _buildPlaceholderContainer(context, 'Không có sản phẩm', height: 200),
-                          const SizedBox(height: 24),
-                          _buildSectionTitle(context, 'Tin Tức & Sự Kiện'),
-                          if (state.newsArticles.isNotEmpty)
-                            _buildNewsList(context, state.newsArticles)
-                          else
-                            _buildPlaceholderContainer(context, 'Không có tin tức', height: 150),
-                        ],
-                      ),
+                  ),
+                  if (state.banners.isNotEmpty)
+                    _buildBannerCarousel(context, state.banners)
+                  else
+                    _buildPlaceholderContainer(context, 'Không có banner', height: MediaQuery.of(context).size.width * (9 / 16)),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionTitle(context, 'Danh Mục Nổi Bật'),
+                        if (state.categories.isNotEmpty)
+                          _buildCategoriesRow(context, state.categories)
+                        else
+                          _buildPlaceholderContainer(context, 'Không có danh mục', height: 120),
+                        const SizedBox(height: 24),
+                        _buildSectionTitle(context, 'Sản Phẩm Nổi Bật'),
+                        if (state.featuredProducts.isNotEmpty)
+                          _buildFeaturedProductsGrid(context, state.featuredProducts)
+                        else
+                          _buildPlaceholderContainer(context, 'Không có sản phẩm', height: 200),
+                        const SizedBox(height: 24),
+                        _buildSectionTitle(context, 'Tin Tức & Sự Kiện'),
+                        if (state.newsArticles.isNotEmpty)
+                          _buildNewsList(context, state.newsArticles)
+                        else
+                          _buildPlaceholderContainer(context, 'Không có tin tức', height: 150),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
               ),
-            );
-          }
-          return const Center(child: Text('Trạng thái không xác định.'));
-        },
-      ),
+            ),
+          );
+        }
+        return const Center(child: Text('Trạng thái không xác định.'));
+      },
     );
   }
 

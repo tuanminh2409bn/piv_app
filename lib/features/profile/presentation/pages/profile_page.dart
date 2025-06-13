@@ -7,14 +7,10 @@ import 'package:piv_app/data/models/address_model.dart';
 // Import trang Lịch sử đơn hàng
 import 'package:piv_app/features/orders/presentation/pages/my_orders_page.dart';
 
+/// Trang Hồ sơ cá nhân.
+/// Cung cấp ProfileCubit (dưới dạng singleton) cho cây widget con.
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
-
-  static PageRoute<void> route() {
-    return MaterialPageRoute<void>(
-      builder: (_) => const ProfilePage(),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,60 +21,64 @@ class ProfilePage extends StatelessWidget {
   }
 }
 
+/// Widget chứa toàn bộ giao diện của trang Hồ sơ.
+/// QUAN TRỌNG: Widget này không chứa Scaffold hoặc AppBar.
 class ProfileView extends StatelessWidget {
   const ProfileView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tài khoản'),
-        actions: [
-          BlocBuilder<ProfileCubit, ProfileState>(
-            buildWhen: (previous, current) => previous.status != current.status || previous.isEditing != current.isEditing,
-            builder: (context, state) {
-              if (state.status == ProfileStatus.success || (state.status == ProfileStatus.error && state.user.isNotEmpty)) {
-                return TextButton(
-                  onPressed: () {
-                    context.read<ProfileCubit>().toggleEditMode(!state.isEditing);
-                  },
-                  child: Text(
-                    state.isEditing ? 'HỦY' : 'SỬA',
-                    style: TextStyle(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.bold),
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-        ],
-      ),
-      body: BlocConsumer<ProfileCubit, ProfileState>(
-        listener: (context, state) {
-          if (state.status == ProfileStatus.error && state.errorMessage != null) {
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(SnackBar(
-                content: Text(state.errorMessage!),
-                backgroundColor: Theme.of(context).colorScheme.error,
-              ));
-          }
-        },
-        builder: (context, state) {
-          if (state.status == ProfileStatus.loading || state.status == ProfileStatus.initial) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (state.user.isEmpty && state.status != ProfileStatus.loading) {
-            return const Center(child: Text('Không thể tải thông tin người dùng.'));
-          }
+    return BlocConsumer<ProfileCubit, ProfileState>(
+      listener: (context, state) {
+        if (state.status == ProfileStatus.error && state.errorMessage != null) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(
+              content: Text(state.errorMessage!),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ));
+        }
+      },
+      builder: (context, state) {
+        if (state.status == ProfileStatus.loading || state.status == ProfileStatus.initial) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (state.user.isEmpty && state.status != ProfileStatus.loading) {
+          return const Center(child: Text('Không thể tải thông tin người dùng.'));
+        }
 
-          return SingleChildScrollView(
+        return Scaffold(
+          // Thêm một AppBar đơn giản ở đây vì trang này không nằm trong MainScreen
+          // và cần có nút back.
+          appBar: AppBar(
+            title: const Text('Tài khoản của tôi'),
+            actions: [
+              // Nút để chuyển đổi giữa chế độ xem và chỉnh sửa
+              BlocBuilder<ProfileCubit, ProfileState>(
+                buildWhen: (previous, current) => previous.status != current.status || previous.isEditing != current.isEditing,
+                builder: (context, state) {
+                  if (state.status == ProfileStatus.success || (state.status == ProfileStatus.error && state.user.isNotEmpty)) {
+                    return TextButton(
+                      onPressed: () {
+                        context.read<ProfileCubit>().toggleEditMode(!state.isEditing);
+                      },
+                      child: Text(
+                        state.isEditing ? 'HỦY' : 'SỬA',
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.bold),
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+            ],
+          ),
+          body: SingleChildScrollView(
             child: Column(
               children: [
                 const SizedBox(height: 16),
-                // ** THÊM WIDGET MỚI: CÁC LỰA CHỌN QUẢN LÝ **
                 _buildManagementOptions(context),
                 const Divider(thickness: 8, height: 24, color: Color(0xFFF2F2F7)),
                 Padding(
@@ -93,14 +93,14 @@ class ProfileView extends StatelessWidget {
                 )
               ],
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
 
-// ** WIDGET MỚI **
+// Widget cho các lựa chọn quản lý (Đơn hàng của tôi)
 Widget _buildManagementOptions(BuildContext context) {
   return Column(
     children: [
@@ -113,18 +113,11 @@ Widget _buildManagementOptions(BuildContext context) {
           Navigator.of(context).push(MyOrdersPage.route());
         },
       ),
-      // Thêm các ListTile khác ở đây nếu cần, ví dụ:
-      // ListTile(
-      //   leading: const Icon(Icons.notifications_outlined),
-      //   title: const Text('Thông báo'),
-      //   onTap: () {},
-      // ),
     ],
   );
 }
 
-// ... (các widget và hàm khác không đổi: _ProfileForm, _AddressSection, _AddressCard, _showAddressFormDialog) ...
-// ... (Hãy đảm bảo bạn giữ lại toàn bộ code cho các widget này từ lần cập nhật trước) ...
+// Widget cho Form thông tin cá nhân
 class _ProfileForm extends StatefulWidget {
   final UserModel user;
   final bool isEditing;
@@ -162,7 +155,13 @@ class _ProfileFormState extends State<_ProfileForm> {
     return Form(
       key: _formKey,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            'Thông tin cá nhân',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
           TextFormField(
             controller: _displayNameController,
             enabled: widget.isEditing,
@@ -221,6 +220,7 @@ class _ProfileFormState extends State<_ProfileForm> {
   }
 }
 
+// Widget cho phần Sổ địa chỉ
 class _AddressSection extends StatelessWidget {
   final List<AddressModel> addresses;
   const _AddressSection({required this.addresses});
@@ -264,6 +264,7 @@ class _AddressSection extends StatelessWidget {
   }
 }
 
+// Widget cho một card địa chỉ
 class _AddressCard extends StatelessWidget {
   final AddressModel address;
   const _AddressCard({required this.address});
@@ -368,6 +369,7 @@ class _AddressCard extends StatelessWidget {
   }
 }
 
+// Hàm để hiển thị dialog thêm/sửa địa chỉ
 void _showAddressFormDialog(BuildContext context, {AddressModel? address}) {
   final profileCubit = context.read<ProfileCubit>();
   showDialog(
@@ -379,6 +381,7 @@ void _showAddressFormDialog(BuildContext context, {AddressModel? address}) {
   );
 }
 
+// Widget cho Dialog Form
 class _AddressFormDialog extends StatefulWidget {
   final AddressModel? address;
   const _AddressFormDialog({this.address});
