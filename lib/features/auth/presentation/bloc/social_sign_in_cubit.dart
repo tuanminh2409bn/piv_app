@@ -6,7 +6,6 @@ part 'social_sign_in_state.dart';
 
 class SocialSignInCubit extends Cubit<SocialSignInState> {
   final AuthRepository _authRepository;
-
   SocialSignInCubit({required AuthRepository authRepository})
       : _authRepository = authRepository,
         super(const SocialSignInState());
@@ -20,5 +19,12 @@ class SocialSignInCubit extends Cubit<SocialSignInState> {
     );
   }
 
-// (Sẽ thêm phương thức logInWithFacebook ở đây sau)
+  Future<void> logInWithFacebook() async {
+    emit(state.copyWith(status: SocialSignInStatus.submitting));
+    final result = await _authRepository.signInWithFacebook();
+    result.fold(
+          (failure) => emit(state.copyWith(status: SocialSignInStatus.error, errorMessage: failure.message)),
+          (_) => emit(state.copyWith(status: SocialSignInStatus.success)),
+    );
+  }
 }

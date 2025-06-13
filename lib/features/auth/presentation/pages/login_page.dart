@@ -19,7 +19,6 @@ class LoginPage extends StatelessWidget {
         title: const Text('Đăng Nhập PIV'),
         centerTitle: true,
       ),
-      // Cung cấp LoginCubit cho LoginForm
       body: BlocProvider(
         create: (_) => sl<LoginCubit>(),
         child: const LoginForm(),
@@ -109,6 +108,14 @@ class _LoginFormState extends State<LoginForm> {
               child: const _GoogleLoginButton(),
             ),
 
+            const SizedBox(height: 12),
+
+            // Nút đăng nhập Facebook
+            BlocProvider(
+              create: (_) => sl<SocialSignInCubit>(),
+              child: const _FacebookLoginButton(),
+            ),
+
             const SizedBox(height: 16.0),
 
             Row(
@@ -130,8 +137,6 @@ class _LoginFormState extends State<LoginForm> {
   }
 }
 
-// ** ĐỊNH NGHĨA LẠI CÁC WIDGET HELPER BỊ THIẾU **
-
 class _EmailInput extends StatelessWidget {
   final FocusNode emailFocusNode;
   final FocusNode passwordFocusNode;
@@ -147,7 +152,7 @@ class _EmailInput extends StatelessWidget {
           focusNode: emailFocusNode,
           decoration: InputDecoration(
             labelText: 'Email',
-            hintText: 'nhapemail@example.com',
+            hintText: 'Nhập Email của bạn',
             prefixIcon: const Icon(Icons.email_outlined),
           ),
           keyboardType: TextInputType.emailAddress,
@@ -256,6 +261,40 @@ class _GoogleLoginButton extends StatelessWidget {
             onPressed: () => context.read<SocialSignInCubit>().logInWithGoogle(),
             style: OutlinedButton.styleFrom(
               side: BorderSide(color: Colors.grey.shade300),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _FacebookLoginButton extends StatelessWidget {
+  const _FacebookLoginButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<SocialSignInCubit, SocialSignInState>(
+      listener: (context, state) {
+        if (state.status == SocialSignInStatus.error) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(state.errorMessage ?? 'Đăng nhập Facebook thất bại.')));
+        }
+      },
+      child: BlocBuilder<SocialSignInCubit, SocialSignInState>(
+        builder: (context, state) {
+          return state.status == SocialSignInStatus.submitting
+              ? const Center(child: CircularProgressIndicator())
+              : ElevatedButton.icon(
+            icon: const Icon(Icons.facebook, color: Colors.white),
+            label: const Text('Tiếp tục với Facebook'),
+            onPressed: () => context.read<SocialSignInCubit>().logInWithFacebook(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1877F2),
+              foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),

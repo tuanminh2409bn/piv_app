@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/auth/domain/repositories/auth_repository.dart';
@@ -22,8 +23,6 @@ class AuthRepositoryImpl implements AuthRepository {
   })  : _firebaseAuth = firebaseAuth ?? firebase_auth.FirebaseAuth.instance,
         _firestore = firestore ?? FirebaseFirestore.instance,
         _googleSignIn = googleSignIn ?? GoogleSignIn() {
-    // Lắng nghe sự thay đổi trạng thái người dùng từ Firebase Auth
-    // và cập nhật stream của chúng ta
     _firebaseAuth.authStateChanges().listen((firebaseUser) async {
       if (firebaseUser == null) {
         _userStreamController.add(UserModel.empty);
@@ -34,8 +33,6 @@ class AuthRepositoryImpl implements AuthRepository {
         if (snapshot.exists && snapshot.data() != null) {
           _userStreamController.add(UserModel.fromJson(snapshot.data()!));
         } else {
-          // Trường hợp user đã xác thực nhưng chưa có trong Firestore
-          // (ví dụ: đăng nhập lần đầu bằng Google), tạo một UserModel tạm thời
           final newUser = UserModel(
             id: firebaseUser.uid,
             email: firebaseUser.email,
@@ -132,10 +129,10 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<Either<Failure, Unit>> logOut() async {
     try {
-      // Đảm bảo đăng xuất khỏi cả Firebase và Google
       await Future.wait([
         _firebaseAuth.signOut(),
         _googleSignIn.signOut(),
+        FacebookAuth.instance.logOut(),
       ]);
       return const Right(unit);
     } catch (e) {
@@ -145,13 +142,11 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<Either<Failure, Unit>> sendEmailVerification() async {
-    // TODO: Implement sendEmailVerification
     throw UnimplementedError();
   }
 
   @override
   Future<Either<Failure, Unit>> sendPasswordResetEmail({required String email}) async {
-    // TODO: Implement sendPasswordResetEmail
     throw UnimplementedError();
   }
 
@@ -169,6 +164,39 @@ class AuthRepositoryImpl implements AuthRepository {
         idToken: googleAuth.idToken,
       );
 
+      return _linkOrCreateUser(credential);
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      return Left(AuthFailure(e.message ?? 'Lỗi đăng nhập Google.'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> signInWithFacebook() async {
+    try {
+      final LoginResult result = await FacebookAuth.instance.login();
+      if (result.status == LoginStatus.success) {
+        final AccessToken accessToken = result.accessToken!;
+        final firebase_auth.AuthCredential credential =
+        firebase_auth.FacebookAuthProvider.credential(accessToken.tokenString);
+
+        return _linkOrCreateUser(credential);
+      } else if (result.status == LoginStatus.cancelled) {
+        return Left(AuthFailure('Đã hủy đăng nhập bằng Facebook.'));
+      } else {
+        return Left(AuthFailure(result.message ?? 'Lỗi đăng nhập Facebook không xác định.'));
+      }
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      return Left(AuthFailure(e.message ?? 'Lỗi đăng nhập Facebook.'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+    }
+  }
+
+  /// Xử lý logic chung cho việc đăng nhập mạng xã hội: liên kết hoặc tạo người dùng mới.
+  Future<Either<Failure, Unit>> _linkOrCreateUser(firebase_auth.AuthCredential credential) async {
+    try {
       final userCredential = await _firebaseAuth.signInWithCredential(credential);
       final firebaseUser = userCredential.user;
 
@@ -177,7 +205,7 @@ class AuthRepositoryImpl implements AuthRepository {
         final docSnapshot = await userDoc.get();
 
         if (!docSnapshot.exists) {
-          developer.log('Creating new user in Firestore for Google Sign-In: ${firebaseUser.uid}', name: 'AuthRepository');
+          developer.log('Creating new user in Firestore: ${firebaseUser.uid}', name: 'AuthRepository');
           final newUser = UserModel(
             id: firebaseUser.uid,
             email: firebaseUser.email,
@@ -189,12 +217,33 @@ class AuthRepositoryImpl implements AuthRepository {
         }
         return const Right(unit);
       } else {
-        return Left(AuthFailure('Không thể lấy thông tin người dùng từ Google.'));
+        return Left(AuthFailure('Không thể lấy thông tin người dùng.'));
       }
     } on firebase_auth.FirebaseAuthException catch (e) {
-      return Left(AuthFailure(e.message ?? 'Lỗi đăng nhập Google.'));
+      // ** SỬA LỖI Ở ĐÂY **
+      if (e.code == 'account-exists-with-different-credential' && e.email != null) {
+        final methods = await _firebaseAuth.fetchSignInMethodsForEmail(e.email!);
+
+        // Thêm kiểm tra an toàn: chỉ truy cập .first nếu danh sách không rỗng
+        if (methods.isNotEmpty) {
+          String provider = methods.first.replaceAll('.com', '').capitalize();
+          return Left(AuthFailure('Email này đã được sử dụng. Vui lòng đăng nhập bằng $provider.'));
+        } else {
+          // Trường hợp đặc biệt: trả về một lỗi chung hơn
+          return Left(AuthFailure('Tài khoản đã tồn tại với một phương thức đăng nhập khác.'));
+        }
+      }
+      return Left(AuthFailure(e.message ?? 'Lỗi xác thực.'));
     } catch (e) {
-      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+      return Left(ServerFailure(e.toString()));
     }
+  }
+}
+
+// Extension để viết hoa chữ cái đầu
+extension StringExtension on String {
+  String capitalize() {
+    if (this.isEmpty) return "";
+    return "${this[0].toUpperCase()}${this.substring(1).toLowerCase()}";
   }
 }

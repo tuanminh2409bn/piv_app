@@ -33,4 +33,7 @@ abstract class AuthRepository {
 
   /// Đăng nhập bằng tài khoản Google.
   Future<Either<Failure, Unit>> signInWithGoogle();
+
+  /// Đăng nhập bằng tài khoản Facebook.
+  Future<Either<Failure, Unit>> signInWithFacebook();
 }
