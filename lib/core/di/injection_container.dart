@@ -42,10 +42,13 @@ import 'package:piv_app/features/orders/presentation/bloc/order_detail_cubit.dar
 
 // Admin Feature
 import 'package:piv_app/features/admin/data/repositories/storage_repository.dart';
+import 'package:piv_app/features/admin/domain/repositories/admin_repository.dart';
+import 'package:piv_app/features/admin/data/repositories/admin_repository_impl.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_orders_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_products_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/product_form_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_categories_cubit.dart';
+import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
 
 
 final sl = GetIt.instance;
@@ -98,8 +101,11 @@ Future<void> initializeDependencies() async {
 
   // == Admin ==
   sl.registerLazySingleton<StorageRepository>(() => StorageRepository());
+  sl.registerLazySingleton<AdminRepository>(() => AdminRepositoryImpl(firestore: sl()));
+
   sl.registerFactory<AdminOrdersCubit>(() => AdminOrdersCubit(orderRepository: sl()));
   sl.registerFactory<AdminProductsCubit>(() => AdminProductsCubit(homeRepository: sl()));
+  sl.registerFactory<AdminUsersCubit>(() => AdminUsersCubit(adminRepository: sl()));
   sl.registerFactory<ProductFormCubit>(
         () => ProductFormCubit(
       homeRepository: sl(),
