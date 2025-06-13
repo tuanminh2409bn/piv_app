@@ -4,25 +4,31 @@ import 'package:piv_app/data/models/cart_item_model.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 
 abstract class CartRepository {
+  /// Lấy các sản phẩm trong giỏ hàng của người dùng
   Future<Either<Failure, List<CartItemModel>>> getCart(String userId);
 
-  // ** QUAY LẠI PHƯƠNG THỨC CŨ, KHÔNG CÓ variant **
+  /// Thêm một sản phẩm vào giỏ hàng.
+  /// Nếu sản phẩm đã tồn tại, cập nhật số lượng.
   Future<Either<Failure, Unit>> addProductToCart({
     required String userId,
     required ProductModel product,
     required int quantity,
+    required double price, // Giá tại thời điểm thêm vào giỏ
   });
 
+  /// Xóa một sản phẩm khỏi giỏ hàng
   Future<Either<Failure, Unit>> removeProductFromCart({
     required String userId,
     required String productId,
   });
 
+  /// Cập nhật số lượng của một sản phẩm trong giỏ hàng
   Future<Either<Failure, Unit>> updateProductQuantity({
     required String userId,
     required String productId,
     required int newQuantity,
   });
 
+  /// Xóa toàn bộ giỏ hàng
   Future<Either<Failure, Unit>> clearCart(String userId);
 }

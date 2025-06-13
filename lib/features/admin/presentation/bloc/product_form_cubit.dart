@@ -1,10 +1,10 @@
-import 'dart:io'; // Import để sử dụng kiểu File
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/home/data/models/category_model.dart';
 import 'package:piv_app/features/home/domain/repositories/home_repository.dart';
-import 'package:piv_app/features/admin/data/repositories/storage_repository.dart'; // Import StorageRepository
+import 'package:piv_app/features/admin/data/repositories/storage_repository.dart';
+import 'dart:io';
 import 'package:uuid/uuid.dart';
 import 'dart:developer' as developer;
 
@@ -21,8 +21,6 @@ class ProductFormCubit extends Cubit<ProductFormState> {
         _storageRepository = storageRepository,
         super(ProductFormState.initial());
 
-  /// Tải dữ liệu ban đầu cần thiết cho form (danh sách danh mục)
-  /// và khởi tạo form cho việc sửa (nếu có)
   Future<void> initializeForm({ProductModel? productToEdit}) async {
     emit(state.copyWith(status: ProductFormStatus.loading));
 
@@ -38,7 +36,6 @@ class ProductFormCubit extends Cubit<ProductFormState> {
         List<List<CategoryModel>> initialLevels = [topLevelCategories];
         List<CategoryModel?> initialPath = [null];
 
-        // Nếu là chế độ sửa, xây dựng lại đường dẫn và các cấp dropdown
         if (productToEdit != null && productToEdit.categoryId.isNotEmpty) {
           final pathAndLevels = _buildInitialPath(productToEdit.categoryId, allCategories, topLevelCategories);
           initialPath = pathAndLevels.$1;
@@ -57,24 +54,19 @@ class ProductFormCubit extends Cubit<ProductFormState> {
     );
   }
 
-  /// Hàm được gọi khi người dùng chọn một danh mục ở một cấp độ nào đó
   void selectCategory(CategoryModel? selectedCategory, int level) {
     if (state.status != ProductFormStatus.success && state.status != ProductFormStatus.error) return;
 
-    // Cắt đường dẫn và các cấp danh mục từ cấp hiện tại trở đi
     List<CategoryModel?> newPath = List.from(state.selectedCategoryPath.take(level + 1));
     newPath[level] = selectedCategory;
 
     List<List<CategoryModel>> newLevels = List.from(state.categoryLevels.take(level + 1));
 
-    // Nếu người dùng chọn một danh mục (không phải "none")
     if (selectedCategory != null) {
-      // Tìm các danh mục con của danh mục vừa chọn
       final subCategories = state.allCategories
           .where((cat) => cat.parentId == selectedCategory.id)
           .toList();
 
-      // Nếu có danh mục con, thêm một cấp dropdown mới
       if (subCategories.isNotEmpty) {
         newLevels.add(subCategories);
         newPath.add(null);
@@ -88,7 +80,6 @@ class ProductFormCubit extends Cubit<ProductFormState> {
     ));
   }
 
-  /// Hàm helper để xây dựng đường dẫn ban đầu khi sửa sản phẩm
   (List<CategoryModel?>, List<List<CategoryModel>>) _buildInitialPath(
       String leafCategoryId,
       List<CategoryModel> allCategories,
@@ -135,7 +126,6 @@ class ProductFormCubit extends Cubit<ProductFormState> {
     return (finalPath.cast<CategoryModel?>(), finalLevels);
   }
 
-  /// Chọn ảnh từ thư viện của thiết bị
   Future<void> pickImage() async {
     final result = await _storageRepository.pickImageFromGallery();
     result.fold(
@@ -143,18 +133,17 @@ class ProductFormCubit extends Cubit<ProductFormState> {
           developer.log('Image picking failed: ${failure.message}', name: 'ProductFormCubit');
         },
             (imageFile) {
-          // Cập nhật state với file ảnh đã chọn
           emit(state.copyWith(selectedImageFile: imageFile, status: ProductFormStatus.success));
         }
     );
   }
 
-  /// Lưu sản phẩm (thêm mới hoặc cập nhật)
+  // ** SỬA LẠI PHƯƠNG THỨC NÀY **
   Future<void> saveProduct({
     required String name,
     required String description,
-    required String currentImageUrl, // URL ảnh hiện tại (nếu có)
-    required String basePrice,
+    required String currentImageUrl,
+    required Map<String, String> prices, // << NHẬN VÀO MỘT MAP GIÁ
     required String unit,
     required bool isFeatured,
   }) async {
@@ -166,15 +155,20 @@ class ProductFormCubit extends Cubit<ProductFormState> {
       return;
     }
 
-    final priceValue = double.tryParse(basePrice);
-    if (priceValue == null) {
+    // Chuyển đổi và xác thực giá
+    Map<String, double> pricesToSave = {};
+    try {
+      prices.forEach((key, value) {
+        if (value.isNotEmpty) {
+          pricesToSave[key] = double.parse(value);
+        }
+      });
+    } catch (e) {
       emit(state.copyWith(status: ProductFormStatus.error, errorMessage: 'Giá sản phẩm không hợp lệ.'));
       return;
     }
 
     String finalImageUrl = currentImageUrl;
-
-    // Nếu có file ảnh mới được chọn, tải nó lên trước
     if (state.selectedImageFile != null) {
       final uploadResult = await _storageRepository.uploadImage(state.selectedImageFile!);
       await uploadResult.fold(
@@ -183,10 +177,9 @@ class ProductFormCubit extends Cubit<ProductFormState> {
           return;
         },
             (downloadUrl) {
-          finalImageUrl = downloadUrl; // Lấy URL mới sau khi tải lên thành công
+          finalImageUrl = downloadUrl;
         },
       );
-      // Nếu đã có lỗi xảy ra ở bước tải ảnh, dừng lại
       if (state.status == ProductFormStatus.error) return;
     }
 
@@ -194,9 +187,9 @@ class ProductFormCubit extends Cubit<ProductFormState> {
       id: state.initialProduct?.id ?? '',
       name: name,
       description: description,
-      imageUrl: finalImageUrl, // Sử dụng URL cuối cùng
+      imageUrl: finalImageUrl,
       categoryId: selectedCategoryId,
-      basePrice: priceValue,
+      prices: pricesToSave, // << LƯU MAP GIÁ
       unit: unit,
       isFeatured: isFeatured,
       createdAt: state.initialProduct?.createdAt,

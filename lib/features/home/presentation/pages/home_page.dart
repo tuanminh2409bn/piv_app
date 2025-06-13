@@ -286,7 +286,7 @@ class HomeView extends StatelessWidget {
                   Text(product.name, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
                   Text(
-                    '${currencyFormatter.format(product.displayPrice)} / ${product.unit}',
+                    'Từ ${currencyFormatter.format(product.startingPrice)}',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold),
                   ),
                 ]),

@@ -9,10 +9,8 @@ class ProductModel extends Equatable {
   final String categoryId;
   final bool isFeatured;
   final Timestamp? createdAt;
-  final double basePrice;
-  final double? discountPrice;
   final String unit;
-  // ** THÊM TRƯỜNG NÀY **
+  final Map<String, double> prices;
   final Map<String, dynamic>? attributes;
 
   const ProductModel({
@@ -23,23 +21,40 @@ class ProductModel extends Equatable {
     required this.categoryId,
     this.isFeatured = false,
     this.createdAt,
-    required this.basePrice,
-    this.discountPrice,
     this.unit = 'sản phẩm',
-    this.attributes, // << THÊM VÀO CONSTRUCTOR
+    this.prices = const {},
+    this.attributes,
   });
 
-  double get displayPrice => discountPrice ?? basePrice;
+  // Getter để lấy giá thấp nhất để hiển thị ở danh sách
+  double get startingPrice {
+    if (prices.isEmpty) return 0.0;
+    final sortedPrices = prices.values.toList()..sort();
+    return sortedPrices.first;
+  }
+
+  // Hàm tiện ích để lấy giá cho một vai trò cụ thể
+  double getPriceForRole(String role) {
+    return prices[role] ?? 0.0;
+  }
 
   @override
   List<Object?> get props => [
     id, name, description, imageUrl, categoryId,
-    isFeatured, createdAt, basePrice, discountPrice, unit,
-    attributes, // << THÊM VÀO PROPS
+    isFeatured, createdAt, unit, prices, attributes
   ];
 
   factory ProductModel.fromSnapshot(DocumentSnapshot snap) {
     final data = snap.data() as Map<String, dynamic>? ?? {};
+
+    Map<String, double> pricesMap = {};
+    if (data['prices'] is Map) {
+      (data['prices'] as Map).forEach((key, value) {
+        if (value is num) {
+          pricesMap[key] = value.toDouble();
+        }
+      });
+    }
 
     return ProductModel(
       id: snap.id,
@@ -49,13 +64,9 @@ class ProductModel extends Equatable {
       categoryId: data['categoryId'] as String? ?? '',
       isFeatured: data['isFeatured'] as bool? ?? false,
       createdAt: data['createdAt'] as Timestamp?,
-      basePrice: (data['basePrice'] as num? ?? 0).toDouble(),
-      discountPrice: (data['discountPrice'] as num?)?.toDouble(),
       unit: data['unit'] as String? ?? 'sản phẩm',
-      // ** ĐỌC DỮ LIỆU ATTRIBUTES TỪ FIRESTORE **
-      attributes: data['attributes'] is Map
-          ? Map<String, dynamic>.from(data['attributes'])
-          : null,
+      prices: pricesMap,
+      attributes: data['attributes'] is Map ? Map<String, dynamic>.from(data['attributes']) : null,
     );
   }
 
@@ -67,10 +78,9 @@ class ProductModel extends Equatable {
       'categoryId': categoryId,
       'isFeatured': isFeatured,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
-      'basePrice': basePrice,
-      'discountPrice': discountPrice,
       'unit': unit,
-      'attributes': attributes, // << THÊM VÀO KHI LƯU
+      'prices': prices,
+      'attributes': attributes,
     };
   }
 }

@@ -7,7 +7,15 @@ class UserModel extends Equatable {
   final String? displayName;
   final String? photoUrl;
   final List<AddressModel> addresses;
-  final String role; // << THÊM TRƯỜNG NÀY
+
+  // ** CÁC TRƯỜNG ĐÃ CẬP NHẬT **
+  /// Vai trò của người dùng, ví dụ: 'agent_1', 'agent_2', 'admin'
+  final String role;
+  /// Trạng thái tài khoản: 'pending_approval', 'active', 'suspended'
+  final String status;
+
+  final String? referrerId;
+  String get referralCode => id;
 
   const UserModel({
     required this.id,
@@ -15,10 +23,12 @@ class UserModel extends Equatable {
     this.displayName,
     this.photoUrl,
     this.addresses = const [],
-    this.role = 'customer', // << GIÁ TRỊ MẶC ĐỊNH LÀ 'customer'
+    this.role = 'agent_2', // Mặc định là đại lý cấp thấp nhất khi mới đăng ký
+    this.status = 'pending_approval', // Mặc định là đang chờ duyệt
+    this.referrerId,
   });
 
-  bool get isAdmin => role == 'admin'; // << Getter tiện ích để kiểm tra vai trò
+  bool get isAdmin => role == 'admin';
 
   static const empty = UserModel(id: '');
   bool get isEmpty => this == UserModel.empty;
@@ -30,7 +40,9 @@ class UserModel extends Equatable {
     String? displayName,
     String? photoUrl,
     List<AddressModel>? addresses,
-    String? role, // << THÊM VÀO COPYWITH
+    String? role,
+    String? status,
+    String? referrerId,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -38,7 +50,9 @@ class UserModel extends Equatable {
       displayName: displayName ?? this.displayName,
       photoUrl: photoUrl ?? this.photoUrl,
       addresses: addresses ?? this.addresses,
-      role: role ?? this.role, // << GÁN GIÁ TRỊ
+      role: role ?? this.role,
+      status: status ?? this.status,
+      referrerId: referrerId ?? this.referrerId,
     );
   }
 
@@ -50,6 +64,8 @@ class UserModel extends Equatable {
       'photoUrl': photoUrl,
       'addresses': addresses.map((address) => address.toMap()).toList(),
       'role': role,
+      'status': status,
+      'referrerId': referrerId,
     };
   }
 
@@ -64,15 +80,17 @@ class UserModel extends Equatable {
     }
 
     return UserModel(
-      id: json['id'] as String,
+      id: json['id'] as String? ?? '',
       email: json['email'] as String?,
       displayName: json['displayName'] as String?,
       photoUrl: json['photoUrl'] as String?,
       addresses: addressesList,
-      role: json['role'] as String? ?? 'customer', // << ĐỌC VÀ ĐẶT GIÁ TRỊ MẶC ĐỊNH
+      role: json['role'] as String? ?? 'agent_2',
+      status: json['status'] as String? ?? 'pending_approval',
+      referrerId: json['referrerId'] as String?,
     );
   }
 
   @override
-  List<Object?> get props => [id, email, displayName, photoUrl, addresses, role]; // << THÊM VÀO PROPS
+  List<Object?> get props => [id, email, displayName, photoUrl, addresses, role, status, referrerId];
 }

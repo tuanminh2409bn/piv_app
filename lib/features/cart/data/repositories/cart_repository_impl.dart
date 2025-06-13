@@ -21,6 +21,7 @@ class CartRepositoryImpl implements CartRepository {
     required String userId,
     required ProductModel product,
     required int quantity,
+    required double price, // Nhận giá đã được tính toán từ trước
   }) async {
     try {
       final cartRef = _userCartRef(userId);
@@ -33,7 +34,7 @@ class CartRepositoryImpl implements CartRepository {
           productId: product.id,
           productName: product.name,
           imageUrl: product.imageUrl,
-          price: product.displayPrice,
+          price: price, // Sử dụng giá được truyền vào
           unit: product.unit,
           quantity: quantity,
         );
@@ -75,9 +76,9 @@ class CartRepositoryImpl implements CartRepository {
       return const Right(unit);
 
     } on FirebaseException catch (e) {
-      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+      return Left(ServerFailure('Lỗi Firebase khi thêm vào giỏ hàng: ${e.message}'));
     } catch (e) {
-      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+      return Left(ServerFailure('Lỗi không xác định khi thêm vào giỏ hàng: ${e.toString()}'));
     }
   }
 
@@ -97,9 +98,9 @@ class CartRepositoryImpl implements CartRepository {
         return const Right([]);
       }
     } on FirebaseException catch (e) {
-      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+      return Left(ServerFailure('Lỗi Firebase khi tải giỏ hàng: ${e.message}'));
     } catch (e) {
-      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+      return Left(ServerFailure('Lỗi không xác định khi tải giỏ hàng: ${e.toString()}'));
     }
   }
 
@@ -137,9 +138,9 @@ class CartRepositoryImpl implements CartRepository {
       });
       return const Right(unit);
     } on FirebaseException catch (e) {
-      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+      return Left(ServerFailure('Lỗi Firebase khi cập nhật số lượng: ${e.message}'));
     } catch (e) {
-      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+      return Left(ServerFailure('Lỗi không xác định khi cập nhật số lượng: ${e.toString()}'));
     }
   }
 
@@ -169,9 +170,9 @@ class CartRepositoryImpl implements CartRepository {
       });
       return const Right(unit);
     } on FirebaseException catch (e) {
-      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+      return Left(ServerFailure('Lỗi Firebase khi xóa sản phẩm: ${e.message}'));
     } catch (e) {
-      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+      return Left(ServerFailure('Lỗi không xác định khi xóa sản phẩm: ${e.toString()}'));
     }
   }
 
@@ -185,9 +186,9 @@ class CartRepositoryImpl implements CartRepository {
       });
       return const Right(unit);
     } on FirebaseException catch (e) {
-      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+      return Left(ServerFailure('Lỗi Firebase khi xóa giỏ hàng: ${e.message}'));
     } catch (e) {
-      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+      return Left(ServerFailure('Lỗi không xác định khi xóa giỏ hàng: ${e.toString()}'));
     }
   }
 }

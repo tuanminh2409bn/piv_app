@@ -1,19 +1,13 @@
-// Giả sử register_cubit.dart sẽ được tạo cùng cấp
 part of 'register_cubit.dart';
 
-// Enum để biểu diễn trạng thái của việc submit form đăng ký
-enum RegisterStatus {
-  initial, // Trạng thái ban đầu
-  submitting, // Đang gửi yêu cầu đăng ký
-  success, // Đăng ký thành công
-  error, // Đăng ký thất bại
-}
+enum RegisterStatus { initial, submitting, success, error }
 
 class RegisterState extends Equatable {
   final String email;
   final String password;
   final String confirmPassword;
-  final String displayName; // Tên hiển thị, có thể để trống
+  final String displayName;
+  final String referralCode; // << THÊM TRƯỜNG NÀY
   final RegisterStatus status;
   final String? errorMessage;
 
@@ -22,37 +16,32 @@ class RegisterState extends Equatable {
     this.password = '',
     this.confirmPassword = '',
     this.displayName = '',
+    this.referralCode = '', // << GIÁ TRỊ MẶC ĐỊNH
     this.status = RegisterStatus.initial,
     this.errorMessage,
   });
 
-  // Kiểm tra xem mật khẩu và xác nhận mật khẩu có khớp không
   bool get passwordsMatch => password == confirmPassword;
-
-  // Kiểm tra tính hợp lệ của form (ví dụ cơ bản)
   bool get isFormValid =>
-      email.isNotEmpty &&
-          password.isNotEmpty &&
-          confirmPassword.isNotEmpty &&
-          passwordsMatch &&
-          password.length >= 6; // Yêu cầu mật khẩu tối thiểu 6 ký tự
+      email.isNotEmpty && password.isNotEmpty && passwordsMatch && password.length >= 6;
 
   RegisterState copyWith({
     String? email,
     String? password,
     String? confirmPassword,
     String? displayName,
+    String? referralCode, // << THÊM VÀO COPYWITH
     RegisterStatus? status,
     String? errorMessage,
-    bool clearErrorMessage = false,
   }) {
     return RegisterState(
       email: email ?? this.email,
       password: password ?? this.password,
       confirmPassword: confirmPassword ?? this.confirmPassword,
       displayName: displayName ?? this.displayName,
+      referralCode: referralCode ?? this.referralCode, // << GÁN GIÁ TRỊ
       status: status ?? this.status,
-      errorMessage: clearErrorMessage ? null : errorMessage ?? this.errorMessage,
+      errorMessage: errorMessage ?? this.errorMessage,
     );
   }
 
@@ -62,6 +51,7 @@ class RegisterState extends Equatable {
     password,
     confirmPassword,
     displayName,
+    referralCode, // << THÊM VÀO PROPS
     status,
     errorMessage,
   ];

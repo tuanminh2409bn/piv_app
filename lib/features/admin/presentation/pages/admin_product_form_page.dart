@@ -40,8 +40,9 @@ class _ProductFormViewState extends State<ProductFormView> {
   // Sử dụng TextEditingController để quản lý dữ liệu trong các trường text
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
-  late final TextEditingController _basePriceController;
   late final TextEditingController _unitController;
+  late final TextEditingController _agent1PriceController;
+  late final TextEditingController _agent2PriceController;
   // Giá trị của Switch sẽ được quản lý cục bộ và gửi đi khi lưu
   late bool _isFeatured;
 
@@ -54,9 +55,12 @@ class _ProductFormViewState extends State<ProductFormView> {
     // Khởi tạo các controller với dữ liệu của sản phẩm (nếu đang ở chế độ sửa)
     _nameController = TextEditingController(text: initialProduct?.name);
     _descriptionController = TextEditingController(text: initialProduct?.description);
-    _basePriceController = TextEditingController(text: initialProduct?.basePrice.toStringAsFixed(0) ?? '');
     _unitController = TextEditingController(text: initialProduct?.unit);
     _isFeatured = initialProduct?.isFeatured ?? false;
+
+    // Khởi tạo các controller giá từ map 'prices'
+    _agent1PriceController = TextEditingController(text: initialProduct?.prices['agent_1']?.toStringAsFixed(0) ?? '');
+    _agent2PriceController = TextEditingController(text: initialProduct?.prices['agent_2']?.toStringAsFixed(0) ?? '');
   }
 
   @override
@@ -64,8 +68,9 @@ class _ProductFormViewState extends State<ProductFormView> {
     // Luôn dispose các controller để tránh rò rỉ bộ nhớ
     _nameController.dispose();
     _descriptionController.dispose();
-    _basePriceController.dispose();
     _unitController.dispose();
+    _agent1PriceController.dispose();
+    _agent2PriceController.dispose();
     super.dispose();
   }
 
@@ -73,13 +78,15 @@ class _ProductFormViewState extends State<ProductFormView> {
   void _onSavePressed() {
     // Kiểm tra xem form có hợp lệ không
     if (_formKey.currentState!.validate()) {
-      // Lấy URL ảnh hiện tại từ sản phẩm ban đầu để truyền vào cubit
-      final currentImageUrl = context.read<ProductFormCubit>().state.initialProduct?.imageUrl ?? '';
+      // Gọi phương thức saveProduct từ cubit với dữ liệu từ các controller và state
       context.read<ProductFormCubit>().saveProduct(
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
-        currentImageUrl: currentImageUrl, // Truyền URL hiện tại (nếu có)
-        basePrice: _basePriceController.text.trim(),
+        currentImageUrl: context.read<ProductFormCubit>().state.initialProduct?.imageUrl ?? '',
+        prices: {
+          'agent_1': _agent1PriceController.text.trim(),
+          'agent_2': _agent2PriceController.text.trim(),
+        },
         unit: _unitController.text.trim(),
         isFeatured: _isFeatured,
       );
@@ -159,9 +166,13 @@ class _ProductFormViewState extends State<ProductFormView> {
             else
             // Xây dựng các dropdown động từ state
               ..._buildCategoryDropdowns(context, state),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
-            _buildTextField(controller: _basePriceController, label: 'Giá', keyboardType: TextInputType.number),
+            Text('Giá theo cấp đại lý', style: Theme.of(context).textTheme.titleMedium),
+            const Divider(),
+            _buildTextField(controller: _agent1PriceController, label: 'Giá Đại lý cấp 1', keyboardType: TextInputType.number),
+            const SizedBox(height: 16),
+            _buildTextField(controller: _agent2PriceController, label: 'Giá Đại lý cấp 2', keyboardType: TextInputType.number),
             const SizedBox(height: 16),
             _buildTextField(controller: _unitController, label: 'Đơn vị tính (VD: Bao 25kg)'),
             const SizedBox(height: 16),
@@ -203,18 +214,15 @@ class _ProductFormViewState extends State<ProductFormView> {
             },
             borderRadius: BorderRadius.circular(12),
             child: (state.selectedImageFile != null)
-            // Hiển thị ảnh mới chọn từ thiết bị
                 ? ClipRRect(
               borderRadius: BorderRadius.circular(11),
               child: Image.file(state.selectedImageFile!, fit: BoxFit.cover),
             )
-            // Hiển thị ảnh cũ từ server (nếu đang sửa)
                 : (state.initialProduct?.imageUrl != null && state.initialProduct!.imageUrl.isNotEmpty)
                 ? ClipRRect(
               borderRadius: BorderRadius.circular(11),
               child: Image.network(state.initialProduct!.imageUrl, fit: BoxFit.cover),
             )
-            // Hiển thị placeholder nếu không có ảnh nào
                 : Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -239,7 +247,6 @@ class _ProductFormViewState extends State<ProductFormView> {
         Padding(
           padding: const EdgeInsets.only(top: 8.0),
           child: DropdownButtonFormField<CategoryModel>(
-            // Thêm kiểm tra này để tránh RangeError
             value: (i < state.selectedCategoryPath.length) ? state.selectedCategoryPath[i] : null,
             isExpanded: true,
             decoration: InputDecoration(
@@ -257,12 +264,8 @@ class _ProductFormViewState extends State<ProductFormView> {
               context.read<ProductFormCubit>().selectCategory(newValue, i);
             },
             validator: (value) {
-              // Validate nếu đây là dropdown cấp cuối cùng và chưa có lựa chọn
-              if (i == state.categoryLevels.length - 1 && value == null) {
-                final parentHasChildren = state.allCategories.any((cat) => cat.parentId == state.selectedCategoryPath[i-1]?.id);
-                if (parentHasChildren) {
-                  return 'Vui lòng chọn danh mục cấp cuối cùng';
-                }
+              if (i == 0 && value == null) {
+                return 'Vui lòng chọn ít nhất một danh mục';
               }
               return null;
             },
@@ -282,13 +285,11 @@ class _ProductFormViewState extends State<ProductFormView> {
   }) {
     return TextFormField(
       controller: controller,
-      decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-          alignLabelWithHint: true),
+      decoration: InputDecoration(labelText: label, border: const OutlineInputBorder(), alignLabelWithHint: true),
       maxLines: maxLines,
       keyboardType: keyboardType,
       validator: (value) {
+        // Mô tả có thể để trống
         if (label != 'Mô tả' && (value == null || value.trim().isEmpty)) {
           return '$label không được để trống';
         }

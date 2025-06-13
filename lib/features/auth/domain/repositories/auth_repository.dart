@@ -14,6 +14,7 @@ abstract class AuthRepository {
     required String email,
     required String password,
     String? displayName,
+    String? referralCode, // Tham số cho mã giới thiệu
   });
 
   /// Đăng nhập bằng email và mật khẩu.

@@ -33,7 +33,6 @@ class AdminProductsView extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // Thanh tìm kiếm
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
@@ -48,7 +47,6 @@ class AdminProductsView extends StatelessWidget {
               },
             ),
           ),
-          // Danh sách sản phẩm
           Expanded(
             child: BlocBuilder<AdminProductsCubit, AdminProductsState>(
               builder: (context, state) {
@@ -77,7 +75,6 @@ class AdminProductsView extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // SỬA LỖI Ở ĐÂY: Thêm <bool?> vào push
           Navigator.of(context).push<bool?>(AdminProductFormPage.route()).then((success) {
             if (success == true) {
               context.read<AdminProductsCubit>().fetchAllProducts();
@@ -96,14 +93,14 @@ class AdminProductsView extends StatelessWidget {
           ? Image.network(product.imageUrl, width: 50, height: 50, fit: BoxFit.cover)
           : Container(width: 50, height: 50, color: Colors.grey.shade200, child: const Icon(Icons.image)),
       title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text('Giá: ${currencyFormatter.format(product.displayPrice)}'),
+      // ** SỬA LỖI Ở ĐÂY **
+      subtitle: Text('Giá từ: ${currencyFormatter.format(product.startingPrice)}'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
             icon: const Icon(Icons.edit, color: Colors.blueGrey),
             onPressed: () {
-              // SỬA LỖI Ở ĐÂY: Thêm <bool?> vào push
               Navigator.of(context).push<bool?>(AdminProductFormPage.route(product: product)).then((success) {
                 if (success == true) {
                   context.read<AdminProductsCubit>().fetchAllProducts();
@@ -114,7 +111,6 @@ class AdminProductsView extends StatelessWidget {
           IconButton(
             icon: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
             onPressed: () {
-              // Hiển thị dialog xác nhận xóa
               showDialog(
                 context: context,
                 builder: (dialogContext) => AlertDialog(

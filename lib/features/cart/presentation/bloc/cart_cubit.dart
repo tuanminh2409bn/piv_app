@@ -20,16 +20,18 @@ class CartCubit extends Cubit<CartState> {
         _authBloc = authBloc,
         super(const CartState()) {
 
+    // Lắng nghe trạng thái AuthBloc để biết userId và tải giỏ hàng tương ứng
     _authSubscription = _authBloc.stream.listen((authState) {
       if (authState is AuthAuthenticated) {
         _currentUserId = authState.user.id;
-        loadCart();
+        loadCart(); // Tải giỏ hàng khi người dùng đăng nhập
       } else if (authState is AuthUnauthenticated) {
         _currentUserId = '';
-        emit(const CartState());
+        emit(const CartState()); // Xóa giỏ hàng khi đăng xuất
       }
     });
 
+    // Tải dữ liệu lần đầu nếu người dùng đã đăng nhập sẵn khi app khởi động
     final initialAuthState = _authBloc.state;
     if (initialAuthState is AuthAuthenticated) {
       _currentUserId = initialAuthState.user.id;
@@ -39,11 +41,14 @@ class CartCubit extends Cubit<CartState> {
 
   String get _userId {
     if (_currentUserId.isEmpty) {
-      emit(state.copyWith(status: CartStatus.error, errorMessage: 'Vui lòng đăng nhập để sử dụng giỏ hàng.'));
+      developer.log('CartCubit: User is not logged in.', name: 'CartCubit');
+      // Tránh emit lỗi ở đây vì nó có thể gây ra SnackBar không mong muốn
+      // Thay vào đó, các phương thức sẽ kiểm tra và trả về nếu cần.
     }
     return _currentUserId;
   }
 
+  /// Tải thông tin giỏ hàng của người dùng hiện tại
   Future<void> loadCart() async {
     final userId = _userId;
     if (userId.isEmpty) return;
@@ -56,26 +61,32 @@ class CartCubit extends Cubit<CartState> {
     );
   }
 
-  // ** SỬA LẠI PHƯƠNG THỨC NÀY **
-  Future<void> addProduct(ProductModel product, int quantity) async {
+  /// Thêm một sản phẩm vào giỏ hàng với giá cụ thể
+  Future<void> addProduct({
+    required ProductModel product,
+    required int quantity,
+    required double price,
+  }) async {
     final userId = _userId;
     if (userId.isEmpty) return;
 
     emit(state.copyWith(status: CartStatus.itemAdding));
-    // Gọi phương thức đã được đơn giản hóa, không còn variant
     final result = await _cartRepository.addProductToCart(
       userId: userId,
       product: product,
       quantity: quantity,
+      price: price, // Truyền giá tại thời điểm mua
     );
     result.fold(
           (failure) => emit(state.copyWith(status: CartStatus.error, errorMessage: failure.message)),
           (_) {
-        loadCart(); // Tải lại giỏ hàng để cập nhật UI
+        // Sau khi thêm thành công, tải lại giỏ hàng để cập nhật UI
+        loadCart();
       },
     );
   }
 
+  /// Cập nhật số lượng của một sản phẩm trong giỏ hàng
   Future<void> updateQuantity(String productId, int newQuantity) async {
     final userId = _userId;
     if (userId.isEmpty) return;
@@ -88,10 +99,11 @@ class CartCubit extends Cubit<CartState> {
     );
     result.fold(
           (failure) => emit(state.copyWith(status: CartStatus.error, errorMessage: failure.message)),
-          (_) => loadCart(),
+          (_) => loadCart(), // Tải lại giỏ hàng
     );
   }
 
+  /// Xóa một sản phẩm khỏi giỏ hàng
   Future<void> removeProduct(String productId) async {
     final userId = _userId;
     if (userId.isEmpty) return;
@@ -103,12 +115,13 @@ class CartCubit extends Cubit<CartState> {
     );
     result.fold(
           (failure) => emit(state.copyWith(status: CartStatus.error, errorMessage: failure.message)),
-          (_) => loadCart(),
+          (_) => loadCart(), // Tải lại giỏ hàng
     );
   }
 
   @override
   Future<void> close() {
+    // Hủy lắng nghe stream khi Cubit bị đóng để tránh rò rỉ bộ nhớ
     _authSubscription?.cancel();
     return super.close();
   }
