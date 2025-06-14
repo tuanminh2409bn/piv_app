@@ -5,11 +5,14 @@ enum HomeStatus { initial, loading, success, error }
 class HomeState extends Equatable {
   final HomeStatus status;
   final List<BannerModel> banners;
-  // Danh sách các danh mục nổi bật để hiển thị trên trang chủ
+  // Danh sách các danh mục gốc để hiển thị trên trang chủ
   final List<CategoryModel> categories;
   // Danh sách TẤT CẢ các danh mục để dùng cho các trang khác
   final List<CategoryModel> allCategories;
+  // Danh sách gốc của sản phẩm nổi bật
   final List<ProductModel> featuredProducts;
+  // Danh sách sản phẩm nổi bật đã được lọc để hiển thị
+  final List<ProductModel> filteredFeaturedProducts;
   final List<NewsArticleModel> newsArticles;
   final String? errorMessage;
 
@@ -17,8 +20,9 @@ class HomeState extends Equatable {
     this.status = HomeStatus.initial,
     this.banners = const [],
     this.categories = const [],
-    this.allCategories = const [], // << THÊM TRƯỜNG NÀY VÀO CONSTRUCTOR
+    this.allCategories = const [],
     this.featuredProducts = const [],
+    this.filteredFeaturedProducts = const [],
     this.newsArticles = const [],
     this.errorMessage,
   });
@@ -28,8 +32,9 @@ class HomeState extends Equatable {
     status,
     banners,
     categories,
-    allCategories, // << THÊM VÀO PROPS
+    allCategories,
     featuredProducts,
+    filteredFeaturedProducts,
     newsArticles,
     errorMessage,
   ];
@@ -38,8 +43,9 @@ class HomeState extends Equatable {
     HomeStatus? status,
     List<BannerModel>? banners,
     List<CategoryModel>? categories,
-    List<CategoryModel>? allCategories, // << THÊM VÀO COPYWITH
+    List<CategoryModel>? allCategories,
     List<ProductModel>? featuredProducts,
+    List<ProductModel>? filteredFeaturedProducts,
     List<NewsArticleModel>? newsArticles,
     String? errorMessage,
   }) {
@@ -47,8 +53,10 @@ class HomeState extends Equatable {
       status: status ?? this.status,
       banners: banners ?? this.banners,
       categories: categories ?? this.categories,
-      allCategories: allCategories ?? this.allCategories, // << GÁN GIÁ TRỊ
+      allCategories: allCategories ?? this.allCategories,
       featuredProducts: featuredProducts ?? this.featuredProducts,
+      filteredFeaturedProducts:
+      filteredFeaturedProducts ?? this.filteredFeaturedProducts,
       newsArticles: newsArticles ?? this.newsArticles,
       errorMessage: errorMessage ?? this.errorMessage,
     );

@@ -9,6 +9,7 @@ import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_products_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_categories_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_users_page.dart';
+import 'package:piv_app/features/orders/presentation/pages/order_detail_page.dart';
 
 class AdminHomePage extends StatelessWidget {
   const AdminHomePage({super.key});
@@ -20,7 +21,7 @@ class AdminHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4, // 4 tabs
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Trang Quản trị'),
@@ -34,7 +35,11 @@ class AdminHomePage extends StatelessWidget {
             ),
           ],
           bottom: const TabBar(
-            isScrollable: true, // Cho phép cuộn tab nếu không đủ không gian
+            isScrollable: false,
+            indicatorSize: TabBarIndicatorSize.tab,
+            labelPadding: EdgeInsets.symmetric(horizontal: 1.0),
+            labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+            unselectedLabelStyle: TextStyle(fontSize: 11),
             tabs: [
               Tab(icon: Icon(Icons.receipt_long), text: 'Đơn hàng'),
               Tab(icon: Icon(Icons.inventory_2), text: 'Sản phẩm'),
@@ -45,9 +50,7 @@ class AdminHomePage extends StatelessWidget {
         ),
         body: const TabBarView(
           children: [
-            // Tab 1: Quản lý Đơn hàng
             AdminOrdersTab(),
-            // Tab 2: Quản lý Sản phẩm
             AdminActionsTab(
               title: 'Quản lý Sản phẩm',
               description: 'Quản lý toàn bộ sản phẩm và các mẫu mã trong hệ thống.',
@@ -55,7 +58,6 @@ class AdminHomePage extends StatelessWidget {
               buttonText: 'Đi đến Quản lý Sản phẩm',
               onPressed: AdminProductsPage.route,
             ),
-            // Tab 3: Quản lý Danh mục
             AdminActionsTab(
               title: 'Quản lý Danh mục',
               description: 'Tổ chức và quản lý cây danh mục đa cấp của bạn.',
@@ -63,7 +65,6 @@ class AdminHomePage extends StatelessWidget {
               buttonText: 'Đi đến Quản lý Danh mục',
               onPressed: AdminCategoriesPage.route,
             ),
-            // Tab 4: Quản lý Người dùng
             AdminActionsTab(
               title: 'Quản lý Người dùng',
               description: 'Phê duyệt tài khoản và phân cấp vai trò cho các đại lý.',
@@ -78,7 +79,6 @@ class AdminHomePage extends StatelessWidget {
   }
 }
 
-// Widget chung cho các Tab hành động để tránh lặp code
 class AdminActionsTab extends StatelessWidget {
   final String title;
   final String description;
@@ -131,8 +131,6 @@ class AdminActionsTab extends StatelessWidget {
   }
 }
 
-
-// Widget cho Tab Đơn hàng
 class AdminOrdersTab extends StatelessWidget {
   const AdminOrdersTab({super.key});
 
@@ -145,8 +143,6 @@ class AdminOrdersTab extends StatelessWidget {
   }
 }
 
-
-// Widget View cho danh sách đơn hàng
 class AdminOrdersView extends StatelessWidget {
   const AdminOrdersView({super.key});
 
@@ -163,31 +159,97 @@ class AdminOrdersView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<AdminOrdersCubit, AdminOrdersState>(
-      listener: (context, state) {
-        if (state.status == AdminOrdersStatus.error && state.errorMessage != null) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.red));
-        }
-      },
-      builder: (context, state) {
-        if (state.status == AdminOrdersStatus.loading) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (state.orders.isEmpty) {
-          return const Center(child: Text('Không có đơn hàng nào.'));
-        }
-        return RefreshIndicator(
-          onRefresh: () async => context.read<AdminOrdersCubit>().fetchAllOrders(),
-          child: ListView.builder(
-              padding: const EdgeInsets.all(8.0),
-              itemCount: state.orders.length,
-              itemBuilder: (context, index) {
-                final order = state.orders[index];
-                return _buildOrderCard(context, order);
-              }
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: TextField(
+            decoration: const InputDecoration(
+              hintText: 'Tìm theo mã đơn, tên, SĐT...',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12.0),
+            ),
+            onChanged: (query) {
+              context.read<AdminOrdersCubit>().searchOrders(query);
+            },
           ),
-        );
+        ),
+        BlocBuilder<AdminOrdersCubit, AdminOrdersState>(
+          buildWhen: (previous, current) => previous.currentFilter != current.currentFilter,
+          builder: (context, state) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              // ** SỬA LỖI Ở ĐÂY: Dùng Wrap và FilterChip **
+              child: Wrap(
+                spacing: 8.0, // Khoảng cách ngang giữa các nút
+                runSpacing: 8.0, // Khoảng cách dọc nếu xuống hàng
+                children: [
+                  _buildFilterChip(context, 'Cần xử lý', 'active', state.currentFilter),
+                  _buildFilterChip(context, 'Hoàn thành', 'completed', state.currentFilter),
+                  _buildFilterChip(context, 'Đã hủy', 'cancelled', state.currentFilter),
+                  _buildFilterChip(context, 'Tất cả', 'all', state.currentFilter),
+                ],
+              ),
+            );
+          },
+        ),
+        Expanded(
+          child: BlocConsumer<AdminOrdersCubit, AdminOrdersState>(
+            listener: (context, state) {
+              if (state.status == AdminOrdersStatus.error && state.errorMessage != null) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.red));
+              }
+            },
+            builder: (context, state) {
+              if (state.status == AdminOrdersStatus.loading) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (state.filteredOrders.isEmpty) {
+                return const Center(child: Text('Không có đơn hàng nào khớp.'));
+              }
+              return RefreshIndicator(
+                onRefresh: () async => context.read<AdminOrdersCubit>().fetchAllOrders(),
+                child: ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(8.0, 0, 8.0, 8.0),
+                    itemCount: state.filteredOrders.length,
+                    itemBuilder: (context, index) {
+                      final order = state.filteredOrders[index];
+                      return _buildOrderCard(context, order);
+                    }
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ** HÀM HELPER MỚI CHO BỘ LỌC **
+  Widget _buildFilterChip(BuildContext context, String label, String filterValue, String currentFilter) {
+    final bool isSelected = currentFilter == filterValue;
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        if (selected) {
+          context.read<AdminOrdersCubit>().filterOrdersByStatus(filterValue);
+        }
       },
+      showCheckmark: false,
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
+        fontWeight: FontWeight.bold,
+      ),
+      backgroundColor: Colors.white,
+      selectedColor: Theme.of(context).colorScheme.primary,
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.primary,
+          width: 1.5,
+        ),
+      ),
     );
   }
 
@@ -201,61 +263,69 @@ class AdminOrdersView extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 8.0),
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    'Mã đơn: #${order.id?.substring(0, 8).toUpperCase() ?? 'N/A'}',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+      child: InkWell(
+        onTap: () {
+          if (order.id != null) {
+            Navigator.of(context).push(OrderDetailPage.route(order.id!));
+          }
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Mã đơn: #${order.id?.substring(0, 8).toUpperCase() ?? 'N/A'}',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(color: statusInfo.$1.withOpacity(0.1), borderRadius: BorderRadius.circular(20),),
-                  child: Text(statusInfo.$2, style: TextStyle(color: statusInfo.$1, fontWeight: FontWeight.bold, fontSize: 12)),
-                )
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-                'Ngày đặt: ${dateFormat.format(order.createdAt!.toDate())}',
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 13)
-            ),
-            const Divider(height: 24),
-            _buildInfoRow('Khách hàng:', order.shippingAddress.recipientName, isBold: true),
-            _buildInfoRow('Số điện thoại:', order.shippingAddress.phoneNumber),
-            _buildInfoRow('Địa chỉ:', order.shippingAddress.fullAddress),
-            const SizedBox(height: 12),
-            _buildInfoRow('Tổng tiền:', currencyFormatter.format(order.total), isBold: true, valueColor: Theme.of(context).colorScheme.primary),
-            const Divider(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Trạng thái:', style: Theme.of(context).textTheme.titleMedium),
-                DropdownButton<String>(
-                  value: order.status,
-                  icon: const Icon(Icons.arrow_drop_down),
-                  underline: Container(height: 2, color: statusInfo.$1),
-                  style: TextStyle(color: statusInfo.$1, fontWeight: FontWeight.bold),
-                  onChanged: (String? newStatus) {
-                    if (newStatus != null && newStatus != order.status) {
-                      context.read<AdminOrdersCubit>().updateOrderStatus(order.id!, newStatus);
-                    }
-                  },
-                  items: statusOptions.map<DropdownMenuItem<String>>((String value) {
-                    return DropdownMenuItem<String>(value: value, child: Text(_getStatusInfo(value, context).$2));
-                  }).toList(),
-                ),
-              ],
-            ),
-          ],
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(color: statusInfo.$1.withOpacity(0.1), borderRadius: BorderRadius.circular(20),),
+                    child: Text(statusInfo.$2, style: TextStyle(color: statusInfo.$1, fontWeight: FontWeight.bold, fontSize: 12)),
+                  )
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                  'Ngày đặt: ${dateFormat.format(order.createdAt!.toDate())}',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13)
+              ),
+              const Divider(height: 24),
+              _buildInfoRow('Khách hàng:', order.shippingAddress.recipientName, isBold: true),
+              _buildInfoRow('Số điện thoại:', order.shippingAddress.phoneNumber),
+              _buildInfoRow('Địa chỉ:', order.shippingAddress.fullAddress),
+              const SizedBox(height: 12),
+              _buildInfoRow('Tổng tiền:', currencyFormatter.format(order.total), isBold: true, valueColor: Theme.of(context).colorScheme.primary),
+              const Divider(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Trạng thái:', style: Theme.of(context).textTheme.titleMedium),
+                  DropdownButton<String>(
+                    value: order.status,
+                    icon: const Icon(Icons.arrow_drop_down),
+                    underline: Container(height: 2, color: statusInfo.$1),
+                    style: TextStyle(color: statusInfo.$1, fontWeight: FontWeight.bold),
+                    onChanged: (String? newStatus) {
+                      if (newStatus != null && newStatus != order.status) {
+                        context.read<AdminOrdersCubit>().updateOrderStatus(order.id!, newStatus);
+                      }
+                    },
+                    items: statusOptions.map<DropdownMenuItem<String>>((String value) {
+                      return DropdownMenuItem<String>(value: value, child: Text(_getStatusInfo(value, context).$2));
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -22,21 +22,23 @@ class AdminOrdersCubit extends Cubit<AdminOrdersState> {
 
     result.fold(
           (failure) {
-        developer.log('AdminOrdersCubit: Failed to fetch all orders - ${failure.message}', name: 'AdminOrdersCubit');
         emit(state.copyWith(status: AdminOrdersStatus.error, errorMessage: failure.message));
       },
           (orders) {
-        developer.log('AdminOrdersCubit: Fetched ${orders.length} orders successfully.', name: 'AdminOrdersCubit');
-        emit(state.copyWith(status: AdminOrdersStatus.success, orders: orders));
+        emit(state.copyWith(
+          status: AdminOrdersStatus.success,
+          allOrders: orders,
+        ));
+        // Sau khi tải, áp dụng lại bộ lọc hiện tại
+        filterOrdersByStatus(state.currentFilter);
       },
     );
   }
 
   /// Cập nhật trạng thái của một đơn hàng
   Future<void> updateOrderStatus(String orderId, String newStatus) async {
-    // Không emit trạng thái loading ở đây để tránh làm toàn bộ danh sách tải lại,
-    // tạo cảm giác giật lag. Chúng ta sẽ xử lý loading trên từng item riêng.
-    // emit(state.copyWith(status: AdminOrdersStatus.updating));
+    // Không emit loading ở đây để tránh làm toàn bộ danh sách tải lại,
+    // tạo cảm giác giật lag. Chúng ta sẽ xử lý loading trên từng item riêng nếu cần.
 
     final result = await _orderRepository.updateOrderStatus(orderId, newStatus);
 
@@ -50,5 +52,55 @@ class AdminOrdersCubit extends Cubit<AdminOrdersState> {
         fetchAllOrders();
       },
     );
+  }
+
+  /// Lọc danh sách người dùng theo trạng thái
+  void filterOrdersByStatus(String filter) {
+    final activeStatuses = {'pending', 'processing', 'shipped'};
+
+    List<OrderModel> listToFilter;
+
+    switch (filter) {
+      case 'active':
+        listToFilter = state.allOrders.where((order) => activeStatuses.contains(order.status)).toList();
+        break;
+      case 'completed':
+        listToFilter = state.allOrders.where((order) => order.status == 'completed').toList();
+        break;
+      case 'cancelled':
+        listToFilter = state.allOrders.where((order) => order.status == 'cancelled').toList();
+        break;
+      default: // 'all'
+        listToFilter = state.allOrders;
+    }
+    emit(state.copyWith(filteredOrders: listToFilter, currentFilter: filter, status: AdminOrdersStatus.success));
+  }
+
+  /// Tìm kiếm đơn hàng dựa trên từ khóa
+  void searchOrders(String query) {
+    // Đầu tiên, lấy danh sách đã được lọc theo trạng thái làm danh sách cơ sở
+    final activeStatuses = {'pending', 'processing', 'shipped'};
+    List<OrderModel> baseList;
+    switch (state.currentFilter) {
+      case 'active': baseList = state.allOrders.where((order) => activeStatuses.contains(order.status)).toList(); break;
+      case 'completed': baseList = state.allOrders.where((order) => order.status == 'completed').toList(); break;
+      case 'cancelled': baseList = state.allOrders.where((order) => order.status == 'cancelled').toList(); break;
+      default: baseList = state.allOrders;
+    }
+
+    if (query.isEmpty) {
+      emit(state.copyWith(filteredOrders: baseList));
+      return;
+    }
+
+    final lowerCaseQuery = query.toLowerCase();
+    final filtered = baseList.where((order) {
+      final orderIdMatch = order.id?.toLowerCase().contains(lowerCaseQuery) ?? false;
+      final customerNameMatch = order.shippingAddress.recipientName.toLowerCase().contains(lowerCaseQuery);
+      final customerPhoneMatch = order.shippingAddress.phoneNumber.contains(query); // Tìm SĐT không cần lowercase
+      return orderIdMatch || customerNameMatch || customerPhoneMatch;
+    }).toList();
+
+    emit(state.copyWith(filteredOrders: filtered));
   }
 }

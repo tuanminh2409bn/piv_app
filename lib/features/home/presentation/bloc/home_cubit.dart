@@ -32,7 +32,7 @@ class HomeCubit extends Cubit<HomeState> {
         _homeRepository.getFeaturedCategories(),
         _homeRepository.getFeaturedProducts(),
         _homeRepository.getLatestNewsArticles(),
-        _homeRepository.getAllCategories(), // Lấy tất cả danh mục
+        _homeRepository.getAllCategories(),
       ]);
 
       // Ép kiểu kết quả từ Future.wait một cách an toàn
@@ -80,9 +80,10 @@ class HomeCubit extends Cubit<HomeState> {
           status: HomeStatus.success,
           banners: finalBanners,
           categories: finalFeaturedCategories,
+          allCategories: finalAllCategories,
           featuredProducts: finalFeaturedProducts,
+          filteredFeaturedProducts: finalFeaturedProducts, // Gán vào danh sách lọc
           newsArticles: finalNews,
-          allCategories: finalAllCategories, // Gán dữ liệu vào state
         ));
       }
 
@@ -90,5 +91,22 @@ class HomeCubit extends Cubit<HomeState> {
       developer.log('HomeCubit: Unknown error fetching home screen data - ${e.toString()}', name: 'HomeCubit');
       emit(state.copyWith(status: HomeStatus.error, errorMessage: 'Lỗi không xác định: ${e.toString()}'));
     }
+  }
+
+  /// Lọc danh sách sản phẩm nổi bật dựa trên từ khóa tìm kiếm
+  void searchFeaturedProducts(String query) {
+    if (query.isEmpty) {
+      // Nếu không tìm kiếm, hiển thị lại toàn bộ danh sách nổi bật
+      emit(state.copyWith(filteredFeaturedProducts: state.featuredProducts));
+      return;
+    }
+
+    final lowerCaseQuery = query.toLowerCase();
+    final filtered = state.featuredProducts.where((product) {
+      // Tìm kiếm theo tên sản phẩm (không phân biệt hoa thường)
+      return product.name.toLowerCase().contains(lowerCaseQuery);
+    }).toList();
+
+    emit(state.copyWith(filteredFeaturedProducts: filtered));
   }
 }

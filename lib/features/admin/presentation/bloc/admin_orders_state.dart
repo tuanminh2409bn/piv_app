@@ -1,39 +1,41 @@
-part of 'admin_orders_cubit.dart'; // Sẽ tạo file admin_orders_cubit.dart sau
+part of 'admin_orders_cubit.dart';
 
-enum AdminOrdersStatus {
-  initial, // Trạng thái ban đầu
-  loading, // Đang tải danh sách đơn hàng
-  success, // Tải thành công
-  error,   // Có lỗi xảy ra
-  updating, // Đang cập nhật trạng thái đơn hàng
-}
+enum AdminOrdersStatus { initial, loading, success, error }
 
 class AdminOrdersState extends Equatable {
   final AdminOrdersStatus status;
-  final List<OrderModel> orders; // Danh sách tất cả đơn hàng
+  // Danh sách đầy đủ tất cả đơn hàng
+  final List<OrderModel> allOrders;
+  // Danh sách đơn hàng đã được lọc (dựa trên tìm kiếm hoặc bộ lọc trạng thái)
+  final List<OrderModel> filteredOrders;
   final String? errorMessage;
-  // (Tùy chọn) Thêm bộ lọc để admin có thể lọc đơn hàng
-  // final String currentFilter;
+  // Trạng thái bộ lọc hiện tại, ví dụ: 'active', 'completed'
+  final String currentFilter;
 
   const AdminOrdersState({
     this.status = AdminOrdersStatus.initial,
-    this.orders = const [],
+    this.allOrders = const [],
+    this.filteredOrders = const [],
     this.errorMessage,
-    // this.currentFilter = 'all',
+    this.currentFilter = 'active', // Mặc định hiển thị các đơn hàng cần xử lý
   });
+
+  @override
+  List<Object?> get props => [status, allOrders, filteredOrders, errorMessage, currentFilter];
 
   AdminOrdersState copyWith({
     AdminOrdersStatus? status,
-    List<OrderModel>? orders,
+    List<OrderModel>? allOrders,
+    List<OrderModel>? filteredOrders,
     String? errorMessage,
+    String? currentFilter,
   }) {
     return AdminOrdersState(
       status: status ?? this.status,
-      orders: orders ?? this.orders,
+      allOrders: allOrders ?? this.allOrders,
+      filteredOrders: filteredOrders ?? this.filteredOrders,
       errorMessage: errorMessage ?? this.errorMessage,
+      currentFilter: currentFilter ?? this.currentFilter,
     );
   }
-
-  @override
-  List<Object?> get props => [status, orders, errorMessage];
 }
