@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/user_model.dart';
-import 'package:piv_app/data/models/address_model.dart'; // Import AddressModel
+import 'package:piv_app/data/models/address_model.dart';
 import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
 import 'dart:developer' as developer;
 
@@ -15,30 +15,28 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
   CollectionReference<Map<String, dynamic>> get _usersCollection => _firestore.collection('users');
 
   @override
-  // Thêm 'async'
   Future<Either<Failure, UserModel>> getUserProfile(String userId) async {
     try {
-      // Thêm 'await'
       final docSnapshot = await _usersCollection.doc(userId).get();
       if (docSnapshot.exists && docSnapshot.data() != null) {
         final user = UserModel.fromJson(docSnapshot.data()!);
+        developer.log('Fetched profile for user: ${user.id}', name: 'UserProfileRepo');
         return Right(user);
       } else {
         return Left(ServerFailure('Không tìm thấy hồ sơ người dùng.'));
       }
     } on FirebaseException catch (e) {
-      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+      return Left(ServerFailure('Lỗi Firebase khi tải hồ sơ: ${e.message}'));
     } catch (e) {
       return Left(ServerFailure('Lỗi không xác định khi tải hồ sơ: ${e.toString()}'));
     }
   }
 
   @override
-  // Thêm 'async'
   Future<Either<Failure, Unit>> updateUserProfile(UserModel user) async {
     try {
-      // Thêm 'await'
       await _usersCollection.doc(user.id).update(user.toJson());
+      developer.log('Updated profile for user: ${user.id}', name: 'UserProfileRepo');
       return const Right(unit);
     } on FirebaseException catch (e) {
       return Left(ServerFailure('Lỗi Firebase khi cập nhật hồ sơ: ${e.message}'));
@@ -47,13 +45,10 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
     }
   }
 
-  // --- CÁC PHƯƠNG THỨC ĐỊA CHỈ (ĐÃ ĐÚNG TỪ TRƯỚC) ---
-
   @override
   Future<Either<Failure, Unit>> addAddress(String userId, AddressModel address) async {
     try {
-      final userRef = _usersCollection.doc(userId);
-      await userRef.update({
+      await _usersCollection.doc(userId).update({
         'addresses': FieldValue.arrayUnion([address.toMap()])
       });
       developer.log('Added new address for user $userId', name: 'UserProfileRepo');
@@ -131,7 +126,6 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
           newAddr['isDefault'] = (newAddr['id'] == addressId);
           return newAddr;
         }).toList();
-
         transaction.update(userRef, {'addresses': updatedList});
       });
       developer.log('Set default address $addressId for user $userId', name: 'UserProfileRepo');
@@ -140,6 +134,43 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
       return Left(ServerFailure('Lỗi Firebase khi đặt địa chỉ mặc định: ${e.message}'));
     } catch (e) {
       return Left(ServerFailure('Lỗi không xác định khi đặt địa chỉ mặc định: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> submitReferralCode(String userId, String referralCode) async {
+    try {
+      final referrerDoc = await _usersCollection.doc(referralCode).get();
+
+      if (!referrerDoc.exists) {
+        return Left(ServerFailure('Mã giới thiệu không hợp lệ.'));
+      }
+
+      await _usersCollection.doc(userId).update({
+        'referrerId': referralCode,
+        'referralPromptPending': false,
+      });
+      developer.log('User $userId submitted referral code for $referralCode', name: 'UserProfileRepo');
+      return const Right(unit);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> dismissReferralPrompt(String userId) async {
+    try {
+      await _usersCollection.doc(userId).update({
+        'referralPromptPending': false,
+      });
+      developer.log('User $userId dismissed referral prompt.', name: 'UserProfileRepo');
+      return const Right(unit);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
     }
   }
 }

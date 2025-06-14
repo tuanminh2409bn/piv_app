@@ -1,7 +1,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/user_model.dart';
-import 'package:piv_app/data/models/address_model.dart'; // Import AddressModel
+import 'package:piv_app/data/models/address_model.dart';
 
 abstract class UserProfileRepository {
   /// Lấy thông tin hồ sơ của người dùng dựa trên userId từ Firestore.
@@ -21,4 +21,12 @@ abstract class UserProfileRepository {
 
   /// Đặt một địa chỉ làm địa chỉ mặc định.
   Future<Either<Failure, Unit>> setDefaultAddress(String userId, String addressId);
+
+  // ** PHƯƠNG THỨC MỚI **
+  /// Gửi mã giới thiệu, kiểm tra và cập nhật thông tin người dùng.
+  Future<Either<Failure, Unit>> submitReferralCode(String userId, String referralCode);
+
+  // ** PHƯƠNG THỨC MỚI **
+  /// Bỏ qua lời nhắc nhập mã giới thiệu.
+  Future<Either<Failure, Unit>> dismissReferralPrompt(String userId);
 }

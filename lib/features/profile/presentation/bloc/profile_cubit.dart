@@ -86,14 +86,13 @@ class ProfileCubit extends Cubit<ProfileState> {
     );
   }
 
-  // --- CÁC PHƯƠNG THỨC MỚI CHO ĐỊA CHỈ ---
-
+  // --- CÁC PHƯƠNG THỨC ĐỊA CHỈ ---
   Future<void> addAddress(AddressModel address) async {
     emit(state.copyWith(status: ProfileStatus.updating));
     final result = await _userProfileRepository.addAddress(state.user.id, address);
     result.fold(
           (failure) => emit(state.copyWith(status: ProfileStatus.error, errorMessage: failure.message)),
-          (_) => fetchUserProfile(state.user.id), // Tải lại toàn bộ hồ sơ để cập nhật danh sách địa chỉ
+          (_) => fetchUserProfile(state.user.id),
     );
   }
 
@@ -124,6 +123,37 @@ class ProfileCubit extends Cubit<ProfileState> {
     );
   }
 
+  // --- CÁC PHƯƠNG THỨC MỚI CHO LỜI NHẮC GIỚI THIỆU ---
+
+  /// Gửi mã giới thiệu và cập nhật thông tin người dùng.
+  Future<void> submitReferralCode(String referralCode) async {
+    emit(state.copyWith(status: ProfileStatus.updating));
+    final result = await _userProfileRepository.submitReferralCode(state.user.id, referralCode);
+
+    result.fold(
+          (failure) {
+        // Nếu có lỗi (ví dụ: mã không hợp lệ), phát ra lỗi để UI có thể hiển thị
+        emit(state.copyWith(status: ProfileStatus.error, errorMessage: failure.message));
+        // Sau đó quay lại trạng thái success để người dùng có thể thử lại
+        emit(state.copyWith(status: ProfileStatus.success));
+      },
+          (_) {
+        // Thành công, tải lại hồ sơ để nhận cờ referralPromptPending: false mới
+        fetchUserProfile(state.user.id);
+      },
+    );
+  }
+
+  /// Bỏ qua lời nhắc và cập nhật cờ trên Firestore.
+  Future<void> dismissReferralPrompt() async {
+    emit(state.copyWith(status: ProfileStatus.updating));
+    final result = await _userProfileRepository.dismissReferralPrompt(state.user.id);
+
+    result.fold(
+          (failure) => emit(state.copyWith(status: ProfileStatus.error, errorMessage: failure.message)),
+          (_) => fetchUserProfile(state.user.id),
+    );
+  }
 
   @override
   Future<void> close() {

@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/address_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Cần cho fromJson
 
 class UserModel extends Equatable {
   final String id;
@@ -8,13 +9,17 @@ class UserModel extends Equatable {
   final String? photoUrl;
   final List<AddressModel> addresses;
 
-  // ** CÁC TRƯỜNG ĐÃ CẬP NHẬT **
   /// Vai trò của người dùng, ví dụ: 'agent_1', 'agent_2', 'admin'
   final String role;
   /// Trạng thái tài khoản: 'pending_approval', 'active', 'suspended'
   final String status;
 
+  /// ID của người đã giới thiệu người dùng này (nếu có).
   final String? referrerId;
+  /// Cờ để xác định có cần hiển thị hộp thoại hỏi mã giới thiệu hay không.
+  final bool referralPromptPending;
+
+  /// Mã giới thiệu của chính người dùng này (chúng ta sẽ dùng chính ID của họ).
   String get referralCode => id;
 
   const UserModel({
@@ -26,6 +31,7 @@ class UserModel extends Equatable {
     this.role = 'agent_2', // Mặc định là đại lý cấp thấp nhất khi mới đăng ký
     this.status = 'pending_approval', // Mặc định là đang chờ duyệt
     this.referrerId,
+    this.referralPromptPending = false, // Mặc định là false
   });
 
   bool get isAdmin => role == 'admin';
@@ -43,6 +49,7 @@ class UserModel extends Equatable {
     String? role,
     String? status,
     String? referrerId,
+    bool? referralPromptPending,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -53,6 +60,7 @@ class UserModel extends Equatable {
       role: role ?? this.role,
       status: status ?? this.status,
       referrerId: referrerId ?? this.referrerId,
+      referralPromptPending: referralPromptPending ?? this.referralPromptPending,
     );
   }
 
@@ -66,6 +74,7 @@ class UserModel extends Equatable {
       'role': role,
       'status': status,
       'referrerId': referrerId,
+      'referralPromptPending': referralPromptPending,
     };
   }
 
@@ -88,9 +97,10 @@ class UserModel extends Equatable {
       role: json['role'] as String? ?? 'agent_2',
       status: json['status'] as String? ?? 'pending_approval',
       referrerId: json['referrerId'] as String?,
+      referralPromptPending: json['referralPromptPending'] as bool? ?? false,
     );
   }
 
   @override
-  List<Object?> get props => [id, email, displayName, photoUrl, addresses, role, status, referrerId];
+  List<Object?> get props => [id, email, displayName, photoUrl, addresses, role, status, referrerId, referralPromptPending];
 }

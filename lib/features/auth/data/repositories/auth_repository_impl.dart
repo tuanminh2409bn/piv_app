@@ -105,12 +105,12 @@ class AuthRepositoryImpl implements AuthRepository {
           }
         }
 
-        // UserModel mới sẽ tự động có status là 'pending_approval' và role là 'agent_2'
         final newUser = UserModel(
           id: firebaseUser.uid,
           email: firebaseUser.email,
           displayName: displayName ?? firebaseUser.displayName,
           referrerId: foundReferrerId,
+          referralPromptPending: (referralCode == null || referralCode.isEmpty), // Nếu chưa có mã, cần hỏi
         );
         await _firestore.collection('users').doc(firebaseUser.uid).set(newUser.toJson());
 
@@ -262,14 +262,21 @@ class AuthRepositoryImpl implements AuthRepository {
             email: firebaseUser.email,
             displayName: firebaseUser.displayName,
             photoUrl: firebaseUser.photoURL,
-            role: 'agent_2', // Mặc định là đại lý cấp 2
-            status: 'pending_approval', // Mặc định là chờ duyệt
+            role: 'agent_2',
+            status: 'pending_approval',
+            referralPromptPending: true, // Đặt cờ khi đăng nhập mạng xã hội lần đầu
           );
           await userDoc.set(newUser.toJson());
         }
 
         // Sau khi đăng nhập, kiểm tra lại trạng thái của user
-        final user = UserModel.fromJson((await userDoc.get()).data()!);
+        final updatedUserSnapshot = await userDoc.get();
+        if (!updatedUserSnapshot.exists) {
+          await logOut();
+          return Left(AuthFailure('Không tìm thấy thông tin tài khoản sau khi đăng nhập.'));
+        }
+
+        final user = UserModel.fromJson(updatedUserSnapshot.data()!);
         if (user.status != 'active') {
           await logOut();
           if (user.status == 'pending_approval') {
