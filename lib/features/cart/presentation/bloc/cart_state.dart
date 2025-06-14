@@ -1,13 +1,13 @@
-part of 'cart_cubit.dart'; // Sẽ tạo file cart_cubit.dart sau
+part of 'cart_cubit.dart';
 
 enum CartStatus {
-  initial, // Trạng thái ban đầu, chưa tải
-  loading, // Đang tải giỏ hàng
-  success, // Tải thành công
-  error,   // Có lỗi xảy ra
-  itemAdding, // Đang thêm sản phẩm
-  itemUpdating, // Đang cập nhật sản phẩm
-  itemRemoving, // Đang xóa sản phẩm
+  initial,
+  loading,
+  success,
+  error,
+  itemAdding,
+  itemUpdating,
+  itemRemoving,
 }
 
 class CartState extends Equatable {
@@ -21,13 +21,16 @@ class CartState extends Equatable {
     this.errorMessage,
   });
 
-  // Getter tiện ích để tính tổng số lượng sản phẩm
-  int get totalItems {
+  /// Getter để tính tổng SỐ LƯỢNG của tất cả các sản phẩm.
+  int get totalQuantity {
     if (items.isEmpty) return 0;
     return items.fold(0, (total, current) => total + current.quantity);
   }
 
-  // Getter tiện ích để tính tổng tiền
+  /// **GETTER MỚI:** Chỉ đếm số LOẠI sản phẩm trong giỏ hàng.
+  int get uniqueItemCount => items.length;
+
+  /// Getter để tính tổng tiền.
   double get totalPrice {
     if (items.isEmpty) return 0;
     return items.fold(0.0, (total, current) => total + (current.price * current.quantity));
@@ -47,5 +50,5 @@ class CartState extends Equatable {
   }
 
   @override
-  List<Object?> get props => [status, items, errorMessage, totalItems, totalPrice];
+  List<Object?> get props => [status, items, errorMessage];
 }

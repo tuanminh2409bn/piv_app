@@ -5,6 +5,7 @@ import 'package:piv_app/features/home/data/models/category_model.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/products/presentation/bloc/category_products_cubit.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
+import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:intl/intl.dart';
 
 class CategoryProductsPage extends StatelessWidget {
@@ -31,6 +32,13 @@ class CategoryProductsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Lấy vai trò của người dùng từ AuthBloc để hiển thị đúng giá
+    final authState = context.read<AuthBloc>().state;
+    String userRole = 'agent_2'; // Mặc định là cấp thấp nhất
+    if (authState is AuthAuthenticated) {
+      userRole = authState.user.role;
+    }
+
     return Scaffold(
       appBar: AppBar(
         // Lấy tên danh mục hiện tại từ state để làm tiêu đề
@@ -70,7 +78,7 @@ class CategoryProductsView extends StatelessWidget {
               if (hasSubCategories) ...[
                 Text(
                   'DANH MỤC CON',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: Colors.grey.shade700),
                 ),
                 const SizedBox(height: 12),
                 _buildSubCategoryGrid(context, state.subCategories),
@@ -80,10 +88,10 @@ class CategoryProductsView extends StatelessWidget {
               if (hasProducts) ...[
                 Text(
                   'SẢN PHẨM',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: Colors.grey.shade700),
                 ),
                 const SizedBox(height: 12),
-                _buildProductList(context, state.products),
+                _buildProductList(context, state.products, userRole),
               ],
             ],
           );
@@ -138,7 +146,7 @@ class CategoryProductsView extends StatelessWidget {
   }
 
   // Widget hiển thị danh sách sản phẩm
-  Widget _buildProductList(BuildContext context, List<ProductModel> products) {
+  Widget _buildProductList(BuildContext context, List<ProductModel> products, String userRole) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     return ListView.separated(
       shrinkWrap: true,
@@ -147,6 +155,8 @@ class CategoryProductsView extends StatelessWidget {
       separatorBuilder: (_, __) => const Divider(),
       itemBuilder: (context, index) {
         final product = products[index];
+        // Lấy giá chính xác cho vai trò của người dùng
+        final price = product.getPriceForRole(userRole);
         return ListTile(
           leading: ClipRRect(
             borderRadius: BorderRadius.circular(8),
@@ -160,8 +170,8 @@ class CategoryProductsView extends StatelessWidget {
           ),
           title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
           subtitle: Text(
-            // Sử dụng startingPrice vì đây là danh sách, không cần chọn vai trò
-            'Từ ${currencyFormatter.format(product.startingPrice)}',
+            // Hiển thị giá chính xác và đơn vị
+            '${currencyFormatter.format(price)} / ${product.unit}',
             style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w500),
           ),
           trailing: const Icon(Icons.arrow_forward_ios, size: 16),

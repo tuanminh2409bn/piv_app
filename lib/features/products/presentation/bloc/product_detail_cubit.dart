@@ -18,7 +18,6 @@ class ProductDetailCubit extends Cubit<ProductDetailState> {
       emit(state.copyWith(status: ProductDetailStatus.error, errorMessage: "ID sản phẩm không hợp lệ."));
       return;
     }
-    // Reset lại state khi tải sản phẩm mới
     emit(const ProductDetailState(status: ProductDetailStatus.loading));
     developer.log('ProductDetailCubit: Fetching detail for product ID: $productId', name: 'ProductDetailCubit');
 
@@ -38,8 +37,6 @@ class ProductDetailCubit extends Cubit<ProductDetailState> {
 
   void incrementQuantity() {
     if (state.product == null) return;
-    // Có thể thêm logic kiểm tra số lượng tồn kho ở đây
-    // if (state.quantity >= state.product!.stockQuantity) return;
     emit(state.copyWith(quantity: state.quantity + 1));
   }
 
@@ -48,5 +45,11 @@ class ProductDetailCubit extends Cubit<ProductDetailState> {
       emit(state.copyWith(quantity: state.quantity - 1));
     }
   }
+
+  // ** PHƯƠNG THỨC MỚI ĐỂ NHẬN SỐ LƯỢNG TỪ DIALOG **
+  void setQuantity(int newQuantity) {
+    if (newQuantity > 0) {
+      emit(state.copyWith(quantity: newQuantity));
+    }
+  }
 }
-    

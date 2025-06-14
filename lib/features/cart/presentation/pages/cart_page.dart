@@ -275,7 +275,8 @@ Widget _buildSummarySection(BuildContext context, CartState state, NumberFormat 
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Tổng cộng (${state.totalItems} sản phẩm):', style: Theme.of(context).textTheme.titleMedium),
+            // Sử dụng `uniqueItemCount` để đếm số loại sản phẩm
+            Text('Tổng cộng (${state.uniqueItemCount} loại sản phẩm):', style: Theme.of(context).textTheme.titleMedium),
             Text(formatter.format(state.totalPrice), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
           ],
         ),
