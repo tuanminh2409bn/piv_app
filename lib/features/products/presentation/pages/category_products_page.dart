@@ -1,3 +1,5 @@
+// lib/features/products/presentation/pages/category_products_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
@@ -19,7 +21,6 @@ class CategoryProductsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Cung cấp một instance mới của CategoryProductsCubit và bắt đầu tải dữ liệu
     return BlocProvider(
       create: (_) => sl<CategoryProductsCubit>()..fetchDataForCategory(category),
       child: const CategoryProductsView(),
@@ -32,16 +33,14 @@ class CategoryProductsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Lấy vai trò của người dùng từ AuthBloc để hiển thị đúng giá
     final authState = context.read<AuthBloc>().state;
-    String userRole = 'agent_2'; // Mặc định là cấp thấp nhất
+    String userRole = 'agent_2';
     if (authState is AuthAuthenticated) {
       userRole = authState.user.role;
     }
 
     return Scaffold(
       appBar: AppBar(
-        // Lấy tên danh mục hiện tại từ state để làm tiêu đề
         title: BlocBuilder<CategoryProductsCubit, CategoryProductsState>(
           builder: (context, state) {
             return Text(state.currentCategory?.name ?? 'Danh mục');
@@ -50,7 +49,6 @@ class CategoryProductsView extends StatelessWidget {
       ),
       body: BlocBuilder<CategoryProductsCubit, CategoryProductsState>(
         builder: (context, state) {
-          // Xử lý các trạng thái khác nhau
           if (state.status == CategoryProductsStatus.loading || state.status == CategoryProductsStatus.initial) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -70,11 +68,9 @@ class CategoryProductsView extends StatelessWidget {
             );
           }
 
-          // Sử dụng ListView để có thể cuộn qua các section
           return ListView(
             padding: const EdgeInsets.all(16.0),
             children: [
-              // Section Danh mục con
               if (hasSubCategories) ...[
                 Text(
                   'DANH MỤC CON',
@@ -84,7 +80,6 @@ class CategoryProductsView extends StatelessWidget {
                 _buildSubCategoryGrid(context, state.subCategories),
                 const SizedBox(height: 24),
               ],
-              // Section Sản phẩm
               if (hasProducts) ...[
                 Text(
                   'SẢN PHẨM',
@@ -100,7 +95,6 @@ class CategoryProductsView extends StatelessWidget {
     );
   }
 
-  // Widget hiển thị lưới các danh mục con
   Widget _buildSubCategoryGrid(BuildContext context, List<CategoryModel> subCategories) {
     return GridView.builder(
       shrinkWrap: true,
@@ -116,7 +110,6 @@ class CategoryProductsView extends StatelessWidget {
         final subCategory = subCategories[index];
         return InkWell(
           onTap: () {
-            // Đệ quy: Mở một trang CategoryProductsPage khác cho danh mục con này
             Navigator.of(context).push(CategoryProductsPage.route(subCategory));
           },
           borderRadius: BorderRadius.circular(8),
@@ -145,7 +138,7 @@ class CategoryProductsView extends StatelessWidget {
     );
   }
 
-  // Widget hiển thị danh sách sản phẩm
+  // --- HÀM NÀY ĐÃ ĐƯỢC SỬA ---
   Widget _buildProductList(BuildContext context, List<ProductModel> products, String userRole) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     return ListView.separated(
@@ -155,8 +148,9 @@ class CategoryProductsView extends StatelessWidget {
       separatorBuilder: (_, __) => const Divider(),
       itemBuilder: (context, index) {
         final product = products[index];
-        // Lấy giá chính xác cho vai trò của người dùng
+        // Sử dụng các getter mới trong ProductModel
         final price = product.getPriceForRole(userRole);
+        final unit = product.displayUnit;
         return ListTile(
           leading: ClipRRect(
             borderRadius: BorderRadius.circular(8),
@@ -170,8 +164,8 @@ class CategoryProductsView extends StatelessWidget {
           ),
           title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
           subtitle: Text(
-            // Hiển thị giá chính xác và đơn vị
-            '${currencyFormatter.format(price)} / ${product.unit}',
+            // Hiển thị giá và đơn vị mới
+            '${currencyFormatter.format(price)} / $unit',
             style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w500),
           ),
           trailing: const Icon(Icons.arrow_forward_ios, size: 16),

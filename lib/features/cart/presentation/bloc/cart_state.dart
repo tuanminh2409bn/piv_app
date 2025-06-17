@@ -1,3 +1,5 @@
+// lib/features/cart/presentation/bloc/cart_state.dart
+
 part of 'cart_cubit.dart';
 
 enum CartStatus {
@@ -21,20 +23,21 @@ class CartState extends Equatable {
     this.errorMessage,
   });
 
-  /// Getter để tính tổng SỐ LƯỢNG của tất cả các sản phẩm.
   int get totalQuantity {
     if (items.isEmpty) return 0;
     return items.fold(0, (total, current) => total + current.quantity);
   }
 
-  /// **GETTER MỚI:** Chỉ đếm số LOẠI sản phẩm trong giỏ hàng.
   int get uniqueItemCount => items.length;
 
-  /// Getter để tính tổng tiền.
+  // --- ĐẢM BẢO LOGIC NÀY ĐÚNG ---
+  // Getter này tính tổng tiền của toàn bộ giỏ hàng
   double get totalPrice {
-    if (items.isEmpty) return 0;
-    return items.fold(0.0, (total, current) => total + (current.price * current.quantity));
+    if (items.isEmpty) return 0.0;
+    // Nó sẽ cộng tổng của tất cả các `subtotal` từ mỗi CartItemModel
+    return items.fold(0.0, (total, current) => total + current.subtotal);
   }
+  // ------------------------------
 
   CartState copyWith({
     CartStatus? status,

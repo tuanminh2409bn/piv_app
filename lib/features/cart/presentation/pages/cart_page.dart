@@ -1,3 +1,5 @@
+// lib/features/cart/presentation/pages/cart_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -6,8 +8,6 @@ import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
 import 'package:piv_app/data/models/cart_item_model.dart';
 import 'package:piv_app/features/checkout/presentation/pages/checkout_page.dart';
 
-/// Trang Giỏ hàng chính.
-/// Cung cấp một route tĩnh để dễ dàng điều hướng.
 class CartPage extends StatelessWidget {
   const CartPage({super.key});
 
@@ -19,13 +19,10 @@ class CartPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // CartCubit đã được cung cấp ở cấp cao nhất (main.dart),
-    // nên chúng ta có thể sử dụng trực tiếp trong CartView.
     return const CartView();
   }
 }
 
-/// Widget chứa toàn bộ giao diện của trang Giỏ hàng.
 class CartView extends StatelessWidget {
   const CartView({super.key});
 
@@ -72,7 +69,7 @@ class CartView extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton(
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
                         child: const Text('Tiếp tục mua sắm')
                     ),
                   ],
@@ -81,7 +78,6 @@ class CartView extends StatelessWidget {
             );
           }
 
-          // Khi có sản phẩm trong giỏ hàng
           return Column(
             children: [
               Expanded(
@@ -95,7 +91,6 @@ class CartView extends StatelessWidget {
                   },
                 ),
               ),
-              // Phần tổng kết và thanh toán ở dưới cùng
               _buildSummarySection(context, state, currencyFormatter),
             ],
           );
@@ -105,14 +100,15 @@ class CartView extends StatelessWidget {
   }
 }
 
-// Widget cho một sản phẩm trong giỏ hàng
 Widget _buildCartItemCard(BuildContext context, CartItemModel item, NumberFormat formatter) {
+  final pricePerCase = item.price * item.quantityPerPackage;
+
   return Card(
     elevation: 2,
     margin: EdgeInsets.zero,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     child: Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 4, 8),
+      padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -133,9 +129,20 @@ Widget _buildCartItemCard(BuildContext context, CartItemModel item, NumberFormat
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(item.productName, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 6),
+
+                Text(
+                  'Quy cách: ${item.caseUnitName}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade700),
+                ),
                 const SizedBox(height: 4),
-                Text(formatter.format(item.price), style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 4),
+
+                Text(
+                  formatter.format(pricePerCase),
+                  style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+
                 Align(
                   alignment: Alignment.centerRight,
                   child: _buildQuantityAdjuster(context, item),
@@ -150,7 +157,7 @@ Widget _buildCartItemCard(BuildContext context, CartItemModel item, NumberFormat
               padding: EdgeInsets.zero,
               icon: Icon(Icons.delete_outline, color: Colors.red.shade400, size: 24),
               onPressed: () {
-                context.read<CartCubit>().removeProduct(item.productId);
+                context.read<CartCubit>().removeProduct(item.productId, item.caseUnitName);
               },
             ),
           )
@@ -160,7 +167,6 @@ Widget _buildCartItemCard(BuildContext context, CartItemModel item, NumberFormat
   );
 }
 
-// Widget cho bộ chọn số lượng
 Widget _buildQuantityAdjuster(BuildContext context, CartItemModel item) {
   final cartStatus = context.watch<CartCubit>().state.status;
   final bool isUpdatingThisItem = cartStatus == CartStatus.itemUpdating;
@@ -175,7 +181,7 @@ Widget _buildQuantityAdjuster(BuildContext context, CartItemModel item) {
           icon: const Icon(Icons.remove_circle_outline, size: 22),
           color: Colors.grey.shade600,
           onPressed: (item.quantity > 1 && !isUpdatingThisItem)
-              ? () => context.read<CartCubit>().updateQuantity(item.productId, item.quantity - 1)
+              ? () => context.read<CartCubit>().updateQuantity(item.productId, item.caseUnitName, item.quantity - 1)
               : null,
         ),
       ),
@@ -204,7 +210,7 @@ Widget _buildQuantityAdjuster(BuildContext context, CartItemModel item) {
           icon: const Icon(Icons.add_circle, size: 22),
           color: Theme.of(context).colorScheme.primary,
           onPressed: !isUpdatingThisItem
-              ? () => context.read<CartCubit>().updateQuantity(item.productId, item.quantity + 1)
+              ? () => context.read<CartCubit>().updateQuantity(item.productId, item.caseUnitName, item.quantity + 1)
               : null,
         ),
       ),
@@ -212,16 +218,14 @@ Widget _buildQuantityAdjuster(BuildContext context, CartItemModel item) {
   );
 }
 
-// Hàm hiển thị dialog để nhập số lượng
 void _showQuantityInputDialog(BuildContext context, CartItemModel item) {
   final TextEditingController controller = TextEditingController(text: item.quantity.toString());
   final formKey = GlobalKey<FormState>();
-
   showDialog(
     context: context,
     builder: (dialogContext) {
       return AlertDialog(
-        title: const Text('Nhập số lượng'),
+        title: Text('Nhập số lượng (${item.caseUnitName})'),
         content: Form(
           key: formKey,
           child: TextFormField(
@@ -232,13 +236,9 @@ void _showQuantityInputDialog(BuildContext context, CartItemModel item) {
             decoration: const InputDecoration(hintText: 'Số lượng'),
             textAlign: TextAlign.center,
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Vui lòng nhập số lượng';
-              }
+              if (value == null || value.isEmpty) return 'Vui lòng nhập số lượng';
               final quantity = int.tryParse(value);
-              if (quantity == null || quantity <= 0) {
-                return 'Số lượng phải lớn hơn 0';
-              }
+              if (quantity == null || quantity <= 0) return 'Số lượng phải lớn hơn 0';
               return null;
             },
           ),
@@ -250,7 +250,7 @@ void _showQuantityInputDialog(BuildContext context, CartItemModel item) {
             onPressed: () {
               if (formKey.currentState!.validate()) {
                 final newQuantity = int.parse(controller.text);
-                context.read<CartCubit>().updateQuantity(item.productId, newQuantity);
+                context.read<CartCubit>().updateQuantity(item.productId, item.caseUnitName, newQuantity);
                 Navigator.of(dialogContext).pop();
               }
             },
@@ -261,7 +261,6 @@ void _showQuantityInputDialog(BuildContext context, CartItemModel item) {
   );
 }
 
-// Widget cho phần tổng kết
 Widget _buildSummarySection(BuildContext context, CartState state, NumberFormat formatter) {
   return Container(
     padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -275,7 +274,6 @@ Widget _buildSummarySection(BuildContext context, CartState state, NumberFormat 
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Sử dụng `uniqueItemCount` để đếm số loại sản phẩm
             Text('Tổng cộng (${state.uniqueItemCount} loại sản phẩm):', style: Theme.of(context).textTheme.titleMedium),
             Text(formatter.format(state.totalPrice), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
           ],

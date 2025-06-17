@@ -8,11 +8,9 @@ import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/home/data/models/category_model.dart';
 
 class AdminProductFormPage extends StatelessWidget {
-  // Sản phẩm cần sửa (có thể null nếu đang ở chế độ thêm mới)
   final ProductModel? product;
   const AdminProductFormPage({super.key, this.product});
 
-  // Kiểu trả về là bool? để báo hiệu cho trang trước biết việc lưu có thành công không
   static PageRoute<bool?> route({ProductModel? product}) {
     return MaterialPageRoute<bool?>(
       builder: (_) => AdminProductFormPage(product: product),
@@ -21,7 +19,6 @@ class AdminProductFormPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Cung cấp một instance mới của ProductFormCubit và khởi tạo form
     return BlocProvider(
       create: (_) => sl<ProductFormCubit>()..initializeForm(productToEdit: product),
       child: const ProductFormView(),
@@ -37,57 +34,63 @@ class ProductFormView extends StatefulWidget {
 
 class _ProductFormViewState extends State<ProductFormView> {
   final _formKey = GlobalKey<FormState>();
-  // Sử dụng TextEditingController để quản lý dữ liệu trong các trường text
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
-  late final TextEditingController _unitController;
+  late bool _isFeatured;
+
+  late final TextEditingController _packagingNameController;
+  late final TextEditingController _itemsPerCaseController;
+  late final TextEditingController _itemUnitController;
   late final TextEditingController _agent1PriceController;
   late final TextEditingController _agent2PriceController;
-  // Giá trị của Switch sẽ được quản lý cục bộ và gửi đi khi lưu
-  late bool _isFeatured;
 
   @override
   void initState() {
     super.initState();
-    // Lấy cubit từ context để truy cập state ban đầu
     final initialProduct = context.read<ProductFormCubit>().state.initialProduct;
 
-    // Khởi tạo các controller với dữ liệu của sản phẩm (nếu đang ở chế độ sửa)
+    // SỬA LỖI: Sử dụng đúng tên 'packingOptions'
+    final firstOption = (initialProduct?.packingOptions.isNotEmpty ?? false)
+        ? initialProduct!.packingOptions.first
+        : null;
+
     _nameController = TextEditingController(text: initialProduct?.name);
     _descriptionController = TextEditingController(text: initialProduct?.description);
-    _unitController = TextEditingController(text: initialProduct?.unit);
     _isFeatured = initialProduct?.isFeatured ?? false;
 
-    // Khởi tạo các controller giá từ map 'prices'
-    _agent1PriceController = TextEditingController(text: initialProduct?.prices['agent_1']?.toStringAsFixed(0) ?? '');
-    _agent2PriceController = TextEditingController(text: initialProduct?.prices['agent_2']?.toStringAsFixed(0) ?? '');
+    _packagingNameController = TextEditingController(text: firstOption?.name);
+    // SỬA LỖI: Sử dụng đúng tên 'quantityPerPackage'
+    _itemsPerCaseController = TextEditingController(text: firstOption?.quantityPerPackage.toString());
+    _itemUnitController = TextEditingController(text: firstOption?.unit);
+    _agent1PriceController = TextEditingController(text: firstOption?.prices['agent_1']?.toStringAsFixed(0) ?? '');
+    _agent2PriceController = TextEditingController(text: firstOption?.prices['agent_2']?.toStringAsFixed(0) ?? '');
   }
 
   @override
   void dispose() {
-    // Luôn dispose các controller để tránh rò rỉ bộ nhớ
     _nameController.dispose();
     _descriptionController.dispose();
-    _unitController.dispose();
+    _packagingNameController.dispose();
+    _itemsPerCaseController.dispose();
+    _itemUnitController.dispose();
     _agent1PriceController.dispose();
     _agent2PriceController.dispose();
     super.dispose();
   }
 
-  // Hàm được gọi khi nhấn nút Lưu
   void _onSavePressed() {
-    // Kiểm tra xem form có hợp lệ không
     if (_formKey.currentState!.validate()) {
-      // Gọi phương thức saveProduct từ cubit với dữ liệu từ các controller và state
       context.read<ProductFormCubit>().saveProduct(
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
         currentImageUrl: context.read<ProductFormCubit>().state.initialProduct?.imageUrl ?? '',
+        packagingName: _packagingNameController.text.trim(),
+        itemsPerCase: _itemsPerCaseController.text.trim(),
+        itemUnit: _itemUnitController.text.trim(),
         prices: {
           'agent_1': _agent1PriceController.text.trim(),
           'agent_2': _agent2PriceController.text.trim(),
         },
-        unit: _unitController.text.trim(),
         isFeatured: _isFeatured,
       );
     }
@@ -105,24 +108,18 @@ class _ProductFormViewState extends State<ProductFormView> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Lưu sản phẩm thành công!'), backgroundColor: Colors.green),
           );
-          Navigator.of(context).pop(true); // Trả về 'true' để báo hiệu thành công
+          Navigator.of(context).pop(true);
         }
       },
       builder: (context, state) {
         final isSubmitting = state.status == ProductFormStatus.submitting;
-
         return Scaffold(
           appBar: AppBar(
             title: Text(state.isEditing ? 'Sửa Sản phẩm' : 'Thêm Sản phẩm mới'),
             actions: [
               if (!isSubmitting)
-                IconButton(
-                  icon: const Icon(Icons.save_outlined),
-                  onPressed: _onSavePressed,
-                  tooltip: 'Lưu',
-                )
+                IconButton(icon: const Icon(Icons.save_outlined), onPressed: _onSavePressed, tooltip: 'Lưu')
               else
-              // Hiển thị vòng tròn tải khi đang lưu
                 const Padding(
                   padding: EdgeInsets.only(right: 16.0),
                   child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white))),
@@ -135,13 +132,10 @@ class _ProductFormViewState extends State<ProductFormView> {
     );
   }
 
-  // Widget cho phần thân của trang
   Widget _buildBody(BuildContext context, ProductFormState state) {
-    // Hiển thị vòng tròn tải khi đang load dữ liệu ban đầu (danh mục)
     if (state.status == ProductFormStatus.loading) {
       return const Center(child: CircularProgressIndicator());
     }
-
     return Form(
       key: _formKey,
       child: SingleChildScrollView(
@@ -159,33 +153,33 @@ class _ProductFormViewState extends State<ProductFormView> {
             Text('Chọn danh mục', style: Theme.of(context).textTheme.titleMedium),
             const Divider(),
             if (state.categoryLevels.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8.0),
-                child: Text('Đang tải danh mục...'),
-              )
+              const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Text('Đang tải danh mục...'))
             else
-            // Xây dựng các dropdown động từ state
               ..._buildCategoryDropdowns(context, state),
             const SizedBox(height: 24),
 
-            Text('Giá theo cấp đại lý', style: Theme.of(context).textTheme.titleMedium),
+            Text('Quy cách & Giá bán (Quy cách đầu tiên)', style: Theme.of(context).textTheme.titleMedium),
             const Divider(),
-            _buildTextField(controller: _agent1PriceController, label: 'Giá Đại lý cấp 1', keyboardType: TextInputType.number),
+            _buildTextField(controller: _packagingNameController, label: 'Tên quy cách (VD: Thùng 400 gói)'),
             const SizedBox(height: 16),
-            _buildTextField(controller: _agent2PriceController, label: 'Giá Đại lý cấp 2', keyboardType: TextInputType.number),
+            Row(
+              children: [
+                Expanded(child: _buildTextField(controller: _itemsPerCaseController, label: 'Số lượng/Quy cách', keyboardType: TextInputType.number)),
+                const SizedBox(width: 16),
+                Expanded(child: _buildTextField(controller: _itemUnitController, label: 'Đơn vị lẻ (VD: gói, chai)')),
+              ],
+            ),
             const SizedBox(height: 16),
-            _buildTextField(controller: _unitController, label: 'Đơn vị tính (VD: Bao 25kg)'),
+            _buildTextField(controller: _agent1PriceController, label: 'Giá Đại lý cấp 1 / 1 đơn vị lẻ', keyboardType: TextInputType.number),
+            const SizedBox(height: 16),
+            _buildTextField(controller: _agent2PriceController, label: 'Giá Đại lý cấp 2 / 1 đơn vị lẻ', keyboardType: TextInputType.number),
             const SizedBox(height: 16),
 
             SwitchListTile(
               title: const Text('Sản phẩm nổi bật'),
               subtitle: const Text('Hiển thị trên trang chủ'),
               value: _isFeatured,
-              onChanged: (bool value) {
-                setState(() {
-                  _isFeatured = value;
-                });
-              },
+              onChanged: (bool value) => setState(() => _isFeatured = value),
               contentPadding: EdgeInsets.zero,
             ),
           ],
@@ -194,7 +188,6 @@ class _ProductFormViewState extends State<ProductFormView> {
     );
   }
 
-  // Widget để chọn ảnh và xem trước
   Widget _buildImagePicker(BuildContext context, ProductFormState state) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,25 +197,14 @@ class _ProductFormViewState extends State<ProductFormView> {
         Container(
           height: 200,
           width: double.infinity,
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade400),
-            borderRadius: BorderRadius.circular(12),
-          ),
+          decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(12)),
           child: InkWell(
-            onTap: () {
-              context.read<ProductFormCubit>().pickImage();
-            },
+            onTap: () => context.read<ProductFormCubit>().pickImage(),
             borderRadius: BorderRadius.circular(12),
             child: (state.selectedImageFile != null)
-                ? ClipRRect(
-              borderRadius: BorderRadius.circular(11),
-              child: Image.file(state.selectedImageFile!, fit: BoxFit.cover),
-            )
+                ? ClipRRect(borderRadius: BorderRadius.circular(11), child: Image.file(state.selectedImageFile!, fit: BoxFit.cover))
                 : (state.initialProduct?.imageUrl != null && state.initialProduct!.imageUrl.isNotEmpty)
-                ? ClipRRect(
-              borderRadius: BorderRadius.circular(11),
-              child: Image.network(state.initialProduct!.imageUrl, fit: BoxFit.cover),
-            )
+                ? ClipRRect(borderRadius: BorderRadius.circular(11), child: Image.network(state.initialProduct!.imageUrl, fit: BoxFit.cover))
                 : Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -239,7 +221,6 @@ class _ProductFormViewState extends State<ProductFormView> {
     );
   }
 
-  // Hàm để tạo các dropdown động
   List<Widget> _buildCategoryDropdowns(BuildContext context, ProductFormState state) {
     List<Widget> dropdowns = [];
     for (int i = 0; i < state.categoryLevels.length; i++) {
@@ -249,24 +230,14 @@ class _ProductFormViewState extends State<ProductFormView> {
           child: DropdownButtonFormField<CategoryModel>(
             value: (i < state.selectedCategoryPath.length) ? state.selectedCategoryPath[i] : null,
             isExpanded: true,
-            decoration: InputDecoration(
-              labelText: 'Chọn danh mục cấp ${i + 1}',
-              border: const OutlineInputBorder(),
-            ),
+            decoration: InputDecoration(labelText: 'Chọn danh mục cấp ${i + 1}', border: const OutlineInputBorder()),
             hint: const Text('-- Chọn --'),
             items: state.categoryLevels[i].map((CategoryModel category) {
-              return DropdownMenuItem<CategoryModel>(
-                value: category,
-                child: Text(category.name),
-              );
+              return DropdownMenuItem<CategoryModel>(value: category, child: Text(category.name));
             }).toList(),
-            onChanged: (CategoryModel? newValue) {
-              context.read<ProductFormCubit>().selectCategory(newValue, i);
-            },
+            onChanged: (CategoryModel? newValue) => context.read<ProductFormCubit>().selectCategory(newValue, i),
             validator: (value) {
-              if (i == 0 && value == null) {
-                return 'Vui lòng chọn ít nhất một danh mục';
-              }
+              if (i == 0 && value == null) return 'Vui lòng chọn ít nhất một danh mục';
               return null;
             },
           ),
@@ -276,20 +247,14 @@ class _ProductFormViewState extends State<ProductFormView> {
     return dropdowns;
   }
 
-  // Hàm helper để tạo TextFormField
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    int maxLines = 1,
-    TextInputType? keyboardType,
-  }) {
+  Widget _buildTextField({required TextEditingController controller, required String label, int maxLines = 1, TextInputType? keyboardType}) {
     return TextFormField(
       controller: controller,
       decoration: InputDecoration(labelText: label, border: const OutlineInputBorder(), alignLabelWithHint: true),
       maxLines: maxLines,
       keyboardType: keyboardType,
+      inputFormatters: keyboardType == TextInputType.number ? [FilteringTextInputFormatter.digitsOnly] : [],
       validator: (value) {
-        // Mô tả có thể để trống
         if (label != 'Mô tả' && (value == null || value.trim().isEmpty)) {
           return '$label không được để trống';
         }

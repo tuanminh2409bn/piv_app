@@ -1,5 +1,8 @@
+// lib/features/home/data/models/product_model.dart
+
 import 'package:equatable/equatable.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:piv_app/data/models/packaging_option_model.dart';
 
 class ProductModel extends Equatable {
   final String id;
@@ -9,9 +12,11 @@ class ProductModel extends Equatable {
   final String categoryId;
   final bool isFeatured;
   final Timestamp? createdAt;
-  final String unit;
-  final Map<String, double> prices;
   final Map<String, dynamic>? attributes;
+
+  // --- SỬA TÊN TRƯỜNG TẠI ĐÂY ---
+  final List<PackagingOptionModel> packingOptions;
+  // -----------------------------
 
   const ProductModel({
     required this.id,
@@ -21,40 +26,34 @@ class ProductModel extends Equatable {
     required this.categoryId,
     this.isFeatured = false,
     this.createdAt,
-    this.unit = 'sản phẩm',
-    this.prices = const {},
     this.attributes,
+    this.packingOptions = const [], // Sửa tên trường
   });
 
-  // Getter để lấy giá thấp nhất để hiển thị ở danh sách
-  double get startingPrice {
-    if (prices.isEmpty) return 0.0;
-    final sortedPrices = prices.values.toList()..sort();
-    return sortedPrices.first;
+  double getPriceForRole(String role) {
+    if (packingOptions.isEmpty) return 0.0; // Sửa tên trường
+    return packingOptions.first.getPriceForRole(role); // Sửa tên trường
   }
 
-  // Hàm tiện ích để lấy giá cho một vai trò cụ thể
-  double getPriceForRole(String role) {
-    return prices[role] ?? 0.0;
+  String get displayUnit {
+    if (packingOptions.isEmpty) return 'sản phẩm'; // Sửa tên trường
+    return packingOptions.first.unit; // Sửa tên trường
   }
 
   @override
   List<Object?> get props => [
     id, name, description, imageUrl, categoryId,
-    isFeatured, createdAt, unit, prices, attributes
+    isFeatured, createdAt, attributes, packingOptions // Sửa tên trường
   ];
 
   factory ProductModel.fromSnapshot(DocumentSnapshot snap) {
     final data = snap.data() as Map<String, dynamic>? ?? {};
 
-    Map<String, double> pricesMap = {};
-    if (data['prices'] is Map) {
-      (data['prices'] as Map).forEach((key, value) {
-        if (value is num) {
-          pricesMap[key] = value.toDouble();
-        }
-      });
-    }
+    // --- SỬA TÊN TRƯỜNG KHI ĐỌC TỪ FIRESTORE ---
+    final optionsList = (data['packingOptions'] as List<dynamic>?)
+        ?.map((optionMap) => PackagingOptionModel.fromMap(optionMap as Map<String, dynamic>))
+        .toList() ?? [];
+    // ------------------------------------------
 
     return ProductModel(
       id: snap.id,
@@ -64,9 +63,8 @@ class ProductModel extends Equatable {
       categoryId: data['categoryId'] as String? ?? '',
       isFeatured: data['isFeatured'] as bool? ?? false,
       createdAt: data['createdAt'] as Timestamp?,
-      unit: data['unit'] as String? ?? 'sản phẩm',
-      prices: pricesMap,
       attributes: data['attributes'] is Map ? Map<String, dynamic>.from(data['attributes']) : null,
+      packingOptions: optionsList, // Sửa tên trường
     );
   }
 
@@ -78,9 +76,10 @@ class ProductModel extends Equatable {
       'categoryId': categoryId,
       'isFeatured': isFeatured,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
-      'unit': unit,
-      'prices': prices,
       'attributes': attributes,
+      // --- SỬA TÊN TRƯỜNG KHI LƯU LÊN FIRESTORE ---
+      'packingOptions': packingOptions.map((option) => option.toMap()).toList(),
+      // ------------------------------------------
     };
   }
 }

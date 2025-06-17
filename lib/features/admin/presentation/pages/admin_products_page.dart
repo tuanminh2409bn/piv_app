@@ -1,3 +1,5 @@
+// lib/features/admin/presentation/pages/admin_products_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
@@ -48,25 +50,38 @@ class AdminProductsView extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: BlocBuilder<AdminProductsCubit, AdminProductsState>(
+            child: BlocConsumer<AdminProductsCubit, AdminProductsState>(
+              listener: (context, state) {
+                if (state.status == AdminProductsStatus.error && state.errorMessage != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(state.errorMessage!),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
               builder: (context, state) {
                 if (state.status == AdminProductsStatus.loading) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                if (state.status == AdminProductsStatus.error) {
+                if (state.status == AdminProductsStatus.error && state.filteredProducts.isEmpty) {
                   return Center(child: Text(state.errorMessage ?? 'Lỗi tải dữ liệu'));
                 }
                 if (state.filteredProducts.isEmpty) {
                   return const Center(child: Text('Không tìm thấy sản phẩm nào.'));
                 }
 
-                return ListView.separated(
-                  itemCount: state.filteredProducts.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final product = state.filteredProducts[index];
-                    return _buildProductListItem(context, product);
-                  },
+                return RefreshIndicator(
+                  onRefresh: () => context.read<AdminProductsCubit>().fetchAllProducts(),
+                  child: ListView.separated(
+                    itemCount: state.filteredProducts.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final product = state.filteredProducts[index];
+                      return _buildProductListItem(context, product);
+                    },
+                  ),
                 );
               },
             ),
@@ -88,13 +103,18 @@ class AdminProductsView extends StatelessWidget {
 
   Widget _buildProductListItem(BuildContext context, ProductModel product) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+
+    // SỬA LỖI: Đổi tên thành 'packingOptions'
+    final displayPrice = product.packingOptions.isNotEmpty && product.packingOptions.first.prices.isNotEmpty
+        ? product.packingOptions.first.prices.values.first
+        : 0.0;
+
     return ListTile(
       leading: (product.imageUrl.isNotEmpty)
-          ? Image.network(product.imageUrl, width: 50, height: 50, fit: BoxFit.cover)
+          ? Image.network(product.imageUrl, width: 50, height: 50, fit: BoxFit.cover, errorBuilder: (_,__,___) => Container(width: 50, height: 50, color: Colors.grey.shade200, child: const Icon(Icons.image_not_supported)))
           : Container(width: 50, height: 50, color: Colors.grey.shade200, child: const Icon(Icons.image)),
       title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-      // ** SỬA LỖI Ở ĐÂY **
-      subtitle: Text('Giá từ: ${currencyFormatter.format(product.startingPrice)}'),
+      subtitle: Text('Giá từ: ${currencyFormatter.format(displayPrice)}'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -115,7 +135,7 @@ class AdminProductsView extends StatelessWidget {
                 context: context,
                 builder: (dialogContext) => AlertDialog(
                   title: const Text('Xác nhận xóa'),
-                  content: Text('Bạn có chắc chắn muốn xóa sản phẩm "${product.name}"?'),
+                  content: Text('Bạn có chắc chắn muốn xóa sản phẩm "${product.name}"? Hành động này không thể hoàn tác.'),
                   actions: [
                     TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Hủy')),
                     TextButton(

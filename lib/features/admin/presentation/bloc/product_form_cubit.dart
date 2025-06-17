@@ -2,6 +2,7 @@ import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/home/data/models/category_model.dart';
+import 'package:piv_app/data/models/packaging_option_model.dart';
 import 'package:piv_app/features/home/domain/repositories/home_repository.dart';
 import 'package:piv_app/features/admin/data/repositories/storage_repository.dart';
 import 'dart:io';
@@ -138,13 +139,14 @@ class ProductFormCubit extends Cubit<ProductFormState> {
     );
   }
 
-  // ** SỬA LẠI PHƯƠNG THỨC NÀY **
   Future<void> saveProduct({
     required String name,
     required String description,
     required String currentImageUrl,
-    required Map<String, String> prices, // << NHẬN VÀO MỘT MAP GIÁ
-    required String unit,
+    required String packagingName,
+    required String itemsPerCase,
+    required String itemUnit,
+    required Map<String, String> prices,
     required bool isFeatured,
   }) async {
     emit(state.copyWith(status: ProductFormStatus.submitting));
@@ -155,7 +157,6 @@ class ProductFormCubit extends Cubit<ProductFormState> {
       return;
     }
 
-    // Chuyển đổi và xác thực giá
     Map<String, double> pricesToSave = {};
     try {
       prices.forEach((key, value) {
@@ -183,15 +184,22 @@ class ProductFormCubit extends Cubit<ProductFormState> {
       if (state.status == ProductFormStatus.error) return;
     }
 
+    final newPackagingOption = PackagingOptionModel(
+        name: packagingName,
+        // SỬA: Sử dụng đúng tên tham số khi khởi tạo
+        quantityPerPackage: int.tryParse(itemsPerCase) ?? 1,
+        unit: itemUnit,
+        prices: pricesToSave
+    );
+
     final productToSave = ProductModel(
       id: state.initialProduct?.id ?? '',
       name: name,
       description: description,
       imageUrl: finalImageUrl,
       categoryId: selectedCategoryId,
-      prices: pricesToSave, // << LƯU MAP GIÁ
-      unit: unit,
       isFeatured: isFeatured,
+      packingOptions: [newPackagingOption], // Sử dụng packingOptions
       createdAt: state.initialProduct?.createdAt,
     );
 

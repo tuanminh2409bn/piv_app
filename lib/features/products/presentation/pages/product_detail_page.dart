@@ -1,3 +1,5 @@
+// lib/features/products/presentation/pages/product_detail_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -5,10 +7,97 @@ import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/products/presentation/bloc/product_detail_cubit.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
+import 'package:piv_app/data/models/packaging_option_model.dart';
+import 'package:piv_app/data/models/cart_item_model.dart';
 import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/cart/presentation/widgets/cart_icon_with_badge.dart';
 import 'package:piv_app/features/cart/presentation/pages/cart_page.dart';
+import 'package:piv_app/features/checkout/presentation/pages/checkout_page.dart';
+
+Future<void> _showBuyNowDialog(
+    BuildContext context,
+    ProductModel product,
+    String userRole,
+    ) async {
+  final authState = context.read<AuthBloc>().state;
+  if (authState is! AuthAuthenticated) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng đăng nhập để mua hàng.')));
+    return;
+  }
+  if (product.packingOptions.isEmpty){
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sản phẩm chưa có quy cách đóng gói.')));
+    return;
+  }
+
+  PackagingOptionModel? tempSelectedOption = product.packingOptions.first;
+
+  showDialog<PackagingOptionModel>(
+    context: context,
+    builder: (BuildContext dialogContext) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Mua ngay'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Vui lòng chọn quy cách cho sản phẩm "${product.name}"'),
+                const SizedBox(height: 20),
+                DropdownButtonFormField<PackagingOptionModel>(
+                  value: tempSelectedOption,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Quy cách đóng gói',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: product.packingOptions.map((option) {
+                    return DropdownMenuItem<PackagingOptionModel>(
+                      value: option,
+                      child: Text(option.name, overflow: TextOverflow.ellipsis),
+                    );
+                  }).toList(),
+                  onChanged: (PackagingOptionModel? newValue) {
+                    setState(() {
+                      tempSelectedOption = newValue;
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: <Widget>[
+              TextButton(
+                child: const Text('HỦY'),
+                onPressed: () => Navigator.of(dialogContext).pop(),
+              ),
+              ElevatedButton(
+                child: const Text('MUA'),
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(tempSelectedOption);
+                },
+              ),
+            ],
+          );
+        },
+      );
+    },
+  ).then((selected) {
+    if (selected != null) {
+      final itemToBuy = CartItemModel(
+        productId: product.id,
+        productName: product.name,
+        imageUrl: product.imageUrl,
+        price: selected.getPriceForRole(userRole),
+        itemUnitName: selected.unit,
+        quantity: 1,
+        quantityPerPackage: selected.quantityPerPackage,
+        caseUnitName: selected.name,
+      );
+      Navigator.of(context).push(CheckoutPage.route(buyNowItems: [itemToBuy]));
+    }
+  });
+}
 
 class ProductDetailPage extends StatelessWidget {
   final String productId;
@@ -60,8 +149,7 @@ class ProductDetailView extends StatelessWidget {
             }
 
             final product = state.product!;
-            final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
-            final priceForRole = product.getPriceForRole(userRole);
+            final selectedOption = state.selectedPackagingOption;
 
             return Stack(
               children: [
@@ -69,12 +157,12 @@ class ProductDetailView extends StatelessWidget {
                   slivers: <Widget>[
                     _buildProductImageAppBar(context, product),
                     SliverToBoxAdapter(
-                      child: _buildProductInfo(context, product, currencyFormatter, state.quantity, priceForRole),
+                      child: _buildProductInfo(context, product, state.quantity, selectedOption, userRole),
                     ),
                     const SliverPadding(padding: EdgeInsets.only(bottom: 120)),
                   ],
                 ),
-                _buildAddToCartButton(context, product, state.quantity, priceForRole),
+                _buildBottomButtons(context, product, state.quantity, selectedOption, userRole),
               ],
             );
           },
@@ -83,76 +171,10 @@ class ProductDetailView extends StatelessWidget {
     );
   }
 
-  // --- HÀM HELPER ---
+  Widget _buildProductInfo(BuildContext context, ProductModel product, int quantity, PackagingOptionModel? selectedOption, String userRole) {
+    final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    final priceForRole = selectedOption?.getPriceForRole(userRole) ?? 0.0;
 
-  Widget _buildErrorView(BuildContext context, String? errorMessage) {
-    return Scaffold(appBar: AppBar(title: const Text("Lỗi")),body: Center(child: Padding(padding: const EdgeInsets.all(20.0),child: Column(mainAxisAlignment: MainAxisAlignment.center,children: [Text(errorMessage ?? 'Không thể tải chi tiết sản phẩm.',textAlign: TextAlign.center,style: Theme.of(context).textTheme.titleMedium,),const SizedBox(height: 20),ElevatedButton.icon(icon: const Icon(Icons.refresh),label: const Text('Thử lại'),onPressed: () {final String? productIdFromArgs = ModalRoute.of(context)?.settings.arguments as String?;if (productIdFromArgs != null) {context.read<ProductDetailCubit>().fetchProductDetail(productIdFromArgs);}})],),),),);
-  }
-
-  Widget _buildProductImageAppBar(BuildContext context, ProductModel product) {
-    return SliverAppBar(
-      expandedHeight: MediaQuery.of(context).size.width,
-      stretch: true,
-      pinned: true,
-      elevation: 2.0,
-      backgroundColor: Colors.white,
-      // ** SỬA LỖI Ở ĐÂY: Bỏ Padding thừa, chỉ giữ lại _buildAppBarActionIcon **
-      leading: _buildAppBarActionIcon(
-        child: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-          tooltip: 'Quay lại',
-        ),
-      ),
-      automaticallyImplyLeading: false,
-      actions: [
-        _buildAppBarActionIcon(
-          child: IconButton(
-            icon: const Icon(Icons.home_outlined, color: Colors.white),
-            tooltip: 'Về Trang chủ',
-            onPressed: () {
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            },
-          ),
-        ),
-        _buildAppBarActionIcon(
-          child: CartIconWithBadge(
-            iconColor: Colors.white,
-            onPressed: () {
-              Navigator.of(context).push(CartPage.route());
-            },
-          ),
-        ),
-        const SizedBox(width: 8),
-      ],
-      flexibleSpace: FlexibleSpaceBar(
-        background: (product.imageUrl.isEmpty)
-            ? Container(color: Colors.grey.shade200, child: const Icon(Icons.image_search_outlined, size: 80, color: Colors.grey))
-            : Image.network(
-          product.imageUrl,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image_outlined, size: 80, color: Colors.grey),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAppBarActionIcon({required Widget child}) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4.0),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.4),
-        shape: BoxShape.circle,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: child,
-      ),
-    );
-  }
-
-  Widget _buildProductInfo(BuildContext context, ProductModel product, NumberFormat formatter, int quantity, double priceForRole) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -160,11 +182,16 @@ class ProductDetailView extends StatelessWidget {
         children: [
           Text(product.name, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
+
           Text(
-            '${formatter.format(priceForRole)} / ${product.unit}',
+            '${currencyFormatter.format(priceForRole)} / ${selectedOption?.unit ?? 'sản phẩm'}',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 24),
+
+          _buildPackagingSelector(context, product.packingOptions, selectedOption),
+          const SizedBox(height: 16),
+
           _buildQuantitySelector(context, quantity),
           const SizedBox(height: 24),
           _buildInfoSection(context, title: 'Mô tả sản phẩm', content: product.description),
@@ -180,10 +207,39 @@ class ProductDetailView extends StatelessWidget {
     );
   }
 
+  Widget _buildPackagingSelector(BuildContext context, List<PackagingOptionModel> options, PackagingOptionModel? selectedOption) {
+    return DropdownButtonFormField<PackagingOptionModel>(
+      value: selectedOption,
+      isExpanded: true,
+      hint: const Text('Chưa có quy cách đóng gói'),
+      decoration: InputDecoration(
+        labelText: 'Chọn quy cách đóng gói',
+        border: const OutlineInputBorder(),
+        prefixIcon: const Icon(Icons.inventory_2_outlined),
+        fillColor: options.isEmpty ? Colors.grey.shade200 : null,
+        filled: options.isEmpty,
+      ),
+      onChanged: options.isEmpty ? null : (PackagingOptionModel? newValue) {
+        if (newValue != null) {
+          context.read<ProductDetailCubit>().selectPackagingOption(newValue);
+        }
+      },
+      items: options.map((option) {
+        return DropdownMenuItem<PackagingOptionModel>(
+          value: option,
+          child: Text(option.name, overflow: TextOverflow.ellipsis),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _buildQuantitySelector(BuildContext context, int quantity) {
     return Row(
       children: [
-        Text('Số lượng:', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
+        Text(
+            'Số lượng:',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)
+        ),
         const Spacer(),
         IconButton(
           icon: const Icon(Icons.remove_circle_outline),
@@ -191,21 +247,13 @@ class ProductDetailView extends StatelessWidget {
           color: Colors.grey.shade700,
         ),
         GestureDetector(
-          onTap: () {
-            _showQuantityInputDialog(context, quantity);
-          },
+          onTap: () => _showQuantityInputDialog(context, quantity),
           child: Container(
             width: 60,
             alignment: Alignment.center,
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade400),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              '$quantity',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
+            decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
+            child: Text('$quantity', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
           ),
         ),
         IconButton(
@@ -217,10 +265,98 @@ class ProductDetailView extends StatelessWidget {
     );
   }
 
+  Widget _buildBottomButtons(BuildContext context, ProductModel product, int quantity, PackagingOptionModel? selectedOption, String userRole) {
+    final cartStatus = context.watch<CartCubit>().state.status;
+    final bool canAddToCart = selectedOption != null;
+
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, -5))],
+            border: Border(top: BorderSide(color: Colors.grey.shade200))
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.add_shopping_cart_outlined),
+                label: const Text('Thêm giỏ'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  foregroundColor: canAddToCart ? Theme.of(context).colorScheme.primary : Colors.grey,
+                  side: BorderSide(color: canAddToCart ? Theme.of(context).colorScheme.primary : Colors.grey),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: canAddToCart && cartStatus != CartStatus.itemAdding
+                    ? () {
+                  context.read<CartCubit>().addProduct(
+                    product: product,
+                    selectedOption: selectedOption,
+                    quantity: quantity,
+                  );
+                }
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: ElevatedButton(
+                child: const Text('Mua ngay'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  _showBuyNowDialog(context, product, userRole);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorView(BuildContext context, String? errorMessage) {
+    return Scaffold(appBar: AppBar(title: const Text("Lỗi")),body: Center(child: Padding(padding: const EdgeInsets.all(20.0),child: Column(mainAxisAlignment: MainAxisAlignment.center,children: [Text(errorMessage ?? 'Không thể tải chi tiết sản phẩm.',textAlign: TextAlign.center,style: Theme.of(context).textTheme.titleMedium,),const SizedBox(height: 20),ElevatedButton.icon(icon: const Icon(Icons.refresh),label: const Text('Thử lại'),onPressed: () {final String? productIdFromArgs = ModalRoute.of(context)?.settings.arguments as String?;if (productIdFromArgs != null) {context.read<ProductDetailCubit>().fetchProductDetail(productIdFromArgs);}})],),),),);
+  }
+
+  Widget _buildProductImageAppBar(BuildContext context, ProductModel product) {
+    return SliverAppBar(
+      expandedHeight: MediaQuery.of(context).size.width,
+      stretch: true,
+      pinned: true,
+      elevation: 2.0,
+      backgroundColor: Colors.white,
+      leading: _buildAppBarActionIcon(child: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white),onPressed: () => Navigator.of(context).pop(),tooltip: 'Quay lại')),
+      automaticallyImplyLeading: false,
+      actions: [
+        _buildAppBarActionIcon(child: IconButton(icon: const Icon(Icons.home_outlined, color: Colors.white),tooltip: 'Về Trang chủ',onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst))),
+        _buildAppBarActionIcon(child: CartIconWithBadge(iconColor: Colors.white, onPressed: () => Navigator.of(context).push(CartPage.route()))),
+        const SizedBox(width: 8),
+      ],
+      flexibleSpace: FlexibleSpaceBar(
+        background: (product.imageUrl.isEmpty)
+            ? Container(color: Colors.grey.shade200, child: const Icon(Icons.image_search_outlined, size: 80, color: Colors.grey))
+            : Image.network(product.imageUrl, fit: BoxFit.cover, width: double.infinity, errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image_outlined, size: 80, color: Colors.grey)),
+      ),
+    );
+  }
+
+  Widget _buildAppBarActionIcon({required Widget child}) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4.0),
+      decoration: BoxDecoration(color: Colors.black.withOpacity(0.4), shape: BoxShape.circle),
+      child: Material(color: Colors.transparent, child: child),
+    );
+  }
+
   void _showQuantityInputDialog(BuildContext context, int currentQuantity) {
     final TextEditingController controller = TextEditingController(text: currentQuantity.toString());
     final formKey = GlobalKey<FormState>();
-
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -299,28 +435,6 @@ class ProductDetailView extends StatelessWidget {
           ],
         );
       }).toList(),
-    );
-  }
-
-  Widget _buildAddToCartButton(BuildContext context, ProductModel product, int quantity, double price) {
-    final cartStatus = context.watch<CartCubit>().state.status;
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        decoration: BoxDecoration(color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.95), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, -5))], border: Border(top: BorderSide(color: Colors.grey.shade200, width: 1))),
-        child: (cartStatus == CartStatus.itemAdding)
-            ? const Center(child: CircularProgressIndicator())
-            : ElevatedButton.icon(
-          icon: const Icon(Icons.add_shopping_cart_rounded, color: Colors.white),
-          label: const Text('Thêm vào giỏ hàng'),
-          style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          onPressed: () {
-            context.read<CartCubit>().addProduct(product: product, quantity: quantity, price: price);
-          },
-        ),
-      ),
     );
   }
 }

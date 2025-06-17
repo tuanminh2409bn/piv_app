@@ -1,7 +1,10 @@
+// lib/features/cart/presentation/bloc/cart_cubit.dart
+
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/cart_item_model.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
+import 'package:piv_app/data/models/packaging_option_model.dart';
 import 'package:piv_app/features/cart/domain/repositories/cart_repository.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'dart:async';
@@ -19,19 +22,16 @@ class CartCubit extends Cubit<CartState> {
       : _cartRepository = cartRepository,
         _authBloc = authBloc,
         super(const CartState()) {
-
-    // Lắng nghe trạng thái AuthBloc để biết userId và tải giỏ hàng tương ứng
     _authSubscription = _authBloc.stream.listen((authState) {
       if (authState is AuthAuthenticated) {
         _currentUserId = authState.user.id;
-        loadCart(); // Tải giỏ hàng khi người dùng đăng nhập
+        loadCart();
       } else if (authState is AuthUnauthenticated) {
         _currentUserId = '';
-        emit(const CartState()); // Xóa giỏ hàng khi đăng xuất
+        emit(const CartState());
       }
     });
 
-    // Tải dữ liệu lần đầu nếu người dùng đã đăng nhập sẵn khi app khởi động
     final initialAuthState = _authBloc.state;
     if (initialAuthState is AuthAuthenticated) {
       _currentUserId = initialAuthState.user.id;
@@ -42,17 +42,13 @@ class CartCubit extends Cubit<CartState> {
   String get _userId {
     if (_currentUserId.isEmpty) {
       developer.log('CartCubit: User is not logged in.', name: 'CartCubit');
-      // Tránh emit lỗi ở đây vì nó có thể gây ra SnackBar không mong muốn
-      // Thay vào đó, các phương thức sẽ kiểm tra và trả về nếu cần.
     }
     return _currentUserId;
   }
 
-  /// Tải thông tin giỏ hàng của người dùng hiện tại
   Future<void> loadCart() async {
     final userId = _userId;
     if (userId.isEmpty) return;
-
     emit(state.copyWith(status: CartStatus.loading));
     final result = await _cartRepository.getCart(userId);
     result.fold(
@@ -61,67 +57,73 @@ class CartCubit extends Cubit<CartState> {
     );
   }
 
-  /// Thêm một sản phẩm vào giỏ hàng với giá cụ thể
   Future<void> addProduct({
     required ProductModel product,
+    required PackagingOptionModel selectedOption,
     required int quantity,
-    required double price,
   }) async {
     final userId = _userId;
     if (userId.isEmpty) return;
-
+    final authState = _authBloc.state;
+    String userRole = 'agent_2';
+    if (authState is AuthAuthenticated) {
+      userRole = authState.user.role;
+    }
     emit(state.copyWith(status: CartStatus.itemAdding));
-    final result = await _cartRepository.addProductToCart(
-      userId: userId,
-      product: product,
+
+    final cartItem = CartItemModel(
+      productId: product.id,
+      productName: product.name,
+      imageUrl: product.imageUrl,
+      price: selectedOption.getPriceForRole(userRole),
+      itemUnitName: selectedOption.unit,
       quantity: quantity,
-      price: price, // Truyền giá tại thời điểm mua
+      // SỬA: Đồng bộ tên trường khi tạo CartItem
+      quantityPerPackage: selectedOption.quantityPerPackage,
+      caseUnitName: selectedOption.name,
     );
+
+    final result = await _cartRepository.addProductToCart(userId: userId, item: cartItem);
+
     result.fold(
           (failure) => emit(state.copyWith(status: CartStatus.error, errorMessage: failure.message)),
-          (_) {
-        // Sau khi thêm thành công, tải lại giỏ hàng để cập nhật UI
-        loadCart();
-      },
+          (_) => loadCart(),
     );
   }
 
-  /// Cập nhật số lượng của một sản phẩm trong giỏ hàng
-  Future<void> updateQuantity(String productId, int newQuantity) async {
+  Future<void> updateQuantity(String productId, String caseUnitName, int newQuantity) async {
     final userId = _userId;
     if (userId.isEmpty) return;
-
     emit(state.copyWith(status: CartStatus.itemUpdating));
     final result = await _cartRepository.updateProductQuantity(
       userId: userId,
       productId: productId,
+      caseUnitName: caseUnitName,
       newQuantity: newQuantity,
     );
     result.fold(
           (failure) => emit(state.copyWith(status: CartStatus.error, errorMessage: failure.message)),
-          (_) => loadCart(), // Tải lại giỏ hàng
+          (_) => loadCart(),
     );
   }
 
-  /// Xóa một sản phẩm khỏi giỏ hàng
-  Future<void> removeProduct(String productId) async {
+  Future<void> removeProduct(String productId, String caseUnitName) async {
     final userId = _userId;
     if (userId.isEmpty) return;
-
     emit(state.copyWith(status: CartStatus.itemRemoving));
     final result = await _cartRepository.removeProductFromCart(
       userId: userId,
       productId: productId,
+      caseUnitName: caseUnitName,
     );
     result.fold(
           (failure) => emit(state.copyWith(status: CartStatus.error, errorMessage: failure.message)),
-          (_) => loadCart(), // Tải lại giỏ hàng
+          (_) => loadCart(),
     );
   }
 
   @override
   Future<void> close() {
-    // Hủy lắng nghe stream khi Cubit bị đóng để tránh rò rỉ bộ nhớ
     _authSubscription?.cancel();
     return super.close();
   }

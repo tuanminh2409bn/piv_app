@@ -1,3 +1,5 @@
+// lib/features/home/presentation/pages/home_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -18,22 +20,18 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // HomePage không cần cung cấp HomeCubit nữa vì MainScreen đã làm điều đó.
-    // Nó sẽ tự động lấy HomeCubit từ context.
     return const HomeView();
   }
 }
 
-// Tách phần giao diện chính ra một widget riêng để dễ quản lý
 class HomeView extends StatelessWidget {
   const HomeView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Lấy thông tin người dùng từ AuthBloc để hiển thị lời chào và lấy vai trò
     final authState = context.watch<AuthBloc>().state;
     String userIdentifier = 'Khách';
-    String userRole = 'agent_2'; // Mặc định là cấp thấp nhất nếu không tìm thấy
+    String userRole = 'agent_2';
     if (authState is AuthAuthenticated) {
       userIdentifier = authState.user.displayName ?? authState.user.email ?? authState.user.id;
       userRole = authState.user.role;
@@ -73,7 +71,6 @@ class HomeView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Thanh tìm kiếm
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                     child: TextField(
@@ -97,7 +94,6 @@ class HomeView extends StatelessWidget {
                       },
                     ),
                   ),
-                  // Lời chào mừng
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 0),
                     child: Text(
@@ -147,8 +143,6 @@ class HomeView extends StatelessWidget {
       },
     );
   }
-
-  // --- WIDGET HELPER FUNCTIONS ---
 
   Widget _buildBannerCarousel(BuildContext context, List<BannerModel> banners) {
     return Padding(
@@ -236,6 +230,7 @@ class HomeView extends StatelessWidget {
     );
   }
 
+  // --- HÀM NÀY ĐÃ ĐƯỢC SỬA ---
   Widget _buildFeaturedProductsGrid(BuildContext context, List<ProductModel> products, String userRole) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     return GridView.builder(
@@ -243,7 +238,9 @@ class HomeView extends StatelessWidget {
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 0.7),
       itemBuilder: (context, index) {
         final product = products[index];
+        // Sử dụng các getter mới trong ProductModel để lấy giá và đơn vị hiển thị
         final price = product.getPriceForRole(userRole);
+        final unit = product.displayUnit;
         return Card(elevation: 3, clipBehavior: Clip.antiAlias, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: InkWell(
             onTap: () {
@@ -260,7 +257,7 @@ class HomeView extends StatelessWidget {
                   Text(product.name, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
                   Text(
-                    '${currencyFormatter.format(price)} / ${product.unit}',
+                    '${currencyFormatter.format(price)} / $unit', // Hiển thị giá và đơn vị mới
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold),
                   ),
                 ]),
@@ -271,6 +268,7 @@ class HomeView extends StatelessWidget {
       },
     );
   }
+  // ---------------------------------
 
   Widget _buildNewsList(BuildContext context, List<NewsArticleModel> newsArticles) {
     final DateFormat dateFormat = DateFormat('dd/MM/yyyy');

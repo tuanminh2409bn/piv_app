@@ -1,3 +1,5 @@
+// lib/data/models/order_item_model.dart
+
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/cart_item_model.dart';
 
@@ -28,7 +30,10 @@ class OrderItemModel extends Equatable {
       productName: cartItem.productName,
       imageUrl: cartItem.imageUrl,
       price: cartItem.price,
-      unit: cartItem.unit,
+      // --- SỬA LỖI Ở ĐÂY ---
+      // Lấy đúng tên trường 'itemUnitName' từ CartItemModel
+      unit: cartItem.itemUnitName,
+      // ----------------------
       quantity: cartItem.quantity,
     );
   }
