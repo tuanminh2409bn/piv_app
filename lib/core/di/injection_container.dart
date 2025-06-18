@@ -50,6 +50,8 @@ import 'package:piv_app/features/admin/presentation/bloc/product_form_cubit.dart
 import 'package:piv_app/features/admin/presentation/bloc/admin_categories_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
 
+import 'package:piv_app/features/cart/presentation/bloc/cart_suggestions_cubit.dart';
+
 
 final sl = GetIt.instance;
 
@@ -88,6 +90,7 @@ Future<void> initializeDependencies() async {
   // == Cart ==
   sl.registerLazySingleton<CartRepository>(() => CartRepositoryImpl(firestore: sl()));
   sl.registerLazySingleton<CartCubit>(() => CartCubit(cartRepository: sl(), authBloc: sl()));
+  sl.registerFactory<CartSuggestionsCubit>(() => CartSuggestionsCubit(homeRepository: sl()));
 
   // == Profile ==
   sl.registerLazySingleton<UserProfileRepository>(() => UserProfileRepositoryImpl(firestore: sl()));

@@ -5,11 +5,15 @@ part of 'cart_cubit.dart';
 enum CartStatus {
   initial,
   loading,
-  success,
+  success,    // Trạng thái thành công chung (ví dụ: khi tải giỏ hàng)
   error,
   itemAdding,
   itemUpdating,
   itemRemoving,
+  // --- THÊM MỚI: Các trạng thái thành công cụ thể ---
+  itemAddedSuccess,
+  itemRemovedSuccess,
+  itemUpdatedSuccess,
 }
 
 class CartState extends Equatable {
@@ -30,14 +34,10 @@ class CartState extends Equatable {
 
   int get uniqueItemCount => items.length;
 
-  // --- ĐẢM BẢO LOGIC NÀY ĐÚNG ---
-  // Getter này tính tổng tiền của toàn bộ giỏ hàng
   double get totalPrice {
     if (items.isEmpty) return 0.0;
-    // Nó sẽ cộng tổng của tất cả các `subtotal` từ mỗi CartItemModel
     return items.fold(0.0, (total, current) => total + current.subtotal);
   }
-  // ------------------------------
 
   CartState copyWith({
     CartStatus? status,

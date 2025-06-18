@@ -5,16 +5,14 @@ enum HomeStatus { initial, loading, success, error }
 class HomeState extends Equatable {
   final HomeStatus status;
   final List<BannerModel> banners;
-  // Danh sách các danh mục gốc để hiển thị trên trang chủ
   final List<CategoryModel> categories;
-  // Danh sách TẤT CẢ các danh mục để dùng cho các trang khác
   final List<CategoryModel> allCategories;
-  // Danh sách gốc của sản phẩm nổi bật
   final List<ProductModel> featuredProducts;
-  // Danh sách sản phẩm nổi bật đã được lọc để hiển thị
   final List<ProductModel> filteredFeaturedProducts;
   final List<NewsArticleModel> newsArticles;
   final String? errorMessage;
+  final List<ProductModel> allProducts;
+  final bool isSearching; // Thêm biến trạng thái tìm kiếm
 
   const HomeState({
     this.status = HomeStatus.initial,
@@ -25,18 +23,15 @@ class HomeState extends Equatable {
     this.filteredFeaturedProducts = const [],
     this.newsArticles = const [],
     this.errorMessage,
+    this.allProducts = const [],
+    this.isSearching = false, // Khởi tạo giá trị mặc định
   });
 
   @override
   List<Object?> get props => [
-    status,
-    banners,
-    categories,
-    allCategories,
-    featuredProducts,
-    filteredFeaturedProducts,
-    newsArticles,
-    errorMessage,
+    status, banners, categories, allCategories,
+    featuredProducts, filteredFeaturedProducts, newsArticles, errorMessage,
+    allProducts, isSearching
   ];
 
   HomeState copyWith({
@@ -48,6 +43,8 @@ class HomeState extends Equatable {
     List<ProductModel>? filteredFeaturedProducts,
     List<NewsArticleModel>? newsArticles,
     String? errorMessage,
+    List<ProductModel>? allProducts,
+    bool? isSearching,
   }) {
     return HomeState(
       status: status ?? this.status,
@@ -55,10 +52,11 @@ class HomeState extends Equatable {
       categories: categories ?? this.categories,
       allCategories: allCategories ?? this.allCategories,
       featuredProducts: featuredProducts ?? this.featuredProducts,
-      filteredFeaturedProducts:
-      filteredFeaturedProducts ?? this.filteredFeaturedProducts,
+      filteredFeaturedProducts: filteredFeaturedProducts ?? this.filteredFeaturedProducts,
       newsArticles: newsArticles ?? this.newsArticles,
       errorMessage: errorMessage ?? this.errorMessage,
+      allProducts: allProducts ?? this.allProducts,
+      isSearching: isSearching ?? this.isSearching,
     );
   }
 }

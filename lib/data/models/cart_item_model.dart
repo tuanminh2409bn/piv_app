@@ -1,3 +1,5 @@
+// lib/data/models/cart_item_model.dart
+
 import 'package:equatable/equatable.dart';
 
 class CartItemModel extends Equatable {
@@ -7,8 +9,9 @@ class CartItemModel extends Equatable {
   final double price;
   final String itemUnitName;
   final int quantity;
-  final int quantityPerPackage; // THỐNG NHẤT SỬ DỤNG TÊN NÀY
+  final int quantityPerPackage;
   final String caseUnitName;
+  final String categoryId; // <<< THÊM TRƯỜNG MỚI
 
   const CartItemModel({
     required this.productId,
@@ -19,11 +22,14 @@ class CartItemModel extends Equatable {
     required this.quantity,
     required this.quantityPerPackage,
     required this.caseUnitName,
+    required this.categoryId, // <<< THÊM VÀO CONSTRUCTOR
   });
 
   double get subtotal => price * quantityPerPackage * quantity;
 
-  CartItemModel copyWith({int? quantity}) {
+  CartItemModel copyWith({
+    int? quantity,
+  }) {
     return CartItemModel(
       productId: this.productId,
       productName: this.productName,
@@ -33,11 +39,12 @@ class CartItemModel extends Equatable {
       quantity: quantity ?? this.quantity,
       quantityPerPackage: this.quantityPerPackage,
       caseUnitName: this.caseUnitName,
+      categoryId: this.categoryId,
     );
   }
 
   @override
-  List<Object?> get props => [productId, productName, imageUrl, price, itemUnitName, quantity, quantityPerPackage, caseUnitName];
+  List<Object?> get props => [productId, productName, imageUrl, price, itemUnitName, quantity, quantityPerPackage, caseUnitName, categoryId];
 
   factory CartItemModel.fromMap(Map<String, dynamic> map) {
     return CartItemModel(
@@ -49,6 +56,7 @@ class CartItemModel extends Equatable {
       quantity: (map['quantity'] as num? ?? 0).toInt(),
       quantityPerPackage: (map['quantityPerPackage'] as num? ?? 1).toInt(),
       caseUnitName: map['caseUnitName'] as String? ?? 'thùng',
+      categoryId: map['categoryId'] as String? ?? '', // <<< THÊM MỚI
     );
   }
 
@@ -62,6 +70,7 @@ class CartItemModel extends Equatable {
       'quantity': quantity,
       'quantityPerPackage': quantityPerPackage,
       'caseUnitName': caseUnitName,
+      'categoryId': categoryId, // <<< THÊM MỚI
     };
   }
 }

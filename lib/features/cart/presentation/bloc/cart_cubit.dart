@@ -78,16 +78,20 @@ class CartCubit extends Cubit<CartState> {
       price: selectedOption.getPriceForRole(userRole),
       itemUnitName: selectedOption.unit,
       quantity: quantity,
-      // SỬA: Đồng bộ tên trường khi tạo CartItem
       quantityPerPackage: selectedOption.quantityPerPackage,
       caseUnitName: selectedOption.name,
+      categoryId: product.categoryId,
     );
 
     final result = await _cartRepository.addProductToCart(userId: userId, item: cartItem);
 
     result.fold(
           (failure) => emit(state.copyWith(status: CartStatus.error, errorMessage: failure.message)),
-          (_) => loadCart(),
+          (_) {
+        // SỬA: Phát ra trạng thái thành công cụ thể
+        emit(state.copyWith(status: CartStatus.itemAddedSuccess));
+        loadCart();
+      },
     );
   }
 
@@ -118,7 +122,11 @@ class CartCubit extends Cubit<CartState> {
     );
     result.fold(
           (failure) => emit(state.copyWith(status: CartStatus.error, errorMessage: failure.message)),
-          (_) => loadCart(),
+          (_) {
+        // SỬA: Phát ra trạng thái thành công cụ thể
+        emit(state.copyWith(status: CartStatus.itemRemovedSuccess));
+        loadCart();
+      },
     );
   }
 
