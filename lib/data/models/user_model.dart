@@ -1,6 +1,8 @@
+// lib/data/models/user_model.dart
+
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/address_model.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Cần cho fromJson
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserModel extends Equatable {
   final String id;
@@ -8,18 +10,14 @@ class UserModel extends Equatable {
   final String? displayName;
   final String? photoUrl;
   final List<AddressModel> addresses;
-
-  /// Vai trò của người dùng, ví dụ: 'agent_1', 'agent_2', 'admin'
   final String role;
-  /// Trạng thái tài khoản: 'pending_approval', 'active', 'suspended'
   final String status;
-
-  /// ID của người đã giới thiệu người dùng này (nếu có).
   final String? referrerId;
-  /// Cờ để xác định có cần hiển thị hộp thoại hỏi mã giới thiệu hay không.
   final bool referralPromptPending;
 
-  /// Mã giới thiệu của chính người dùng này (chúng ta sẽ dùng chính ID của họ).
+  // --- TÍNH NĂNG MỚI: Thêm trường wishlist ---
+  final List<String> wishlist; // Danh sách các ID sản phẩm yêu thích
+
   String get referralCode => id;
 
   const UserModel({
@@ -28,10 +26,11 @@ class UserModel extends Equatable {
     this.displayName,
     this.photoUrl,
     this.addresses = const [],
-    this.role = 'agent_2', // Mặc định là đại lý cấp thấp nhất khi mới đăng ký
-    this.status = 'pending_approval', // Mặc định là đang chờ duyệt
+    this.role = 'agent_2',
+    this.status = 'pending_approval',
     this.referrerId,
-    this.referralPromptPending = false, // Mặc định là false
+    this.referralPromptPending = false,
+    this.wishlist = const [], // Khởi tạo danh sách rỗng
   });
 
   bool get isAdmin => role == 'admin';
@@ -50,6 +49,7 @@ class UserModel extends Equatable {
     String? status,
     String? referrerId,
     bool? referralPromptPending,
+    List<String>? wishlist, // Thêm vào copyWith
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -61,6 +61,7 @@ class UserModel extends Equatable {
       status: status ?? this.status,
       referrerId: referrerId ?? this.referrerId,
       referralPromptPending: referralPromptPending ?? this.referralPromptPending,
+      wishlist: wishlist ?? this.wishlist,
     );
   }
 
@@ -75,18 +76,19 @@ class UserModel extends Equatable {
       'status': status,
       'referrerId': referrerId,
       'referralPromptPending': referralPromptPending,
+      'wishlist': wishlist, // Thêm vào JSON
     };
   }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
-    final List<AddressModel> addressesList;
-    if (json['addresses'] != null && json['addresses'] is List) {
-      addressesList = (json['addresses'] as List)
-          .map((addressMap) => AddressModel.fromMap(addressMap as Map<String, dynamic>))
-          .toList();
-    } else {
-      addressesList = [];
-    }
+    final List<AddressModel> addressesList = (json['addresses'] as List<dynamic>?)
+        ?.map((addressMap) => AddressModel.fromMap(addressMap as Map<String, dynamic>))
+        .toList() ?? [];
+
+    // Đọc danh sách wishlist từ firestore
+    final List<String> wishlistList = (json['wishlist'] as List<dynamic>?)
+        ?.map((productId) => productId as String)
+        .toList() ?? [];
 
     return UserModel(
       id: json['id'] as String? ?? '',
@@ -98,9 +100,13 @@ class UserModel extends Equatable {
       status: json['status'] as String? ?? 'pending_approval',
       referrerId: json['referrerId'] as String?,
       referralPromptPending: json['referralPromptPending'] as bool? ?? false,
+      wishlist: wishlistList,
     );
   }
 
   @override
-  List<Object?> get props => [id, email, displayName, photoUrl, addresses, role, status, referrerId, referralPromptPending];
+  List<Object?> get props => [
+    id, email, displayName, photoUrl, addresses, role, status,
+    referrerId, referralPromptPending, wishlist
+  ];
 }

@@ -1,3 +1,5 @@
+// lib/features/profile/data/repositories/user_profile_repository_impl.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
@@ -14,6 +16,7 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
 
   CollectionReference<Map<String, dynamic>> get _usersCollection => _firestore.collection('users');
 
+  // ... (các hàm getUserProfile, updateUserProfile, và các hàm address giữ nguyên)
   @override
   Future<Either<Failure, UserModel>> getUserProfile(String userId) async {
     try {
@@ -141,19 +144,14 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
   Future<Either<Failure, Unit>> submitReferralCode(String userId, String referralCode) async {
     try {
       final referrerDoc = await _usersCollection.doc(referralCode).get();
-
       if (!referrerDoc.exists) {
         return Left(ServerFailure('Mã giới thiệu không hợp lệ.'));
       }
-
       await _usersCollection.doc(userId).update({
         'referrerId': referralCode,
         'referralPromptPending': false,
       });
-      developer.log('User $userId submitted referral code for $referralCode', name: 'UserProfileRepo');
       return const Right(unit);
-    } on FirebaseException catch (e) {
-      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
     } catch (e) {
       return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
     }
@@ -162,13 +160,39 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
   @override
   Future<Either<Failure, Unit>> dismissReferralPrompt(String userId) async {
     try {
+      await _usersCollection.doc(userId).update({'referralPromptPending': false});
+      return const Right(unit);
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+    }
+  }
+
+  // --- TRIỂN KHAI CÁC HÀM MỚI CHO WISHLIST ---
+  @override
+  Future<Either<Failure, Unit>> addToWishlist(String userId, String productId) async {
+    try {
       await _usersCollection.doc(userId).update({
-        'referralPromptPending': false,
+        'wishlist': FieldValue.arrayUnion([productId])
       });
-      developer.log('User $userId dismissed referral prompt.', name: 'UserProfileRepo');
+      developer.log('Added product $productId to wishlist for user $userId', name: 'UserProfileRepo');
       return const Right(unit);
     } on FirebaseException catch (e) {
-      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+      return Left(ServerFailure('Lỗi khi thêm vào danh sách yêu thích: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> removeFromWishlist(String userId, String productId) async {
+    try {
+      await _usersCollection.doc(userId).update({
+        'wishlist': FieldValue.arrayRemove([productId])
+      });
+      developer.log('Removed product $productId from wishlist for user $userId', name: 'UserProfileRepo');
+      return const Right(unit);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi khi xóa khỏi danh sách yêu thích: ${e.message}'));
     } catch (e) {
       return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
     }

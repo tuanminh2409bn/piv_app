@@ -6,24 +6,21 @@ import 'package:piv_app/app/app_bloc_observer.dart';
 import 'package:piv_app/core/di/injection_container.dart' as di;
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
-// Import các trang chính
-import 'package:piv_app/features/main/presentation/pages/main_screen.dart'; // Trang chính chứa BottomNavBar
-import 'package:piv_app/features/admin/presentation/pages/admin_home_page.dart'; // Trang quản trị
+import 'package:piv_app/features/main/presentation/pages/main_screen.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_home_page.dart';
 import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
+import 'package:piv_app/features/wishlist/presentation/bloc/wishlist_cubit.dart';
 import 'firebase_options.dart';
 
 void main() async {
-  // Đảm bảo Flutter bindings đã được khởi tạo trước khi chạy các tác vụ bất đồng bộ
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Khởi tạo các dịch vụ
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
   await di.initializeDependencies();
   await initializeDateFormatting('vi_VN', null);
 
-  // (Tùy chọn) Bật BlocObserver để theo dõi log
   Bloc.observer = AppBlocObserver();
 
   runApp(const MyApp());
@@ -34,7 +31,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Sử dụng MultiBlocProvider để cung cấp các BLoC/Cubit toàn cục cho ứng dụng
     return MultiBlocProvider(
       providers: [
         BlocProvider(
@@ -42,6 +38,10 @@ class MyApp extends StatelessWidget {
         ),
         BlocProvider(
           create: (context) => di.sl<CartCubit>(),
+        ),
+        // --- THÊM MỚI: Cung cấp WishlistCubit cho toàn ứng dụng ---
+        BlocProvider(
+          create: (context) => di.sl<WishlistCubit>(),
         ),
       ],
       child: MaterialApp(
@@ -51,13 +51,12 @@ class MyApp extends StatelessWidget {
             primarySwatch: Colors.green,
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.green.shade700),
             useMaterial3: true,
-            scaffoldBackgroundColor: const Color(0xFFF9F9F9), // Màu nền chung nhẹ nhàng
+            scaffoldBackgroundColor: const Color(0xFFF9F9F9),
             appBarTheme: const AppBarTheme(
               elevation: 1,
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.transparent,
             ),
-            // Các theme khác...
             inputDecorationTheme: InputDecorationTheme(
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               focusedBorder: OutlineInputBorder(
@@ -84,15 +83,12 @@ class MyApp extends StatelessWidget {
                 )
             )
         ),
-        // Điểm bắt đầu điều hướng của ứng dụng
         home: const InitialScreenController(),
       ),
     );
   }
 }
 
-/// Widget này quyết định màn hình nào sẽ hiển thị khi ứng dụng khởi động
-/// hoặc khi trạng thái đăng nhập thay đổi.
 class InitialScreenController extends StatelessWidget {
   const InitialScreenController({super.key});
 
@@ -101,20 +97,15 @@ class InitialScreenController extends StatelessWidget {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
         if (state is AuthAuthenticated) {
-          // Kiểm tra vai trò của người dùng
           if (state.user.isAdmin) {
-            // Nếu là admin, điều hướng đến trang Admin
             return const AdminHomePage();
           } else {
-            // Nếu là người dùng thường, điều hướng đến trang chính với BottomNavBar
             return const MainScreen();
           }
         }
         else if (state is AuthUnauthenticated) {
-          // Nếu chưa đăng nhập, hiển thị trang đăng nhập
           return const LoginPage();
         }
-        // Trong khi đang kiểm tra, hiển thị vòng tròn tải
         return const Scaffold(
           body: Center(child: CircularProgressIndicator(color: Colors.green)),
         );

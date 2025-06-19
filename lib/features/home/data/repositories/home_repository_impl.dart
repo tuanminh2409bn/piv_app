@@ -252,4 +252,23 @@ class HomeRepositoryImpl implements HomeRepository {
       return Left(ServerFailure('Lỗi không xác định khi xóa danh mục: ${e.toString()}'));
     }
   }
+
+  @override
+  Future<Either<Failure, List<ProductModel>>> getProductsByIds(List<String> ids) async {
+    if (ids.isEmpty) {
+      return const Right([]); // Trả về danh sách rỗng nếu không có ID nào
+    }
+    try {
+      // Firestore cho phép truy vấn tối đa 30 item trong một lệnh `whereIn`
+      final querySnapshot = await _productsCollection
+          .where(FieldPath.documentId, whereIn: ids)
+          .get();
+      final products = querySnapshot.docs.map((doc) => ProductModel.fromSnapshot(doc)).toList();
+      return Right(products);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase khi tải sản phẩm yêu thích: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+    }
+  }
 }

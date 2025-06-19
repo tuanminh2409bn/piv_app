@@ -33,4 +33,7 @@ abstract class HomeRepository {
 
   /// Xóa một danh mục
   Future<Either<Failure, Unit>> deleteCategory(String categoryId);
+
+  /// Lấy danh sách sản phẩm dựa trên một danh sách các ID.
+  Future<Either<Failure, List<ProductModel>>> getProductsByIds(List<String> ids);
 }

@@ -29,4 +29,11 @@ abstract class UserProfileRepository {
   // ** PHƯƠNG THỨC MỚI **
   /// Bỏ qua lời nhắc nhập mã giới thiệu.
   Future<Either<Failure, Unit>> dismissReferralPrompt(String userId);
+
+  // --- TÍNH NĂNG MỚI: Các hàm cho Wishlist ---
+  /// Thêm một productId vào danh sách yêu thích của người dùng.
+  Future<Either<Failure, Unit>> addToWishlist(String userId, String productId);
+
+  /// Xóa một productId khỏi danh sách yêu thích của người dùng.
+  Future<Either<Failure, Unit>> removeFromWishlist(String userId, String productId);
 }
