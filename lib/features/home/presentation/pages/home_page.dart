@@ -11,6 +11,7 @@ import 'package:piv_app/data/models/news_article_model.dart';
 import 'package:piv_app/features/news/presentation/pages/news_detail_page.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
 import 'package:piv_app/features/products/presentation/pages/category_products_page.dart';
+import 'package:piv_app/features/products/presentation/pages/search_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -30,7 +31,7 @@ class HomeView extends StatelessWidget {
     String userIdentifier = 'Khách';
     String userRole = 'agent_2';
     if (authState is AuthAuthenticated) {
-      userIdentifier = authState.user.displayName ?? authState.user.email ?? authState.user.id;
+      userIdentifier = authState.user.displayName ?? authState.user.email ?? 'Đại lý';
       userRole = authState.user.role;
     }
 
@@ -46,21 +47,16 @@ class HomeView extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    state.errorMessage ?? 'Không thể tải dữ liệu trang chủ.',
-                    textAlign: TextAlign.center,
-                  ),
+                  Text(state.errorMessage ?? 'Không thể tải dữ liệu trang chủ.', textAlign: TextAlign.center),
                   const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => context.read<HomeCubit>().fetchHomeScreenData(),
-                    child: const Text('Thử lại'),
-                  )
+                  ElevatedButton(onPressed: () => context.read<HomeCubit>().fetchHomeScreenData(), child: const Text('Thử lại')),
                 ],
               ),
             ),
           );
         }
-        return Scaffold( // Thêm Scaffold để có nền trắng
+
+        return Scaffold(
           body: RefreshIndicator(
             onRefresh: () async => context.read<HomeCubit>().fetchHomeScreenData(),
             child: SingleChildScrollView(
@@ -69,50 +65,37 @@ class HomeView extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildSearchBar(context),
-                  if (!state.isSearching) ...[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 0),
-                      child: Text(
-                        'Chào mừng trở lại, $userIdentifier!',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.green.shade800,
-                        ),
-                      ),
-                    ),
-                    if (state.banners.isNotEmpty)
-                      _buildBannerCarousel(context, state.banners)
-                    else
-                      _buildPlaceholderContainer(context, 'Không có banner', height: MediaQuery.of(context).size.width * (9 / 16)),
-                  ],
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 0),
+                    child: Text('Chào mừng trở lại, $userIdentifier!', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600, color: Colors.green.shade800)),
+                  ),
+                  if (state.banners.isNotEmpty)
+                    _buildBannerCarousel(context, state.banners)
+                  else
+                    _buildPlaceholderContainer(context, 'Không có banner', height: MediaQuery.of(context).size.width * (9 / 16)),
+
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (!state.isSearching) ...[
-                          _buildSectionTitle(context, 'Danh Mục Nổi Bật'),
-                          if (state.categories.isNotEmpty)
-                            _buildCategoriesRow(context, state.categories)
-                          else
-                            _buildPlaceholderContainer(context, 'Không có danh mục', height: 120),
-                          const SizedBox(height: 24),
-                        ],
-                        _buildSectionTitle(context, state.isSearching ? 'Kết quả tìm kiếm' : 'Sản Phẩm Nổi Bật'),
-                        if (state.filteredFeaturedProducts.isNotEmpty)
-                          _buildFeaturedProductsGrid(context, state.filteredFeaturedProducts, userRole)
+                        _buildSectionTitle(context, 'Danh Mục Nổi Bật'),
+                        if (state.categories.isNotEmpty)
+                          _buildCategoriesRow(context, state.categories)
                         else
-                          _buildPlaceholderContainer(context, 'Không tìm thấy sản phẩm.', height: 200),
-
+                          _buildPlaceholderContainer(context, 'Không có danh mục', height: 120),
                         const SizedBox(height: 24),
-
-                        if (!state.isSearching) ...[
-                          _buildSectionTitle(context, 'Tin Tức & Sự Kiện'),
-                          if (state.newsArticles.isNotEmpty)
-                            _buildNewsList(context, state.newsArticles)
-                          else
-                            _buildPlaceholderContainer(context, 'Không có tin tức', height: 150),
-                        ],
+                        _buildSectionTitle(context, 'Sản Phẩm Nổi Bật'),
+                        if (state.featuredProducts.isNotEmpty)
+                          _buildFeaturedProductsGrid(context, state.featuredProducts, userRole)
+                        else
+                          _buildPlaceholderContainer(context, 'Không có sản phẩm nổi bật.', height: 200),
+                        const SizedBox(height: 24),
+                        _buildSectionTitle(context, 'Tin Tức & Sự Kiện'),
+                        if (state.newsArticles.isNotEmpty)
+                          _buildNewsList(context, state.newsArticles)
+                        else
+                          _buildPlaceholderContainer(context, 'Không có tin tức', height: 150),
                       ],
                     ),
                   ),
@@ -126,22 +109,27 @@ class HomeView extends StatelessWidget {
     );
   }
 
+  /// SỬA LẠI: Ô tìm kiếm này sẽ điều hướng đến trang SearchPage
   Widget _buildSearchBar(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: TextField(
-        decoration: InputDecoration(
-          hintText: 'Tìm kiếm sản phẩm...',
-          prefixIcon: const Icon(Icons.search),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide(color: Colors.grey.shade300)),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide(color: Colors.grey.shade300)),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(vertical: 0),
-        ),
-        onChanged: (query) {
-          context.read<HomeCubit>().searchFeaturedProducts(query);
+      child: GestureDetector(
+        onTap: () {
+          Navigator.of(context).push(SearchPage.route());
         },
+        child: AbsorbPointer(
+          child: TextField(
+            decoration: InputDecoration(
+              hintText: 'Tìm kiếm sản phẩm...',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide(color: Colors.grey.shade300)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide(color: Colors.grey.shade300)),
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(vertical: 0),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -175,7 +163,7 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  // --- SỬA LỖI GIAO DIỆN DANH MỤC ---
+  /// SỬA LẠI: Dùng Row và Expanded để các danh mục dàn đều
   Widget _buildCategoriesRow(BuildContext context, List<CategoryModel> categories) {
     final itemsToShow = categories.take(3).toList();
     return Row(
@@ -189,8 +177,7 @@ class HomeView extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 Container(
-                  width: 70,
-                  height: 70,
+                  width: 70, height: 70,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), shape: BoxShape.circle),
                   child: Image.network(category.imageUrl, errorBuilder: (c, e, s) => const Icon(Icons.category_outlined, color: Colors.green)),
@@ -208,25 +195,38 @@ class HomeView extends StatelessWidget {
   Widget _buildFeaturedProductsGrid(BuildContext context, List<ProductModel> products, String userRole) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     return GridView.builder(
-      shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: products.length,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: products.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 0.7),
       itemBuilder: (context, index) {
         final product = products[index];
         final price = product.getPriceForRole(userRole);
         final unit = product.displayUnit;
-        return Card(elevation: 3, clipBehavior: Clip.antiAlias, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        return Card(
+          elevation: 3,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: InkWell(
             onTap: () => Navigator.of(context).push(ProductDetailPage.route(product.id)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Expanded(flex: 5, child: (product.imageUrl.isNotEmpty) ? Image.network(product.imageUrl, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey.shade200, alignment: Alignment.center, child: const Icon(Icons.image_search_outlined, size: 50))) : Container(color: Colors.grey.shade200, alignment: Alignment.center, child: const Icon(Icons.image_search_outlined, size: 50))),
-              Padding(padding: const EdgeInsets.all(10.0),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                  Text(product.name, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 4),
-                  Text('${currencyFormatter.format(price)} / $unit', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
-                ]),
-              ),
-            ]),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(flex: 5, child: (product.imageUrl.isNotEmpty) ? Image.network(product.imageUrl, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey.shade200, alignment: Alignment.center, child: const Icon(Icons.image_search_outlined, size: 50, color: Colors.grey))) : Container(color: Colors.grey.shade200, alignment: Alignment.center, child: const Icon(Icons.image_search_outlined, size: 50, color: Colors.grey))),
+                Padding(
+                  padding: const EdgeInsets.all(10.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(product.name, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 4),
+                      Text('${currencyFormatter.format(price)} / $unit', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -236,23 +236,21 @@ class HomeView extends StatelessWidget {
   Widget _buildNewsList(BuildContext context, List<NewsArticleModel> newsArticles) {
     final DateFormat dateFormat = DateFormat('dd/MM/yyyy');
     return ListView.separated(
-      shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: newsArticles.length,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: newsArticles.length,
       separatorBuilder: (context, index) => const SizedBox(height: 0),
       itemBuilder: (context, index) {
         final article = newsArticles[index];
         return Card(
-          margin: const EdgeInsets.only(bottom: 12), elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 12.0),
-            leading: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: article.imageUrl.isNotEmpty ? Image.network(article.imageUrl, width: 70, height: 70, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(width: 70, height: 70, color: Colors.grey.shade200, child: const Icon(Icons.article_outlined, size: 30))) : Container(width: 70, height: 70, color: Colors.grey.shade200, child: const Icon(Icons.article_outlined, size: 30)),
-            ),
+            leading: ClipRRect(borderRadius: BorderRadius.circular(8), child: article.imageUrl.isNotEmpty ? Image.network(article.imageUrl, width: 70, height: 70, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(width: 70, height: 70, color: Colors.grey.shade200, child: const Icon(Icons.article_outlined, color: Colors.grey, size: 30))) : Container(width: 70, height: 70, color: Colors.grey.shade200, child: const Icon(Icons.article_outlined, color: Colors.grey, size: 30))),
             title: Text(article.title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, height: 1.3), maxLines: 2, overflow: TextOverflow.ellipsis),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 4.0),
-              child: Text('${dateFormat.format(article.publishedDate.toDate())}\n${article.summary}', maxLines: 3, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade700, height: 1.4)),
-            ),
+            subtitle: Padding(padding: const EdgeInsets.only(top: 4.0), child: Text('${dateFormat.format(article.publishedDate.toDate())}\n${article.summary}', maxLines: 3, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade700, height: 1.4))),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
             isThreeLine: true,
             onTap: () => Navigator.of(context).push(NewsDetailPage.route(article.id)),
@@ -264,7 +262,8 @@ class HomeView extends StatelessWidget {
 
   Widget _buildPlaceholderContainer(BuildContext context, String text, {double height = 100}) {
     return Container(
-      height: height, width: double.infinity,
+      height: height,
+      width: double.infinity,
       margin: const EdgeInsets.symmetric(horizontal: 16.0),
       decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(12)),
       alignment: Alignment.center,
