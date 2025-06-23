@@ -4,24 +4,23 @@ enum AdminOrdersStatus { initial, loading, success, error }
 
 class AdminOrdersState extends Equatable {
   final AdminOrdersStatus status;
-  // Danh sách đầy đủ tất cả đơn hàng
   final List<OrderModel> allOrders;
-  // Danh sách đơn hàng đã được lọc (dựa trên tìm kiếm hoặc bộ lọc trạng thái)
   final List<OrderModel> filteredOrders;
   final String? errorMessage;
-  // Trạng thái bộ lọc hiện tại, ví dụ: 'active', 'completed'
   final String currentFilter;
+  final String searchQuery; // Thêm trường để lưu trữ query tìm kiếm
 
   const AdminOrdersState({
     this.status = AdminOrdersStatus.initial,
     this.allOrders = const [],
     this.filteredOrders = const [],
     this.errorMessage,
-    this.currentFilter = 'active', // Mặc định hiển thị các đơn hàng cần xử lý
+    this.currentFilter = 'active',
+    this.searchQuery = '', // Giá trị mặc định
   });
 
   @override
-  List<Object?> get props => [status, allOrders, filteredOrders, errorMessage, currentFilter];
+  List<Object?> get props => [status, allOrders, filteredOrders, errorMessage, currentFilter, searchQuery];
 
   AdminOrdersState copyWith({
     AdminOrdersStatus? status,
@@ -29,6 +28,7 @@ class AdminOrdersState extends Equatable {
     List<OrderModel>? filteredOrders,
     String? errorMessage,
     String? currentFilter,
+    String? searchQuery,
   }) {
     return AdminOrdersState(
       status: status ?? this.status,
@@ -36,6 +36,7 @@ class AdminOrdersState extends Equatable {
       filteredOrders: filteredOrders ?? this.filteredOrders,
       errorMessage: errorMessage ?? this.errorMessage,
       currentFilter: currentFilter ?? this.currentFilter,
+      searchQuery: searchQuery ?? this.searchQuery,
     );
   }
 }

@@ -186,7 +186,7 @@ class ProductFormCubit extends Cubit<ProductFormState> {
 
     final newPackagingOption = PackagingOptionModel(
         name: packagingName,
-        // SỬA: Sử dụng đúng tên tham số khi khởi tạo
+        // --- SỬA: Sử dụng đúng tên tham số khi khởi tạo ---
         quantityPerPackage: int.tryParse(itemsPerCase) ?? 1,
         unit: itemUnit,
         prices: pricesToSave
@@ -199,7 +199,7 @@ class ProductFormCubit extends Cubit<ProductFormState> {
       imageUrl: finalImageUrl,
       categoryId: selectedCategoryId,
       isFeatured: isFeatured,
-      packingOptions: [newPackagingOption], // Sử dụng packingOptions
+      packingOptions: [newPackagingOption], // --- SỬA: Sử dụng packingOptions ---
       createdAt: state.initialProduct?.createdAt,
     );
 

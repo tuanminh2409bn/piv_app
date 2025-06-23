@@ -63,15 +63,18 @@ class _RegisterFormState extends State<RegisterForm> {
               ),
             );
         } else if (state.status == RegisterStatus.success) {
+          // --- NỘI DUNG THÔNG BÁO ĐÃ ĐƯỢC CẬP NHẬT ---
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(
               const SnackBar(
-                content: Text('Đăng ký thành công!'),
+                content: Text('Đăng ký thành công! Tài khoản của bạn đang chờ phê duyệt.'),
                 backgroundColor: Colors.green,
+                duration: Duration(seconds: 4), // Tăng thời gian hiển thị
               ),
             );
-          Navigator.of(context).popUntil((route) => route.isFirst);
+          // ---------------------------------------------
+          Navigator.of(context).pop(); // Quay về trang đăng nhập
         }
       },
       child: SingleChildScrollView(

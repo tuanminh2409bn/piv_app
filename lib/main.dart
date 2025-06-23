@@ -10,6 +10,7 @@ import 'package:piv_app/features/main/presentation/pages/main_screen.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_home_page.dart';
 import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
 import 'package:piv_app/features/wishlist/presentation/bloc/wishlist_cubit.dart';
+import 'package:piv_app/features/sales_rep/presentation/pages/sales_rep_home_page.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -97,11 +98,15 @@ class InitialScreenController extends StatelessWidget {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
         if (state is AuthAuthenticated) {
+          // --- CẬP NHẬT LOGIC ĐIỀU HƯỚNG ---
           if (state.user.isAdmin) {
             return const AdminHomePage();
+          } else if (state.user.isSalesRep) { // Giả định có getter isSalesRep trong UserModel
+            return const SalesRepHomePage();
           } else {
             return const MainScreen();
           }
+          // ------------------------------------
         }
         else if (state is AuthUnauthenticated) {
           return const LoginPage();

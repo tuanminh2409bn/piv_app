@@ -98,10 +98,19 @@ class AuthRepositoryImpl implements AuthRepository {
         }
 
         String? foundReferrerId;
+        String? foundSalesRepId; // << BIẾN MỚI
+
         if (referralCode != null && referralCode.isNotEmpty) {
           final referrerDoc = await _firestore.collection('users').doc(referralCode).get();
           if (referrerDoc.exists) {
             foundReferrerId = referrerDoc.id;
+            final referrerData = UserModel.fromJson(referrerDoc.data()!);
+            // --- LOGIC MỚI: KIỂM TRA VAI TRÒ CỦA NGƯỜI GIỚI THIỆU ---
+            // Giả định rằng vai trò của NVKD là 'sales_rep'
+            if (referrerData.role == 'sales_rep') {
+              foundSalesRepId = referrerDoc.id;
+            }
+            // --------------------------------------------------------
           }
         }
 
@@ -110,7 +119,10 @@ class AuthRepositoryImpl implements AuthRepository {
           email: firebaseUser.email,
           displayName: displayName ?? firebaseUser.displayName,
           referrerId: foundReferrerId,
-          referralPromptPending: (referralCode == null || referralCode.isEmpty), // Nếu chưa có mã, cần hỏi
+          salesRepId: foundSalesRepId, // << GÁN ID CỦA NVKD
+          // Nếu không có mã giới thiệu, hoặc mã giới thiệu không hợp lệ,
+          // thì coi như cần hỏi lại sau.
+          referralPromptPending: (foundReferrerId == null),
         );
         await _firestore.collection('users').doc(firebaseUser.uid).set(newUser.toJson());
 

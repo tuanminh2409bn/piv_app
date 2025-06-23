@@ -60,6 +60,7 @@ import 'package:piv_app/features/admin/presentation/bloc/admin_products_cubit.da
 import 'package:piv_app/features/admin/presentation/bloc/product_form_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_categories_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
+import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_cubit.dart';
 
 final sl = GetIt.instance;
 
@@ -124,4 +125,7 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<AdminUsersCubit>(() => AdminUsersCubit(adminRepository: sl()));
   sl.registerFactory<ProductFormCubit>(() => ProductFormCubit(homeRepository: sl(), storageRepository: sl()));
   sl.registerFactory<AdminCategoriesCubit>(() => AdminCategoriesCubit(homeRepository: sl<HomeRepository>()));
+
+  // --- THÊM MỚI: Đăng ký SalesRepCubit ---
+  sl.registerFactory<SalesRepCubit>(() => SalesRepCubit(adminRepository: sl(), authBloc: sl()));
 }

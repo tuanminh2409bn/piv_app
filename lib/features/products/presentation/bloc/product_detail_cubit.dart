@@ -35,7 +35,7 @@ class ProductDetailCubit extends Cubit<ProductDetailState> {
         developer.log('ProductDetailCubit: Fetched Product Data: ${product.toJson()}', name: 'ProductDetailCubit');
 
         PackagingOptionModel? defaultOption;
-        // SỬA LỖI: Đổi tên thành 'packingOptions'
+        // --- SỬA LỖI: Đổi tên thành 'packingOptions' ---
         if (product.packingOptions.isNotEmpty) {
           defaultOption = product.packingOptions.first;
         }

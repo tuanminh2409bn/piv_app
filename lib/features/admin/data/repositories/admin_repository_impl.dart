@@ -48,4 +48,27 @@ class AdminRepositoryImpl implements AdminRepository {
       return Left(ServerFailure('Lỗi không xác định khi cập nhật người dùng: ${e.toString()}'));
     }
   }
+
+  @override
+  Future<Either<Failure, List<UserModel>>> getAgentsBySalesRepId(String salesRepId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('users')
+          .where('salesRepId', isEqualTo: salesRepId)
+          .orderBy('displayName')
+          .get();
+
+      final agents = querySnapshot.docs
+          .map((doc) => UserModel.fromJson(doc.data()))
+          .toList();
+
+      developer.log('Fetched ${agents.length} agents for Sales Rep ID: $salesRepId.', name: 'AdminRepository');
+      return Right(agents);
+
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase khi tải danh sách đại lý: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định khi tải danh sách đại lý: ${e.toString()}'));
+    }
+  }
 }

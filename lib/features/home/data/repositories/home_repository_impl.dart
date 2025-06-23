@@ -271,4 +271,17 @@ class HomeRepositoryImpl implements HomeRepository {
       return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
     }
   }
+
+  @override
+  Future<Either<Failure, Unit>> updateProductField(String productId, Map<String, dynamic> data) async {
+    try {
+      await _productsCollection.doc(productId).update(data);
+      developer.log('Updated field for product ID: $productId', name: 'HomeRepository');
+      return const Right(unit);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase khi cập nhật trường sản phẩm: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định khi cập nhật trường sản phẩm: ${e.toString()}'));
+    }
+  }
 }

@@ -1,12 +1,15 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+// --- SỬA LỖI IMPORT ---
 import 'package:flutter/services.dart';
+// ----------------------
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/admin/presentation/bloc/product_form_cubit.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/home/data/models/category_model.dart';
 
+// ... phần còn lại của file giữ nguyên như phiên bản trước ...
 class AdminProductFormPage extends StatelessWidget {
   final ProductModel? product;
   const AdminProductFormPage({super.key, this.product});
@@ -34,37 +37,15 @@ class ProductFormView extends StatefulWidget {
 
 class _ProductFormViewState extends State<ProductFormView> {
   final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _nameController;
-  late final TextEditingController _descriptionController;
-  late bool _isFeatured;
+  late final TextEditingController _nameController = TextEditingController();
+  late final TextEditingController _descriptionController = TextEditingController();
+  late bool _isFeatured = false;
 
-  late final TextEditingController _packagingNameController;
-  late final TextEditingController _itemsPerCaseController;
-  late final TextEditingController _itemUnitController;
-  late final TextEditingController _agent1PriceController;
-  late final TextEditingController _agent2PriceController;
-
-  @override
-  void initState() {
-    super.initState();
-    final initialProduct = context.read<ProductFormCubit>().state.initialProduct;
-
-    // SỬA LỖI: Sử dụng đúng tên 'packingOptions'
-    final firstOption = (initialProduct?.packingOptions.isNotEmpty ?? false)
-        ? initialProduct!.packingOptions.first
-        : null;
-
-    _nameController = TextEditingController(text: initialProduct?.name);
-    _descriptionController = TextEditingController(text: initialProduct?.description);
-    _isFeatured = initialProduct?.isFeatured ?? false;
-
-    _packagingNameController = TextEditingController(text: firstOption?.name);
-    // SỬA LỖI: Sử dụng đúng tên 'quantityPerPackage'
-    _itemsPerCaseController = TextEditingController(text: firstOption?.quantityPerPackage.toString());
-    _itemUnitController = TextEditingController(text: firstOption?.unit);
-    _agent1PriceController = TextEditingController(text: firstOption?.prices['agent_1']?.toStringAsFixed(0) ?? '');
-    _agent2PriceController = TextEditingController(text: firstOption?.prices['agent_2']?.toStringAsFixed(0) ?? '');
-  }
+  late final TextEditingController _packagingNameController = TextEditingController();
+  late final TextEditingController _itemsPerCaseController = TextEditingController();
+  late final TextEditingController _itemUnitController = TextEditingController();
+  late final TextEditingController _agent1PriceController = TextEditingController();
+  late final TextEditingController _agent2PriceController = TextEditingController();
 
   @override
   void dispose() {
@@ -79,36 +60,60 @@ class _ProductFormViewState extends State<ProductFormView> {
   }
 
   void _onSavePressed() {
-    if (_formKey.currentState!.validate()) {
-      context.read<ProductFormCubit>().saveProduct(
-        name: _nameController.text.trim(),
-        description: _descriptionController.text.trim(),
-        currentImageUrl: context.read<ProductFormCubit>().state.initialProduct?.imageUrl ?? '',
-        packagingName: _packagingNameController.text.trim(),
-        itemsPerCase: _itemsPerCaseController.text.trim(),
-        itemUnit: _itemUnitController.text.trim(),
-        prices: {
-          'agent_1': _agent1PriceController.text.trim(),
-          'agent_2': _agent2PriceController.text.trim(),
-        },
-        isFeatured: _isFeatured,
-      );
+    context.read<ProductFormCubit>().saveProduct(
+      name: _nameController.text.trim(),
+      description: _descriptionController.text.trim(),
+      currentImageUrl: context.read<ProductFormCubit>().state.initialProduct?.imageUrl ?? '',
+      packagingName: _packagingNameController.text.trim(),
+      itemsPerCase: _itemsPerCaseController.text.trim(),
+      itemUnit: _itemUnitController.text.trim(),
+      prices: {
+        'agent_1': _agent1PriceController.text.trim(),
+        'agent_2': _agent2PriceController.text.trim(),
+      },
+      isFeatured: _isFeatured,
+    );
+  }
+
+  void _updateControllers(ProductModel? product) {
+    if (product == null) return;
+    final firstOption = (product.packingOptions.isNotEmpty)
+        ? product.packingOptions.first
+        : null;
+
+    _nameController.text = product.name;
+    _descriptionController.text = product.description;
+    if(mounted) {
+      setState(() {
+        _isFeatured = product.isFeatured;
+      });
     }
+
+    _packagingNameController.text = firstOption?.name ?? '';
+    _itemsPerCaseController.text = firstOption?.quantityPerPackage.toString() ?? '';
+    _itemUnitController.text = firstOption?.unit ?? '';
+    _agent1PriceController.text = firstOption?.prices['agent_1']?.toStringAsFixed(0) ?? '';
+    _agent2PriceController.text = firstOption?.prices['agent_2']?.toStringAsFixed(0) ?? '';
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<ProductFormCubit, ProductFormState>(
+      listenWhen: (previous, current) => previous.status != current.status,
       listener: (context, state) {
-        if (state.status == ProductFormStatus.error) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.errorMessage ?? 'Có lỗi xảy ra'), backgroundColor: Colors.red),
-          );
+        if (state.status == ProductFormStatus.success) {
+          if(state.initialProduct != null) {
+            _updateControllers(state.initialProduct);
+          }
         } else if (state.status == ProductFormStatus.submissionSuccess) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Lưu sản phẩm thành công!'), backgroundColor: Colors.green),
           );
           Navigator.of(context).pop(true);
+        } else if (state.status == ProductFormStatus.error) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.errorMessage ?? 'Có lỗi xảy ra'), backgroundColor: Colors.red),
+          );
         }
       },
       builder: (context, state) {
@@ -133,7 +138,7 @@ class _ProductFormViewState extends State<ProductFormView> {
   }
 
   Widget _buildBody(BuildContext context, ProductFormState state) {
-    if (state.status == ProductFormStatus.loading) {
+    if (state.status == ProductFormStatus.loading || state.status == ProductFormStatus.initial) {
       return const Center(child: CircularProgressIndicator());
     }
     return Form(
@@ -255,7 +260,7 @@ class _ProductFormViewState extends State<ProductFormView> {
       keyboardType: keyboardType,
       inputFormatters: keyboardType == TextInputType.number ? [FilteringTextInputFormatter.digitsOnly] : [],
       validator: (value) {
-        if (label != 'Mô tả' && (value == null || value.trim().isEmpty)) {
+        if (label.contains('Tên') && (value == null || value.trim().isEmpty)) {
           return '$label không được để trống';
         }
         return null;

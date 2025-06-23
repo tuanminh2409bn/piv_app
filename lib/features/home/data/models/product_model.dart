@@ -14,9 +14,9 @@ class ProductModel extends Equatable {
   final Timestamp? createdAt;
   final Map<String, dynamic>? attributes;
 
-  // --- SỬA TÊN TRƯỜNG TẠI ĐÂY ---
+  // --- THỐNG NHẤT TÊN TRƯỜNG TẠI ĐÂY ---
   final List<PackagingOptionModel> packingOptions;
-  // -----------------------------
+  // ------------------------------------
 
   const ProductModel({
     required this.id,
@@ -31,25 +31,25 @@ class ProductModel extends Equatable {
   });
 
   double getPriceForRole(String role) {
-    if (packingOptions.isEmpty) return 0.0; // Sửa tên trường
-    return packingOptions.first.getPriceForRole(role); // Sửa tên trường
+    if (packingOptions.isEmpty) return 0.0;
+    return packingOptions.first.getPriceForRole(role);
   }
 
   String get displayUnit {
-    if (packingOptions.isEmpty) return 'sản phẩm'; // Sửa tên trường
-    return packingOptions.first.unit; // Sửa tên trường
+    if (packingOptions.isEmpty) return 'sản phẩm';
+    return packingOptions.first.unit;
   }
 
   @override
   List<Object?> get props => [
     id, name, description, imageUrl, categoryId,
-    isFeatured, createdAt, attributes, packingOptions // Sửa tên trường
+    isFeatured, createdAt, attributes, packingOptions
   ];
 
   factory ProductModel.fromSnapshot(DocumentSnapshot snap) {
     final data = snap.data() as Map<String, dynamic>? ?? {};
 
-    // --- SỬA TÊN TRƯỜNG KHI ĐỌC TỪ FIRESTORE ---
+    // --- SỬA TÊN TRƯỜDNG KHI ĐỌC TỪ FIRESTORE ---
     final optionsList = (data['packingOptions'] as List<dynamic>?)
         ?.map((optionMap) => PackagingOptionModel.fromMap(optionMap as Map<String, dynamic>))
         .toList() ?? [];
@@ -64,7 +64,7 @@ class ProductModel extends Equatable {
       isFeatured: data['isFeatured'] as bool? ?? false,
       createdAt: data['createdAt'] as Timestamp?,
       attributes: data['attributes'] is Map ? Map<String, dynamic>.from(data['attributes']) : null,
-      packingOptions: optionsList, // Sửa tên trường
+      packingOptions: optionsList,
     );
   }
 

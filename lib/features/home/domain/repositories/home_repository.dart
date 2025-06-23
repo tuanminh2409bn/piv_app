@@ -24,6 +24,8 @@ abstract class HomeRepository {
   Future<Either<Failure, Unit>> updateProduct(ProductModel product);
   Future<Either<Failure, Unit>> deleteProduct(String productId);
 
+  Future<Either<Failure, Unit>> updateProductField(String productId, Map<String, dynamic> data);
+
   // ** PHƯƠNG THỨC MỚI CHO ADMIN QUẢN LÝ DANH MỤC **
   /// Tạo một danh mục mới
   Future<Either<Failure, String>> createCategory(CategoryModel category);

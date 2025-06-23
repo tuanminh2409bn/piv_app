@@ -13,28 +13,41 @@ class AdminCategoriesCubit extends Cubit<AdminCategoriesState> {
       : _homeRepository = homeRepository,
         super(const AdminCategoriesState());
 
-  /// Tải tất cả các danh mục từ repository
   Future<void> fetchAllCategories() async {
     emit(state.copyWith(status: AdminCategoriesStatus.loading));
-    developer.log('AdminCategoriesCubit: Fetching all categories...', name: 'AdminCategoriesCubit');
-
     final result = await _homeRepository.getAllCategories();
-
     result.fold(
-          (failure) {
-        emit(state.copyWith(status: AdminCategoriesStatus.error, errorMessage: failure.message));
-      },
-          (categories) {
-        emit(state.copyWith(
-          status: AdminCategoriesStatus.success,
-          allCategories: categories,
-        ));
-      },
+          (failure) => emit(state.copyWith(status: AdminCategoriesStatus.error, errorMessage: failure.message)),
+          (categories) => emit(state.copyWith(status: AdminCategoriesStatus.success, allCategories: categories)),
     );
   }
 
-// TODO: Implement các phương thức create, update, delete
-// Future<void> createCategory(CategoryModel category) async { ... }
-// Future<void> updateCategory(CategoryModel category) async { ... }
-// Future<void> deleteCategory(String categoryId) async { ... }
+  Future<void> saveCategory({
+    CategoryModel? existingCategory,
+    required String name,
+    required String imageUrl,
+    String? parentId,
+  }) async {
+    final categoryToSave = existingCategory != null
+        ? CategoryModel(id: existingCategory.id, name: name, imageUrl: imageUrl, parentId: parentId)
+        : CategoryModel(id: '', name: name, imageUrl: imageUrl, parentId: parentId);
+
+    final result = existingCategory != null
+        ? await _homeRepository.updateCategory(categoryToSave)
+        : await _homeRepository.createCategory(categoryToSave);
+
+    result.fold(
+          (failure) => emit(state.copyWith(status: AdminCategoriesStatus.error, errorMessage: failure.message)),
+          (_) => fetchAllCategories(), // Tải lại danh sách sau khi lưu thành công
+    );
+  }
+
+  Future<void> deleteCategory(String categoryId) async {
+    // TODO: Cần kiểm tra xem danh mục có sản phẩm hoặc danh mục con không trước khi xóa
+    final result = await _homeRepository.deleteCategory(categoryId);
+    result.fold(
+          (failure) => emit(state.copyWith(status: AdminCategoriesStatus.error, errorMessage: failure.message)),
+          (_) => fetchAllCategories(), // Tải lại danh sách
+    );
+  }
 }

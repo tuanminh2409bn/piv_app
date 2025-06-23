@@ -13,7 +13,6 @@ class AdminProductsCubit extends Cubit<AdminProductsState> {
       : _homeRepository = homeRepository,
         super(const AdminProductsState());
 
-  /// Tải tất cả các sản phẩm trong hệ thống
   Future<void> fetchAllProducts() async {
     emit(state.copyWith(status: AdminProductsStatus.loading));
     developer.log('AdminProductsCubit: Fetching all products...', name: 'AdminProductsCubit');
@@ -28,40 +27,61 @@ class AdminProductsCubit extends Cubit<AdminProductsState> {
         emit(state.copyWith(
           status: AdminProductsStatus.success,
           allProducts: products,
-          filteredProducts: products, // Ban đầu, danh sách lọc giống danh sách đầy đủ
         ));
+        // Áp dụng lại bộ lọc sau khi tải
+        searchProducts(state.searchQuery);
       },
     );
   }
 
-  /// Lọc danh sách sản phẩm dựa trên từ khóa tìm kiếm
   void searchProducts(String query) {
+    emit(state.copyWith(searchQuery: query));
     if (query.isEmpty) {
-      // Nếu không tìm kiếm, hiển thị lại tất cả sản phẩm
       emit(state.copyWith(filteredProducts: state.allProducts));
       return;
     }
 
     final lowerCaseQuery = query.toLowerCase();
     final filtered = state.allProducts.where((product) {
-      // Tìm kiếm theo tên sản phẩm (không phân biệt hoa thường)
       return product.name.toLowerCase().contains(lowerCaseQuery);
     }).toList();
 
     emit(state.copyWith(filteredProducts: filtered));
   }
 
-  /// Xóa một sản phẩm và tải lại danh sách
+  Future<void> toggleIsFeatured(String productId, bool currentValue) async {
+    final result = await _homeRepository.updateProductField(productId, {'isFeatured': !currentValue});
+    if (result.isRight()) {
+      // Cập nhật trạng thái trong bộ nhớ mà không cần gọi lại server
+      final updatedAllProducts = state.allProducts.map((p) {
+        if (p.id == productId) {
+          return ProductModel(
+              id: p.id,
+              name: p.name,
+              description: p.description,
+              imageUrl: p.imageUrl,
+              categoryId: p.categoryId,
+              isFeatured: !currentValue,
+              createdAt: p.createdAt,
+              attributes: p.attributes,
+              packingOptions: p.packingOptions);
+        }
+        return p;
+      }).toList();
+      emit(state.copyWith(allProducts: updatedAllProducts));
+      searchProducts(state.searchQuery); // Áp dụng lại tìm kiếm
+    } else {
+      emit(state.copyWith(status: AdminProductsStatus.error, errorMessage: "Cập nhật thất bại"));
+    }
+  }
+
   Future<void> deleteProduct(String productId) async {
-    // Không cần emit loading để tránh giật màn hình
     final result = await _homeRepository.deleteProduct(productId);
     result.fold(
           (failure) {
-        // Có thể hiển thị lỗi qua một state riêng hoặc SnackBar
         emit(state.copyWith(status: AdminProductsStatus.error, errorMessage: failure.message));
       },
           (_) {
-        // Sau khi xóa thành công, tải lại danh sách
         fetchAllProducts();
       },
     );

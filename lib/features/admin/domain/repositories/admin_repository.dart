@@ -12,4 +12,9 @@ abstract class AdminRepository {
       String newRole,
       String newStatus,
       );
+
+  // --- PHƯƠNG THỨC MỚI CHO NVKD ---
+  /// Lấy danh sách các đại lý được quản lý bởi một NVKD.
+  Future<Either<Failure, List<UserModel>>> getAgentsBySalesRepId(String salesRepId);
+// ------------------------------------
 }

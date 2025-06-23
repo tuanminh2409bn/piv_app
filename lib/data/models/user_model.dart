@@ -10,13 +10,16 @@ class UserModel extends Equatable {
   final String? displayName;
   final String? photoUrl;
   final List<AddressModel> addresses;
-  final String role;
+  final String role; // 'admin', 'accountant', 'sales_rep', 'agent_1', 'agent_2'
   final String status;
   final String? referrerId;
   final bool referralPromptPending;
+  final List<String> wishlist;
 
-  // --- TÍNH NĂNG MỚI: Thêm trường wishlist ---
-  final List<String> wishlist; // Danh sách các ID sản phẩm yêu thích
+  // --- TRƯỜNG MỚI QUAN TRỌNG ---
+  // ID của NVKD đang phụ trách đại lý này.
+  final String? salesRepId;
+  // -------------------------
 
   String get referralCode => id;
 
@@ -26,14 +29,17 @@ class UserModel extends Equatable {
     this.displayName,
     this.photoUrl,
     this.addresses = const [],
-    this.role = 'agent_2',
-    this.status = 'pending_approval',
+    this.role = 'agent_2', // Mặc định khi đăng ký là đại lý cấp 2
+    this.status = 'pending_approval', // Mặc định cần chờ duyệt
     this.referrerId,
     this.referralPromptPending = false,
-    this.wishlist = const [], // Khởi tạo danh sách rỗng
+    this.wishlist = const [],
+    this.salesRepId, // Thêm vào constructor
   });
 
   bool get isAdmin => role == 'admin';
+  bool get isSalesRep => role == 'sales_rep';
+  bool get isAccountant => role == 'accountant';
 
   static const empty = UserModel(id: '');
   bool get isEmpty => this == UserModel.empty;
@@ -49,7 +55,8 @@ class UserModel extends Equatable {
     String? status,
     String? referrerId,
     bool? referralPromptPending,
-    List<String>? wishlist, // Thêm vào copyWith
+    List<String>? wishlist,
+    String? salesRepId,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -62,6 +69,7 @@ class UserModel extends Equatable {
       referrerId: referrerId ?? this.referrerId,
       referralPromptPending: referralPromptPending ?? this.referralPromptPending,
       wishlist: wishlist ?? this.wishlist,
+      salesRepId: salesRepId ?? this.salesRepId,
     );
   }
 
@@ -76,7 +84,8 @@ class UserModel extends Equatable {
       'status': status,
       'referrerId': referrerId,
       'referralPromptPending': referralPromptPending,
-      'wishlist': wishlist, // Thêm vào JSON
+      'wishlist': wishlist,
+      'salesRepId': salesRepId,
     };
   }
 
@@ -85,7 +94,6 @@ class UserModel extends Equatable {
         ?.map((addressMap) => AddressModel.fromMap(addressMap as Map<String, dynamic>))
         .toList() ?? [];
 
-    // Đọc danh sách wishlist từ firestore
     final List<String> wishlistList = (json['wishlist'] as List<dynamic>?)
         ?.map((productId) => productId as String)
         .toList() ?? [];
@@ -101,12 +109,13 @@ class UserModel extends Equatable {
       referrerId: json['referrerId'] as String?,
       referralPromptPending: json['referralPromptPending'] as bool? ?? false,
       wishlist: wishlistList,
+      salesRepId: json['salesRepId'] as String?,
     );
   }
 
   @override
   List<Object?> get props => [
     id, email, displayName, photoUrl, addresses, role, status,
-    referrerId, referralPromptPending, wishlist
+    referrerId, referralPromptPending, wishlist, salesRepId
   ];
 }
