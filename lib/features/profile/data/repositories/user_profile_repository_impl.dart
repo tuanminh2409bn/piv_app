@@ -16,7 +16,54 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
 
   CollectionReference<Map<String, dynamic>> get _usersCollection => _firestore.collection('users');
 
-  // ... (các hàm getUserProfile, updateUserProfile, và các hàm address giữ nguyên)
+  // ... các hàm getUserProfile, updateUserProfile, và các hàm address giữ nguyên ...
+
+  // --- HÀM NÀY SẼ ĐƯỢC CẬP NHẬT HOÀN TOÀN ---
+  @override
+  Future<Either<Failure, Unit>> submitReferralCode(String userId, String referralCode) async {
+    try {
+      final referrerDoc = await _usersCollection.doc(referralCode).get();
+      if (!referrerDoc.exists) {
+        return Left(ServerFailure('Mã giới thiệu không hợp lệ.'));
+      }
+
+      // --- LOGIC MỚI QUAN TRỌNG ---
+      final referrerData = UserModel.fromJson(referrerDoc.data()!);
+      final Map<String, dynamic> dataToUpdate = {
+        'referrerId': referralCode,
+        'referralPromptPending': false,
+      };
+
+      // Chỉ cập nhật salesRepId nếu người giới thiệu là NVKD
+      if (referrerData.isSalesRep) {
+        dataToUpdate['salesRepId'] = referralCode;
+      }
+      // -----------------------------
+
+      await _usersCollection.doc(userId).update(dataToUpdate);
+
+      developer.log('User $userId submitted referral code. Data updated: $dataToUpdate', name: 'UserProfileRepo');
+
+      return const Right(unit);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+    }
+    catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> dismissReferralPrompt(String userId) async {
+    try {
+      await _usersCollection.doc(userId).update({'referralPromptPending': false});
+      return const Right(unit);
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+    }
+  }
+
+  // --- CÁC HÀM CÒN LẠI GIỮ NGUYÊN ---
   @override
   Future<Either<Failure, UserModel>> getUserProfile(String userId) async {
     try {
@@ -140,34 +187,6 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
     }
   }
 
-  @override
-  Future<Either<Failure, Unit>> submitReferralCode(String userId, String referralCode) async {
-    try {
-      final referrerDoc = await _usersCollection.doc(referralCode).get();
-      if (!referrerDoc.exists) {
-        return Left(ServerFailure('Mã giới thiệu không hợp lệ.'));
-      }
-      await _usersCollection.doc(userId).update({
-        'referrerId': referralCode,
-        'referralPromptPending': false,
-      });
-      return const Right(unit);
-    } catch (e) {
-      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
-    }
-  }
-
-  @override
-  Future<Either<Failure, Unit>> dismissReferralPrompt(String userId) async {
-    try {
-      await _usersCollection.doc(userId).update({'referralPromptPending': false});
-      return const Right(unit);
-    } catch (e) {
-      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
-    }
-  }
-
-  // --- TRIỂN KHAI CÁC HÀM MỚI CHO WISHLIST ---
   @override
   Future<Either<Failure, Unit>> addToWishlist(String userId, String productId) async {
     try {

@@ -2,7 +2,7 @@ import 'package:get_it/get_it.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // <<< THÊM IMPORT
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Auth Feature
 import 'package:piv_app/features/auth/data/repositories/auth_repository_impl.dart';
@@ -39,7 +39,7 @@ import 'package:piv_app/features/profile/presentation/bloc/profile_cubit.dart';
 import 'package:piv_app/features/wishlist/presentation/bloc/wishlist_cubit.dart';
 import 'package:piv_app/features/wishlist/presentation/pages/wishlist_page.dart';
 
-// Search Feature <<< THÊM CÁC IMPORT MỚI
+// Search Feature
 import 'package:piv_app/features/search/data/repositories/search_repository_impl.dart';
 import 'package:piv_app/features/search/domain/repositories/search_repository.dart';
 import 'package:piv_app/features/search/bloc/search_cubit.dart';
@@ -60,7 +60,11 @@ import 'package:piv_app/features/admin/presentation/bloc/admin_products_cubit.da
 import 'package:piv_app/features/admin/presentation/bloc/product_form_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_categories_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
+import 'package:piv_app/features/admin/presentation/bloc/admin_commissions_cubit.dart';
+
+// Sales Rep Feature
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_cubit.dart';
+import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_commissions_cubit.dart';
 
 final sl = GetIt.instance;
 
@@ -69,7 +73,6 @@ Future<void> initializeDependencies() async {
   sl.registerLazySingleton<firebase_auth.FirebaseAuth>(() => firebase_auth.FirebaseAuth.instance);
   sl.registerLazySingleton<FirebaseFirestore>(() => FirebaseFirestore.instance);
 
-  // <<< THÊM MỚI: Khởi tạo và đăng ký SharedPreferences
   final prefs = await SharedPreferences.getInstance();
   sl.registerLazySingleton<SharedPreferences>(() => prefs);
 
@@ -107,7 +110,7 @@ Future<void> initializeDependencies() async {
   sl.registerLazySingleton<WishlistCubit>(() => WishlistCubit(userProfileRepository: sl(), authBloc: sl()));
   sl.registerFactory<WishlistPageCubit>(() => WishlistPageCubit(homeRepository: sl(), wishlistCubit: sl()));
 
-  // == Search (TÍNH NĂNG MỚI) ==
+  // == Search ==
   sl.registerLazySingleton<SearchRepository>(() => SearchRepositoryImpl(prefs: sl()));
   sl.registerFactory<SearchCubit>(() => SearchCubit(searchRepository: sl(), homeRepository: sl()));
 
@@ -125,7 +128,9 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<AdminUsersCubit>(() => AdminUsersCubit(adminRepository: sl()));
   sl.registerFactory<ProductFormCubit>(() => ProductFormCubit(homeRepository: sl(), storageRepository: sl()));
   sl.registerFactory<AdminCategoriesCubit>(() => AdminCategoriesCubit(homeRepository: sl<HomeRepository>()));
+  sl.registerFactory<AdminCommissionsCubit>(() => AdminCommissionsCubit(orderRepository: sl(), authBloc: sl()));
 
-  // --- THÊM MỚI: Đăng ký SalesRepCubit ---
+  // == Sales Rep ==
   sl.registerFactory<SalesRepCubit>(() => SalesRepCubit(adminRepository: sl(), authBloc: sl()));
+  sl.registerFactory<SalesRepCommissionsCubit>(() => SalesRepCommissionsCubit(orderRepository: sl(), authBloc: sl()));
 }

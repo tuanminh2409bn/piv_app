@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
+import 'package:piv_app/data/models/commission_model.dart';
 import 'package:piv_app/data/models/order_model.dart';
+import 'package:piv_app/features/admin/presentation/bloc/admin_commissions_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_orders_cubit.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/orders/presentation/pages/order_detail_page.dart';
@@ -14,11 +16,67 @@ import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_product_form_page.dart';
 import 'package:piv_app/features/home/data/models/category_model.dart';
 
-class AdminHomePage extends StatelessWidget {
+// =================================================================
+//                 TRANG ADMIN HOME CHÍNH (STATEFUL)
+// =================================================================
+class AdminHomePage extends StatefulWidget {
   const AdminHomePage({super.key});
 
   static PageRoute<void> route() {
     return MaterialPageRoute<void>(builder: (_) => const AdminHomePage());
+  }
+
+  @override
+  State<AdminHomePage> createState() => _AdminHomePageState();
+}
+
+class _AdminHomePageState extends State<AdminHomePage> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  int _currentTabIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 5, vsync: this);
+    _tabController.addListener(() {
+      // Chỉ cập nhật state nếu index thực sự thay đổi
+      if (_tabController.index != _currentTabIndex) {
+        setState(() {
+          _currentTabIndex = _tabController.index;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Widget? _buildFloatingActionButton(BuildContext context) {
+    switch (_currentTabIndex) {
+      case 1: // Tab Sản phẩm
+        return FloatingActionButton(
+          onPressed: () {
+            Navigator.of(context).push<bool?>(AdminProductFormPage.route()).then((success) {
+              if (success == true) {
+                context.read<AdminProductsCubit>().fetchAllProducts();
+              }
+            });
+          },
+          tooltip: 'Thêm sản phẩm',
+          child: const Icon(Icons.add),
+        );
+      case 2: // Tab Danh mục
+        return FloatingActionButton(
+          onPressed: () => AdminCategoriesView.showCategoryFormDialog(context),
+          tooltip: 'Thêm danh mục gốc',
+          child: const Icon(Icons.add),
+        );
+      default:
+        return null; // Không có FAB cho các tab khác
+    }
   }
 
   @override
@@ -29,41 +87,43 @@ class AdminHomePage extends StatelessWidget {
         BlocProvider(create: (_) => sl<AdminProductsCubit>()..fetchAllProducts()),
         BlocProvider(create: (_) => sl<AdminCategoriesCubit>()..fetchAllCategories()),
         BlocProvider(create: (_) => sl<AdminUsersCubit>()..fetchAllUsers()),
+        BlocProvider(create: (_) => sl<AdminCommissionsCubit>()..fetchAllCommissions()),
       ],
-      child: DefaultTabController(
-        length: 4,
-        child: Scaffold(
-          appBar: AppBar(
-            title: const Text('Trang Quản trị'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.logout),
-                tooltip: 'Đăng xuất',
-                onPressed: () => context.read<AuthBloc>().add(AuthLogoutRequested()),
-              ),
-            ],
-            bottom: const TabBar(
-              // --- SỬA LỖI TABBAR DỨT ĐIỂM ---
-              labelPadding: EdgeInsets.symmetric(horizontal: 4.0), // Giảm padding
-              tabs: [
-                Tab(child: Text('Đơn hàng', textAlign: TextAlign.center)),
-                Tab(child: Text('Sản phẩm', textAlign: TextAlign.center)),
-                Tab(child: Text('Danh mục', textAlign: TextAlign.center)),
-                Tab(child: Text('Tài khoản', textAlign: TextAlign.center)),
-              ],
-              // --------------------------
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Trang Quản trị'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Đăng xuất',
+              onPressed: () => context.read<AuthBloc>().add(AuthLogoutRequested()),
             ),
-          ),
-          body: const TabBarView(
-            physics: NeverScrollableScrollPhysics(),
-            children: [
-              AdminOrdersView(),
-              AdminProductsView(),
-              AdminCategoriesView(),
-              AdminUsersView(),
+          ],
+          bottom: TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start, // Căn chỉnh các tab về bên trái
+            tabs: const [
+              Tab(text: 'Đơn hàng'),
+              Tab(text: 'Sản phẩm'),
+              Tab(text: 'Danh mục'),
+              Tab(text: 'Người dùng'),
+              Tab(text: 'Hoa hồng'),
             ],
           ),
         ),
+        body: TabBarView(
+          controller: _tabController,
+          physics: const NeverScrollableScrollPhysics(), // Chống swipe giữa các tab
+          children: const [
+            AdminOrdersView(),
+            AdminProductsView(),
+            AdminCategoriesView(),
+            AdminUsersView(),
+            AdminCommissionsView(),
+          ],
+        ),
+        floatingActionButton: _buildFloatingActionButton(context),
       ),
     );
   }
@@ -74,7 +134,7 @@ class AdminHomePage extends StatelessWidget {
 // =================================================================
 class AdminOrdersView extends StatelessWidget {
   const AdminOrdersView({super.key});
-  //... code của AdminOrdersView giữ nguyên ...
+
   (Color, String) _getStatusInfo(String status, BuildContext context) {
     switch (status) {
       case 'pending': return (Colors.orange.shade700, 'Chờ xử lý');
@@ -84,6 +144,35 @@ class AdminOrdersView extends StatelessWidget {
       case 'cancelled': return (Colors.red.shade700, 'Đã hủy');
       default: return (Colors.grey.shade700, 'Không xác định');
     }
+  }
+
+  void _showStatusChangeConfirmationDialog(BuildContext context, {
+    required String orderId,
+    required String newStatus,
+    required String newStatusText,
+  }) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Xác nhận thay đổi'),
+          content: Text('Bạn có chắc chắn muốn đổi trạng thái đơn hàng thành "$newStatusText"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('HỦY'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                context.read<AdminOrdersCubit>().updateOrderStatus(orderId, newStatus);
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('XÁC NHẬN'),
+            )
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -105,7 +194,7 @@ class AdminOrdersView extends StatelessWidget {
           builder: (context, state) {
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Row(
                 children: [
                   _buildFilterChip(context, 'Cần xử lý', 'active', state.currentFilter),
@@ -232,7 +321,12 @@ class AdminOrdersView extends StatelessWidget {
                     underline: Container(height: 2, color: statusInfo.$1),
                     onChanged: (String? newStatus) {
                       if (newStatus != null && newStatus != order.status) {
-                        context.read<AdminOrdersCubit>().updateOrderStatus(order.id!, newStatus);
+                        _showStatusChangeConfirmationDialog(
+                          context,
+                          orderId: order.id!,
+                          newStatus: newStatus,
+                          newStatusText: _getStatusInfo(newStatus, context).$2,
+                        );
                       }
                     },
                     items: statusOptions.map<DropdownMenuItem<String>>((String value) {
@@ -273,58 +367,45 @@ class AdminProductsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              decoration: const InputDecoration(
-                hintText: 'Tìm kiếm sản phẩm...',
-                prefixIcon: Icon(Icons.search),
-              ),
-              onChanged: (query) => context.read<AdminProductsCubit>().searchProducts(query),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: TextField(
+            decoration: const InputDecoration(
+              hintText: 'Tìm kiếm sản phẩm...',
+              prefixIcon: Icon(Icons.search),
             ),
+            onChanged: (query) => context.read<AdminProductsCubit>().searchProducts(query),
           ),
-          Expanded(
-            child: BlocBuilder<AdminProductsCubit, AdminProductsState>(
-              builder: (context, state) {
-                if (state.status == AdminProductsStatus.loading && state.filteredProducts.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (state.filteredProducts.isEmpty) {
-                  return const Center(child: Text('Không tìm thấy sản phẩm nào.'));
-                }
-                return RefreshIndicator(
-                  onRefresh: () => context.read<AdminProductsCubit>().fetchAllProducts(),
-                  child: ListView.separated(
-                    itemCount: state.filteredProducts.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1, indent: 16),
-                    itemBuilder: (context, index) {
-                      final product = state.filteredProducts[index];
-                      return _buildProductListItem(context, product);
-                    },
-                  ),
-                );
-              },
-            ),
+        ),
+        Expanded(
+          child: BlocBuilder<AdminProductsCubit, AdminProductsState>(
+            builder: (context, state) {
+              if (state.status == AdminProductsStatus.loading && state.filteredProducts.isEmpty) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (state.filteredProducts.isEmpty) {
+                return const Center(child: Text('Không tìm thấy sản phẩm nào.'));
+              }
+              return RefreshIndicator(
+                onRefresh: () => context.read<AdminProductsCubit>().fetchAllProducts(),
+                child: ListView.separated(
+                  itemCount: state.filteredProducts.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final product = state.filteredProducts[index];
+                    return _buildProductListItem(context, product);
+                  },
+                ),
+              );
+            },
           ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.of(context).push<bool?>(AdminProductFormPage.route()).then((success) {
-            if (success == true) {
-              context.read<AdminProductsCubit>().fetchAllProducts();
-            }
-          });
-        },
-        child: const Icon(Icons.add),
-      ),
+        ),
+      ],
     );
   }
 
-  // --- SỬA LỖI OVERFLOW BẰNG CÁCH XÂY DỰNG LAYOUT THỦ CÔNG ---
   Widget _buildProductListItem(BuildContext context, ProductModel product) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     final displayPrice = product.packingOptions.isNotEmpty && product.packingOptions.first.prices.isNotEmpty
@@ -342,18 +423,21 @@ class AdminProductsView extends StatelessWidget {
           });
         },
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          padding: const EdgeInsets.fromLTRB(16.0, 8.0, 8.0, 8.0),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Ảnh sản phẩm
-              (product.imageUrl.isNotEmpty)
-                  ? Image.network(product.imageUrl, width: 60, height: 60, fit: BoxFit.cover, errorBuilder: (_,__,___) => Container(width: 60, height: 60, color: Colors.grey.shade200, child: const Icon(Icons.image_not_supported)))
-                  : Container(width: 60, height: 60, color: Colors.grey.shade200, child: const Icon(Icons.image)),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: (product.imageUrl.isNotEmpty)
+                    ? Image.network(product.imageUrl, width: 60, height: 60, fit: BoxFit.cover, errorBuilder: (_,__,___) => Container(width: 60, height: 60, color: Colors.grey.shade200, child: const Icon(Icons.image_not_supported)))
+                    : Container(width: 60, height: 60, color: Colors.grey.shade200, child: const Icon(Icons.image)),
+              ),
               const SizedBox(width: 16),
-              // Tên và giá
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis,),
                     const SizedBox(height: 4),
@@ -362,49 +446,45 @@ class AdminProductsView extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              // Cụm action
-              Row(
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Column(
-                    children: [
-                      const Text('Nổi bật', style: TextStyle(fontSize: 10)),
-                      Transform.scale(
-                        scale: 0.8,
-                        child: Switch(
-                          value: product.isFeatured,
-                          onChanged: (newValue) {
-                            context.read<AdminProductsCubit>().toggleIsFeatured(product.id, product.isFeatured);
-                          },
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
-                    tooltip: 'Xóa sản phẩm',
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (dialogContext) => AlertDialog(
-                          title: const Text('Xác nhận xóa'),
-                          content: Text('Bạn có chắc chắn muốn xóa sản phẩm "${product.name}"? Hành động này không thể hoàn tác.'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Hủy')),
-                            TextButton(
-                              onPressed: () {
-                                context.read<AdminProductsCubit>().deleteProduct(product.id);
-                                Navigator.of(dialogContext).pop();
-                              },
-                              child: Text('Xóa', style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+                  const Text('Nổi bật', style: TextStyle(fontSize: 10)),
+                  Transform.scale(
+                    scale: 0.8,
+                    child: Switch(
+                      value: product.isFeatured,
+                      onChanged: (newValue) {
+                        context.read<AdminProductsCubit>().toggleIsFeatured(product.id, product.isFeatured);
+                      },
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                   ),
                 ],
-              )
+              ),
+              IconButton(
+                icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
+                tooltip: 'Xóa sản phẩm',
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('Xác nhận xóa'),
+                      content: Text('Bạn có chắc chắn muốn xóa sản phẩm "${product.name}"? Hành động này không thể hoàn tác.'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Hủy')),
+                        TextButton(
+                          onPressed: () {
+                            context.read<AdminProductsCubit>().deleteProduct(product.id);
+                            Navigator.of(dialogContext).pop();
+                          },
+                          child: Text('Xóa', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -421,39 +501,32 @@ class AdminCategoriesView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: BlocConsumer<AdminCategoriesCubit, AdminCategoriesState>(
-        listener: (context, state) {
-          if (state.status == AdminCategoriesStatus.error && state.errorMessage != null) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.red));
-          }
-        },
-        builder: (context, state) {
-          if (state.status == AdminCategoriesStatus.loading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    return BlocConsumer<AdminCategoriesCubit, AdminCategoriesState>(
+      listener: (context, state) {
+        if (state.status == AdminCategoriesStatus.error && state.errorMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.red));
+        }
+      },
+      builder: (context, state) {
+        if (state.status == AdminCategoriesStatus.loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-          final topLevelCategories = state.topLevelCategories;
-          if (topLevelCategories.isEmpty) {
-            return const Center(child: Text('Chưa có danh mục nào.'));
-          }
+        final topLevelCategories = state.topLevelCategories;
+        if (topLevelCategories.isEmpty) {
+          return const Center(child: Text('Chưa có danh mục nào.'));
+        }
 
-          return RefreshIndicator(
-            onRefresh: () async => context.read<AdminCategoriesCubit>().fetchAllCategories(),
-            child: ListView(
-              padding: const EdgeInsets.all(8.0),
-              children: topLevelCategories.map((category) {
-                return _buildCategoryTree(context, category, state.allCategories, 0);
-              }).toList(),
-            ),
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCategoryFormDialog(context),
-        tooltip: 'Thêm danh mục gốc',
-        child: const Icon(Icons.add),
-      ),
+        return RefreshIndicator(
+          onRefresh: () async => context.read<AdminCategoriesCubit>().fetchAllCategories(),
+          child: ListView(
+            padding: const EdgeInsets.all(8.0),
+            children: topLevelCategories.map((category) {
+              return _buildCategoryTree(context, category, state.allCategories, 0);
+            }).toList(),
+          ),
+        );
+      },
     );
   }
 
@@ -468,8 +541,8 @@ class AdminCategoriesView extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(icon: const Icon(Icons.add_circle_outline, size: 20, color: Colors.green), onPressed: () => _showCategoryFormDialog(context, parentCategory: category), tooltip: 'Thêm danh mục con'),
-          IconButton(icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.blueGrey), onPressed: () => _showCategoryFormDialog(context, categoryToEdit: category), tooltip: 'Sửa danh mục này'),
+          IconButton(icon: const Icon(Icons.add_circle_outline, size: 20, color: Colors.green), onPressed: () => showCategoryFormDialog(context, parentCategory: category), tooltip: 'Thêm danh mục con'),
+          IconButton(icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.blueGrey), onPressed: () => showCategoryFormDialog(context, categoryToEdit: category), tooltip: 'Sửa danh mục này'),
           IconButton(icon: Icon(Icons.delete_outline, size: 20, color: Theme.of(context).colorScheme.error), onPressed: () => _showDeleteConfirmDialog(context, category, subCategories.isNotEmpty), tooltip: 'Xóa danh mục'),
         ],
       ),
@@ -500,7 +573,7 @@ class AdminCategoriesView extends StatelessWidget {
     );
   }
 
-  void _showCategoryFormDialog(BuildContext context, {CategoryModel? categoryToEdit, CategoryModel? parentCategory}) {
+  static void showCategoryFormDialog(BuildContext context, {CategoryModel? categoryToEdit, CategoryModel? parentCategory}) {
     final cubit = context.read<AdminCategoriesCubit>();
     final allCategories = (cubit.state as AdminCategoriesState).allCategories;
     final formKey = GlobalKey<FormState>();
@@ -587,72 +660,70 @@ class AdminUsersView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Column(
-        children: [
-          BlocBuilder<AdminUsersCubit, AdminUsersState>(
-            buildWhen: (previous, current) => previous.currentFilter != current.currentFilter,
+    return Column(
+      children: [
+        BlocBuilder<AdminUsersCubit, AdminUsersState>(
+          buildWhen: (previous, current) => previous.currentFilter != current.currentFilter,
+          builder: (context, state) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: SegmentedButton<String>(
+                segments: const <ButtonSegment<String>>[
+                  ButtonSegment<String>(value: 'all', label: Text('Tất cả')),
+                  ButtonSegment<String>(value: 'pending_approval', label: Text('Chờ duyệt')),
+                  ButtonSegment<String>(value: 'active', label: Text('Hoạt động')),
+                ],
+                selected: <String>{state.currentFilter},
+                onSelectionChanged: (Set<String> newSelection) {
+                  context.read<AdminUsersCubit>().filterUsers(newSelection.first);
+                },
+              ),
+            );
+          },
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: BlocBuilder<AdminUsersCubit, AdminUsersState>(
             builder: (context, state) {
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: SegmentedButton<String>(
-                  segments: const <ButtonSegment<String>>[
-                    ButtonSegment<String>(value: 'all', label: Text('Tất cả')),
-                    ButtonSegment<String>(value: 'pending_approval', label: Text('Chờ duyệt')),
-                    ButtonSegment<String>(value: 'active', label: Text('Hoạt động')),
-                  ],
-                  selected: <String>{state.currentFilter},
-                  onSelectionChanged: (Set<String> newSelection) {
-                    context.read<AdminUsersCubit>().filterUsers(newSelection.first);
+              if (state.status == AdminUsersStatus.loading) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (state.filteredUsers.isEmpty) {
+                return const Center(child: Text('Không có người dùng nào.'));
+              }
+
+              return RefreshIndicator(
+                onRefresh: () async => context.read<AdminUsersCubit>().fetchAllUsers(),
+                child: ListView.separated(
+                  itemCount: state.filteredUsers.length,
+                  separatorBuilder: (_, __) => const Divider(height: 0, indent: 16),
+                  itemBuilder: (context, index) {
+                    final user = state.filteredUsers[index];
+                    final statusInfo = _getStatusInfo(user.status, context);
+                    return ListTile(
+                      title: Text(user.displayName ?? 'Chưa có tên', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(user.email ?? 'Không có email'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(color: statusInfo.$1.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+                            child: Text(statusInfo.$2, style: TextStyle(color: statusInfo.$1, fontSize: 12, fontWeight: FontWeight.w500)),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                        ],
+                      ),
+                      onTap: () => _showEditUserDialog(context, user),
+                    );
                   },
                 ),
               );
             },
           ),
-          const Divider(height: 1),
-          Expanded(
-            child: BlocBuilder<AdminUsersCubit, AdminUsersState>(
-              builder: (context, state) {
-                if (state.status == AdminUsersStatus.loading) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (state.filteredUsers.isEmpty) {
-                  return const Center(child: Text('Không có người dùng nào.'));
-                }
-
-                return RefreshIndicator(
-                  onRefresh: () async => context.read<AdminUsersCubit>().fetchAllUsers(),
-                  child: ListView.separated(
-                    itemCount: state.filteredUsers.length,
-                    separatorBuilder: (_, __) => const Divider(height: 0, indent: 16),
-                    itemBuilder: (context, index) {
-                      final user = state.filteredUsers[index];
-                      final statusInfo = _getStatusInfo(user.status, context);
-                      return ListTile(
-                        title: Text(user.displayName ?? 'Chưa có tên', style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(user.email ?? 'Không có email'),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(color: statusInfo.$1.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
-                              child: Text(statusInfo.$2, style: TextStyle(color: statusInfo.$1, fontSize: 12, fontWeight: FontWeight.w500)),
-                            ),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-                          ],
-                        ),
-                        onTap: () => _showEditUserDialog(context, user),
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -729,6 +800,143 @@ class AdminUsersView extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+// =================================================================
+//                 VIEW QUẢN LÝ HOA HỒNG
+// =================================================================
+class AdminCommissionsView extends StatelessWidget {
+  const AdminCommissionsView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        BlocBuilder<AdminCommissionsCubit, AdminCommissionsState>(
+          buildWhen: (p, c) => p.currentFilter != c.currentFilter,
+          builder: (context, state) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: SegmentedButton<String>(
+                segments: const <ButtonSegment<String>>[
+                  ButtonSegment<String>(value: 'pending', label: Text('Chờ thanh toán')),
+                  ButtonSegment<String>(value: 'paid', label: Text('Đã thanh toán')),
+                  ButtonSegment<String>(value: 'all', label: Text('Tất cả')),
+                ],
+                selected: <String>{state.currentFilter},
+                onSelectionChanged: (newSelection) {
+                  context.read<AdminCommissionsCubit>().filterCommissions(newSelection.first);
+                },
+              ),
+            );
+          },
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: BlocBuilder<AdminCommissionsCubit, AdminCommissionsState>(
+            builder: (context, state) {
+              if (state.status == AdminCommissionsStatus.loading && state.filteredCommissions.isEmpty) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (state.filteredCommissions.isEmpty) {
+                return const Center(child: Text('Không có dữ liệu hoa hồng.'));
+              }
+              return RefreshIndicator(
+                onRefresh: () => context.read<AdminCommissionsCubit>().fetchAllCommissions(),
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(8.0),
+                  itemCount: state.filteredCommissions.length,
+                  itemBuilder: (context, index) {
+                    final commission = state.filteredCommissions[index];
+                    return _buildCommissionCard(context, commission);
+                  },
+                ),
+              );
+            },
+          ),
+        )
+      ],
+    );
+  }
+
+  Widget _buildCommissionCard(BuildContext context, CommissionModel commission) {
+    final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    final dateFormat = DateFormat('dd/MM/yyyy');
+    final isPending = commission.status == CommissionStatus.pending;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Đơn hàng: #${commission.orderId.substring(0, 8).toUpperCase()}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text('NVKD ID: ${commission.salesRepId.substring(0, 8)}'),
+            Text('Đại lý: ${commission.agentName}'),
+            const Divider(),
+            _buildInfoRow(context, 'Ngày tạo:', dateFormat.format(commission.createdAt.toDate())),
+            _buildInfoRow(context, 'Giá trị ĐH:', currencyFormatter.format(commission.orderTotal)),
+            _buildInfoRow(context, 'Hoa hồng (${(commission.commissionRate * 100).toStringAsFixed(0)}%):', currencyFormatter.format(commission.commissionAmount), isBold: true),
+            const Divider(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Chip(
+                  label: Text(
+                    isPending ? 'Chờ thanh toán' : 'Đã thanh toán',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  backgroundColor: isPending ? Colors.orange.shade700 : Colors.green.shade700,
+                ),
+                if (isPending)
+                  ElevatedButton(
+                    onPressed: () {
+                      showDialog(
+                          context: context,
+                          builder: (dialogContext) => AlertDialog(
+                            title: const Text('Xác nhận Thanh toán'),
+                            content: Text('Bạn có chắc chắn muốn xác nhận đã thanh toán khoản hoa hồng ${currencyFormatter.format(commission.commissionAmount)}?'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('HỦY')),
+                              ElevatedButton(onPressed: (){
+                                context.read<AdminCommissionsCubit>().markAsPaid(commission.id);
+                                Navigator.of(dialogContext).pop();
+                              }, child: const Text('XÁC NHẬN')),
+                            ],
+                          )
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
+                    child: const Text('Thanh toán'),
+                  )
+                else if (commission.paidAt != null)
+                  Text('Ngày TT: ${dateFormat.format(commission.paidAt!.toDate())}', style: TextStyle(color: Colors.grey.shade600, fontSize: 12))
+              ],
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(BuildContext context, String label, String value, {bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(color: Colors.grey.shade700)),
+          Text(value, style: TextStyle(fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
+        ],
+      ),
     );
   }
 }
