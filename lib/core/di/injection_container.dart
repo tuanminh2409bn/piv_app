@@ -66,6 +66,9 @@ import 'package:piv_app/features/admin/presentation/bloc/admin_commissions_cubit
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_commissions_cubit.dart';
 
+import 'package:piv_app/features/quick_order/presentation/bloc/quick_order_cubit.dart';
+
+
 final sl = GetIt.instance;
 
 Future<void> initializeDependencies() async {
@@ -133,4 +136,6 @@ Future<void> initializeDependencies() async {
   // == Sales Rep ==
   sl.registerFactory<SalesRepCubit>(() => SalesRepCubit(adminRepository: sl(), authBloc: sl()));
   sl.registerFactory<SalesRepCommissionsCubit>(() => SalesRepCommissionsCubit(orderRepository: sl(), authBloc: sl()));
+
+  sl.registerFactory<QuickOrderCubit>(() => QuickOrderCubit(homeRepository: sl(), cartCubit: sl()));
 }

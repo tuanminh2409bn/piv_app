@@ -9,6 +9,7 @@ import 'package:piv_app/features/home/presentation/pages/home_page.dart';
 import 'package:piv_app/features/profile/presentation/bloc/profile_cubit.dart';
 import 'package:piv_app/features/profile/presentation/pages/profile_page.dart';
 import 'package:piv_app/features/products/presentation/pages/all_categories_page.dart';
+import 'package:piv_app/features/quick_order/presentation/pages/quick_order_page.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -78,6 +79,13 @@ class _MainScreenState extends State<MainScreen> {
           ),
           actionsIconTheme: const IconThemeData(color: Colors.white),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.flash_on_outlined),
+              tooltip: 'Đặt hàng nhanh',
+              onPressed: () {
+                Navigator.of(context).push(QuickOrderPage.route());
+              },
+            ),
             CartIconWithBadge(
               iconColor: Colors.white,
               onPressed: () {
