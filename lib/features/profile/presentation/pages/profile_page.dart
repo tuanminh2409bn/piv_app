@@ -6,6 +6,7 @@ import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/data/models/address_model.dart';
 import 'package:piv_app/features/orders/presentation/pages/my_orders_page.dart';
 import 'package:piv_app/features/wishlist/presentation/pages/wishlist_page.dart';
+import 'package:piv_app/features/profile/presentation/pages/qr_scanner_page.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -141,13 +142,27 @@ class ProfileView extends StatelessWidget {
           title: const Text('Nhập mã giới thiệu'),
           content: Form(
             key: formKey,
-            child: TextFormField(
-              controller: codeController,
-              decoration: const InputDecoration(
-                labelText: 'Mã giới thiệu',
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) => (value == null || value.trim().isEmpty) ? 'Vui lòng nhập mã' : null,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: codeController,
+                    decoration: const InputDecoration(labelText: 'Mã giới thiệu'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Vui lòng nhập mã' : null,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.qr_code_scanner),
+                  tooltip: 'Quét mã QR',
+                  onPressed: () async {
+                    final scannedCode = await Navigator.of(context).push<String?>(QrScannerPage.route());
+                    if (scannedCode != null && scannedCode.isNotEmpty) {
+                      codeController.text = scannedCode;
+                    }
+                  },
+                ),
+              ],
             ),
           ),
           actions: <Widget>[

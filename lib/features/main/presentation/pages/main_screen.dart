@@ -9,6 +9,7 @@ import 'package:piv_app/features/home/presentation/pages/home_page.dart';
 import 'package:piv_app/features/profile/presentation/bloc/profile_cubit.dart';
 import 'package:piv_app/features/profile/presentation/pages/profile_page.dart';
 import 'package:piv_app/features/products/presentation/pages/all_categories_page.dart';
+import 'package:piv_app/features/profile/presentation/pages/qr_scanner_page.dart';
 import 'package:piv_app/features/quick_order/presentation/pages/quick_order_page.dart';
 
 class MainScreen extends StatefulWidget {
@@ -21,15 +22,10 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  // Cung cấp HomeCubit và ProfileCubit ở đây
   final HomeCubit _homeCubit = sl<HomeCubit>()..fetchHomeScreenData();
   final ProfileCubit _profileCubit = sl<ProfileCubit>();
 
-  static final List<Widget> _widgetOptions = <Widget>[
-    const HomePage(),
-    const AllCategoriesPage(),
-    const ProfilePage(),
-  ];
+  late final List<Widget> _widgetOptions;
 
   static const List<String> _appBarTitles = <String>[
     'Phân Bón PIV',
@@ -37,10 +33,18 @@ class _MainScreenState extends State<MainScreen> {
     'Tài khoản'
   ];
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _widgetOptions = <Widget>[
+      const HomePage(),
+      const AllCategoriesPage(),
+      // Cung cấp ProfileCubit cho ProfilePage
+      BlocProvider.value(
+        value: _profileCubit,
+        child: const ProfilePage(),
+      ),
+    ];
   }
 
   @override
@@ -50,6 +54,12 @@ class _MainScreenState extends State<MainScreen> {
       if (authState is AuthAuthenticated) {
         _profileCubit.fetchUserProfile(authState.user.id);
       }
+    });
+  }
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
     });
   }
 
@@ -105,7 +115,7 @@ class _MainScreenState extends State<MainScreen> {
           listener: (context, state) {
             if (state.status == ProfileStatus.success && state.user.referralPromptPending) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) { // Đảm bảo widget vẫn còn trong cây
+                if (mounted) {
                   _showReferralPromptDialog(context);
                 }
               });
@@ -132,7 +142,6 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  // ** HÀM NÀY ĐÃ ĐƯỢC DI CHUYỂN VÀO BÊN TRONG CLASS _MainScreenState **
   void _showReferralPromptDialog(BuildContext context) {
     final profileCubit = context.read<ProfileCubit>();
     final formKey = GlobalKey<FormState>();
@@ -144,7 +153,7 @@ class _MainScreenState extends State<MainScreen> {
       builder: (_) => BlocProvider.value(
         value: profileCubit,
         child: AlertDialog(
-          title: const Text('Mã giới thiệu'),
+          title: const Text('Chào mừng bạn!'),
           content: Form(
             key: formKey,
             child: Column(
@@ -152,18 +161,26 @@ class _MainScreenState extends State<MainScreen> {
               children: [
                 const Text('Nếu bạn có mã giới thiệu từ nhân viên kinh doanh, vui lòng nhập vào bên dưới.'),
                 const SizedBox(height: 16),
-                TextFormField(
-                  controller: codeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nhập mã giới thiệu',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Vui lòng nhập mã';
-                    }
-                    return null;
-                  },
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: codeController,
+                        decoration: const InputDecoration(labelText: 'Nhập mã tại đây'),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.qr_code_scanner),
+                      tooltip: 'Quét mã QR',
+                      onPressed: () async {
+                        final scannedCode = await Navigator.of(context).push<String?>(QrScannerPage.route());
+                        if (scannedCode != null && scannedCode.isNotEmpty) {
+                          codeController.text = scannedCode;
+                        }
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -179,8 +196,12 @@ class _MainScreenState extends State<MainScreen> {
             ElevatedButton(
               child: const Text('XÁC NHẬN'),
               onPressed: () {
-                if (formKey.currentState!.validate()) {
+                if (codeController.text.trim().isNotEmpty) {
                   profileCubit.submitReferralCode(codeController.text.trim());
+                  Navigator.of(context).pop();
+                } else {
+                  // Nếu người dùng không nhập gì mà bấm xác nhận, coi như bỏ qua
+                  profileCubit.dismissReferralPrompt();
                   Navigator.of(context).pop();
                 }
               },

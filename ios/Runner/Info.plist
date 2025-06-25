@@ -51,5 +51,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+    <string>Ứng dụng cần truy cập camera để quét mã QR giới thiệu.</string>
 </dict>
 </plist>
