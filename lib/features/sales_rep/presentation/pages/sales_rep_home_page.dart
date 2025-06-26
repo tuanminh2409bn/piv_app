@@ -8,6 +8,7 @@ import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_commissions_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_cubit.dart';
+import 'package:piv_app/features/sales_rep/presentation/pages/agent_order_history_page.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class SalesRepHomePage extends StatelessWidget {
@@ -22,7 +23,8 @@ class SalesRepHomePage extends StatelessWidget {
     // Cung cấp các Cubit cần thiết cho các tab
     return MultiBlocProvider(
       providers: [
-        BlocProvider(create: (_) => sl<SalesRepCubit>()..fetchMyAgents()),
+        // SalesRepCubit sẽ quản lý cả danh sách đại lý và danh sách chờ duyệt
+        BlocProvider(create: (_) => sl<SalesRepCubit>()..fetchMyAgents()..fetchPendingAgents()),
         BlocProvider(create: (_) => sl<SalesRepCommissionsCubit>()..fetchMyCommissions()),
       ],
       child: const SalesRepView(),
@@ -38,7 +40,7 @@ class SalesRepView extends StatelessWidget {
     final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
 
     return DefaultTabController(
-      length: 2,
+      length: 3, // Cập nhật thành 3 tab
       child: Scaffold(
         appBar: AppBar(
           title: Text('Chào, ${user.displayName ?? user.email}'),
@@ -56,7 +58,8 @@ class SalesRepView extends StatelessWidget {
           ],
           bottom: const TabBar(
             tabs: [
-              Tab(icon: Icon(Icons.people_outline), text: 'Đại lý của tôi'),
+              Tab(icon: Icon(Icons.people_outline), text: 'Đại lý'),
+              Tab(icon: Icon(Icons.pending_actions_outlined), text: 'Chờ duyệt'),
               Tab(icon: Icon(Icons.attach_money_outlined), text: 'Hoa hồng'),
             ],
           ),
@@ -64,6 +67,7 @@ class SalesRepView extends StatelessWidget {
         body: const TabBarView(
           children: [
             MyAgentsView(),
+            PendingAgentsView(),
             SalesRepCommissionsView(),
           ],
         ),
@@ -71,7 +75,6 @@ class SalesRepView extends StatelessWidget {
     );
   }
 
-  // Hàm để hiển thị dialog chứa mã QR
   void _showReferralQrDialog(BuildContext context, UserModel user) {
     showDialog(
       context: context,
@@ -86,7 +89,7 @@ class SalesRepView extends StatelessWidget {
                 const SizedBox(height: 20),
                 Center(
                   child: QrImageView(
-                    data: user.id, // Dữ liệu của mã QR chính là ID của NVKD
+                    data: user.id,
                     version: QrVersions.auto,
                     size: 200.0,
                   ),
@@ -114,14 +117,13 @@ class SalesRepView extends StatelessWidget {
 }
 
 // =================================================================
-//                     VIEW DANH SÁCH ĐẠI LÝ
+//                     VIEW DANH SÁCH ĐẠI LÝ ĐÃ DUYỆT
 // =================================================================
 class MyAgentsView extends StatelessWidget {
   const MyAgentsView({super.key});
 
   (Color, String) _getStatusInfo(String status, BuildContext context) {
     switch (status) {
-      case 'pending_approval': return (Colors.orange.shade700, 'Chờ duyệt');
       case 'active': return (Theme.of(context).colorScheme.primary, 'Hoạt động');
       case 'suspended': return (Colors.red.shade700, 'Bị khóa');
       default: return (Colors.grey.shade700, 'Không xác định');
@@ -134,15 +136,11 @@ class MyAgentsView extends StatelessWidget {
       onRefresh: () async => context.read<SalesRepCubit>().fetchMyAgents(),
       child: BlocBuilder<SalesRepCubit, SalesRepState>(
         builder: (context, state) {
-          if (state.status == SalesRepStatus.loading) {
+          if (state.status == SalesRepStatus.loading && state.myAgents.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
           if (state.myAgents.isEmpty) {
-            return const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text('Bạn chưa có đại lý nào được ghi nhận. Hãy dùng mã QR để giới thiệu!', textAlign: TextAlign.center),
-                ));
+            return const Center(child: Text('Bạn chưa có đại lý nào.'));
           }
           return ListView.separated(
             padding: const EdgeInsets.all(8.0),
@@ -161,12 +159,104 @@ class MyAgentsView extends StatelessWidget {
                     backgroundColor: statusInfo.$1.withOpacity(0.2),
                     side: BorderSide.none,
                   ),
+                  onTap: () {
+                    Navigator.of(context).push(AgentOrderHistoryPage.route(
+                      agentId: agent.id,
+                      agentName: agent.displayName ?? 'N/A',
+                    ));
+                  },
                 ),
               );
             },
           );
         },
       ),
+    );
+  }
+}
+
+// =================================================================
+//                 VIEW ĐẠI LÝ CHỜ DUYỆT
+// =================================================================
+class PendingAgentsView extends StatelessWidget {
+  const PendingAgentsView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: () async => context.read<SalesRepCubit>().fetchPendingAgents(),
+      child: BlocBuilder<SalesRepCubit, SalesRepState>(
+        builder: (context, state) {
+          if (state.status == SalesRepStatus.loading && state.pendingAgents.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (state.pendingAgents.isEmpty) {
+            return const Center(child: Text('Không có đại lý nào đang chờ duyệt.'));
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(8.0),
+            itemCount: state.pendingAgents.length,
+            itemBuilder: (context, index) {
+              final agent = state.pendingAgents[index];
+              return Card(
+                child: ListTile(
+                  title: Text(agent.displayName ?? 'Chưa có tên', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(agent.email ?? 'Không có email'),
+                  trailing: ElevatedButton(
+                    child: const Text('Phê duyệt'),
+                    onPressed: () => _showApprovalDialog(context, agent),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  void _showApprovalDialog(BuildContext context, UserModel agent) {
+    String selectedRole = 'agent_2'; // Mặc định là cấp 2
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Phê duyệt Đại lý'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Chọn cấp đại lý cho "${agent.displayName ?? agent.email}":'),
+                  RadioListTile<String>(
+                    title: const Text('Đại lý Cấp 1'),
+                    value: 'agent_1',
+                    groupValue: selectedRole,
+                    onChanged: (value) => setState(() => selectedRole = value!),
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Đại lý Cấp 2'),
+                    value: 'agent_2',
+                    groupValue: selectedRole,
+                    onChanged: (value) => setState(() => selectedRole = value!),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Hủy')),
+                ElevatedButton(
+                  onPressed: () {
+                    context.read<SalesRepCubit>().approveAgent(agent.id, selectedRole);
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Xác nhận'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

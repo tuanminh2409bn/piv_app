@@ -68,6 +68,7 @@ import 'package:piv_app/features/admin/presentation/bloc/admin_settings_cubit.da
 // Sales Rep Feature
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_commissions_cubit.dart';
+import 'package:piv_app/features/sales_rep/presentation/bloc/agent_orders_cubit.dart';
 
 // Quick Order
 import 'package:piv_app/features/quick_order/presentation/bloc/quick_order_cubit.dart';
@@ -144,4 +145,5 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<SalesRepCubit>(() => SalesRepCubit(adminRepository: sl(), authBloc: sl()));
   sl.registerFactory<SalesRepCommissionsCubit>(() => SalesRepCommissionsCubit(orderRepository: sl(), authBloc: sl()));
   sl.registerFactory<QuickOrderCubit>(() => QuickOrderCubit(homeRepository: sl(), cartCubit: sl()));
+  sl.registerFactory<AgentOrdersCubit>(() => AgentOrdersCubit(orderRepository: sl()));
 }

@@ -13,4 +13,5 @@ abstract class AdminRepository {
 
   Future<Either<Failure, List<UserModel>>> getAgentsBySalesRepId(String salesRepId);
   Future<Either<Failure, List<UserModel>>> getUsersByIds(List<String> userIds);
+  Future<Either<Failure, List<UserModel>>> getPendingAgentsBySalesRepId(String salesRepId);
 }

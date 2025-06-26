@@ -92,4 +92,22 @@ class AdminRepositoryImpl implements AdminRepository {
       return Left(ServerFailure('Lỗi khi tải danh sách người dùng: ${e.toString()}'));
     }
   }
+
+  @override
+  Future<Either<Failure, List<UserModel>>> getPendingAgentsBySalesRepId(String salesRepId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('users')
+          .where('salesRepId', isEqualTo: salesRepId)
+          .where('status', isEqualTo: 'pending_approval')
+          .get();
+
+      final users = querySnapshot.docs
+          .map((doc) => UserModel.fromJson(doc.data()))
+          .toList();
+      return Right(users);
+    } catch (e) {
+      return Left(ServerFailure('Lỗi khi tải danh sách đại lý chờ duyệt: ${e.toString()}'));
+    }
+  }
 }

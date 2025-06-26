@@ -11,38 +11,70 @@ class SalesRepCubit extends Cubit<SalesRepState> {
   final AdminRepository _adminRepository;
   final AuthBloc _authBloc;
   StreamSubscription? _authSubscription;
+  String _currentSalesRepId = '';
 
   SalesRepCubit({
     required AdminRepository adminRepository,
     required AuthBloc authBloc,
   })  : _adminRepository = adminRepository,
         _authBloc = authBloc,
-  // --- Constructor giờ đây chỉ khởi tạo State ---
         super(const SalesRepState()) {
-    // Việc lắng nghe stream vẫn có thể giữ lại
     _authSubscription = _authBloc.stream.listen((authState) {
-      if (authState is AuthUnauthenticated) {
-        // Nếu người dùng đăng xuất, xóa dữ liệu
-        emit(const SalesRepState(status: SalesRepStatus.initial, myAgents: []));
+      if (authState is AuthAuthenticated && authState.user.isSalesRep) {
+        _currentSalesRepId = authState.user.id;
+        // Tải cả hai danh sách khi đăng nhập
+        fetchMyAgents();
+        fetchPendingAgents();
+      } else if (authState is AuthUnauthenticated) {
+        _currentSalesRepId = '';
+        emit(const SalesRepState()); // Reset state khi đăng xuất
       }
     });
+
+    final initialAuthState = _authBloc.state;
+    if (initialAuthState is AuthAuthenticated && initialAuthState.user.isSalesRep) {
+      _currentSalesRepId = initialAuthState.user.id;
+      fetchMyAgents();
+      fetchPendingAgents();
+    }
   }
-  // -------------------------------------------------
 
   Future<void> fetchMyAgents() async {
-    final authState = _authBloc.state;
-    if (authState is! AuthAuthenticated || authState.user.role != 'sales_rep') {
-      return;
-    }
-
-    final salesRepId = authState.user.id;
-    if (salesRepId.isEmpty) return;
-
+    if (_currentSalesRepId.isEmpty) return;
     emit(state.copyWith(status: SalesRepStatus.loading));
-    final result = await _adminRepository.getAgentsBySalesRepId(salesRepId);
+    final result = await _adminRepository.getAgentsBySalesRepId(_currentSalesRepId);
     result.fold(
           (failure) => emit(state.copyWith(status: SalesRepStatus.error, errorMessage: failure.message)),
           (agents) => emit(state.copyWith(status: SalesRepStatus.success, myAgents: agents)),
+    );
+  }
+
+  Future<void> fetchPendingAgents() async {
+    if (_currentSalesRepId.isEmpty) return;
+    emit(state.copyWith(status: SalesRepStatus.loading));
+    final result = await _adminRepository.getPendingAgentsBySalesRepId(_currentSalesRepId);
+    result.fold(
+          (failure) => emit(state.copyWith(status: SalesRepStatus.error, errorMessage: failure.message)),
+          (agents) => emit(state.copyWith(status: SalesRepStatus.success, pendingAgents: agents)),
+    );
+  }
+
+  Future<void> approveAgent(String agentId, String role) async {
+    // Đảm bảo NVKD không thể gán quyền admin
+    if (role == 'admin') {
+      emit(state.copyWith(status: SalesRepStatus.error, errorMessage: "Bạn không có quyền gán vai trò Quản trị viên."));
+      return;
+    }
+
+    emit(state.copyWith(status: SalesRepStatus.loading));
+    final result = await _adminRepository.updateUser(agentId, role, 'active');
+    result.fold(
+          (failure) => emit(state.copyWith(status: SalesRepStatus.error, errorMessage: failure.message)),
+          (_) {
+        // Sau khi phê duyệt thành công, tải lại cả hai danh sách để cập nhật giao diện
+        fetchMyAgents();
+        fetchPendingAgents();
+      },
     );
   }
 
