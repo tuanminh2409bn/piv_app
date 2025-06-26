@@ -18,11 +18,11 @@ pluginManagement {
 
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
-    id("com.android.application") version "8.7.3" apply false
-    // START: FlutterFire Configuration
-    id("com.google.gms.google-services") version("4.3.15") apply false
-    // END: FlutterFire Configuration
-    id("org.jetbrains.kotlin.android") version "2.1.0" apply false
+    // Nâng cấp AGP lên phiên bản mới nhất tương thích
+    id("com.android.application") version "8.4.1" apply false
+    id("com.google.gms.google-services") version "4.4.1" apply false
+    // Nâng cấp Kotlin lên phiên bản mới nhất
+    id("org.jetbrains.kotlin.android") version "1.9.24" apply false
 }
 
 include(":app")
