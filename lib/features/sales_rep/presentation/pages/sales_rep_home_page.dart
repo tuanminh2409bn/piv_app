@@ -244,7 +244,7 @@ class SalesRepCommissionsView extends StatelessWidget {
               alignment: Alignment.centerRight,
               child: Chip(
                 label: Text(
-                  isPending ? 'Chờ thanh toán' : 'Đã thanh toán',
+                  isPending ? 'Chờ xác nhận' : 'Đã xác nhận',
                   style: const TextStyle(color: Colors.white, fontSize: 12),
                 ),
                 backgroundColor: isPending ? Colors.orange.shade700 : Colors.green.shade700,

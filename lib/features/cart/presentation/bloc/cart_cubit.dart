@@ -1,5 +1,3 @@
-// lib/features/cart/presentation/bloc/cart_cubit.dart
-
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/cart_item_model.dart';
@@ -88,7 +86,6 @@ class CartCubit extends Cubit<CartState> {
     result.fold(
           (failure) => emit(state.copyWith(status: CartStatus.error, errorMessage: failure.message)),
           (_) {
-        // SỬA: Phát ra trạng thái thành công cụ thể
         emit(state.copyWith(status: CartStatus.itemAddedSuccess));
         loadCart();
       },
@@ -123,12 +120,33 @@ class CartCubit extends Cubit<CartState> {
     result.fold(
           (failure) => emit(state.copyWith(status: CartStatus.error, errorMessage: failure.message)),
           (_) {
-        // SỬA: Phát ra trạng thái thành công cụ thể
         emit(state.copyWith(status: CartStatus.itemRemovedSuccess));
         loadCart();
       },
     );
   }
+
+  // --- THÊM HÀM CÒN THIẾU VÀO ĐÂY ---
+  Future<void> clearCart() async {
+    final userId = _userId;
+    if (userId.isEmpty) return;
+
+    // Không cần emit loading vì đây là hành động ngầm sau khi đặt hàng
+    final result = await _cartRepository.clearCart(userId);
+
+    result.fold(
+          (failure) {
+        // Có thể log lỗi ra nhưng không cần hiển thị cho người dùng
+        developer.log('Failed to clear cart: ${failure.message}', name: 'CartCubit');
+      },
+          (_) {
+        // Sau khi xóa thành công trên DB, cập nhật lại state ở client
+        emit(const CartState(status: CartStatus.success)); // Trạng thái giỏ hàng rỗng
+        developer.log('Cart cleared successfully for user $userId', name: 'CartCubit');
+      },
+    );
+  }
+  // ------------------------------------
 
   @override
   Future<void> close() {

@@ -1,17 +1,16 @@
-// lib/features/checkout/presentation/bloc/checkout_cubit.dart
+import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/address_model.dart';
-import 'package:piv_app/data/models/order_model.dart';
-import 'package:piv_app/data/models/order_item_model.dart';
 import 'package:piv_app/data/models/cart_item_model.dart';
-import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
-import 'package:piv_app/features/orders/domain/repositories/order_repository.dart';
+import 'package:piv_app/data/models/order_item_model.dart'; // THÊM IMPORT
+import 'package:piv_app/data/models/order_model.dart'; // THÊM IMPORT
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
-import 'dart:async';
-import 'dart:developer' as developer;
+import 'package:piv_app/features/orders/domain/repositories/order_repository.dart';
+import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
 
 part 'checkout_state.dart';
 
@@ -34,7 +33,6 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         _cartCubit = cartCubit,
         super(const CheckoutState());
 
-  // --- NÂNG CẤP HÀM NÀY ---
   Future<void> loadCheckoutData({List<CartItemModel>? buyNowItems}) async {
     final authState = _authBloc.state;
     if (authState is! AuthAuthenticated) return;
@@ -58,7 +56,6 @@ class CheckoutCubit extends Cubit<CheckoutState> {
           }
         }
 
-        // Nếu có `buyNowItems` (từ nút Mua ngay), dùng nó. Nếu không, dùng giỏ hàng.
         final itemsToCheckout = buyNowItems ?? _cartCubit.state.items;
         final subtotal = itemsToCheckout.fold<double>(0.0, (sum, item) => sum + item.subtotal);
         const shippingFee = 0.0;
@@ -97,6 +94,8 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       shippingFee: state.shippingFee,
       discount: 0.0,
       total: state.total,
+      paymentMethod: 'COD',
+      status: 'pending',
     );
 
     final result = await _orderRepository.createOrder(order);
@@ -105,8 +104,11 @@ class CheckoutCubit extends Cubit<CheckoutState> {
           (failure) => emit(state.copyWith(status: CheckoutStatus.error, errorMessage: failure.message)),
           (orderId) {
         developer.log('CheckoutCubit: Order placed successfully with ID $orderId', name: 'CheckoutCubit');
+        // Chỉ xóa giỏ hàng nếu đặt hàng từ giỏ hàng
+        if (state.checkoutItems.length == _cartCubit.state.items.length) {
+          _cartCubit.clearCart();
+        }
         emit(state.copyWith(status: CheckoutStatus.orderSuccess));
-        _cartCubit.loadCart(); // Làm mới lại giỏ hàng gốc sau khi đặt hàng
       },
     );
   }

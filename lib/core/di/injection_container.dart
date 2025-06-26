@@ -61,12 +61,17 @@ import 'package:piv_app/features/admin/presentation/bloc/product_form_cubit.dart
 import 'package:piv_app/features/admin/presentation/bloc/admin_categories_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_commissions_cubit.dart';
+import 'package:piv_app/features/admin/domain/repositories/settings_repository.dart';
+import 'package:piv_app/features/admin/data/repositories/settings_repository_impl.dart';
+import 'package:piv_app/features/admin/presentation/bloc/admin_settings_cubit.dart';
 
 // Sales Rep Feature
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_commissions_cubit.dart';
 
+// Quick Order
 import 'package:piv_app/features/quick_order/presentation/bloc/quick_order_cubit.dart';
+
 
 
 final sl = GetIt.instance;
@@ -118,7 +123,7 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<SearchCubit>(() => SearchCubit(searchRepository: sl(), homeRepository: sl()));
 
   // == Order & Checkout ==
-  sl.registerLazySingleton<OrderRepository>(() => OrderRepositoryImpl(firestore: sl()));
+  sl.registerLazySingleton<OrderRepository>(() => OrderRepositoryImpl(firestore: sl(), settingsRepository: sl()));
   sl.registerFactory<CheckoutCubit>(() => CheckoutCubit(userProfileRepository: sl(), orderRepository: sl(), authBloc: sl(), cartCubit: sl()));
   sl.registerLazySingleton<MyOrdersCubit>(() => MyOrdersCubit(orderRepository: sl(), authBloc: sl()));
   sl.registerFactory<OrderDetailCubit>(() => OrderDetailCubit(orderRepository: sl()));
@@ -131,11 +136,12 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<AdminUsersCubit>(() => AdminUsersCubit(adminRepository: sl()));
   sl.registerFactory<ProductFormCubit>(() => ProductFormCubit(homeRepository: sl(), storageRepository: sl()));
   sl.registerFactory<AdminCategoriesCubit>(() => AdminCategoriesCubit(homeRepository: sl<HomeRepository>()));
-  sl.registerFactory<AdminCommissionsCubit>(() => AdminCommissionsCubit(orderRepository: sl(), authBloc: sl()));
+  sl.registerFactory<AdminCommissionsCubit>(() => AdminCommissionsCubit(orderRepository: sl(), adminRepository: sl(), authBloc: sl()));
+  sl.registerLazySingleton<SettingsRepository>(() => SettingsRepositoryImpl(firestore: sl()));
+  sl.registerFactory<AdminSettingsCubit>(() => AdminSettingsCubit(settingsRepository: sl()));
 
   // == Sales Rep ==
   sl.registerFactory<SalesRepCubit>(() => SalesRepCubit(adminRepository: sl(), authBloc: sl()));
   sl.registerFactory<SalesRepCommissionsCubit>(() => SalesRepCommissionsCubit(orderRepository: sl(), authBloc: sl()));
-
   sl.registerFactory<QuickOrderCubit>(() => QuickOrderCubit(homeRepository: sl(), cartCubit: sl()));
 }

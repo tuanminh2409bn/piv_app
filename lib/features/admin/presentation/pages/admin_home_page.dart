@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/data/models/commission_model.dart';
 import 'package:piv_app/data/models/order_model.dart';
+import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_commissions_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_orders_cubit.dart';
+import 'package:piv_app/features/admin/presentation/bloc/admin_settings_cubit.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/orders/presentation/pages/order_detail_page.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_products_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_categories_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
-import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_product_form_page.dart';
 import 'package:piv_app/features/home/data/models/category_model.dart';
+import 'package:piv_app/data/models/commission_with_details.dart';
 
 // =================================================================
 //                 TRANG ADMIN HOME CHÍNH (STATEFUL)
@@ -37,9 +40,8 @@ class _AdminHomePageState extends State<AdminHomePage> with SingleTickerProvider
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _tabController.addListener(() {
-      // Chỉ cập nhật state nếu index thực sự thay đổi
       if (_tabController.index != _currentTabIndex) {
         setState(() {
           _currentTabIndex = _tabController.index;
@@ -75,7 +77,7 @@ class _AdminHomePageState extends State<AdminHomePage> with SingleTickerProvider
           child: const Icon(Icons.add),
         );
       default:
-        return null; // Không có FAB cho các tab khác
+        return null;
     }
   }
 
@@ -88,6 +90,7 @@ class _AdminHomePageState extends State<AdminHomePage> with SingleTickerProvider
         BlocProvider(create: (_) => sl<AdminCategoriesCubit>()..fetchAllCategories()),
         BlocProvider(create: (_) => sl<AdminUsersCubit>()..fetchAllUsers()),
         BlocProvider(create: (_) => sl<AdminCommissionsCubit>()..fetchAllCommissions()),
+        BlocProvider(create: (_) => sl<AdminSettingsCubit>()..loadSettings()),
       ],
       child: Scaffold(
         appBar: AppBar(
@@ -102,25 +105,27 @@ class _AdminHomePageState extends State<AdminHomePage> with SingleTickerProvider
           bottom: TabBar(
             controller: _tabController,
             isScrollable: true,
-            tabAlignment: TabAlignment.start, // Căn chỉnh các tab về bên trái
+            tabAlignment: TabAlignment.start,
             tabs: const [
               Tab(text: 'Đơn hàng'),
               Tab(text: 'Sản phẩm'),
               Tab(text: 'Danh mục'),
               Tab(text: 'Người dùng'),
               Tab(text: 'Hoa hồng'),
+              Tab(text: 'Cài đặt'),
             ],
           ),
         ),
         body: TabBarView(
           controller: _tabController,
-          physics: const NeverScrollableScrollPhysics(), // Chống swipe giữa các tab
+          physics: const NeverScrollableScrollPhysics(),
           children: const [
             AdminOrdersView(),
             AdminProductsView(),
             AdminCategoriesView(),
             AdminUsersView(),
             AdminCommissionsView(),
+            AdminSettingsView(),
           ],
         ),
         floatingActionButton: _buildFloatingActionButton(context),
@@ -751,12 +756,11 @@ class AdminUsersView extends StatelessWidget {
                     DropdownButton<String>(
                       value: selectedRole,
                       isExpanded: true,
-                      items: [
-                        const DropdownMenuItem(value: 'agent_1', child: Text('Đại lý cấp 1')),
-                        const DropdownMenuItem(value: 'agent_2', child: Text('Đại lý cấp 2')),
-                        const DropdownMenuItem(value: 'sales_rep', child: Text('Nhân viên Kinh doanh')),
-                        const DropdownMenuItem(value: 'accountant', child: Text('Kế toán')),
-                        const DropdownMenuItem(value: 'admin', child: Text('Quản trị viên')),
+                      items: const [
+                        DropdownMenuItem(value: 'agent_1', child: Text('Đại lý cấp 1')),
+                        DropdownMenuItem(value: 'agent_2', child: Text('Đại lý cấp 2')),
+                        DropdownMenuItem(value: 'sales_rep', child: Text('Nhân viên Kinh doanh')),
+                        DropdownMenuItem(value: 'admin', child: Text('Quản trị viên')),
                       ],
                       onChanged: (value) {
                         if (value != null) {
@@ -769,10 +773,10 @@ class AdminUsersView extends StatelessWidget {
                     DropdownButton<String>(
                       value: selectedStatus,
                       isExpanded: true,
-                      items: [
-                        const DropdownMenuItem(value: 'pending_approval', child: Text('Chờ duyệt')),
-                        const DropdownMenuItem(value: 'active', child: Text('Hoạt động')),
-                        const DropdownMenuItem(value: 'suspended', child: Text('Bị khóa')),
+                      items: const [
+                        DropdownMenuItem(value: 'pending_approval', child: Text('Chờ duyệt')),
+                        DropdownMenuItem(value: 'active', child: Text('Hoạt động')),
+                        DropdownMenuItem(value: 'suspended', child: Text('Bị khóa')),
                       ],
                       onChanged: (value) {
                         if (value != null) {
@@ -821,8 +825,8 @@ class AdminCommissionsView extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: SegmentedButton<String>(
                 segments: const <ButtonSegment<String>>[
-                  ButtonSegment<String>(value: 'pending', label: Text('Chờ thanh toán')),
-                  ButtonSegment<String>(value: 'paid', label: Text('Đã thanh toán')),
+                  ButtonSegment<String>(value: 'pending', label: Text('Chờ xác nhận')),
+                  ButtonSegment<String>(value: 'paid', label: Text('Đã xác nhận')),
                   ButtonSegment<String>(value: 'all', label: Text('Tất cả')),
                 ],
                 selected: <String>{state.currentFilter},
@@ -849,8 +853,8 @@ class AdminCommissionsView extends StatelessWidget {
                   padding: const EdgeInsets.all(8.0),
                   itemCount: state.filteredCommissions.length,
                   itemBuilder: (context, index) {
-                    final commission = state.filteredCommissions[index];
-                    return _buildCommissionCard(context, commission);
+                    final commissionItem = state.filteredCommissions[index];
+                    return _buildCommissionCard(context, commissionItem);
                   },
                 ),
               );
@@ -861,9 +865,11 @@ class AdminCommissionsView extends StatelessWidget {
     );
   }
 
-  Widget _buildCommissionCard(BuildContext context, CommissionModel commission) {
+  Widget _buildCommissionCard(BuildContext context, CommissionWithDetails item) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     final dateFormat = DateFormat('dd/MM/yyyy');
+    final commission = item.commission;
+    final salesRepName = item.salesRepName;
     final isPending = commission.status == CommissionStatus.pending;
 
     return Card(
@@ -879,19 +885,19 @@ class AdminCommissionsView extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
-            Text('NVKD ID: ${commission.salesRepId.substring(0, 8)}'),
+            Text('NVKD: $salesRepName', style: const TextStyle(fontWeight: FontWeight.w500)),
             Text('Đại lý: ${commission.agentName}'),
             const Divider(),
             _buildInfoRow(context, 'Ngày tạo:', dateFormat.format(commission.createdAt.toDate())),
             _buildInfoRow(context, 'Giá trị ĐH:', currencyFormatter.format(commission.orderTotal)),
-            _buildInfoRow(context, 'Hoa hồng (${(commission.commissionRate * 100).toStringAsFixed(0)}%):', currencyFormatter.format(commission.commissionAmount), isBold: true),
+            _buildInfoRow(context, 'Hoa hồng (${(commission.commissionRate * 100).toStringAsFixed(1)}%):', currencyFormatter.format(commission.commissionAmount), isBold: true),
             const Divider(),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Chip(
                   label: Text(
-                    isPending ? 'Chờ thanh toán' : 'Đã thanh toán',
+                    isPending ? 'Chờ xác nhận' : 'Đã xác nhận',
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                   backgroundColor: isPending ? Colors.orange.shade700 : Colors.green.shade700,
@@ -902,8 +908,8 @@ class AdminCommissionsView extends StatelessWidget {
                       showDialog(
                           context: context,
                           builder: (dialogContext) => AlertDialog(
-                            title: const Text('Xác nhận Thanh toán'),
-                            content: Text('Bạn có chắc chắn muốn xác nhận đã thanh toán khoản hoa hồng ${currencyFormatter.format(commission.commissionAmount)}?'),
+                            title: const Text('Xác nhận Hoa hồng'),
+                            content: Text('Bạn có chắc chắn muốn xác nhận khoản hoa hồng ${currencyFormatter.format(commission.commissionAmount)}?'),
                             actions: [
                               TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('HỦY')),
                               ElevatedButton(onPressed: (){
@@ -915,10 +921,10 @@ class AdminCommissionsView extends StatelessWidget {
                       );
                     },
                     style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
-                    child: const Text('Thanh toán'),
+                    child: const Text('Xác nhận'),
                   )
                 else if (commission.paidAt != null)
-                  Text('Ngày TT: ${dateFormat.format(commission.paidAt!.toDate())}', style: TextStyle(color: Colors.grey.shade600, fontSize: 12))
+                  Text('Ngày XN: ${dateFormat.format(commission.paidAt!.toDate())}', style: TextStyle(color: Colors.grey.shade600, fontSize: 12))
               ],
             )
           ],
@@ -936,6 +942,165 @@ class AdminCommissionsView extends StatelessWidget {
           Text(label, style: TextStyle(color: Colors.grey.shade700)),
           Text(value, style: TextStyle(fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
         ],
+      ),
+    );
+  }
+}
+
+// =================================================================
+//                 VIEW CÀI ĐẶT
+// =================================================================
+class AdminSettingsView extends StatelessWidget {
+  const AdminSettingsView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<AdminSettingsCubit, AdminSettingsState>(
+      builder: (context, state) {
+        if (state.status == AdminSettingsStatus.loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return ListView(
+          padding: const EdgeInsets.all(16.0),
+          children: [
+            Text('Cài đặt chung', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            _CommissionRateCard(initialRate: state.commissionRate),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CommissionRateCard extends StatefulWidget {
+  final double initialRate;
+  const _CommissionRateCard({required this.initialRate});
+
+  @override
+  State<_CommissionRateCard> createState() => _CommissionRateCardState();
+}
+
+class _CommissionRateCardState extends State<_CommissionRateCard> {
+  late TextEditingController _textController;
+  late double _currentSliderValue;
+  bool _hasChanges = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentSliderValue = (widget.initialRate * 100).clamp(0, 100);
+    _textController = TextEditingController(text: _currentSliderValue.toStringAsFixed(1));
+  }
+
+  @override
+  void didUpdateWidget(covariant _CommissionRateCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialRate != oldWidget.initialRate && !_hasChanges) {
+      final newRate = (widget.initialRate * 100).clamp(0, 100).toDouble(); // SỬA LỖI Ở ĐÂY
+      setState(() {
+        _currentSliderValue = newRate;
+        _textController.text = newRate.toStringAsFixed(1);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  void _onSave() {
+    context.read<AdminSettingsCubit>().saveCommissionRate(_textController.text.trim());
+    setState(() => _hasChanges = false);
+    FocusScope.of(context).unfocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.percent_rounded, color: Theme.of(context).colorScheme.primary),
+              title: const Text('Tỷ lệ hoa hồng', style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text('Tỷ lệ hoa hồng chung cho Nhân viên Kinh doanh'),
+            ),
+            const Divider(),
+            const SizedBox(height: 16),
+            Center(
+              child: Text(
+                '${_currentSliderValue.toStringAsFixed(1)} %',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary
+                ),
+              ),
+            ),
+            Slider(
+              value: _currentSliderValue,
+              min: 0,
+              max: 100,
+              divisions: 200,
+              label: _currentSliderValue.toStringAsFixed(1),
+              onChanged: (value) {
+                setState(() {
+                  _hasChanges = true;
+                  _currentSliderValue = value;
+                  _textController.text = value.toStringAsFixed(1);
+                });
+              },
+            ),
+            Row(
+              children: [
+                const Expanded(child: Text('Hoặc nhập chính xác:', style: TextStyle(fontSize: 14))),
+                SizedBox(
+                  width: 90,
+                  child: TextFormField(
+                    controller: _textController,
+                    textAlign: TextAlign.center,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        suffixText: '%',
+                        contentPadding: EdgeInsets.symmetric(horizontal: 8)
+                    ),
+                    onChanged: (value) {
+                      final parsedValue = double.tryParse(value);
+                      if (parsedValue != null && parsedValue >= 0 && parsedValue <= 100) {
+                        setState(() {
+                          _hasChanges = true;
+                          _currentSliderValue = parsedValue;
+                        });
+                      } else {
+                        setState(() {
+                          _hasChanges = true;
+                        });
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            if (_hasChanges)
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.tonalIcon(
+                  onPressed: _onSave,
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Lưu thay đổi'),
+                ),
+              )
+          ],
+        ),
       ),
     );
   }

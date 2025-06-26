@@ -4,16 +4,18 @@ enum AdminCommissionsStatus { initial, loading, success, error }
 
 class AdminCommissionsState extends Equatable {
   final AdminCommissionsStatus status;
-  final List<CommissionModel> allCommissions;
-  final List<CommissionModel> filteredCommissions;
-  final String currentFilter; // 'pending', 'paid', 'all'
+  // --- SỬA LẠI: Dùng model mới ---
+  final List<CommissionWithDetails> allCommissions;
+  final List<CommissionWithDetails> filteredCommissions;
+  // -----------------------------
+  final String currentFilter;
   final String? errorMessage;
 
   const AdminCommissionsState({
     this.status = AdminCommissionsStatus.initial,
     this.allCommissions = const [],
     this.filteredCommissions = const [],
-    this.currentFilter = 'pending', // Mặc định xem các khoản chờ thanh toán
+    this.currentFilter = 'pending',
     this.errorMessage,
   });
 
@@ -22,8 +24,8 @@ class AdminCommissionsState extends Equatable {
 
   AdminCommissionsState copyWith({
     AdminCommissionsStatus? status,
-    List<CommissionModel>? allCommissions,
-    List<CommissionModel>? filteredCommissions,
+    List<CommissionWithDetails>? allCommissions,
+    List<CommissionWithDetails>? filteredCommissions,
     String? currentFilter,
     String? errorMessage,
   }) {

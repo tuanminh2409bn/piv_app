@@ -7,15 +7,16 @@ class CommissionModel extends Equatable {
   final String id;
   final String orderId;
   final double orderTotal;
-  final double commissionRate; // Tỷ lệ hoa hồng tại thời điểm tạo
-  final double commissionAmount; // Số tiền hoa hồng
+  final double commissionRate;
+  final double commissionAmount;
   final String salesRepId;
   final String agentId;
   final String agentName;
   final CommissionStatus status;
   final Timestamp createdAt;
-  final Timestamp? paidAt; // Thời điểm thanh toán
-  final String? accountantId; // ID của kế toán đã duyệt chi
+  final Timestamp? paidAt;
+  // --- SỬA LẠI TRƯỜNG NÀY ---
+  final String? confirmedById; // ID của Admin đã xác nhận
 
   const CommissionModel({
     required this.id,
@@ -29,16 +30,14 @@ class CommissionModel extends Equatable {
     this.status = CommissionStatus.pending,
     required this.createdAt,
     this.paidAt,
-    this.accountantId,
+    this.confirmedById, // Sửa lại constructor
   });
 
   @override
-  List<Object?> get props => [id, orderId, orderTotal, commissionRate, commissionAmount, salesRepId, agentId, agentName, status, createdAt, paidAt, accountantId];
+  List<Object?> get props => [id, orderId, orderTotal, commissionRate, commissionAmount, salesRepId, agentId, agentName, status, createdAt, paidAt, confirmedById];
 
-  // Chuyển từ Enum sang String để lưu vào Firestore
   String get statusString => status == CommissionStatus.pending ? 'pending' : 'paid';
 
-  // Chuyển từ String (đọc từ Firestore) sang Enum
   static CommissionStatus _statusFromString(String? statusStr) {
     return statusStr == 'paid' ? CommissionStatus.paid : CommissionStatus.pending;
   }
@@ -55,7 +54,7 @@ class CommissionModel extends Equatable {
       'status': statusString,
       'createdAt': createdAt,
       'paidAt': paidAt,
-      'accountantId': accountantId,
+      'confirmedById': confirmedById, // Sửa lại tên trường
     };
   }
 
@@ -73,7 +72,7 @@ class CommissionModel extends Equatable {
       status: _statusFromString(data['status'] as String?),
       createdAt: data['createdAt'] as Timestamp,
       paidAt: data['paidAt'] as Timestamp?,
-      accountantId: data['accountantId'] as String?,
+      confirmedById: data['confirmedById'] as String?, // Sửa lại tên trường
     );
   }
 }

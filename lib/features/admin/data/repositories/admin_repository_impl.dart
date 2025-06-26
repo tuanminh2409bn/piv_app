@@ -71,4 +71,25 @@ class AdminRepositoryImpl implements AdminRepository {
       return Left(ServerFailure('Lỗi không xác định khi tải danh sách đại lý: ${e.toString()}'));
     }
   }
+
+  @override
+  Future<Either<Failure, List<UserModel>>> getUsersByIds(List<String> userIds) async {
+    if (userIds.isEmpty) {
+      return const Right([]);
+    }
+    try {
+      // Truy vấn `whereIn` cho phép tìm nhiều document cùng lúc
+      final querySnapshot = await _firestore
+          .collection('users')
+          .where(FieldPath.documentId, whereIn: userIds)
+          .get();
+
+      final users = querySnapshot.docs
+          .map((doc) => UserModel.fromJson(doc.data()))
+          .toList();
+      return Right(users);
+    } catch (e) {
+      return Left(ServerFailure('Lỗi khi tải danh sách người dùng: ${e.toString()}'));
+    }
+  }
 }
