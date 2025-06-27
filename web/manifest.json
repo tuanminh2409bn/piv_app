@@ -1,6 +1,6 @@
 {
-    "name": "piv_app",
-    "short_name": "piv_app",
+    "name": "PIV",
+    "short_name": "PIV",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

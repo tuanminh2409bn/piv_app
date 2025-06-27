@@ -6,9 +6,9 @@
     <uses-permission android:name="android.permission.CAMERA" />
 
     <application
-        android:label="Phan Bon PIV"
+        android:label="PIV"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/launcher_icon">
 
         <!-- Activity chính của ứng dụng Flutter -->
         <activity

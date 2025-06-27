@@ -47,15 +47,34 @@ dependencies:
   mobile_scanner: ^7.0.1
   image_cropper: ^9.1.0
 
+  flutter_launcher_icons: "^0.13.1"
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   bloc_test: ^9.1.7
   mocktail: ^1.0.3
   flutter_lints: ^5.0.0
+  flutter_native_splash: ^2.4.0
 
 flutter:
   uses-material-design: true
 
   assets:
     - assets/
+
+flutter_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/logo.png" # Thay bằng đường dẫn đến file logo của bạn
+  remove_alpha_ios: true # Tùy chọn, nên có để xóa nền trong suốt cho logo iOS
+
+flutter_native_splash:
+  # Sử dụng cùng một màu nền và logo cho cả 2 chế độ
+  color: "#FFFFFF"       # Màu nền trắng
+  image: assets/logo.png  # Đường dẫn đến logo của bạn
+
+  # Cấu hình cho Android 12+ cũng sử dụng cùng một logo và màu nền
+  android_12:
+    color: "#FFFFFF"
+    image: assets/logo.png
