@@ -275,32 +275,120 @@ class SalesRepCommissionsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: () async => context.read<SalesRepCommissionsCubit>().fetchMyCommissions(),
+    return Column(
+      children: [
+        _buildFilters(context),
+        const Divider(height: 1),
+        _buildSummary(context),
+        const Divider(height: 1),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () async => context.read<SalesRepCommissionsCubit>().fetchMyCommissions(),
+            child: BlocBuilder<SalesRepCommissionsCubit, SalesRepCommissionsState>(
+              builder: (context, state) {
+                if (state.status == SalesRepCommissionsStatus.loading && state.commissions.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (state.commissions.isEmpty) {
+                  return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Text('Không có hoa hồng nào trong khoảng thời gian đã chọn.', textAlign: TextAlign.center),
+                      ));
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.all(8.0),
+                  itemCount: state.commissions.length,
+                  itemBuilder: (context, index) {
+                    final commission = state.commissions[index];
+                    return _buildCommissionCard(context, commission);
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilters(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
       child: BlocBuilder<SalesRepCommissionsCubit, SalesRepCommissionsState>(
         builder: (context, state) {
-          if (state.status == SalesRepCommissionsStatus.loading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (state.commissions.isEmpty) {
-            return const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text('Bạn chưa có hoa hồng nào. Hoa hồng sẽ được tạo khi đơn hàng của đại lý được xác nhận hoàn thành.', textAlign: TextAlign.center),
-                ));
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(8.0),
-            itemCount: state.commissions.length,
-            itemBuilder: (context, index) {
-              final commission = state.commissions[index];
-              return _buildCommissionCard(context, commission);
-            },
+          final dateFormat = DateFormat('dd/MM/yyyy');
+          final startDateText = state.startDate != null ? dateFormat.format(state.startDate!) : 'Từ ngày';
+          final endDateText = state.endDate != null ? dateFormat.format(state.endDate!) : 'Đến ngày';
+
+          return Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  child: Text(startDateText),
+                  onPressed: () => _selectDateRange(context, state),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8.0),
+                child: Text('-'),
+              ),
+              Expanded(
+                child: OutlinedButton(
+                  child: Text(endDateText),
+                  onPressed: () => _selectDateRange(context, state),
+                ),
+              ),
+              if (state.startDate != null || state.endDate != null)
+                IconButton(
+                  icon: const Icon(Icons.clear, color: Colors.red),
+                  onPressed: () => context.read<SalesRepCommissionsCubit>().setDateRange(null),
+                )
+            ],
           );
         },
       ),
     );
   }
+
+  Widget _buildSummary(BuildContext context) {
+    final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    return BlocBuilder<SalesRepCommissionsCubit, SalesRepCommissionsState>(
+        builder: (context, state) {
+          final totalCommission = state.commissions.fold<double>(0.0, (sum, item) => sum + item.commissionAmount);
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Tổng cộng:', style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                    currencyFormatter.format(totalCommission),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)
+                ),
+              ],
+            ),
+          );
+        }
+    );
+  }
+
+  Future<void> _selectDateRange(BuildContext context, SalesRepCommissionsState state) async {
+    final newDateRange = await showDateRangePicker(
+      context: context,
+      initialDateRange: state.startDate != null && state.endDate != null
+          ? DateTimeRange(start: state.startDate!, end: state.endDate!)
+          : null,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      locale: const Locale('vi', 'VN'),
+    );
+
+    if (newDateRange != null) {
+      context.read<SalesRepCommissionsCubit>().setDateRange(newDateRange);
+    }
+  }
+
 
   Widget _buildCommissionCard(BuildContext context, CommissionModel commission) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');

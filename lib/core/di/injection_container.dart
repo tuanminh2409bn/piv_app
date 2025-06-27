@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:piv_app/app/app_bloc_observer.dart';
+
 
 // Auth Feature
 import 'package:piv_app/features/auth/data/repositories/auth_repository_impl.dart';
@@ -82,6 +84,7 @@ import 'package:piv_app/features/vouchers/domain/repositories/voucher_repository
 final sl = GetIt.instance;
 
 Future<void> initializeDependencies() async {
+  sl.registerLazySingleton(() => AppBlocObserver());
   // --- Core ---
   sl.registerLazySingleton<firebase_auth.FirebaseAuth>(() => firebase_auth.FirebaseAuth.instance);
   sl.registerLazySingleton<FirebaseFirestore>(() => FirebaseFirestore.instance);

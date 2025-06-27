@@ -56,6 +56,7 @@ class _AdminHomePageState extends State<AdminHomePage> with SingleTickerProvider
     super.dispose();
   }
 
+  // Hàm build FloatingActionButton động dựa trên tab đang được chọn
   Widget? _buildFloatingActionButton(BuildContext context) {
     switch (_currentTabIndex) {
       case 1: // Tab Sản phẩm
@@ -208,6 +209,7 @@ class AdminOrdersView extends StatelessWidget {
                   _buildFilterChip(context, 'Tất cả', 'all', state.currentFilter),
                 ],
               ),
+
             );
           },
         ),
@@ -814,32 +816,38 @@ class AdminUsersView extends StatelessWidget {
 class AdminCommissionsView extends StatelessWidget {
   const AdminCommissionsView({super.key});
 
+  // --- HÀM MỚI ĐỂ MỞ DATE PICKER ---
+  Future<void> _selectDateRange(BuildContext context, AdminCommissionsState state) async {
+    final newDateRange = await showDateRangePicker(
+      context: context,
+      initialDateRange: state.startDate != null && state.endDate != null
+          ? DateTimeRange(start: state.startDate!, end: state.endDate!)
+          : null,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      locale: const Locale('vi', 'VN'),
+    );
+
+    if (newDateRange != null) {
+      context.read<AdminCommissionsCubit>().setDateRange(newDateRange);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        BlocBuilder<AdminCommissionsCubit, AdminCommissionsState>(
-          buildWhen: (p, c) => p.currentFilter != c.currentFilter,
-          builder: (context, state) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: SegmentedButton<String>(
-                segments: const <ButtonSegment<String>>[
-                  ButtonSegment<String>(value: 'pending', label: Text('Chờ xác nhận')),
-                  ButtonSegment<String>(value: 'paid', label: Text('Đã xác nhận')),
-                  ButtonSegment<String>(value: 'all', label: Text('Tất cả')),
-                ],
-                selected: <String>{state.currentFilter},
-                onSelectionChanged: (newSelection) {
-                  context.read<AdminCommissionsCubit>().filterCommissions(newSelection.first);
-                },
-              ),
-            );
-          },
-        ),
-        const Divider(height: 1),
+        _buildFilters(context),
+        const Divider(height: 1, thickness: 1),
+        _buildSummary(context),
+        const Divider(height: 1, thickness: 1),
         Expanded(
-          child: BlocBuilder<AdminCommissionsCubit, AdminCommissionsState>(
+          child: BlocConsumer<AdminCommissionsCubit, AdminCommissionsState>(
+            listener: (context, state) {
+              if (state.status == AdminCommissionsStatus.error && state.errorMessage != null) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.errorMessage!)));
+              }
+            },
             builder: (context, state) {
               if (state.status == AdminCommissionsStatus.loading && state.filteredCommissions.isEmpty) {
                 return const Center(child: CircularProgressIndicator());
@@ -862,6 +870,86 @@ class AdminCommissionsView extends StatelessWidget {
           ),
         )
       ],
+    );
+  }
+
+  Widget _buildFilters(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: BlocBuilder<AdminCommissionsCubit, AdminCommissionsState>(
+        builder: (context, state) {
+          final dateFormat = DateFormat('dd/MM/yyyy');
+          final startDateText = state.startDate != null ? dateFormat.format(state.startDate!) : 'Từ ngày';
+          final endDateText = state.endDate != null ? dateFormat.format(state.endDate!) : 'Đến ngày';
+
+          return Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.calendar_today_outlined, size: 18),
+                      label: Text(startDateText),
+                      onPressed: () => _selectDateRange(context, state),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8.0),
+                    child: Text('-'),
+                  ),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.calendar_today_outlined, size: 18),
+                      label: Text(endDateText),
+                      onPressed: () => _selectDateRange(context, state),
+                    ),
+                  ),
+                  if (state.startDate != null || state.endDate != null)
+                    IconButton(
+                      icon: const Icon(Icons.clear, color: Colors.red),
+                      tooltip: 'Xóa bộ lọc ngày',
+                      onPressed: () => context.read<AdminCommissionsCubit>().setDateRange(null),
+                    )
+                ],
+              ),
+              const SizedBox(height: 8),
+              SegmentedButton<String>(
+                segments: const <ButtonSegment<String>>[
+                  ButtonSegment<String>(value: 'all', label: Text('Tất cả')),
+                  ButtonSegment<String>(value: 'pending', label: Text('Chờ xác nhận')),
+                  ButtonSegment<String>(value: 'paid', label: Text('Đã xác nhận')),
+                ],
+                selected: <String>{state.currentFilter},
+                onSelectionChanged: (newSelection) {
+                  context.read<AdminCommissionsCubit>().filterCommissions(newSelection.first);
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSummary(BuildContext context) {
+    final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    return BlocBuilder<AdminCommissionsCubit, AdminCommissionsState>(
+        builder: (context, state) {
+          final totalCommission = state.filteredCommissions.fold<double>(0.0, (sum, item) => sum + item.commission.commissionAmount);
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Tổng cộng (${state.filteredCommissions.length} mục):', style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                    currencyFormatter.format(totalCommission),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)
+                ),
+              ],
+            ),
+          );
+        }
     );
   }
 
@@ -997,7 +1085,7 @@ class _CommissionRateCardState extends State<_CommissionRateCard> {
   void didUpdateWidget(covariant _CommissionRateCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.initialRate != oldWidget.initialRate && !_hasChanges) {
-      final newRate = (widget.initialRate * 100).clamp(0, 100).toDouble(); // SỬA LỖI Ở ĐÂY
+      final newRate = (widget.initialRate * 100).clamp(0, 100).toDouble();
       setState(() {
         _currentSliderValue = newRate;
         _textController.text = newRate.toStringAsFixed(1);

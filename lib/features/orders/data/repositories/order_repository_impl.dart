@@ -146,12 +146,18 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
-  Future<Either<Failure, List<CommissionModel>>> getAllCommissions() async {
+  Future<Either<Failure, List<CommissionModel>>> getAllCommissions({DateTime? startDate, DateTime? endDate}) async {
     try {
-      final querySnapshot = await _firestore
+      Query<Map<String, dynamic>> query = _firestore
           .collection('commissions')
-          .orderBy('createdAt', descending: true)
-          .get();
+          .orderBy('createdAt', descending: true);
+      if (startDate != null) {
+        query = query.where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+      }
+      if (endDate != null) {
+        query = query.where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate.add(const Duration(days: 1))));
+      }
+      final querySnapshot = await query.get();
       final commissions = querySnapshot.docs
           .map((doc) => CommissionModel.fromSnapshot(doc))
           .toList();
@@ -176,19 +182,27 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
-  Future<Either<Failure, List<CommissionModel>>> getCommissionsBySalesRepId(String salesRepId) async {
+  Future<Either<Failure, List<CommissionModel>>> getCommissionsBySalesRepId(String salesRepId, {DateTime? startDate, DateTime? endDate}) async {
     try {
-      final querySnapshot = await _firestore
+      Query<Map<String, dynamic>> query = _firestore
           .collection('commissions')
           .where('salesRepId', isEqualTo: salesRepId)
-          .orderBy('createdAt', descending: true)
-          .get();
-      final commissions = querySnapshot.docs
-          .map((doc) => CommissionModel.fromSnapshot(doc))
-          .toList();
+          .orderBy('createdAt', descending: true);
+
+      // Thêm bộ lọc ngày
+      if (startDate != null) {
+        query = query.where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+      }
+      if (endDate != null) {
+        query = query.where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate.add(const Duration(days: 1))));
+      }
+
+      final querySnapshot = await query.get();
+      final commissions = querySnapshot.docs.map((doc) => CommissionModel.fromSnapshot(doc)).toList();
       return Right(commissions);
     } catch (e) {
-      return Left(ServerFailure('Lỗi khi tải danh sách hoa hồng của NVKD: ${e.toString()}'));
+      // Lỗi này có thể xảy ra nếu bạn chưa tạo chỉ mục trên Firestore
+      return Left(ServerFailure('Lỗi khi tải hoa hồng của NVKD: ${e.toString()}'));
     }
   }
 

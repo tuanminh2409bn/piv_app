@@ -4,9 +4,10 @@ enum AdminCommissionsStatus { initial, loading, success, error }
 
 class AdminCommissionsState extends Equatable {
   final AdminCommissionsStatus status;
-  // --- SỬA LẠI: Dùng model mới ---
   final List<CommissionWithDetails> allCommissions;
   final List<CommissionWithDetails> filteredCommissions;
+  final DateTime? startDate;
+  final DateTime? endDate;
   // -----------------------------
   final String currentFilter;
   final String? errorMessage;
@@ -15,7 +16,9 @@ class AdminCommissionsState extends Equatable {
     this.status = AdminCommissionsStatus.initial,
     this.allCommissions = const [],
     this.filteredCommissions = const [],
-    this.currentFilter = 'pending',
+    this.currentFilter = 'all',
+    this.startDate,
+    this.endDate,
     this.errorMessage,
   });
 
@@ -28,6 +31,10 @@ class AdminCommissionsState extends Equatable {
     List<CommissionWithDetails>? filteredCommissions,
     String? currentFilter,
     String? errorMessage,
+    DateTime? startDate,
+    bool forceStartDateToNull = false,
+    DateTime? endDate,
+    bool forceEndDateToNull = false,
   }) {
     return AdminCommissionsState(
       status: status ?? this.status,
@@ -35,6 +42,8 @@ class AdminCommissionsState extends Equatable {
       filteredCommissions: filteredCommissions ?? this.filteredCommissions,
       currentFilter: currentFilter ?? this.currentFilter,
       errorMessage: errorMessage ?? this.errorMessage,
+      startDate: forceStartDateToNull ? null : (startDate ?? this.startDate),
+      endDate: forceEndDateToNull ? null : (endDate ?? this.endDate),
     );
   }
 }

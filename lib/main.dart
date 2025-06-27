@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'firebase_options.dart';
 import 'package:piv_app/app/app_bloc_observer.dart';
 import 'package:piv_app/core/di/injection_container.dart' as di;
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
 import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
 import 'package:piv_app/features/main/presentation/pages/main_screen.dart';
-import 'package:piv_app/features/admin/presentation/pages/admin_home_page.dart';
-import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
+import 'package:piv_app/features/profile/presentation/bloc/profile_cubit.dart';
 import 'package:piv_app/features/wishlist/presentation/bloc/wishlist_cubit.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_home_page.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/sales_rep_home_page.dart';
-import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,7 +24,7 @@ void main() async {
   await di.initializeDependencies();
   await initializeDateFormatting('vi_VN', null);
 
-  Bloc.observer = AppBlocObserver();
+  Bloc.observer = di.sl<AppBlocObserver>();
 
   runApp(const MyApp());
 }
@@ -34,16 +36,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(
-          create: (context) => di.sl<AuthBloc>()..add(AuthAppStarted()),
-        ),
-        BlocProvider(
-          create: (context) => di.sl<CartCubit>(),
-        ),
-        // --- THÊM MỚI: Cung cấp WishlistCubit cho toàn ứng dụng ---
-        BlocProvider(
-          create: (context) => di.sl<WishlistCubit>(),
-        ),
+        BlocProvider(create: (context) => di.sl<AuthBloc>()..add(AuthAppStarted())),
+        BlocProvider(create: (context) => di.sl<CartCubit>()),
+        BlocProvider(create: (context) => di.sl<WishlistCubit>()),
+        BlocProvider(create: (context) => di.sl<ProfileCubit>()),
       ],
       child: MaterialApp(
         title: 'Phân Bón PIV',
@@ -84,6 +80,17 @@ class MyApp extends StatelessWidget {
                 )
             )
         ),
+
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('vi', 'VN'),
+          Locale('en', 'US'),
+        ],
+        locale: const Locale('vi', 'VN'),
         home: const InitialScreenController(),
       ),
     );
@@ -98,21 +105,19 @@ class InitialScreenController extends StatelessWidget {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
         if (state is AuthAuthenticated) {
-          // --- CẬP NHẬT LOGIC ĐIỀU HƯỚNG ---
           if (state.user.isAdmin) {
             return const AdminHomePage();
-          } else if (state.user.isSalesRep) { // Giả định có getter isSalesRep trong UserModel
+          } else if (state.user.isSalesRep) {
             return const SalesRepHomePage();
           } else {
             return const MainScreen();
           }
-          // ------------------------------------
         }
         else if (state is AuthUnauthenticated) {
           return const LoginPage();
         }
         return const Scaffold(
-          body: Center(child: CircularProgressIndicator(color: Colors.green)),
+          body: Center(child: CircularProgressIndicator()),
         );
       },
     );

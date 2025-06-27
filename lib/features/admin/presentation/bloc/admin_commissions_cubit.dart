@@ -1,5 +1,6 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:flutter/material.dart';
 import 'package:piv_app/data/models/commission_model.dart';
 import 'package:piv_app/data/models/commission_with_details.dart';
 import 'package:piv_app/data/models/user_model.dart';
@@ -28,7 +29,10 @@ class AdminCommissionsCubit extends Cubit<AdminCommissionsState> {
     emit(state.copyWith(status: AdminCommissionsStatus.loading));
 
     // 1. Lấy tất cả các bản ghi hoa hồng
-    final commissionsResult = await _orderRepository.getAllCommissions();
+    final commissionsResult = await _orderRepository.getAllCommissions(
+      startDate: state.startDate,
+      endDate: state.endDate,
+    );
 
     await commissionsResult.fold(
           (failure) async => emit(state.copyWith(status: AdminCommissionsStatus.error, errorMessage: failure.message)),
@@ -70,13 +74,22 @@ class AdminCommissionsCubit extends Cubit<AdminCommissionsState> {
   }
 
   void filterCommissions(String filter) {
-    List<CommissionWithDetails> filtered;
-    if (filter == 'all') {
-      filtered = state.allCommissions;
-    } else {
-      filtered = state.allCommissions.where((c) => c.commission.statusString == filter).toList();
+    List<CommissionWithDetails> listToProcess = state.allCommissions;
+    if (filter != 'all') {
+      listToProcess = listToProcess.where((c) => c.commission.statusString == filter).toList();
     }
-    emit(state.copyWith(filteredCommissions: filtered, currentFilter: filter));
+    emit(state.copyWith(filteredCommissions: listToProcess, currentFilter: filter));
+  }
+
+  Future<void> setDateRange(DateTimeRange? dateRange) async {
+    if (dateRange == null) {
+      // Xóa bộ lọc
+      emit(state.copyWith(forceStartDateToNull: true, forceEndDateToNull: true));
+    } else {
+      emit(state.copyWith(startDate: dateRange.start, endDate: dateRange.end));
+    }
+    // Sau khi đặt ngày, tải lại toàn bộ dữ liệu theo khoảng thời gian mới
+    await fetchAllCommissions();
   }
 
   Future<void> markAsPaid(String commissionId) async {
