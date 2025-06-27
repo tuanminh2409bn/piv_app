@@ -47,6 +47,7 @@ dependencies:
   mobile_scanner: ^7.0.1
   image_cropper: ^9.1.0
 
+  # Logo
   flutter_launcher_icons: "^0.13.1"
 
 dev_dependencies:
@@ -66,7 +67,7 @@ flutter:
 flutter_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/logo.png" # Thay bằng đường dẫn đến file logo của bạn
+  image_path: "assets/logo_icon.png" # Thay bằng đường dẫn đến file logo của bạn
   remove_alpha_ios: true # Tùy chọn, nên có để xóa nền trong suốt cho logo iOS
 
 flutter_native_splash:
