@@ -9,6 +9,7 @@ import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_commissions_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/agent_order_history_page.dart';
+import 'package:piv_app/features/vouchers/presentation/pages/voucher_management_page.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class SalesRepHomePage extends StatelessWidget {
@@ -40,7 +41,7 @@ class SalesRepView extends StatelessWidget {
     final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
 
     return DefaultTabController(
-      length: 3, // Cập nhật thành 3 tab
+      length: 4, // Cập nhật thành 3 tab
       child: Scaffold(
         appBar: AppBar(
           title: Text('Chào, ${user.displayName ?? user.email}'),
@@ -57,10 +58,14 @@ class SalesRepView extends StatelessWidget {
             ),
           ],
           bottom: const TabBar(
+            isScrollable: true, // Cho phép cuộn nếu không đủ chỗ
+            labelPadding: EdgeInsets.symmetric(horizontal: 16.0), // Tăng khoảng đệm
+            tabAlignment: TabAlignment.start, // Căn lề trái
             tabs: [
               Tab(icon: Icon(Icons.people_outline), text: 'Đại lý'),
               Tab(icon: Icon(Icons.pending_actions_outlined), text: 'Chờ duyệt'),
               Tab(icon: Icon(Icons.attach_money_outlined), text: 'Hoa hồng'),
+              Tab(icon: Icon(Icons.confirmation_number_outlined), text: 'Voucher'),
             ],
           ),
         ),
@@ -69,6 +74,7 @@ class SalesRepView extends StatelessWidget {
             MyAgentsView(),
             PendingAgentsView(),
             SalesRepCommissionsView(),
+            VoucherManagementPage(),
           ],
         ),
       ),

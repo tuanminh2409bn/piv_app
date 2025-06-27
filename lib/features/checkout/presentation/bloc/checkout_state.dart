@@ -1,5 +1,3 @@
-// lib/features/checkout/presentation/bloc/checkout_state.dart
-
 part of 'checkout_cubit.dart';
 
 enum CheckoutStatus {
@@ -7,6 +5,7 @@ enum CheckoutStatus {
   loading,
   success,
   error,
+  applyingVoucher, // Trạng thái mới khi đang kiểm tra voucher
   placingOrder,
   orderSuccess,
 }
@@ -17,29 +16,38 @@ class CheckoutState extends Equatable {
   final AddressModel? selectedAddress;
   final String? errorMessage;
 
-  // --- THÊM MỚI CÁC TRƯỜNG ĐỂ HỖ TRỢ "MUA NGAY" ---
+  // Thông tin về các sản phẩm đang được thanh toán
   final List<CartItemModel> checkoutItems;
   final double subtotal;
   final double shippingFee;
-  final double total;
-  // ----------------------------------------------------
+
+  // --- CÁC TRƯỜNG MỚI CHO VOUCHER ---
+  final VoucherModel? appliedVoucher;
+  final double discount;
+  // ------------------------------------
 
   const CheckoutState({
     this.status = CheckoutStatus.initial,
     this.addresses = const [],
     this.selectedAddress,
     this.errorMessage,
-    // --- KHỞI TẠO CÁC GIÁ TRỊ MỚI ---
     this.checkoutItems = const [],
     this.subtotal = 0.0,
     this.shippingFee = 0.0,
-    this.total = 0.0,
+    // --- KHỞI TẠO GIÁ TRỊ MỚI ---
+    this.appliedVoucher,
+    this.discount = 0.0,
   });
+
+  // --- TÍNH TOÁN LẠI TỔNG TIỀN ---
+  // Tổng tiền cuối cùng = Tạm tính + Phí ship - Giảm giá
+  // Dùng clamp để đảm bảo tổng tiền không bao giờ âm
+  double get total => (subtotal + shippingFee - discount).clamp(0, double.infinity);
 
   @override
   List<Object?> get props => [
     status, addresses, selectedAddress, errorMessage,
-    checkoutItems, subtotal, shippingFee, total
+    checkoutItems, subtotal, shippingFee, discount, appliedVoucher
   ];
 
   CheckoutState copyWith({
@@ -48,11 +56,13 @@ class CheckoutState extends Equatable {
     bool forceSelectedAddressToNull = false,
     AddressModel? selectedAddress,
     String? errorMessage,
-    // --- THÊM VÀO COPYWITH ---
     List<CartItemModel>? checkoutItems,
     double? subtotal,
     double? shippingFee,
-    double? total,
+    // --- THÊM CÁC TRƯỜNG MỚI VÀO COPYWITH ---
+    VoucherModel? appliedVoucher,
+    bool forceVoucherToNull = false, // Cờ để xóa voucher khi cần
+    double? discount,
   }) {
     return CheckoutState(
       status: status ?? this.status,
@@ -62,7 +72,9 @@ class CheckoutState extends Equatable {
       checkoutItems: checkoutItems ?? this.checkoutItems,
       subtotal: subtotal ?? this.subtotal,
       shippingFee: shippingFee ?? this.shippingFee,
-      total: total ?? this.total,
+      // Nếu forceVoucherToNull là true, đặt voucher thành null, ngược lại thì cập nhật
+      appliedVoucher: forceVoucherToNull ? null : (appliedVoucher ?? this.appliedVoucher),
+      discount: discount ?? this.discount,
     );
   }
 }

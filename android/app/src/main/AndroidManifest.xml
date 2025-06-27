@@ -8,9 +8,9 @@
     <application
         android:label="PIV"
         android:name="${applicationName}"
-        android:icon="@mipmap/launcher_icon">
+        android:icon="@mipmap/ic_launcher_foreground"
+        android:roundIcon="@mipmap/ic_launcher_round">
 
-        <!-- Activity chính của ứng dụng Flutter -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

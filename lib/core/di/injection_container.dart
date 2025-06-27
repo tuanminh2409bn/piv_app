@@ -73,6 +73,10 @@ import 'package:piv_app/features/sales_rep/presentation/bloc/agent_orders_cubit.
 // Quick Order
 import 'package:piv_app/features/quick_order/presentation/bloc/quick_order_cubit.dart';
 
+import 'package:piv_app/features/vouchers/domain/repositories/voucher_repository.dart';
+import 'package:piv_app/features/vouchers/data/repositories/voucher_repository_impl.dart';
+import 'package:piv_app/features/vouchers/presentation/bloc/voucher_management_cubit.dart';
+import 'package:piv_app/features/vouchers/domain/repositories/voucher_repository.dart';
 
 
 final sl = GetIt.instance;
@@ -125,7 +129,13 @@ Future<void> initializeDependencies() async {
 
   // == Order & Checkout ==
   sl.registerLazySingleton<OrderRepository>(() => OrderRepositoryImpl(firestore: sl(), settingsRepository: sl()));
-  sl.registerFactory<CheckoutCubit>(() => CheckoutCubit(userProfileRepository: sl(), orderRepository: sl(), authBloc: sl(), cartCubit: sl()));
+  sl.registerFactory<CheckoutCubit>(() => CheckoutCubit(
+    userProfileRepository: sl(),
+    orderRepository: sl(),
+    authBloc: sl(),
+    cartCubit: sl(),
+    voucherRepository: sl(), // Thêm dependency mới
+  ));
   sl.registerLazySingleton<MyOrdersCubit>(() => MyOrdersCubit(orderRepository: sl(), authBloc: sl()));
   sl.registerFactory<OrderDetailCubit>(() => OrderDetailCubit(orderRepository: sl()));
 
@@ -146,4 +156,9 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<SalesRepCommissionsCubit>(() => SalesRepCommissionsCubit(orderRepository: sl(), authBloc: sl()));
   sl.registerFactory<QuickOrderCubit>(() => QuickOrderCubit(homeRepository: sl(), cartCubit: sl()));
   sl.registerFactory<AgentOrdersCubit>(() => AgentOrdersCubit(orderRepository: sl()));
+
+  // == Voucher ==
+  sl.registerLazySingleton<VoucherRepository>(() => VoucherRepositoryImpl(firestore: sl()));
+  sl.registerFactory<VoucherManagementCubit>(() => VoucherManagementCubit(voucherRepository: sl(), authBloc: sl()));
+
 }
