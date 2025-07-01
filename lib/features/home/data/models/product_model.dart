@@ -13,10 +13,8 @@ class ProductModel extends Equatable {
   final bool isFeatured;
   final Timestamp? createdAt;
   final Map<String, dynamic>? attributes;
-
-  // --- THỐNG NHẤT TÊN TRƯỜNG TẠI ĐÂY ---
   final List<PackagingOptionModel> packingOptions;
-  // ------------------------------------
+  final String? productType; // <<< THÊM TRƯỜNG MỚI
 
   const ProductModel({
     required this.id,
@@ -27,7 +25,8 @@ class ProductModel extends Equatable {
     this.isFeatured = false,
     this.createdAt,
     this.attributes,
-    this.packingOptions = const [], // Sửa tên trường
+    this.packingOptions = const [],
+    this.productType, // <<< THÊM VÀO CONSTRUCTOR
   });
 
   double getPriceForRole(String role) {
@@ -43,17 +42,16 @@ class ProductModel extends Equatable {
   @override
   List<Object?> get props => [
     id, name, description, imageUrl, categoryId,
-    isFeatured, createdAt, attributes, packingOptions
+    isFeatured, createdAt, attributes, packingOptions,
+    productType // <<< THÊM VÀO PROPS
   ];
 
   factory ProductModel.fromSnapshot(DocumentSnapshot snap) {
     final data = snap.data() as Map<String, dynamic>? ?? {};
 
-    // --- SỬA TÊN TRƯỜDNG KHI ĐỌC TỪ FIRESTORE ---
     final optionsList = (data['packingOptions'] as List<dynamic>?)
         ?.map((optionMap) => PackagingOptionModel.fromMap(optionMap as Map<String, dynamic>))
         .toList() ?? [];
-    // ------------------------------------------
 
     return ProductModel(
       id: snap.id,
@@ -65,6 +63,7 @@ class ProductModel extends Equatable {
       createdAt: data['createdAt'] as Timestamp?,
       attributes: data['attributes'] is Map ? Map<String, dynamic>.from(data['attributes']) : null,
       packingOptions: optionsList,
+      productType: data['productType'] as String?, // <<< ĐỌC DỮ LIỆU TỪ FIRESTORE
     );
   }
 
@@ -77,9 +76,8 @@ class ProductModel extends Equatable {
       'isFeatured': isFeatured,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'attributes': attributes,
-      // --- SỬA TÊN TRƯỜNG KHI LƯU LÊN FIRESTORE ---
       'packingOptions': packingOptions.map((option) => option.toMap()).toList(),
-      // ------------------------------------------
+      'productType': productType, // <<< LƯU DỮ LIỆU LÊN FIRESTORE
     };
   }
 }

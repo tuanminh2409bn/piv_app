@@ -5,9 +5,10 @@ enum CheckoutStatus {
   loading,
   success,
   error,
-  applyingVoucher, // Trạng thái mới khi đang kiểm tra voucher
+  applyingVoucher,
   placingOrder,
   orderSuccess,
+  calculatingDiscount,
 }
 
 class CheckoutState extends Equatable {
@@ -15,16 +16,14 @@ class CheckoutState extends Equatable {
   final List<AddressModel> addresses;
   final AddressModel? selectedAddress;
   final String? errorMessage;
-
-  // Thông tin về các sản phẩm đang được thanh toán
   final List<CartItemModel> checkoutItems;
   final double subtotal;
   final double shippingFee;
-
-  // --- CÁC TRƯỜNG MỚI CHO VOUCHER ---
   final VoucherModel? appliedVoucher;
   final double discount;
-  // ------------------------------------
+  final double commissionDiscount;
+  final String paymentMethod;
+  final String? newOrderId;
 
   const CheckoutState({
     this.status = CheckoutStatus.initial,
@@ -34,20 +33,21 @@ class CheckoutState extends Equatable {
     this.checkoutItems = const [],
     this.subtotal = 0.0,
     this.shippingFee = 0.0,
-    // --- KHỞI TẠO GIÁ TRỊ MỚI ---
     this.appliedVoucher,
     this.discount = 0.0,
+    this.commissionDiscount = 0.0,
+    this.paymentMethod = 'COD',
+    this.newOrderId,
   });
 
-  // --- TÍNH TOÁN LẠI TỔNG TIỀN ---
-  // Tổng tiền cuối cùng = Tạm tính + Phí ship - Giảm giá
-  // Dùng clamp để đảm bảo tổng tiền không bao giờ âm
   double get total => (subtotal + shippingFee - discount).clamp(0, double.infinity);
+  double get finalTotal => (total - commissionDiscount).clamp(0, double.infinity);
 
   @override
   List<Object?> get props => [
     status, addresses, selectedAddress, errorMessage,
-    checkoutItems, subtotal, shippingFee, discount, appliedVoucher
+    checkoutItems, subtotal, shippingFee, discount, appliedVoucher,
+    commissionDiscount, paymentMethod, newOrderId,
   ];
 
   CheckoutState copyWith({
@@ -56,25 +56,30 @@ class CheckoutState extends Equatable {
     bool forceSelectedAddressToNull = false,
     AddressModel? selectedAddress,
     String? errorMessage,
+    bool clearErrorMessage = false,
     List<CartItemModel>? checkoutItems,
     double? subtotal,
     double? shippingFee,
-    // --- THÊM CÁC TRƯỜNG MỚI VÀO COPYWITH ---
     VoucherModel? appliedVoucher,
-    bool forceVoucherToNull = false, // Cờ để xóa voucher khi cần
+    bool forceVoucherToNull = false,
     double? discount,
+    double? commissionDiscount,
+    String? paymentMethod,
+    String? newOrderId,
   }) {
     return CheckoutState(
       status: status ?? this.status,
       addresses: addresses ?? this.addresses,
       selectedAddress: forceSelectedAddressToNull ? null : (selectedAddress ?? this.selectedAddress),
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: clearErrorMessage ? null : (errorMessage ?? this.errorMessage),
       checkoutItems: checkoutItems ?? this.checkoutItems,
       subtotal: subtotal ?? this.subtotal,
       shippingFee: shippingFee ?? this.shippingFee,
-      // Nếu forceVoucherToNull là true, đặt voucher thành null, ngược lại thì cập nhật
       appliedVoucher: forceVoucherToNull ? null : (appliedVoucher ?? this.appliedVoucher),
       discount: discount ?? this.discount,
+      commissionDiscount: commissionDiscount ?? this.commissionDiscount,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      newOrderId: newOrderId ?? this.newOrderId,
     );
   }
 }

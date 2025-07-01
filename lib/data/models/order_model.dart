@@ -13,9 +13,12 @@ class OrderModel extends Equatable {
   final double discount;
   final double total;
   final String paymentMethod;
+  final String paymentStatus;
   final String status;
   final Timestamp? createdAt;
-  final String? salesRepId; // ID của NVKD phụ trách
+  final String? salesRepId;
+  final double commissionDiscount;
+  final double finalTotal;
 
   const OrderModel({
     this.id,
@@ -27,27 +30,21 @@ class OrderModel extends Equatable {
     required this.discount,
     required this.total,
     required this.paymentMethod,
+    this.paymentStatus = 'unpaid',
     required this.status,
     this.createdAt,
     this.salesRepId,
+    this.commissionDiscount = 0.0,
+    this.finalTotal = 0.0,
   });
 
   @override
   List<Object?> get props => [
-    id,
-    userId,
-    items,
-    shippingAddress,
-    subtotal,
-    shippingFee,
-    discount,
-    total,
-    paymentMethod,
-    status,
-    createdAt,
-    salesRepId,
+    id, userId, items, shippingAddress, subtotal, shippingFee, discount, total,
+    paymentMethod, paymentStatus, status, createdAt, salesRepId, commissionDiscount, finalTotal,
   ];
 
+  // HÀM NÀY RẤT QUAN TRỌNG
   Map<String, dynamic> toMap() {
     return {
       'userId': userId,
@@ -58,14 +55,20 @@ class OrderModel extends Equatable {
       'discount': discount,
       'total': total,
       'paymentMethod': paymentMethod,
+      'paymentStatus': paymentStatus,
       'status': status,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'salesRepId': salesRepId,
+      'commissionDiscount': commissionDiscount, // PHẢI CÓ DÒNG NÀY
+      'finalTotal': finalTotal,             // PHẢI CÓ DÒNG NÀY
     };
   }
 
   factory OrderModel.fromSnapshot(DocumentSnapshot snap) {
     final data = snap.data() as Map<String, dynamic>;
+    final initialTotal = (data['total'] as num?)?.toDouble() ?? 0.0;
+    final commissionDiscountValue = (data['commissionDiscount'] as num?)?.toDouble() ?? 0.0;
+
     return OrderModel(
       id: snap.id,
       userId: data['userId'] ?? '',
@@ -78,11 +81,14 @@ class OrderModel extends Equatable {
       subtotal: (data['subtotal'] as num).toDouble(),
       shippingFee: (data['shippingFee'] as num).toDouble(),
       discount: (data['discount'] as num).toDouble(),
-      total: (data['total'] as num).toDouble(),
-      paymentMethod: data['paymentMethod'] ?? 'N/A',
+      total: initialTotal,
+      paymentMethod: data['paymentMethod'] ?? 'COD',
+      paymentStatus: data['paymentStatus'] ?? 'unpaid',
       status: data['status'] ?? 'pending',
       createdAt: data['createdAt'] as Timestamp?,
       salesRepId: data['salesRepId'] as String?,
+      commissionDiscount: commissionDiscountValue,
+      finalTotal: (data['finalTotal'] as num?)?.toDouble() ?? (initialTotal - commissionDiscountValue),
     );
   }
 }

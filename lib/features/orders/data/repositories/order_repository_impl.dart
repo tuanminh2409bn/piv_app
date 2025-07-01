@@ -217,4 +217,15 @@ class OrderRepositoryImpl implements OrderRepository {
       return Left(ServerFailure('Lỗi không xác định khi tạo hoa hồng: ${e.toString()}'));
     }
   }
+
+  @override
+  Stream<OrderModel> getOrderStreamById(String orderId) {
+    final docRef = _firestore.collection('orders').doc(orderId);
+    return docRef.snapshots().map((snapshot) {
+      if (!snapshot.exists) {
+        throw Exception('Order with ID $orderId does not exist.');
+      }
+      return OrderModel.fromSnapshot(snapshot);
+    });
+  }
 }

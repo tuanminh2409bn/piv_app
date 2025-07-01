@@ -80,6 +80,7 @@ import 'package:piv_app/features/vouchers/data/repositories/voucher_repository_i
 import 'package:piv_app/features/vouchers/presentation/bloc/voucher_management_cubit.dart';
 import 'package:piv_app/features/vouchers/domain/repositories/voucher_repository.dart';
 
+import 'package:cloud_functions/cloud_functions.dart';
 
 final sl = GetIt.instance;
 
@@ -87,7 +88,6 @@ Future<void> initializeDependencies() async {
   sl.registerLazySingleton(() => AppBlocObserver());
   // --- Core ---
   sl.registerLazySingleton<firebase_auth.FirebaseAuth>(() => firebase_auth.FirebaseAuth.instance);
-  sl.registerLazySingleton<FirebaseFirestore>(() => FirebaseFirestore.instance);
 
   final prefs = await SharedPreferences.getInstance();
   sl.registerLazySingleton<SharedPreferences>(() => prefs);
@@ -137,7 +137,8 @@ Future<void> initializeDependencies() async {
     orderRepository: sl(),
     authBloc: sl(),
     cartCubit: sl(),
-    voucherRepository: sl(), // Thêm dependency mới
+    voucherRepository: sl(),
+    functions: sl(),
   ));
   sl.registerLazySingleton<MyOrdersCubit>(() => MyOrdersCubit(orderRepository: sl(), authBloc: sl()));
   sl.registerFactory<OrderDetailCubit>(() => OrderDetailCubit(orderRepository: sl()));
@@ -164,4 +165,6 @@ Future<void> initializeDependencies() async {
   sl.registerLazySingleton<VoucherRepository>(() => VoucherRepositoryImpl(firestore: sl()));
   sl.registerFactory<VoucherManagementCubit>(() => VoucherManagementCubit(voucherRepository: sl(), authBloc: sl()));
 
+  sl.registerLazySingleton(() => FirebaseFirestore.instance);
+  sl.registerLazySingleton(() => FirebaseFunctions.instanceFor(region: 'asia-southeast1'));
 }

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:piv_app/features/orders/presentation/pages/order_detail_page.dart';
 
 class OrderSuccessPage extends StatelessWidget {
-  const OrderSuccessPage({super.key});
+  final String orderId; // <<< NHẬN ORDER ID
 
-  static PageRoute<void> route() {
-    // Sử dụng fullscreenDialog: true để trang này trượt lên từ dưới
+  const OrderSuccessPage({super.key, required this.orderId});
+
+  static PageRoute<void> route({required String orderId}) {
     return MaterialPageRoute<void>(
-      builder: (_) => const OrderSuccessPage(),
+      builder: (_) => OrderSuccessPage(orderId: orderId),
       fullscreenDialog: true,
     );
   }
@@ -15,7 +17,6 @@ class OrderSuccessPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // Không có nút back tự động vì là fullscreenDialog
         automaticallyImplyLeading: false,
       ),
       body: Center(
@@ -35,20 +36,34 @@ class OrderSuccessPage extends StatelessWidget {
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
-              Text(
-                'Cảm ơn bạn đã mua sắm. Đơn hàng của bạn đang được xử lý và sẽ sớm được giao đến bạn.',
+              const Text(
+                'Chiết khấu (nếu có) sẽ được tự động tính toán. Bạn có thể xem chi tiết trong đơn hàng của mình.',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey.shade700),
+                style: TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 32),
+
+              // <<< NÚT XEM CHI TIẾT MỚI >>>
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Quay về trang chủ, xóa tất cả các trang khác khỏi stack
+                    Navigator.of(context).pushAndRemoveUntil(
+                        OrderDetailPage.route(orderId),
+                            (route) => route.isFirst
+                    );
+                  },
+                  child: const Text('XEM CHI TIẾT ĐƠN HÀNG'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () {
                     Navigator.of(context).popUntil((route) => route.isFirst);
                   },
-                  child: const Text('QUAY VỀ TRANG CHỦ'),
+                  child: const Text('VỀ TRANG CHỦ'),
                 ),
               ),
             ],

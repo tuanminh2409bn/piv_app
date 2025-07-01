@@ -4,9 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/data/models/address_model.dart';
 import 'package:piv_app/data/models/cart_item_model.dart';
-// --- SỬA LỖI IMPORT ---
 import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
-// --------------------
 import 'package:piv_app/features/checkout/presentation/bloc/checkout_cubit.dart';
 import 'package:piv_app/features/checkout/presentation/pages/address_selection_page.dart';
 import 'package:piv_app/features/orders/presentation/pages/order_success_page.dart';
@@ -47,8 +45,10 @@ class CheckoutView extends StatelessWidget {
                 content: Text(state.errorMessage!),
                 backgroundColor: Theme.of(context).colorScheme.error,
               ));
-          } else if (state.status == CheckoutStatus.orderSuccess) {
-            Navigator.of(context).pushAndRemoveUntil(OrderSuccessPage.route(), (route) => route.isFirst);
+          } else if (state.status == CheckoutStatus.orderSuccess && state.newOrderId != null) {
+            Navigator.of(context).pushAndRemoveUntil(
+                OrderSuccessPage.route(orderId: state.newOrderId!),
+                    (route) => route.isFirst);
           }
         },
         child: SingleChildScrollView(
@@ -59,6 +59,8 @@ class CheckoutView extends StatelessWidget {
               _buildAddressSection(context),
               const Divider(thickness: 8, height: 32),
               _buildOrderItems(context),
+              const Divider(thickness: 8, height: 32),
+              _buildPaymentMethod(context),
               const Divider(thickness: 8, height: 32),
               _buildVoucherSection(context),
               const Divider(thickness: 8, height: 32),
@@ -88,7 +90,6 @@ class CheckoutView extends StatelessWidget {
                 return Center(
                   child: OutlinedButton(
                     onPressed: () async {
-                      // Sửa kiểu dữ liệu nhận về là AddressModel? (nullable)
                       final selectedAddress = await Navigator.of(context).push<AddressModel?>(
                         AddressSelectionPage.route(addresses: state.addresses),
                       );
@@ -102,7 +103,6 @@ class CheckoutView extends StatelessWidget {
               }
               return InkWell(
                 onTap: () async {
-                  // Sửa kiểu dữ liệu nhận về là AddressModel? (nullable)
                   final selectedAddress = await Navigator.of(context).push<AddressModel?>(
                     AddressSelectionPage.route(addresses: state.addresses),
                   );
@@ -165,7 +165,7 @@ class CheckoutView extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(item.productName, maxLines: 2, overflow: TextOverflow.ellipsis),
-                            Text('x${item.quantity}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            Text('SL: ${item.quantity}', style: const TextStyle(fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
@@ -173,6 +173,47 @@ class CheckoutView extends StatelessWidget {
                     ],
                   );
                 },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentMethod(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Phương thức thanh toán', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          BlocBuilder<CheckoutCubit, CheckoutState>(
+            builder: (context, state) {
+              return Column(
+                children: [
+                  RadioListTile<String>(
+                    title: const Text('Thanh toán khi nhận hàng (COD)'),
+                    value: 'COD',
+                    groupValue: state.paymentMethod,
+                    onChanged: (value) {
+                      if (value != null) {
+                        context.read<CheckoutCubit>().selectPaymentMethod(value);
+                      }
+                    },
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Thanh toán Online (VNPAY, MoMo,...)'),
+                    value: 'ONLINE',
+                    groupValue: state.paymentMethod,
+                    onChanged: (value) {
+                      if (value != null) {
+                        context.read<CheckoutCubit>().selectPaymentMethod(value);
+                      }
+                    },
+                  ),
+                ],
               );
             },
           ),
@@ -263,14 +304,33 @@ class CheckoutView extends StatelessWidget {
                   _buildSummaryRow('Phí vận chuyển:', currencyFormatter.format(state.shippingFee)),
                   if (state.discount > 0)
                     _buildSummaryRow(
-                      'Giảm giá:',
+                      'Giảm giá voucher:',
                       '- ${currencyFormatter.format(state.discount)}',
-                      color: Colors.green,
+                      color: Colors.green.shade700,
                     ),
+
+                  if (state.status == CheckoutStatus.calculatingDiscount)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 4.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("Chiết khấu đại lý:", style: TextStyle(fontSize: 16)),
+                          SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                        ],
+                      ),
+                    )
+                  else if (state.commissionDiscount > 0)
+                    _buildSummaryRow(
+                      'Chiết khấu đại lý:',
+                      '- ${currencyFormatter.format(state.commissionDiscount)}',
+                      color: Colors.green.shade700,
+                    ),
+
                   const Divider(),
                   _buildSummaryRow(
                     'Tổng cộng:',
-                    currencyFormatter.format(state.total),
+                    currencyFormatter.format(state.finalTotal),
                     isTotal: true,
                   ),
                 ],
@@ -312,7 +372,7 @@ class CheckoutView extends StatelessWidget {
           return SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: (state.selectedAddress == null || state.status == CheckoutStatus.placingOrder)
+              onPressed: (state.selectedAddress == null || state.status == CheckoutStatus.placingOrder || state.status == CheckoutStatus.calculatingDiscount)
                   ? null
                   : () => context.read<CheckoutCubit>().placeOrder(),
               style: ElevatedButton.styleFrom(

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:bloc/bloc.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/address_model.dart';
 import 'package:piv_app/data/models/cart_item_model.dart';
@@ -21,6 +22,8 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   final VoucherRepository _voucherRepository;
   final AuthBloc _authBloc;
   final CartCubit _cartCubit;
+  final FirebaseFunctions _functions;
+
   StreamSubscription? _authSubscription;
   String _currentUserId = '';
 
@@ -30,11 +33,13 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     required VoucherRepository voucherRepository,
     required AuthBloc authBloc,
     required CartCubit cartCubit,
+    required FirebaseFunctions functions,
   })  : _userProfileRepository = userProfileRepository,
         _orderRepository = orderRepository,
         _voucherRepository = voucherRepository,
         _authBloc = authBloc,
         _cartCubit = cartCubit,
+        _functions = functions,
         super(const CheckoutState());
 
   Future<void> loadCheckoutData({List<CartItemModel>? buyNowItems}) async {
@@ -71,29 +76,67 @@ class CheckoutCubit extends Cubit<CheckoutState> {
           checkoutItems: itemsToCheckout,
           subtotal: subtotal,
           shippingFee: shippingFee,
-          forceVoucherToNull: true, // Reset voucher khi tải lại trang
+          forceVoucherToNull: true,
           discount: 0.0,
+          commissionDiscount: 0.0,
         ));
+
+        if (itemsToCheckout.isNotEmpty) {
+          calculateCommissionDiscount();
+        }
       },
     );
+  }
+
+  Future<void> calculateCommissionDiscount() async {
+    if (state.checkoutItems.isEmpty) return;
+
+    emit(state.copyWith(status: CheckoutStatus.calculatingDiscount));
+    try {
+      final HttpsCallable callable = _functions.httpsCallable('calculateOrderDiscount');
+
+      // <<< SỬA ĐỔI PAYLOAD GỬI LÊN Ở ĐÂY >>>
+      final itemsPayload = state.checkoutItems.map((item) => {
+        'productId': item.productId,
+        'subtotal': item.subtotal, // Gửi tổng giá trị đã tính đúng
+      }).toList();
+      // <<< HẾT PHẦN SỬA ĐỔI >>>
+
+      final response = await callable.call({'items': itemsPayload});
+      final discount = (response.data['discount'] as num).toDouble();
+
+      developer.log('>>> KẾT QUẢ CHIẾT KHẤU TỪ BACKEND: $discount', name: 'CheckoutDebug');
+
+      emit(state.copyWith(
+        status: CheckoutStatus.success,
+        commissionDiscount: discount,
+      ));
+
+    } catch (e) {
+      developer.log("Error calculating discount: $e", name: "CheckoutCubit");
+      emit(state.copyWith(
+        status: CheckoutStatus.success,
+        errorMessage: "Không thể tính chiết khấu tự động.",
+      ));
+    }
   }
 
   void selectAddress(AddressModel address) {
     emit(state.copyWith(status: CheckoutStatus.success, selectedAddress: address));
   }
 
+  void selectPaymentMethod(String method) {
+    emit(state.copyWith(paymentMethod: method));
+  }
+
   Future<void> applyVoucher(String code) async {
     if (code.isEmpty) return;
-
     emit(state.copyWith(status: CheckoutStatus.applyingVoucher));
-
     final result = await _voucherRepository.applyVoucher(code: code.toUpperCase(), userId: _currentUserId);
-
     result.fold(
             (failure) {
-          emit(state.copyWith(status: CheckoutStatus.error, errorMessage: failure.message));
-          // Sau khi báo lỗi, quay lại trạng thái success mà không có voucher
-          emit(state.copyWith(status: CheckoutStatus.success));
+          emit(state.copyWith(status: CheckoutStatus.error, errorMessage: failure.message, clearErrorMessage: false));
+          emit(state.copyWith(status: CheckoutStatus.success, clearErrorMessage: true));
         },
             (voucher) {
           final discountAmount = voucher.calculateDiscount(state.subtotal);
@@ -109,7 +152,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   void removeVoucher() {
     emit(state.copyWith(
       status: CheckoutStatus.success,
-      forceVoucherToNull: true, // Đặt cờ để xóa voucher
+      forceVoucherToNull: true,
       discount: 0.0,
     ));
   }
@@ -130,8 +173,10 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       shippingFee: state.shippingFee,
       discount: state.discount,
       total: state.total,
-      paymentMethod: 'COD',
+      paymentMethod: state.paymentMethod,
       status: 'pending',
+      commissionDiscount: state.commissionDiscount,
+      finalTotal: state.finalTotal,
     );
 
     final result = await _orderRepository.createOrder(order);
@@ -140,11 +185,10 @@ class CheckoutCubit extends Cubit<CheckoutState> {
           (failure) => emit(state.copyWith(status: CheckoutStatus.error, errorMessage: failure.message)),
           (orderId) {
         developer.log('CheckoutCubit: Order placed successfully with ID $orderId', name: 'CheckoutCubit');
-        // Chỉ xóa giỏ hàng nếu đặt hàng từ giỏ hàng (không phải mua ngay)
         if (state.checkoutItems.length == _cartCubit.state.items.length) {
           _cartCubit.clearCart();
         }
-        emit(state.copyWith(status: CheckoutStatus.orderSuccess));
+        emit(state.copyWith(status: CheckoutStatus.orderSuccess, newOrderId: orderId));
       },
     );
   }

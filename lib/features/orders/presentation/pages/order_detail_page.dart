@@ -21,7 +21,8 @@ class OrderDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => sl<OrderDetailCubit>()..fetchOrderDetail(orderId),
+      // <<< THAY ĐỔI: Gọi listenToOrderDetail thay vì fetch >>>
+      create: (_) => sl<OrderDetailCubit>()..listenToOrderDetail(orderId),
       child: const OrderDetailView(),
     );
   }
@@ -71,7 +72,7 @@ class OrderDetailView extends StatelessWidget {
           final statusText = statusInfo.$2;
 
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 100.0), // Tăng padding dưới để không bị che bởi nút
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -102,26 +103,52 @@ class OrderDetailView extends StatelessWidget {
           );
         },
       ),
+      // <<< THÊM BOTTOMNAVIGATIONBAR CHỨA NÚT THANH TOÁN >>>
+      bottomNavigationBar: BlocBuilder<OrderDetailCubit, OrderDetailState>(
+        builder: (context, state) {
+          // Nút chỉ hiện ra khi có đơn hàng và trạng thái là "pending"
+          if (state.order != null && state.order!.paymentMethod == 'COD' && state.order!.paymentStatus != 'paid') {
+            return Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.credit_card),
+                label: const Text('Thanh toán Online qua VNPAY'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: const Color(0xFF005A9C), // Màu của VNPAY
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  // TODO: Ở bước tiếp theo, chúng ta sẽ viết logic xử lý ở đây.
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Sắp có: Gọi Cloud Function và mở cổng thanh toán!'))
+                  );
+                },
+              ),
+            );
+          }
+          // Nếu không thì không hiển thị gì cả
+          return const SizedBox.shrink();
+        },
+      ),
     );
   }
 
-  // ** HÀM NÀY ĐÃ ĐƯỢC SỬA LỖI **
+  // Các hàm _buildOrderHeader, _buildSection, _buildAddressInfo, _buildOrderItemsList giữ nguyên
   Widget _buildOrderHeader(BuildContext context, OrderModel order, String statusText, Color statusColor, DateFormat dateFormat) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          crossAxisAlignment: CrossAxisAlignment.start, // Căn lề trên
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Bọc Text mã đơn hàng trong Expanded để nó tự co giãn
             Expanded(
               child: Text(
                 'Mã đơn: #${order.id?.substring(0, 8).toUpperCase() ?? 'N/A'}',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
-            const SizedBox(width: 8), // Thêm một khoảng cách nhỏ
-            // Huy hiệu trạng thái
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
@@ -136,7 +163,7 @@ class OrderDetailView extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        Text(
+        if(order.createdAt != null) Text(
           'Ngày đặt: ${dateFormat.format(order.createdAt!.toDate())}',
           style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
         ),
@@ -157,7 +184,7 @@ class OrderDetailView extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Padding(
-          padding: const EdgeInsets.only(left: 28.0), // Thụt lề cho nội dung bên trong section
+          padding: const EdgeInsets.only(left: 28.0),
           child: child,
         ),
       ],
@@ -209,6 +236,7 @@ class OrderDetailView extends StatelessWidget {
     );
   }
 
+  // <<< HÀM NÀY ĐƯỢC CẬP NHẬT HOÀN TOÀN >>>
   Widget _buildPaymentSummary(OrderModel order, NumberFormat formatter) {
     return Column(
       children: [
@@ -216,9 +244,17 @@ class OrderDetailView extends StatelessWidget {
         const SizedBox(height: 8),
         _buildSummaryRow('Phí vận chuyển', formatter.format(order.shippingFee)),
         const SizedBox(height: 8),
-        _buildSummaryRow('Giảm giá', '- ${formatter.format(order.discount)}', isDiscount: true),
+        // Hiển thị chiết khấu voucher (nếu có)
+        if (order.discount > 0)
+          _buildSummaryRow('Giảm giá voucher', '- ${formatter.format(order.discount)}', isDiscount: true),
+        // Hiển thị chiết khấu hoa hồng (nếu có)
+        if (order.commissionDiscount > 0) ...[
+          const SizedBox(height: 8),
+          _buildSummaryRow('Chiết khấu đại lý', '- ${formatter.format(order.commissionDiscount)}', isDiscount: true),
+        ],
         const Divider(height: 24),
-        _buildSummaryRow('Tổng cộng', formatter.format(order.total), isTotal: true),
+        // Sử dụng finalTotal nếu nó lớn hơn 0, ngược lại dùng total (dành cho các đơn hàng cũ chưa có finalTotal)
+        _buildSummaryRow('Tổng cộng', formatter.format(order.finalTotal > 0 ? order.finalTotal : order.total), isTotal: true),
       ],
     );
   }

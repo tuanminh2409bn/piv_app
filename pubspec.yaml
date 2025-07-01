@@ -47,6 +47,9 @@ dependencies:
   mobile_scanner: ^7.0.1
   image_cropper: ^9.1.0
 
+  cloud_functions: ^5.0.1
+  flutter_inappwebview: ^6.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
