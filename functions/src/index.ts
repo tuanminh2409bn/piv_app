@@ -9,88 +9,72 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // ===================================================================
-// FUNCTION 1: TÍNH TOÁN CHIẾT KHẤU ĐẠI LÝ
+// FUNCTION 1: TÍNH TOÁN CHIẾT KHẤU ĐẠI LÝ (Giữ nguyên)
 // ===================================================================
-
-/**
- * Callable Function để tính toán chiết khấu % cho một đơn hàng.
- * @param {any} data - Dữ liệu từ app gồm { items: [{ productId, subtotal }] }.
- * @return {Promise<{discount: number}>} - Object chứa số tiền chiết khấu.
- */
 export const calculateOrderDiscount = onCall(
-  {region: "asia-southeast1"},
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Authentication required.");
-    }
-    const userId = request.auth.uid;
-    const orderItems = request.data.items;
-
-    if (!orderItems || !Array.isArray(orderItems)) {
-      throw new HttpsError("invalid-argument", "Missing 'items' array.");
-    }
-
-    try {
-      const userDoc = await db.collection("users").doc(userId).get();
-      if (!userDoc.exists) {
-        throw new HttpsError("not-found", "User not found.");
-      }
-      const userRole = userDoc.data()?.role;
-
-      const productIds: string[] = orderItems.map(
-        (item: { productId: string }) => item.productId,
-      );
-      if (productIds.length === 0) return {discount: 0};
-
-      const productsSnapshot = await db.collection("products")
-        .where(admin.firestore.FieldPath.documentId(), "in", productIds).get();
-      const productsMap = new Map<string, any>();
-      productsSnapshot.forEach((doc) => productsMap.set(doc.id, doc.data()));
-
-      let foliarTotalValue = 0;
-      let rootTotalValue = 0;
-
-      for (const item of orderItems) {
-        const productInfo = productsMap.get(item.productId);
-        if (productInfo) {
-          // SỬA LỖI: Lấy trực tiếp tổng giá trị (subtotal) đã được tính đúng từ app
-          const itemValue = item.subtotal;
-
-          if (productInfo.productType === "foliar_fertilizer") {
-            foliarTotalValue += itemValue;
-          } else if (productInfo.productType === "root_fertilizer") {
-            rootTotalValue += itemValue;
+    {region: "asia-southeast1"},
+    async (request) => {
+        // ... Code của function này giữ nguyên như cũ ...
+        if (!request.auth) {
+            throw new HttpsError("unauthenticated", "Authentication required.");
           }
-        }
-      }
+          const userId = request.auth.uid;
+          const orderItems = request.data.items;
 
-      let totalDiscount = 0;
-      if ((userRole === "agent_1" || userRole === "agent_2") && (foliarTotalValue > 0 || rootTotalValue > 0)) {
-        totalDiscount += calculateDiscountForFoliar(foliarTotalValue, userRole);
-        totalDiscount += calculateDiscountForRoot(rootTotalValue, userRole);
-      }
+          if (!orderItems || !Array.isArray(orderItems)) {
+            throw new HttpsError("invalid-argument", "Missing 'items' array.");
+          }
 
-      logger.info(`Calculated discount for user ${userId}: ${totalDiscount}`);
-      return {discount: totalDiscount};
-    } catch (error) {
-      logger.error("Error in calculateOrderDiscount:", error);
-      throw new HttpsError("internal", "Error calculating discount.", error);
-    }
-  });
+          try {
+            const userDoc = await db.collection("users").doc(userId).get();
+            if (!userDoc.exists) {
+              throw new HttpsError("not-found", "User not found.");
+            }
+            const userRole = userDoc.data()?.role;
 
+            const productIds: string[] = orderItems.map(
+              (item: { productId: string }) => item.productId,
+            );
+            if (productIds.length === 0) return {discount: 0};
+
+            const productsSnapshot = await db.collection("products")
+              .where(admin.firestore.FieldPath.documentId(), "in", productIds).get();
+            const productsMap = new Map<string, any>();
+            productsSnapshot.forEach((doc) => productsMap.set(doc.id, doc.data()));
+
+            let foliarTotalValue = 0;
+            let rootTotalValue = 0;
+
+            for (const item of orderItems) {
+              const productInfo = productsMap.get(item.productId);
+              if (productInfo) {
+                const itemValue = item.subtotal;
+
+                if (productInfo.productType === "foliar_fertilizer") {
+                  foliarTotalValue += itemValue;
+                } else if (productInfo.productType === "root_fertilizer") {
+                  rootTotalValue += itemValue;
+                }
+              }
+            }
+
+            let totalDiscount = 0;
+            if ((userRole === "agent_1" || userRole === "agent_2") && (foliarTotalValue > 0 || rootTotalValue > 0)) {
+              totalDiscount += calculateDiscountForFoliar(foliarTotalValue, userRole);
+              totalDiscount += calculateDiscountForRoot(rootTotalValue, userRole);
+            }
+
+            logger.info(`Calculated discount for user ${userId}: ${totalDiscount}`);
+            return {discount: totalDiscount};
+          } catch (error) {
+            logger.error("Error in calculateOrderDiscount:", error);
+            throw new HttpsError("internal", "Error calculating discount.", error);
+          }
+    });
 
 // ===================================================================
-// FUNCTION 2: TẠO LINK THANH TOÁN VNPAY
+// FUNCTION 2: TẠO LINK THANH TOÁN VNPAY (Đã sửa lỗi)
 // ===================================================================
-
-const VNPAY_URL = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
-const VNPAY_RETURN_URL = "https://piv-fertilizer-app.web.app/payment-return";
-
-/**
- * Callable Function để tạo link thanh toán qua VNPAY.
- * @param {any} data - Dữ liệu gồm { orderId, amount, orderInfo }.
- * @return {Promise<{ checkoutUrl: string }>} - Link thanh toán.
- */
 export const createVnpayPaymentUrl = onCall(
   {
     region: "asia-southeast1",
@@ -107,53 +91,49 @@ export const createVnpayPaymentUrl = onCall(
 
     const tmnCode = process.env.VNP_TMNCODE;
     const secretKey = process.env.VNP_HASHSECRET;
+    const vnpUrl = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
+    const returnUrl = "https://piv-fertilizer-app.web.app/payment-return";
 
     if (!tmnCode || !secretKey) {
         logger.error("VNPAY secrets are not configured in environment.");
         throw new HttpsError("internal", "Server configuration error.");
     }
 
-    const ipAddr = request.rawRequest.ip ?? "127.0.0.1";
     const createDate = format(new Date(), "yyyyMMddHHmmss", {timeZone: "Asia/Ho_Chi_Minh"});
-    const txnRef = `${orderId.substring(0, 8)}_${createDate}`;
+    const ipAddr = request.rawRequest.ip ?? "127.0.0.1";
 
-    let vnpParams: {[key: string]: any} = {
-      "vnp_Version": "2.1.0",
-      "vnp_Command": "pay",
-      "vnp_TmnCode": tmnCode,
-      "vnp_Amount": amount * 100,
-      "vnp_CreateDate": createDate,
-      "vnp_CurrCode": "VND",
-      "vnp_IpAddr": ipAddr,
-      "vnp_Locale": "vn",
-      "vnp_OrderInfo": orderInfo,
-      "vnp_OrderType": "other",
-      "vnp_ReturnUrl": VNPAY_RETURN_URL,
-      "vnp_TxnRef": txnRef,
-    };
+    // Mã giao dịch phải là duy nhất và không chứa ký tự đặc biệt
+    const txnRef = `${orderId.substring(0, 10)}${createDate}`;
 
-    const sortObject = (obj: any): any => {
-      const sorted: {[key: string]: any} = {};
-      const str: string[] = [];
-      for (const key in obj) {
-        if (Object.prototype.hasOwnProperty.call(obj, key)) {
-          str.push(encodeURIComponent(key));
-        }
-      }
-      str.sort();
-      for (let key = 0; key < str.length; key++) {
-        sorted[str[key]] = encodeURIComponent(obj[str[key]]).replace(/%20/g, "+");
-      }
-      return sorted;
-    };
+    let vnpParams: {[key: string]: any} = {};
+    vnpParams["vnp_Version"] = "2.1.0";
+    vnpParams["vnp_Command"] = "pay";
+    vnpParams["vnp_TmnCode"] = tmnCode;
+    vnpParams["vnp_Amount"] = amount * 100; // VNPAY yêu cầu số tiền nhân 100
+    vnpParams["vnp_CurrCode"] = "VND";
+    vnpParams["vnp_TxnRef"] = txnRef;
+    vnpParams["vnp_OrderInfo"] = orderInfo;
+    vnpParams["vnp_OrderType"] = "other";
+    vnpParams["vnp_Locale"] = "vn";
+    vnpParams["vnp_ReturnUrl"] = returnUrl;
+    vnpParams["vnp_IpAddr"] = ipAddr;
+    vnpParams["vnp_CreateDate"] = createDate;
 
-    vnpParams = sortObject(vnpParams);
-    const signData = qs.stringify(vnpParams, {encode: false});
+    // Sắp xếp các tham số theo thứ tự alphabet của key
+    const sortedParams: {[key: string]: any} = {};
+    Object.keys(vnpParams).sort().forEach((key) => {
+        sortedParams[key] = vnpParams[key];
+    });
+
+    // Tạo chuỗi query và chữ ký
+    const signData = qs.stringify(sortedParams, {encode: false});
     const hmac = crypto.createHmac("sha512", secretKey);
-    const signed = hmac.update(Buffer.from(signData, "utf-8")).digest("hex");
-    vnpParams["vnp_SecureHash"] = signed;
+    const secureHash = hmac.update(Buffer.from(signData, "utf-8")).digest("hex");
 
-    const checkoutUrl = VNPAY_URL + "?" + qs.stringify(vnpParams, {encode: false});
+    sortedParams["vnp_SecureHash"] = secureHash;
+
+    const checkoutUrl = vnpUrl + "?" + qs.stringify(sortedParams, {encode: false});
+
     logger.info(`Created VNPAY URL for order: ${orderId}`);
     return {checkoutUrl: checkoutUrl};
   },

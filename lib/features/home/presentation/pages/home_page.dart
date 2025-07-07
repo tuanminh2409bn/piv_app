@@ -49,7 +49,8 @@ class HomeView extends StatelessWidget {
                 children: [
                   Text(state.errorMessage ?? 'Không thể tải dữ liệu trang chủ.', textAlign: TextAlign.center),
                   const SizedBox(height: 16),
-                  ElevatedButton(onPressed: () => context.read<HomeCubit>().fetchHomeScreenData(), child: const Text('Thử lại')),
+                  // <<< SỬA LẠI: GỌI HÀM refreshHomeData >>>
+                  ElevatedButton(onPressed: () => context.read<HomeCubit>().refreshHomeData(), child: const Text('Thử lại')),
                 ],
               ),
             ),
@@ -58,7 +59,8 @@ class HomeView extends StatelessWidget {
 
         return Scaffold(
           body: RefreshIndicator(
-            onRefresh: () async => context.read<HomeCubit>().fetchHomeScreenData(),
+            // <<< SỬA LẠI: GỌI HÀM refreshHomeData >>>
+            onRefresh: () async => context.read<HomeCubit>().refreshHomeData(),
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
@@ -109,7 +111,8 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  /// SỬA LẠI: Ô tìm kiếm này sẽ điều hướng đến trang SearchPage
+  // --- CÁC HÀM BUILD HELPER GIỮ NGUYÊN ---
+
   Widget _buildSearchBar(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -163,7 +166,6 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  /// SỬA LẠI: Dùng Row và Expanded để các danh mục dàn đều
   Widget _buildCategoriesRow(BuildContext context, List<CategoryModel> categories) {
     final itemsToShow = categories.take(3).toList();
     return Row(
@@ -264,7 +266,8 @@ class HomeView extends StatelessWidget {
     return Container(
       height: height,
       width: double.infinity,
-      margin: const EdgeInsets.symmetric(horizontal: 16.0),
+      // Bỏ margin ở đây nếu bạn muốn nó căn đều với các section khác
+      // margin: const EdgeInsets.symmetric(horizontal: 16.0),
       decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(12)),
       alignment: Alignment.center,
       child: Text(text, style: TextStyle(color: Colors.grey.shade600)),

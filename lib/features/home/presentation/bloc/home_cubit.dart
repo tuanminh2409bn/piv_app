@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:dartz/dartz.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/news_article_model.dart';
+import 'package:piv_app/data/models/user_model.dart';
+import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/home/data/models/banner_model.dart';
 import 'package:piv_app/features/home/data/models/category_model.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
@@ -22,27 +25,50 @@ String _removeDiacritics(String str) {
 
 class HomeCubit extends Cubit<HomeState> {
   final HomeRepository _homeRepository;
+  final AuthBloc _authBloc;
+  StreamSubscription? _authSubscription;
+  UserModel? _currentUser;
 
-  HomeCubit({required HomeRepository homeRepository})
-      : _homeRepository = homeRepository,
-        super(const HomeState());
+  HomeCubit({
+    required HomeRepository homeRepository,
+    required AuthBloc authBloc,
+  })  : _homeRepository = homeRepository,
+        _authBloc = authBloc,
+        super(const HomeState()) {
 
-  Future<void> fetchHomeScreenData() async {
-    emit(state.copyWith(status: HomeStatus.loading));
+    final currentState = _authBloc.state;
+    if (currentState is AuthAuthenticated) {
+      loadHomeData(currentState.user);
+    }
+
+    _authSubscription = _authBloc.stream.listen((authState) {
+      if (authState is AuthAuthenticated) {
+        if (_currentUser?.id != authState.user.id) {
+          loadHomeData(authState.user);
+        }
+      } else if (authState is AuthUnauthenticated) {
+        emit(const HomeState());
+      }
+    });
+  }
+
+  Future<void> loadHomeData(UserModel user) async {
+    if (state.status == HomeStatus.loading) return;
+    _currentUser = user;
+    emit(state.copyWith(status: HomeStatus.loading, user: user));
     developer.log('HomeCubit: Fetching all home screen data...', name: 'HomeCubit');
 
     try {
       final results = await Future.wait([
         _homeRepository.getBanners(),
-        _homeRepository.getFeaturedCategories(),
+        _homeRepository.getFeaturedCategories(), // <<< SỬA LẠI TÊN HÀM
         _homeRepository.getFeaturedProducts(),
-        _homeRepository.getLatestNewsArticles(),
+        _homeRepository.getLatestNewsArticles(), // <<< SỬA LẠI TÊN HÀM
         _homeRepository.getAllCategories(),
         _homeRepository.getAllProducts(),
       ]);
 
       List<String> errors = [];
-
       final finalBanners = (results[0] as Either<Failure, List<BannerModel>>).fold((f) {errors.add(f.message); return <BannerModel>[];}, (r) => r);
       final finalFeaturedCategories = (results[1] as Either<Failure, List<CategoryModel>>).fold((f) {errors.add(f.message); return <CategoryModel>[];}, (r) => r);
       final finalFeaturedProducts = (results[2] as Either<Failure, List<ProductModel>>).fold((f) {errors.add(f.message); return <ProductModel>[];}, (r) => r);
@@ -62,7 +88,8 @@ class HomeCubit extends Cubit<HomeState> {
           filteredFeaturedProducts: finalFeaturedProducts,
           newsArticles: finalNews,
           allProducts: finalAllProducts,
-          isSearching: false, // Reset trạng thái tìm kiếm
+          isSearching: false,
+          user: user,
         ));
       }
     } catch (e) {
@@ -70,29 +97,38 @@ class HomeCubit extends Cubit<HomeState> {
     }
   }
 
+  void refreshHomeData() {
+    if (_currentUser != null) {
+      loadHomeData(_currentUser!);
+    }
+  }
+
   void searchFeaturedProducts(String query) {
     if (query.isEmpty) {
       emit(state.copyWith(
         filteredFeaturedProducts: state.featuredProducts,
-        isSearching: false, // Tắt trạng thái tìm kiếm
+        isSearching: false,
       ));
       return;
     }
-
     final normalizedQuery = _removeDiacritics(query.toLowerCase());
-
     final filtered = state.allProducts.where((product) {
       final normalizedProductName = _removeDiacritics(product.name.toLowerCase());
       final normalizedProductDesc = _removeDiacritics(product.description.toLowerCase());
       return normalizedProductName.contains(normalizedQuery) ||
           normalizedProductDesc.contains(normalizedQuery);
     }).toList();
-
-    developer.log('Searching for "$query", found ${filtered.length} products.', name: 'HomeCubit');
-
     emit(state.copyWith(
       filteredFeaturedProducts: filtered,
-      isSearching: true, // Bật trạng thái tìm kiếm
+      isSearching: true,
     ));
+  }
+
+  UserModel? get currentUser => _currentUser;
+
+  @override
+  Future<void> close() {
+    _authSubscription?.cancel();
+    return super.close();
   }
 }

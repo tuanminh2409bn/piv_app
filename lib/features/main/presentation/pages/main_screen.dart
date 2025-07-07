@@ -22,7 +22,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  final HomeCubit _homeCubit = sl<HomeCubit>()..fetchHomeScreenData();
+  final HomeCubit _homeCubit = sl<HomeCubit>();
   final ProfileCubit _profileCubit = sl<ProfileCubit>();
 
   late final List<Widget> _widgetOptions;
@@ -39,7 +39,6 @@ class _MainScreenState extends State<MainScreen> {
     _widgetOptions = <Widget>[
       const HomePage(),
       const AllCategoriesPage(),
-      // Cung cấp ProfileCubit cho ProfilePage
       BlocProvider.value(
         value: _profileCubit,
         child: const ProfilePage(),

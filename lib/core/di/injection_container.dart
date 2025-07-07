@@ -104,8 +104,7 @@ Future<void> initializeDependencies() async {
 
   // == Home ==
   sl.registerLazySingleton<HomeRepository>(() => HomeRepositoryImpl(firestore: sl()));
-  sl.registerFactory<HomeCubit>(() => HomeCubit(homeRepository: sl()));
-
+  sl.registerFactory<HomeCubit>(() => HomeCubit(homeRepository: sl(), authBloc: sl()));
   // == News ==
   sl.registerFactory<NewsDetailCubit>(() => NewsDetailCubit(homeRepository: sl()));
 
@@ -141,7 +140,12 @@ Future<void> initializeDependencies() async {
     functions: sl(),
   ));
   sl.registerLazySingleton<MyOrdersCubit>(() => MyOrdersCubit(orderRepository: sl(), authBloc: sl()));
-  sl.registerFactory<OrderDetailCubit>(() => OrderDetailCubit(orderRepository: sl()));
+  sl.registerFactory<OrderDetailCubit>(
+        () => OrderDetailCubit(
+      orderRepository: sl(),
+      functions: sl(), // <<< THÊM VÀO
+    ),
+  );
 
   // == Admin ==
   sl.registerLazySingleton<StorageRepository>(() => StorageRepository());
