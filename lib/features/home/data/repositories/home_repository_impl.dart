@@ -102,7 +102,6 @@ class HomeRepositoryImpl implements HomeRepository {
       final querySnapshot = await _productsCollection
           .where('isFeatured', isEqualTo: true)
           .orderBy('createdAt', descending: true)
-          .limit(4)
           .get();
       final products = querySnapshot.docs.map((doc) => ProductModel.fromSnapshot(doc)).toList();
       return Right(products);

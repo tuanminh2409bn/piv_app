@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
@@ -9,6 +8,7 @@ import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_commissions_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/agent_order_history_page.dart';
+import 'package:piv_app/features/vouchers/presentation/bloc/voucher_management_cubit.dart'; // <<< THÊM IMPORT
 import 'package:piv_app/features/vouchers/presentation/pages/voucher_management_page.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -21,11 +21,9 @@ class SalesRepHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Cung cấp các Cubit cần thiết cho các tab
     return MultiBlocProvider(
       providers: [
-        // SalesRepCubit sẽ quản lý cả danh sách đại lý và danh sách chờ duyệt
-        BlocProvider(create: (_) => sl<SalesRepCubit>()..fetchMyAgents()..fetchPendingAgents()),
+        BlocProvider(create: (_) => sl<SalesRepCubit>()),
         BlocProvider(create: (_) => sl<SalesRepCommissionsCubit>()..fetchMyCommissions()),
       ],
       child: const SalesRepView(),
@@ -41,7 +39,7 @@ class SalesRepView extends StatelessWidget {
     final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
 
     return DefaultTabController(
-      length: 4, // Cập nhật thành 3 tab
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: Text('Chào, ${user.displayName ?? user.email}'),
@@ -58,9 +56,8 @@ class SalesRepView extends StatelessWidget {
             ),
           ],
           bottom: const TabBar(
-            isScrollable: true, // Cho phép cuộn nếu không đủ chỗ
-            labelPadding: EdgeInsets.symmetric(horizontal: 16.0), // Tăng khoảng đệm
-            tabAlignment: TabAlignment.start, // Căn lề trái
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             tabs: [
               Tab(icon: Icon(Icons.people_outline), text: 'Đại lý'),
               Tab(icon: Icon(Icons.pending_actions_outlined), text: 'Chờ duyệt'),
@@ -69,12 +66,17 @@ class SalesRepView extends StatelessWidget {
             ],
           ),
         ),
-        body: const TabBarView(
+        // <<< SỬA LỖI TẠI ĐÂY >>>
+        body: TabBarView(
           children: [
-            MyAgentsView(),
-            PendingAgentsView(),
-            SalesRepCommissionsView(),
-            VoucherManagementPage(),
+            const MyAgentsView(),
+            const PendingAgentsView(),
+            const SalesRepCommissionsView(),
+            // Bọc VoucherManagementPage bằng BlocProvider để "cung cấp" Cubit cho nó
+            BlocProvider(
+              create: (context) => sl<VoucherManagementCubit>()..getVouchers(),
+              child: const VoucherManagementPage(),
+            ),
           ],
         ),
       ),

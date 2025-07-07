@@ -228,4 +228,24 @@ class OrderRepositoryImpl implements OrderRepository {
       return OrderModel.fromSnapshot(snapshot);
     });
   }
+
+  @override
+  Future<Either<Failure, List<OrderModel>>> getOrdersForSalesRepByAgent({
+    required String salesRepId,
+    required String agentId,
+  }) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('orders')
+          .where('userId', isEqualTo: agentId) // Điều kiện 1: Đúng đại lý
+          .where('salesRepId', isEqualTo: salesRepId) // Điều kiện 2: Đúng NVKD quản lý
+          .orderBy('createdAt', descending: true)
+          .get();
+      final orders = querySnapshot.docs.map((doc) => OrderModel.fromSnapshot(doc)).toList();
+      return Right(orders);
+    } catch (e) {
+      // Lỗi này thường xảy ra nếu bạn chưa tạo Composite Index trên Firestore
+      return Left(ServerFailure('Lỗi khi tải đơn hàng của đại lý: ${e.toString()}. Có thể bạn cần tạo chỉ mục (index) trên Firestore.'));
+    }
+  }
 }

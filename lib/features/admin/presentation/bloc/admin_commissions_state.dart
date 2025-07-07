@@ -8,9 +8,12 @@ class AdminCommissionsState extends Equatable {
   final List<CommissionWithDetails> filteredCommissions;
   final DateTime? startDate;
   final DateTime? endDate;
-  // -----------------------------
   final String currentFilter;
   final String? errorMessage;
+
+  // <<< CÁC TRƯỜNG MỚI >>>
+  final List<UserModel> salesReps; // Để hiển thị trong Dropdown
+  final String? selectedSalesRepId; // ID của NVKD đang được chọn để lọc
 
   const AdminCommissionsState({
     this.status = AdminCommissionsStatus.initial,
@@ -20,10 +23,15 @@ class AdminCommissionsState extends Equatable {
     this.startDate,
     this.endDate,
     this.errorMessage,
+    this.salesReps = const [],
+    this.selectedSalesRepId,
   });
 
   @override
-  List<Object?> get props => [status, allCommissions, filteredCommissions, currentFilter, errorMessage];
+  List<Object?> get props => [
+    status, allCommissions, filteredCommissions, currentFilter,
+    startDate, endDate, errorMessage, salesReps, selectedSalesRepId
+  ];
 
   AdminCommissionsState copyWith({
     AdminCommissionsStatus? status,
@@ -35,6 +43,9 @@ class AdminCommissionsState extends Equatable {
     bool forceStartDateToNull = false,
     DateTime? endDate,
     bool forceEndDateToNull = false,
+    List<UserModel>? salesReps,
+    String? selectedSalesRepId,
+    bool forceSalesRepToNull = false,
   }) {
     return AdminCommissionsState(
       status: status ?? this.status,
@@ -44,6 +55,8 @@ class AdminCommissionsState extends Equatable {
       errorMessage: errorMessage ?? this.errorMessage,
       startDate: forceStartDateToNull ? null : (startDate ?? this.startDate),
       endDate: forceEndDateToNull ? null : (endDate ?? this.endDate),
+      salesReps: salesReps ?? this.salesReps,
+      selectedSalesRepId: forceSalesRepToNull ? null : (selectedSalesRepId ?? this.selectedSalesRepId),
     );
   }
 }

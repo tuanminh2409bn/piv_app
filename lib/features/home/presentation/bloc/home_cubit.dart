@@ -54,6 +54,7 @@ class HomeCubit extends Cubit<HomeState> {
 
   Future<void> loadHomeData(UserModel user) async {
     if (state.status == HomeStatus.loading) return;
+
     _currentUser = user;
     emit(state.copyWith(status: HomeStatus.loading, user: user));
     developer.log('HomeCubit: Fetching all home screen data...', name: 'HomeCubit');
@@ -61,35 +62,40 @@ class HomeCubit extends Cubit<HomeState> {
     try {
       final results = await Future.wait([
         _homeRepository.getBanners(),
-        _homeRepository.getFeaturedCategories(), // <<< SỬA LẠI TÊN HÀM
+        _homeRepository.getFeaturedCategories(),
         _homeRepository.getFeaturedProducts(),
-        _homeRepository.getLatestNewsArticles(), // <<< SỬA LẠI TÊN HÀM
-        _homeRepository.getAllCategories(),
+        _homeRepository.getLatestNewsArticles(),
         _homeRepository.getAllProducts(),
       ]);
 
       List<String> errors = [];
       final finalBanners = (results[0] as Either<Failure, List<BannerModel>>).fold((f) {errors.add(f.message); return <BannerModel>[];}, (r) => r);
       final finalFeaturedCategories = (results[1] as Either<Failure, List<CategoryModel>>).fold((f) {errors.add(f.message); return <CategoryModel>[];}, (r) => r);
-      final finalFeaturedProducts = (results[2] as Either<Failure, List<ProductModel>>).fold((f) {errors.add(f.message); return <ProductModel>[];}, (r) => r);
+      var finalFeaturedProducts = (results[2] as Either<Failure, List<ProductModel>>).fold((f) {errors.add(f.message); return <ProductModel>[];}, (r) => r);
       final finalNews = (results[3] as Either<Failure, List<NewsArticleModel>>).fold((f) {errors.add(f.message); return <NewsArticleModel>[];}, (r) => r);
-      final finalAllCategories = (results[4] as Either<Failure, List<CategoryModel>>).fold((f) {errors.add(f.message); return <CategoryModel>[];}, (r) => r);
-      final finalAllProducts = (results[5] as Either<Failure, List<ProductModel>>).fold((f) {errors.add(f.message); return <ProductModel>[];}, (r) => r);
+      final finalAllProducts = (results[4] as Either<Failure, List<ProductModel>>).fold((f) {errors.add(f.message); return <ProductModel>[];}, (r) => r);
 
       if (errors.isNotEmpty) {
         emit(state.copyWith(status: HomeStatus.error, errorMessage: errors.join('\n')));
       } else {
+
+        // <<< LOGIC QUAN TRỌNG NẰM Ở ĐÂY >>>
+        if (user.role != 'admin' && finalFeaturedProducts.length > 8) {
+          finalFeaturedProducts.shuffle();
+          finalFeaturedProducts = finalFeaturedProducts.take(8).toList();
+        }
+
         emit(state.copyWith(
-          status: HomeStatus.success,
-          banners: finalBanners,
-          categories: finalFeaturedCategories,
-          allCategories: finalAllCategories,
-          featuredProducts: finalFeaturedProducts,
-          filteredFeaturedProducts: finalFeaturedProducts,
-          newsArticles: finalNews,
-          allProducts: finalAllProducts,
-          isSearching: false,
-          user: user,
+            status: HomeStatus.success,
+            banners: finalBanners,
+            categories: finalFeaturedCategories,
+            allCategories: finalFeaturedCategories,
+            featuredProducts: finalFeaturedProducts,
+            filteredFeaturedProducts: finalFeaturedProducts,
+            newsArticles: finalNews,
+            allProducts: finalAllProducts,
+            isSearching: false,
+            user: user
         ));
       }
     } catch (e) {

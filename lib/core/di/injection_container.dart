@@ -163,7 +163,10 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<SalesRepCubit>(() => SalesRepCubit(adminRepository: sl(), authBloc: sl()));
   sl.registerFactory<SalesRepCommissionsCubit>(() => SalesRepCommissionsCubit(orderRepository: sl(), authBloc: sl()));
   sl.registerFactory<QuickOrderCubit>(() => QuickOrderCubit(homeRepository: sl(), cartCubit: sl()));
-  sl.registerFactory<AgentOrdersCubit>(() => AgentOrdersCubit(orderRepository: sl()));
+  sl.registerFactory<AgentOrdersCubit>(() => AgentOrdersCubit(
+    orderRepository: sl(),
+    authBloc: sl(), // <<< THÊM VÀO
+  ));
 
   // == Voucher ==
   sl.registerLazySingleton<VoucherRepository>(() => VoucherRepositoryImpl(firestore: sl()));

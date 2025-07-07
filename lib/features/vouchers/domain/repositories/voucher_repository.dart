@@ -2,23 +2,19 @@ import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 
-// Đây là bản thiết kế (abstract class) cho các chức năng liên quan đến Voucher
 abstract class VoucherRepository {
-  /// NVKD tạo một voucher mới
-  Future<Either<Failure, Unit>> createVoucher(VoucherModel voucher);
+  // Sửa lại để trả về một Stream<List<VoucherModel>> cho real-time
+  Stream<List<VoucherModel>> getVouchersBySalesRep(String salesRepId);
 
-  /// NVKD lấy danh sách các voucher của mình
-  Future<Either<Failure, List<VoucherModel>>> getVouchersBySalesRep(String salesRepId);
+  // Thêm các hàm mới để quản lý voucher
+  Future<Either<Failure, void>> addVoucher(VoucherModel voucher);
+  Future<Either<Failure, void>> updateVoucher(VoucherModel voucher);
+  Future<Either<Failure, void>> deleteVoucher(String voucherId);
 
-  /// NVKD cập nhật thông tin một voucher
-  Future<Either<Failure, Unit>> updateVoucher(VoucherModel voucher);
-
-  /// NVKD xóa một voucher
-  Future<Either<Failure, Unit>> deleteVoucher(String voucherId);
-
-  /// Đại lý áp dụng một voucher vào giỏ hàng
+  // Sửa lại hàm applyVoucher cho nhất quán
   Future<Either<Failure, VoucherModel>> applyVoucher({
     required String code,
-    required String userId, // ID của đại lý đang áp dụng
+    required String userId,
+    required String userRole,
   });
 }

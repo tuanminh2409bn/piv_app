@@ -1,34 +1,90 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 
+// <<< GIỮ NGUYÊN ENUM CỦA BẠN, RẤT TỐT! >>>
 enum DiscountType { percentage, fixedAmount }
 
+// <<< THÊM MỚI: CÁC HẰNG SỐ TRẠNG THÁI CHO DỄ QUẢN LÝ >>>
+class VoucherStatus {
+  static const String pendingApproval = 'pending_approval';
+  static const String active = 'active';
+  static const String rejected = 'rejected';
+  static const String pendingDeletion = 'pending_deletion';
+  static const String inactive = 'inactive';
+}
+
+// <<< THÊM MỚI: MODEL ĐỂ LƯU LỊCH SỬ THAY ĐỔI >>>
+class VoucherHistoryEntry extends Equatable {
+  final String action;
+  final String actorId;
+  final Timestamp timestamp;
+  final String? notes;
+
+  const VoucherHistoryEntry({
+    required this.action,
+    required this.actorId,
+    required this.timestamp,
+    this.notes,
+  });
+
+  @override
+  List<Object?> get props => [action, actorId, timestamp, notes];
+
+  Map<String, dynamic> toMap() {
+    return {
+      'action': action,
+      'actorId': actorId,
+      'timestamp': timestamp,
+      'notes': notes,
+    };
+  }
+
+  factory VoucherHistoryEntry.fromMap(Map<String, dynamic> map) {
+    return VoucherHistoryEntry(
+      action: map['action'] as String,
+      actorId: map['actorId'] as String,
+      timestamp: map['timestamp'] as Timestamp,
+      notes: map['notes'] as String?,
+    );
+  }
+}
+
+
 class VoucherModel extends Equatable {
-  final String id; // Chính là mã code, ví dụ: PIV2025
-  final String description; // Mô tả ngắn, ví dụ: "Giảm giá mừng năm mới"
-  final DiscountType discountType; // Loại giảm giá: theo % hay số tiền cố định
-  final double discountValue; // Giá trị giảm (ví dụ: 10 cho 10% hoặc 50000 cho 50,000đ)
-  final String salesRepId; // ID của NVKD sở hữu voucher này
+  final String id;
+  final String description;
+  final DiscountType discountType;
+  final double discountValue;
+  final double? maxDiscountAmount; // <<< THÊM MỚI: Mức giảm tối đa cho %
+  final double minOrderValue;   // <<< THÊM MỚI: Giá trị đơn hàng tối thiểu
+  final int maxUses; // Số lần sử dụng tối đa
+  final int usedCount;
   final Timestamp createdAt;
-  final Timestamp expiresAt; // Ngày hết hạn
-  final int maxUses; // Số lần sử dụng tối đa (0 là không giới hạn)
-  final int usesCount; // Số lần đã sử dụng
-  final bool isActive; // Để bật/tắt voucher
+  final Timestamp expiresAt;
+
+  // <<< CÁC TRƯỜNG MỚI CHO QUY TRÌNH DUYỆT >>>
+  final String status;
+  final String createdBy; // User ID của NVKD
+  final String? approvedBy; // User ID của Admin
+  final List<VoucherHistoryEntry> history;
 
   const VoucherModel({
     required this.id,
     required this.description,
     required this.discountType,
     required this.discountValue,
-    required this.salesRepId,
+    this.maxDiscountAmount,
+    required this.minOrderValue,
+    required this.maxUses,
+    this.usedCount = 0,
     required this.createdAt,
     required this.expiresAt,
-    this.maxUses = 1,
-    this.usesCount = 0,
-    this.isActive = true,
+    this.status = VoucherStatus.pendingApproval,
+    required this.createdBy,
+    this.approvedBy,
+    this.history = const [],
   });
 
-  // Helper để chuyển đổi qua lại giữa Enum và String để lưu trên Firestore
   String get discountTypeString =>
       discountType == DiscountType.percentage ? 'percentage' : 'fixed_amount';
 
@@ -36,53 +92,53 @@ class VoucherModel extends Equatable {
     return type == 'percentage' ? DiscountType.percentage : DiscountType.fixedAmount;
   }
 
-  // Phương thức tính toán số tiền được giảm
+  // <<< CẬP NHẬT HÀM TÍNH TOÁN ĐỂ KIỂM TRA STATUS VÀ CÁC ĐIỀU KIỆN MỚI >>>
   double calculateDiscount(double subtotal) {
-    if (!isActive || DateTime.now().isAfter(expiresAt.toDate())) {
-      return 0.0;
-    }
-    if (maxUses != 0 && usesCount >= maxUses) {
+    if (status != VoucherStatus.active ||
+        DateTime.now().isAfter(expiresAt.toDate()) ||
+        (maxUses != 0 && usedCount >= maxUses) ||
+        subtotal < minOrderValue) {
       return 0.0;
     }
 
     if (discountType == DiscountType.percentage) {
-      return (subtotal * discountValue / 100).roundToDouble();
+      final discount = (subtotal * discountValue / 100);
+      // Nếu có mức giảm tối đa, hãy áp dụng nó
+      if (maxDiscountAmount != null && discount > maxDiscountAmount!) {
+        return maxDiscountAmount!;
+      }
+      return discount.roundToDouble();
     } else {
-      // Đảm bảo không giảm giá nhiều hơn giá trị đơn hàng
       return discountValue > subtotal ? subtotal : discountValue;
     }
   }
 
   @override
   List<Object?> get props => [
-    id,
-    description,
-    discountType,
-    discountValue,
-    salesRepId,
-    createdAt,
-    expiresAt,
-    maxUses,
-    usesCount,
-    isActive
+    id, description, discountType, discountValue, maxDiscountAmount,
+    minOrderValue, maxUses, usedCount, createdAt, expiresAt,
+    status, createdBy, approvedBy, history
   ];
 
-  // Chuyển đổi từ Object thành Map để lưu lên Firestore
   Map<String, dynamic> toMap() {
     return {
       'description': description,
       'discountType': discountTypeString,
       'discountValue': discountValue,
-      'salesRepId': salesRepId,
+      'maxDiscountAmount': maxDiscountAmount,
+      'minOrderValue': minOrderValue,
+      'maxUses': maxUses,
+      'usedCount': usedCount,
       'createdAt': createdAt,
       'expiresAt': expiresAt,
-      'maxUses': maxUses,
-      'usesCount': usesCount,
-      'isActive': isActive,
+      // --- Các trường mới
+      'status': status,
+      'createdBy': createdBy,
+      'approvedBy': approvedBy,
+      'history': history.map((e) => e.toMap()).toList(),
     };
   }
 
-  // Tạo Object từ một DocumentSnapshot của Firestore
   factory VoucherModel.fromSnapshot(DocumentSnapshot snap) {
     final data = snap.data() as Map<String, dynamic>;
     return VoucherModel(
@@ -90,13 +146,19 @@ class VoucherModel extends Equatable {
       description: data['description'] ?? '',
       discountType: _discountTypeFromString(data['discountType'] ?? 'fixed_amount'),
       discountValue: (data['discountValue'] as num?)?.toDouble() ?? 0.0,
-      salesRepId: data['salesRepId'] ?? '',
+      maxDiscountAmount: (data['maxDiscountAmount'] as num?)?.toDouble(),
+      minOrderValue: (data['minOrderValue'] as num?)?.toDouble() ?? 0.0,
+      maxUses: data['maxUses'] ?? 0,
+      usedCount: data['usedCount'] ?? 0,
       createdAt: data['createdAt'] ?? Timestamp.now(),
       expiresAt: data['expiresAt'] ?? Timestamp.now(),
-      maxUses: data['maxUses'] ?? 0,
-      usesCount: data['usesCount'] ?? 0,
-      isActive: data['isActive'] ?? false,
+      // --- Các trường mới
+      status: data['status'] ?? VoucherStatus.inactive,
+      createdBy: data['createdBy'] ?? '',
+      approvedBy: data['approvedBy'],
+      history: (data['history'] as List<dynamic>?)
+          ?.map((e) => VoucherHistoryEntry.fromMap(e as Map<String, dynamic>))
+          .toList() ?? [],
     );
   }
 }
-

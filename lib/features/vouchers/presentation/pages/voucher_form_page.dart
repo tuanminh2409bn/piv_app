@@ -1,138 +1,184 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
-import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 import 'package:piv_app/features/vouchers/presentation/bloc/voucher_management_cubit.dart';
 
-class VoucherFormPage extends StatelessWidget {
-  const VoucherFormPage({super.key});
+class VoucherFormPage extends StatefulWidget {
+  final VoucherModel? voucher;
 
-  static PageRoute<bool> route() {
-    return MaterialPageRoute<bool>(builder: (_) => const VoucherFormPage());
-  }
+  const VoucherFormPage({super.key, this.voucher});
 
-  @override
-  Widget build(BuildContext context) {
-    return BlocProvider.value(
-      value: sl<VoucherManagementCubit>(),
-      child: const VoucherFormView(),
+  static PageRoute<void> route({VoucherModel? voucher}) {
+    return MaterialPageRoute<void>(
+      builder: (context) => BlocProvider.value(
+        value: BlocProvider.of<VoucherManagementCubit>(context),
+        child: VoucherFormPage(voucher: voucher),
+      ),
     );
   }
-}
 
-class VoucherFormView extends StatefulWidget {
-  const VoucherFormView({super.key});
   @override
-  State<VoucherFormView> createState() => _VoucherFormViewState();
+  State<VoucherFormPage> createState() => _VoucherFormPageState();
 }
 
-class _VoucherFormViewState extends State<VoucherFormView> {
+class _VoucherFormPageState extends State<VoucherFormPage> {
   final _formKey = GlobalKey<FormState>();
-  final _codeController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  final _discountValueController = TextEditingController();
-  final _maxUsesController = TextEditingController(text: '1');
-  final _expiresAtController = TextEditingController();
+  late final TextEditingController _codeController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _discountValueController;
+  late final TextEditingController _minOrderValueController;
+  late final TextEditingController _maxDiscountAmountController;
+  late final TextEditingController _maxUsesController;
+  late final TextEditingController _expiresAtController;
 
   DiscountType _discountType = DiscountType.fixedAmount;
-  DateTime? _selectedDate;
+  DateTime _expiresAt = DateTime.now().add(const Duration(days: 30));
+
+  @override
+  void initState() {
+    super.initState();
+    final v = widget.voucher;
+    _codeController = TextEditingController(text: v?.id ?? '');
+    _descriptionController = TextEditingController(text: v?.description ?? '');
+    _discountValueController = TextEditingController(text: v?.discountValue.toString() ?? '');
+    _minOrderValueController = TextEditingController(text: v?.minOrderValue.toString() ?? '0');
+    _maxDiscountAmountController = TextEditingController(text: v?.maxDiscountAmount?.toString() ?? '');
+    _maxUsesController = TextEditingController(text: v?.maxUses.toString() ?? '1');
+    _expiresAtController = TextEditingController(text: DateFormat('dd/MM/yyyy').format(v?.expiresAt.toDate() ?? _expiresAt));
+
+    if (v != null) {
+      _discountType = v.discountType;
+      _expiresAt = v.expiresAt.toDate();
+    }
+  }
 
   @override
   void dispose() {
     _codeController.dispose();
     _descriptionController.dispose();
     _discountValueController.dispose();
+    _minOrderValueController.dispose();
+    _maxDiscountAmountController.dispose();
     _maxUsesController.dispose();
     _expiresAtController.dispose();
     super.dispose();
   }
 
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate ?? DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2101),
-    );
-    if (picked != null && picked != _selectedDate) {
-      setState(() {
-        _selectedDate = picked;
-        _expiresAtController.text = DateFormat('dd/MM/yyyy').format(picked);
-      });
-    }
-  }
-
-  void _createVoucher() {
+  void _submitForm() {
     if (_formKey.currentState!.validate()) {
-      context.read<VoucherManagementCubit>().createVoucher(
+      context.read<VoucherManagementCubit>().saveVoucher(
+        id: widget.voucher?.id,
         code: _codeController.text.trim(),
         description: _descriptionController.text.trim(),
         discountType: _discountType,
-        discountValue: double.parse(_discountValueController.text.trim()),
-        expiresAt: _selectedDate!,
-        maxUses: int.tryParse(_maxUsesController.text.trim()) ?? 0,
+        discountValue: double.tryParse(_discountValueController.text) ?? 0,
+        minOrderValue: double.tryParse(_minOrderValueController.text) ?? 0,
+        maxDiscountAmount: _discountType == DiscountType.percentage
+            ? double.tryParse(_maxDiscountAmountController.text)
+            : null,
+        maxUses: int.tryParse(_maxUsesController.text) ?? 1,
+        expiresAt: _expiresAt,
       );
+      Navigator.of(context).pop();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Tạo Voucher mới')),
-      body: BlocListener<VoucherManagementCubit, VoucherManagementState>(
-        listener: (context, state) {
-          if (state.status == VoucherStatus.success) {
-            Navigator.of(context).pop(true); // Trả về true để trang trước biết cần làm mới
-          } else if (state.status == VoucherStatus.error) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.errorMessage ?? 'Có lỗi xảy ra')));
-          }
-        },
+      appBar: AppBar(
+        title: Text(widget.voucher == null ? 'Tạo Voucher mới' : 'Sửa Voucher'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: _submitForm,
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildTextField(_codeController, 'Mã Voucher (Ví dụ: PIV2025)'),
-              _buildTextField(_descriptionController, 'Mô tả ngắn'),
+              TextFormField(
+                controller: _codeController,
+                decoration: const InputDecoration(labelText: 'Mã Voucher (viết liền, không dấu)'),
+                enabled: widget.voucher == null, // Chỉ cho sửa mã khi tạo mới
+                validator: (value) => (value?.isEmpty ?? true) ? 'Không được để trống' : null,
+              ),
               const SizedBox(height: 16),
-              SegmentedButton<DiscountType>(
-                segments: const [
-                  ButtonSegment(value: DiscountType.fixedAmount, label: Text('Số tiền cố định')),
-                  ButtonSegment(value: DiscountType.percentage, label: Text('Theo phần trăm (%)')),
+              TextFormField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(labelText: 'Mô tả ngắn'),
+                validator: (value) => (value?.isEmpty ?? true) ? 'Không được để trống' : null,
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<DiscountType>(
+                value: _discountType,
+                decoration: const InputDecoration(labelText: 'Loại giảm giá'),
+                items: const [
+                  DropdownMenuItem(value: DiscountType.fixedAmount, child: Text('Số tiền cố định (VNĐ)')),
+                  DropdownMenuItem(value: DiscountType.percentage, child: Text('Theo phần trăm (%)')),
                 ],
-                selected: {_discountType},
-                onSelectionChanged: (Set<DiscountType> newSelection) {
-                  setState(() => _discountType = newSelection.first);
+                onChanged: (value) {
+                  if (value != null) setState(() => _discountType = value);
                 },
               ),
               const SizedBox(height: 16),
-              _buildTextField(_discountValueController, 'Giá trị giảm', keyboardType: TextInputType.number),
-              _buildTextField(_expiresAtController, 'Ngày hết hạn', readOnly: true, onTap: () => _selectDate(context)),
-              _buildTextField(_maxUsesController, 'Số lần sử dụng tối đa (0 là không giới hạn)', keyboardType: TextInputType.number),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _createVoucher,
-                child: const Text('TẠO VOUCHER'),
+              TextFormField(
+                controller: _discountValueController,
+                decoration: InputDecoration(labelText: _discountType == DiscountType.percentage ? 'Phần trăm giảm' : 'Số tiền giảm'),
+                keyboardType: TextInputType.number,
+                validator: (value) => (value?.isEmpty ?? true) ? 'Không được để trống' : null,
+              ),
+              if (_discountType == DiscountType.percentage) ...[
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _maxDiscountAmountController,
+                  decoration: const InputDecoration(labelText: 'Số tiền giảm tối đa (VNĐ) (bỏ trống nếu không giới hạn)'),
+                  keyboardType: TextInputType.number,
+                ),
+              ],
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _minOrderValueController,
+                decoration: const InputDecoration(labelText: 'Giá trị đơn hàng tối thiểu (VNĐ)'),
+                keyboardType: TextInputType.number,
+                validator: (value) => (value?.isEmpty ?? true) ? 'Không được để trống' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _maxUsesController,
+                decoration: const InputDecoration(labelText: 'Số lần sử dụng tối đa (nhập 0 nếu không giới hạn)'),
+                keyboardType: TextInputType.number,
+                validator: (value) => (value?.isEmpty ?? true) ? 'Không được để trống' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _expiresAtController,
+                decoration: const InputDecoration(labelText: 'Ngày hết hạn'),
+                readOnly: true,
+                onTap: () async {
+                  final pickedDate = await showDatePicker(
+                    context: context,
+                    initialDate: _expiresAt,
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+                  );
+                  if (pickedDate != null) {
+                    setState(() {
+                      _expiresAt = pickedDate;
+                      _expiresAtController.text = DateFormat('dd/MM/yyyy').format(pickedDate);
+                    });
+                  }
+                },
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildTextField(TextEditingController controller, String label, {bool readOnly = false, VoidCallback? onTap, TextInputType? keyboardType}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: TextFormField(
-        controller: controller,
-        readOnly: readOnly,
-        onTap: onTap,
-        keyboardType: keyboardType,
-        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
-        validator: (value) => value == null || value.trim().isEmpty ? '$label không được để trống' : null,
       ),
     );
   }

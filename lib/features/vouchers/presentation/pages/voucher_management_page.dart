@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 import 'package:piv_app/features/vouchers/presentation/bloc/voucher_management_cubit.dart';
@@ -10,87 +9,111 @@ class VoucherManagementPage extends StatelessWidget {
   const VoucherManagementPage({super.key});
 
   static PageRoute<void> route() {
-    return MaterialPageRoute<void>(builder: (_) => const VoucherManagementPage());
+    return MaterialPageRoute<void>(
+      builder: (_) => BlocProvider(
+        create: (context) => sl<VoucherManagementCubit>()..getVouchers(),
+        child: const VoucherManagementPage(),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => sl<VoucherManagementCubit>()..loadVouchers(),
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Quản lý Voucher'),
-        ),
-        body: const VoucherView(),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () async {
-            final bool? result = await Navigator.of(context).push<bool>(VoucherFormPage.route());
-            if (result == true && context.mounted) {
-              context.read<VoucherManagementCubit>().loadVouchers();
-            }
-          },
-          tooltip: 'Tạo Voucher mới',
-          child: const Icon(Icons.add),
-        ),
-      ),
-    );
+    return const VoucherManagementView();
   }
 }
 
-class VoucherView extends StatelessWidget {
-  const VoucherView({super.key});
+class VoucherManagementView extends StatelessWidget {
+  const VoucherManagementView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<VoucherManagementCubit, VoucherManagementState>(
-      builder: (context, state) {
-        if (state.status == VoucherStatus.loading && state.vouchers.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (state.vouchers.isEmpty) {
-          return const Center(child: Text('Bạn chưa tạo voucher nào.'));
-        }
-        return RefreshIndicator(
-          onRefresh: () => context.read<VoucherManagementCubit>().loadVouchers(),
-          child: ListView.builder(
-            padding: const EdgeInsets.all(8.0),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Quản lý Voucher')),
+      body: BlocBuilder<VoucherManagementCubit, VoucherManagementState>(
+        builder: (context, state) {
+          if (state.status == VoucherManagementStatus.loading && state.vouchers.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (state.status == VoucherManagementStatus.error) {
+            return Center(child: Text(state.errorMessage ?? 'Lỗi tải dữ liệu'));
+          }
+          if (state.vouchers.isEmpty) {
+            return const Center(child: Text('Bạn chưa tạo voucher nào.'));
+          }
+
+          return ListView.builder(
             itemCount: state.vouchers.length,
             itemBuilder: (context, index) {
               final voucher = state.vouchers[index];
-              return _buildVoucherCard(context, voucher);
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: ListTile(
+                  title: Text(voucher.id, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(voucher.description),
+                  trailing: _buildStatusChip(voucher.status),
+                  onTap: () {
+                    // Bọc VoucherFormPage trong BlocProvider.value để nó có thể truy cập cubit
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => BlocProvider.value(
+                          value: BlocProvider.of<VoucherManagementCubit>(context),
+                          child: VoucherFormPage(voucher: voucher),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
             },
-          ),
-        );
-      },
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => BlocProvider.value(
+                value: BlocProvider.of<VoucherManagementCubit>(context),
+                child: const VoucherFormPage(),
+              ),
+            ),
+          );
+        },
+        child: const Icon(Icons.add),
+      ),
     );
   }
 
-  Widget _buildVoucherCard(BuildContext context, VoucherModel voucher) {
-    final bool isExpired = DateTime.now().isAfter(voucher.expiresAt.toDate());
-    final bool isOutOfUses = voucher.maxUses != 0 && voucher.usesCount >= voucher.maxUses;
-    final bool isInactive = !voucher.isActive || isExpired || isOutOfUses;
-    final dateFormat = DateFormat('dd/MM/yyyy');
-
-    return Card(
-      elevation: isInactive ? 0 : 2,
-      color: isInactive ? Colors.grey.shade200 : Colors.white,
-      child: ListTile(
-        title: Text(voucher.id, style: TextStyle(fontWeight: FontWeight.bold, color: isInactive ? Colors.grey.shade600 : Colors.black)),
-        subtitle: Text(voucher.description),
-        trailing: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              voucher.discountType == DiscountType.percentage
-                  ? '${voucher.discountValue.toStringAsFixed(0)}%'
-                  : NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(voucher.discountValue),
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.primary),
-            ),
-            Text('Hạn: ${dateFormat.format(voucher.expiresAt.toDate())}', style: const TextStyle(fontSize: 12)),
-          ],
-        ),
-      ),
+  Widget _buildStatusChip(String status) {
+    Color color;
+    String text;
+    switch (status) {
+      case VoucherStatus.active:
+        color = Colors.green;
+        text = 'Hoạt động';
+        break;
+      case VoucherStatus.pendingApproval:
+        color = Colors.orange;
+        text = 'Chờ duyệt';
+        break;
+      case VoucherStatus.pendingDeletion:
+        color = Colors.red;
+        text = 'Chờ xóa';
+        break;
+      case VoucherStatus.rejected:
+        color = Colors.grey;
+        text = 'Bị từ chối';
+        break;
+      default:
+        color = Colors.grey.shade400;
+        text = 'Không hoạt động';
+    }
+    return Chip(
+      label: Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+      backgroundColor: color,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      labelPadding: EdgeInsets.zero,
     );
   }
 }

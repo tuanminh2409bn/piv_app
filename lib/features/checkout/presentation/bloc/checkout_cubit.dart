@@ -95,17 +95,13 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     try {
       final HttpsCallable callable = _functions.httpsCallable('calculateOrderDiscount');
 
-      // <<< SỬA ĐỔI PAYLOAD GỬI LÊN Ở ĐÂY >>>
       final itemsPayload = state.checkoutItems.map((item) => {
         'productId': item.productId,
-        'subtotal': item.subtotal, // Gửi tổng giá trị đã tính đúng
+        'subtotal': item.subtotal,
       }).toList();
-      // <<< HẾT PHẦN SỬA ĐỔI >>>
 
       final response = await callable.call({'items': itemsPayload});
       final discount = (response.data['discount'] as num).toDouble();
-
-      developer.log('>>> KẾT QUẢ CHIẾT KHẤU TỪ BACKEND: $discount', name: 'CheckoutDebug');
 
       emit(state.copyWith(
         status: CheckoutStatus.success,
@@ -132,7 +128,20 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   Future<void> applyVoucher(String code) async {
     if (code.isEmpty) return;
     emit(state.copyWith(status: CheckoutStatus.applyingVoucher));
-    final result = await _voucherRepository.applyVoucher(code: code.toUpperCase(), userId: _currentUserId);
+
+    final authState = _authBloc.state;
+    if (authState is! AuthAuthenticated) {
+      emit(state.copyWith(status: CheckoutStatus.error, errorMessage: 'Lỗi xác thực người dùng.'));
+      return;
+    }
+    final userRole = authState.user.role;
+
+    final result = await _voucherRepository.applyVoucher(
+      code: code.toUpperCase(),
+      userId: _currentUserId,
+      userRole: userRole,
+    );
+
     result.fold(
             (failure) {
           emit(state.copyWith(status: CheckoutStatus.error, errorMessage: failure.message, clearErrorMessage: false));
@@ -165,6 +174,14 @@ class CheckoutCubit extends Cubit<CheckoutState> {
 
     emit(state.copyWith(status: CheckoutStatus.placingOrder));
 
+    // <<< SỬA LỖI TẠI ĐÂY >>>
+    // Phải lấy authState để truy cập thông tin user, bao gồm salesRepId
+    final authState = _authBloc.state;
+    if (authState is! AuthAuthenticated) {
+      emit(state.copyWith(status: CheckoutStatus.error, errorMessage: "Lỗi xác thực người dùng."));
+      return;
+    }
+
     final order = OrderModel(
       userId: _currentUserId,
       items: state.checkoutItems.map((cartItem) => OrderItemModel.fromCartItem(cartItem)).toList(),
@@ -177,6 +194,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       status: 'pending',
       commissionDiscount: state.commissionDiscount,
       finalTotal: state.finalTotal,
+      salesRepId: authState.user.salesRepId, // Lấy salesRepId từ user đang đăng nhập
     );
 
     final result = await _orderRepository.createOrder(order);

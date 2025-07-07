@@ -5,6 +5,7 @@ import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/data/models/order_item_model.dart';
 import 'package:piv_app/data/models/address_model.dart';
+import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/orders/presentation/bloc/order_detail_cubit.dart';
 import 'package:piv_app/features/orders/presentation/pages/payment_webview_page.dart';
 
@@ -108,8 +109,22 @@ class OrderDetailView extends StatelessWidget {
         ),
         bottomNavigationBar: BlocBuilder<OrderDetailCubit, OrderDetailState>(
           builder: (context, state) {
+            final authState = context.watch<AuthBloc>().state;
             final order = state.order;
-            final bool canPay = order != null && order.paymentMethod == 'COD' && order.paymentStatus != 'paid';
+
+            bool isOrderOwner = false;
+            if (authState is AuthAuthenticated && order != null) {
+              isOrderOwner = authState.user.id == order.userId;
+            }
+
+            // <<< LOGIC ĐÃ ĐƯỢC CẬP NHẬT HOÀN CHỈNH TẠI ĐÂY >>>
+            final bool canPay = order != null &&
+                isOrderOwner &&
+                order.paymentMethod == 'COD' &&
+                order.paymentStatus != 'paid' &&
+                order.status != 'completed' && // << THÊM: Không phải đã hoàn thành
+                order.status != 'cancelled';   // << THÊM: Không phải đã hủy
+
             final bool isCreatingUrl = state.status == OrderDetailStatus.creatingPaymentUrl;
 
             if (canPay) {
@@ -143,18 +158,12 @@ class OrderDetailView extends StatelessWidget {
 
   (Color, String) _getStatusInfo(String status, BuildContext context) {
     switch (status) {
-      case 'pending':
-        return (Colors.orange.shade700, 'Chờ xử lý');
-      case 'processing':
-        return (Colors.blue.shade700, 'Đang xử lý');
-      case 'shipped':
-        return (Colors.teal.shade700, 'Đang giao');
-      case 'completed':
-        return (Theme.of(context).colorScheme.primary, 'Hoàn thành');
-      case 'cancelled':
-        return (Colors.red.shade700, 'Đã hủy');
-      default:
-        return (Colors.grey.shade700, 'Không xác định');
+      case 'pending': return (Colors.orange.shade700, 'Chờ xử lý');
+      case 'processing': return (Colors.blue.shade700, 'Đang xử lý');
+      case 'shipped': return (Colors.teal.shade700, 'Đang giao');
+      case 'completed': return (Theme.of(context).colorScheme.primary, 'Hoàn thành');
+      case 'cancelled': return (Colors.red.shade700, 'Đã hủy');
+      default: return (Colors.grey.shade700, 'Không xác định');
     }
   }
 
@@ -287,7 +296,6 @@ class OrderDetailView extends StatelessWidget {
     );
   }
 
-  // <<< HÀM NÀY ĐÃ ĐƯỢC SỬA LẠI ĐỂ CHỐNG OVERFLOW >>>
   Widget _buildSummaryRow(BuildContext context, String label, String value, {bool isTotal = false, bool isDiscount = false}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -300,11 +308,11 @@ class OrderDetailView extends StatelessWidget {
             color: Colors.grey.shade700,
           ),
         ),
-        const SizedBox(width: 16), // Thêm khoảng cách
+        const SizedBox(width: 16),
         Expanded(
           child: Text(
             value,
-            textAlign: TextAlign.end, // Canh lề phải cho giá trị
+            textAlign: TextAlign.end,
             style: TextStyle(
               fontSize: isTotal ? 18 : 16,
               fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,

@@ -56,7 +56,6 @@ class _AdminHomePageState extends State<AdminHomePage> with SingleTickerProvider
     super.dispose();
   }
 
-  // Hàm build FloatingActionButton động dựa trên tab đang được chọn
   Widget? _buildFloatingActionButton(BuildContext context) {
     switch (_currentTabIndex) {
       case 1: // Tab Sản phẩm
@@ -90,7 +89,7 @@ class _AdminHomePageState extends State<AdminHomePage> with SingleTickerProvider
         BlocProvider(create: (_) => sl<AdminProductsCubit>()..fetchAllProducts()),
         BlocProvider(create: (_) => sl<AdminCategoriesCubit>()..fetchAllCategories()),
         BlocProvider(create: (_) => sl<AdminUsersCubit>()..fetchAllUsers()),
-        BlocProvider(create: (_) => sl<AdminCommissionsCubit>()..fetchAllCommissions()),
+        BlocProvider(create: (_) => sl<AdminCommissionsCubit>()..fetchAllData()),
         BlocProvider(create: (_) => sl<AdminSettingsCubit>()..loadSettings()),
       ],
       child: Scaffold(
@@ -816,7 +815,6 @@ class AdminUsersView extends StatelessWidget {
 class AdminCommissionsView extends StatelessWidget {
   const AdminCommissionsView({super.key});
 
-  // --- HÀM MỚI ĐỂ MỞ DATE PICKER ---
   Future<void> _selectDateRange(BuildContext context, AdminCommissionsState state) async {
     final newDateRange = await showDateRangePicker(
       context: context,
@@ -839,8 +837,6 @@ class AdminCommissionsView extends StatelessWidget {
       children: [
         _buildFilters(context),
         const Divider(height: 1, thickness: 1),
-        _buildSummary(context),
-        const Divider(height: 1, thickness: 1),
         Expanded(
           child: BlocConsumer<AdminCommissionsCubit, AdminCommissionsState>(
             listener: (context, state) {
@@ -849,14 +845,23 @@ class AdminCommissionsView extends StatelessWidget {
               }
             },
             builder: (context, state) {
-              if (state.status == AdminCommissionsStatus.loading && state.filteredCommissions.isEmpty) {
+              if (state.status == AdminCommissionsStatus.loading && state.allCommissions.isEmpty) {
                 return const Center(child: CircularProgressIndicator());
               }
-              if (state.filteredCommissions.isEmpty) {
+              if (state.allCommissions.isEmpty) {
                 return const Center(child: Text('Không có dữ liệu hoa hồng.'));
               }
+              if (state.filteredCommissions.isEmpty) {
+                return RefreshIndicator(
+                  onRefresh: () => context.read<AdminCommissionsCubit>().fetchAllData(),
+                  child: const SingleChildScrollView(
+                      physics: AlwaysScrollableScrollPhysics(),
+                      child: Center(heightFactor: 5, child: Text('Không có hoa hồng nào khớp với bộ lọc.'))
+                  ),
+                );
+              }
               return RefreshIndicator(
-                onRefresh: () => context.read<AdminCommissionsCubit>().fetchAllCommissions(),
+                onRefresh: () => context.read<AdminCommissionsCubit>().fetchAllData(),
                 child: ListView.builder(
                   padding: const EdgeInsets.all(8.0),
                   itemCount: state.filteredCommissions.length,
@@ -875,7 +880,7 @@ class AdminCommissionsView extends StatelessWidget {
 
   Widget _buildFilters(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(8.0),
+      padding: const EdgeInsets.all(16.0),
       child: BlocBuilder<AdminCommissionsCubit, AdminCommissionsState>(
         builder: (context, state) {
           final dateFormat = DateFormat('dd/MM/yyyy');
@@ -884,6 +889,36 @@ class AdminCommissionsView extends StatelessWidget {
 
           return Column(
             children: [
+              if (state.salesReps.isNotEmpty)
+                DropdownButtonFormField<String>(
+                  value: state.selectedSalesRepId,
+                  isExpanded: true,
+                  hint: const Text('Tất cả Nhân viên Kinh doanh'),
+                  decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.person_search),
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 15)
+                  ),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: null,
+                      child: Text('Tất cả NVKD'),
+                    ),
+                    ...state.salesReps.map((salesRep) {
+                      return DropdownMenuItem<String>(
+                        value: salesRep.id,
+                        child: Text(salesRep.displayName ?? salesRep.email ?? 'N/A'),
+                      );
+                    }).toList(),
+                  ],
+                  onChanged: (value) {
+                    context.read<AdminCommissionsCubit>().filterBySalesRep(value);
+                  },
+                )
+              else
+                const SizedBox(height: 58, child: Center(child: Text("Đang tải danh sách NVKD..."))),
+
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
@@ -921,35 +956,13 @@ class AdminCommissionsView extends StatelessWidget {
                 ],
                 selected: <String>{state.currentFilter},
                 onSelectionChanged: (newSelection) {
-                  context.read<AdminCommissionsCubit>().filterCommissions(newSelection.first);
+                  context.read<AdminCommissionsCubit>().filterByStatus(newSelection.first);
                 },
               ),
             ],
           );
         },
       ),
-    );
-  }
-
-  Widget _buildSummary(BuildContext context) {
-    final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
-    return BlocBuilder<AdminCommissionsCubit, AdminCommissionsState>(
-        builder: (context, state) {
-          final totalCommission = state.filteredCommissions.fold<double>(0.0, (sum, item) => sum + item.commission.commissionAmount);
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Tổng cộng (${state.filteredCommissions.length} mục):', style: Theme.of(context).textTheme.titleMedium),
-                Text(
-                    currencyFormatter.format(totalCommission),
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)
-                ),
-              ],
-            ),
-          );
-        }
     );
   }
 

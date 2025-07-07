@@ -1,14 +1,14 @@
 part of 'voucher_management_cubit.dart';
 
-enum VoucherStatus { initial, loading, success, error, submitting }
+enum VoucherManagementStatus { initial, loading, success, error }
 
 class VoucherManagementState extends Equatable {
-  final VoucherStatus status;
+  final VoucherManagementStatus status;
   final List<VoucherModel> vouchers;
   final String? errorMessage;
 
   const VoucherManagementState({
-    this.status = VoucherStatus.initial,
+    this.status = VoucherManagementStatus.initial,
     this.vouchers = const [],
     this.errorMessage,
   });
@@ -17,7 +17,7 @@ class VoucherManagementState extends Equatable {
   List<Object?> get props => [status, vouchers, errorMessage];
 
   VoucherManagementState copyWith({
-    VoucherStatus? status,
+    VoucherManagementStatus? status,
     List<VoucherModel>? vouchers,
     String? errorMessage,
   }) {

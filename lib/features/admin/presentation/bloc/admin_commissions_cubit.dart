@@ -1,12 +1,14 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
-import 'package:piv_app/data/models/commission_model.dart';
+import 'package:dartz/dartz.dart'; // <<< THÊM IMPORT
+import 'package:piv_app/core/error/failure.dart'; // <<< THÊM IMPORT
+import 'package:piv_app/data/models/commission_model.dart'; // <<< THÊM IMPORT
 import 'package:piv_app/data/models/commission_with_details.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/admin/domain/repositories/admin_repository.dart';
-import 'package:piv_app/features/orders/domain/repositories/order_repository.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:piv_app/features/orders/domain/repositories/order_repository.dart';
 
 part 'admin_commissions_state.dart';
 
@@ -24,86 +26,93 @@ class AdminCommissionsCubit extends Cubit<AdminCommissionsState> {
         _authBloc = authBloc,
         super(const AdminCommissionsState());
 
-  // --- VIẾT LẠI HOÀN TOÀN HÀM NÀY ---
-  Future<void> fetchAllCommissions() async {
+  Future<void> fetchAllData() async {
     emit(state.copyWith(status: AdminCommissionsStatus.loading));
 
-    // 1. Lấy tất cả các bản ghi hoa hồng
-    final commissionsResult = await _orderRepository.getAllCommissions(
-      startDate: state.startDate,
-      endDate: state.endDate,
-    );
+    final results = await Future.wait([
+      _orderRepository.getAllCommissions(
+        startDate: state.startDate,
+        endDate: state.endDate,
+      ),
+      _adminRepository.getAllUsers(),
+    ]);
 
-    await commissionsResult.fold(
-          (failure) async => emit(state.copyWith(status: AdminCommissionsStatus.error, errorMessage: failure.message)),
-          (commissions) async {
-        if (commissions.isEmpty) {
-          emit(state.copyWith(status: AdminCommissionsStatus.success, allCommissions: [], filteredCommissions: []));
-          return;
-        }
+    final commissionsResult = results[0] as Either<Failure, List<CommissionModel>>;
+    final usersResult = results[1] as Either<Failure, List<UserModel>>;
 
-        // 2. Từ danh sách hoa hồng, lấy ra các ID của NVKD (loại bỏ trùng lặp)
-        final salesRepIds = commissions.map((c) => c.salesRepId).toSet().toList();
+    commissionsResult.fold(
+          (failure) => emit(state.copyWith(status: AdminCommissionsStatus.error, errorMessage: failure.message)),
+          (commissions) {
+        usersResult.fold(
+              (failure) => emit(state.copyWith(status: AdminCommissionsStatus.error, errorMessage: failure.message)),
+              (users) {
+            final salesReps = users.where((UserModel user) => user.isSalesRep).toList();
 
-        // 3. Lấy thông tin (tên) của các NVKD đó
-        final usersResult = await _adminRepository.getUsersByIds(salesRepIds);
+            // Tạo một map để tra cứu tên người dùng nhanh hơn
+            final userMap = {for (var user in users) user.id: user.displayName ?? 'N/A'};
 
-        await usersResult.fold(
-              (failure) async => emit(state.copyWith(status: AdminCommissionsStatus.error, errorMessage: failure.message)),
-              (users) async {
-            // 4. Tạo một map để dễ dàng tra cứu tên từ ID
-            final salesRepNames = {for (var user in users) user.id: user.displayName ?? 'N/A'};
-
-            // 5. Kết hợp dữ liệu lại
             final commissionsWithDetails = commissions.map((commission) {
               return CommissionWithDetails(
                 commission: commission,
-                salesRepName: salesRepNames[commission.salesRepId] ?? 'Không rõ',
+                salesRepName: userMap[commission.salesRepId] ?? 'Không rõ',
+                agentName: userMap[commission.agentId] ?? 'Không rõ', // <<< SỬA LẠI
               );
             }).toList();
 
             emit(state.copyWith(
               status: AdminCommissionsStatus.success,
               allCommissions: commissionsWithDetails,
+              salesReps: salesReps,
             ));
-            filterCommissions(state.currentFilter); // Áp dụng bộ lọc
+            _applyFilters();
           },
         );
       },
     );
   }
 
-  void filterCommissions(String filter) {
-    List<CommissionWithDetails> listToProcess = state.allCommissions;
-    if (filter != 'all') {
-      listToProcess = listToProcess.where((c) => c.commission.statusString == filter).toList();
+  void _applyFilters() {
+    List<CommissionWithDetails> listToProcess = List.from(state.allCommissions);
+
+    if (state.currentFilter != 'all') {
+      listToProcess = listToProcess.where((c) => c.commission.statusString == state.currentFilter).toList();
     }
-    emit(state.copyWith(filteredCommissions: listToProcess, currentFilter: filter));
+
+    if (state.selectedSalesRepId != null) {
+      listToProcess = listToProcess.where((c) => c.commission.salesRepId == state.selectedSalesRepId).toList();
+    }
+
+    emit(state.copyWith(filteredCommissions: listToProcess, status: AdminCommissionsStatus.success));
+  }
+
+  void filterByStatus(String filter) {
+    emit(state.copyWith(currentFilter: filter));
+    _applyFilters();
+  }
+
+  void filterBySalesRep(String? salesRepId) {
+    emit(state.copyWith(selectedSalesRepId: salesRepId, forceSalesRepToNull: salesRepId == null));
+    _applyFilters();
   }
 
   Future<void> setDateRange(DateTimeRange? dateRange) async {
-    if (dateRange == null) {
-      // Xóa bộ lọc
-      emit(state.copyWith(forceStartDateToNull: true, forceEndDateToNull: true));
-    } else {
-      emit(state.copyWith(startDate: dateRange.start, endDate: dateRange.end));
-    }
-    // Sau khi đặt ngày, tải lại toàn bộ dữ liệu theo khoảng thời gian mới
-    await fetchAllCommissions();
+    emit(state.copyWith(
+      forceStartDateToNull: dateRange == null,
+      startDate: dateRange?.start,
+      forceEndDateToNull: dateRange == null,
+      endDate: dateRange?.end,
+    ));
+    await fetchAllData();
   }
 
   Future<void> markAsPaid(String commissionId) async {
     final authState = _authBloc.state;
     if (authState is! AuthAuthenticated) return;
-
-    // Lấy ID của Admin đang đăng nhập
     final adminId = authState.user.id;
 
     final result = await _orderRepository.updateCommissionStatus(commissionId, 'paid', adminId);
     if (result.isRight()) {
-      fetchAllCommissions();
-    } else {
-      // Xử lý lỗi nếu cần
+      fetchAllData();
     }
   }
 }
