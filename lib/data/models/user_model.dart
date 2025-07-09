@@ -118,4 +118,5 @@ class UserModel extends Equatable {
     id, email, displayName, photoUrl, addresses, role, status,
     referrerId, referralPromptPending, wishlist, salesRepId
   ];
+
 }
