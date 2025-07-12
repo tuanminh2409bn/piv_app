@@ -56,13 +56,33 @@ class _AdminHomePageState extends State<AdminHomePage> with SingleTickerProvider
     super.dispose();
   }
 
+  // --- HÀM NÀY GIỮ NGUYÊN TỪ FILE GỐC CỦA BẠN ---
   Widget? _buildFloatingActionButton(BuildContext context) {
-    // ... code hàm này giữ nguyên
+    switch (_currentTabIndex) {
+      case 1: // Products
+        return FloatingActionButton(
+          onPressed: () {
+            Navigator.of(context).push<bool?>(AdminProductFormPage.route()).then((success) {
+              if (success == true) {
+                context.read<AdminProductsCubit>().fetchAllProducts();
+              }
+            });
+          },
+          child: const Icon(Icons.add),
+        );
+      case 2: // Categories
+        return FloatingActionButton(
+          onPressed: () => AdminCategoriesView.showCategoryFormDialog(context),
+          child: const Icon(Icons.add),
+        );
+      default:
+        return null;
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
-    // <<< SỬA LỖI: Cung cấp AdminVouchersCubit ở đây >>>
     return MultiBlocProvider(
       providers: [
         BlocProvider(create: (_) => sl<AdminOrdersCubit>()..fetchAllOrders()),
@@ -117,134 +137,131 @@ class _AdminHomePageState extends State<AdminHomePage> with SingleTickerProvider
   }
 }
 
-// =================================================================
-//                     VIEW ĐƠN HÀNG
-// =================================================================
-class AdminOrdersView extends StatelessWidget {
+enum OrderFilter { processing, completed, all }
+
+class AdminOrdersView extends StatefulWidget {
   const AdminOrdersView({super.key});
 
-  (Color, String) _getStatusInfo(String status, BuildContext context) {
-    switch (status) {
-      case 'pending': return (Colors.orange.shade700, 'Chờ xử lý');
-      case 'processing': return (Colors.blue.shade700, 'Đang xử lý');
-      case 'shipped': return (Colors.teal.shade700, 'Đang giao');
-      case 'completed': return (Theme.of(context).colorScheme.primary, 'Hoàn thành');
-      case 'cancelled': return (Colors.red.shade700, 'Đã hủy');
-      default: return (Colors.grey.shade700, 'Không xác định');
-    }
+  @override
+  State<AdminOrdersView> createState() => _AdminOrdersViewState();
+}
+
+class _AdminOrdersViewState extends State<AdminOrdersView> {
+  OrderFilter _selectedFilter = OrderFilter.processing;
+  final _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      if (mounted) {
+        context.read<AdminOrdersCubit>().searchOrders(_searchController.text);
+      }
+    });
   }
 
-  void _showStatusChangeConfirmationDialog(BuildContext context, {
-    required String orderId,
-    required String newStatus,
-    required String newStatusText,
-  }) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Xác nhận thay đổi'),
-          content: Text('Bạn có chắc chắn muốn đổi trạng thái đơn hàng thành "$newStatusText"?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('HỦY'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                context.read<AdminOrdersCubit>().updateOrderStatus(orderId, newStatus);
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('XÁC NHẬN'),
-            )
-          ],
-        );
-      },
-    );
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: TextField(
-            decoration: const InputDecoration(
-              hintText: 'Tìm theo mã đơn, tên, SĐT...',
-              prefixIcon: Icon(Icons.search),
-            ),
-            onChanged: (query) => context.read<AdminOrdersCubit>().searchOrders(query),
-          ),
-        ),
-        BlocBuilder<AdminOrdersCubit, AdminOrdersState>(
-          buildWhen: (previous, current) => previous.currentFilter != current.currentFilter,
-          builder: (context, state) {
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Row(
-                children: [
-                  _buildFilterChip(context, 'Cần xử lý', 'active', state.currentFilter),
-                  _buildFilterChip(context, 'Hoàn thành', 'completed', state.currentFilter),
-                  _buildFilterChip(context, 'Đã hủy', 'cancelled', state.currentFilter),
-                  _buildFilterChip(context, 'Tất cả', 'all', state.currentFilter),
-                ],
-              ),
+    return BlocConsumer<AdminOrdersCubit, AdminOrdersState>(
+      listener: (context, state) {
+        if (state.status == AdminOrdersStatus.error && state.errorMessage != null) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.red));
+        }
+      },
+      builder: (context, state) {
+        final List<OrderModel> displayedOrders;
+        switch (_selectedFilter) {
+          case OrderFilter.processing:
+            displayedOrders = state.processingOrders;
+            break;
+          case OrderFilter.completed:
+            displayedOrders = state.completedOrders;
+            break;
+          case OrderFilter.all:
+            displayedOrders = state.visibleOrders;
+            break;
+        }
 
-            );
-          },
-        ),
-        Expanded(
-          child: BlocConsumer<AdminOrdersCubit, AdminOrdersState>(
-            listener: (context, state) {
-              if (state.status == AdminOrdersStatus.error && state.errorMessage != null) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.red));
-              }
-            },
-            builder: (context, state) {
-              if (state.status == AdminOrdersStatus.loading && state.filteredOrders.isEmpty) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (state.filteredOrders.isEmpty) {
-                return const Center(child: Text('Không có đơn hàng nào khớp.'));
-              }
-              return RefreshIndicator(
-                onRefresh: () async => context.read<AdminOrdersCubit>().fetchAllOrders(),
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: SegmentedButton<OrderFilter>(
+                style: SegmentedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                  selectedForegroundColor: Theme.of(context).colorScheme.onPrimary,
+                  selectedBackgroundColor: Theme.of(context).colorScheme.primary,
+                ),
+                segments: <ButtonSegment<OrderFilter>>[
+                  ButtonSegment(
+                    value: OrderFilter.processing,
+                    label: Text('Cần xử lý (${state.processingOrders.length})'),
+                    icon: const Icon(Icons.pending_actions_outlined),
+                  ),
+                  ButtonSegment(
+                    value: OrderFilter.completed,
+                    label: Text('Hoàn thành (${state.completedOrders.length})'),
+                    icon: const Icon(Icons.check_circle_outline),
+                  ),
+                  ButtonSegment(
+                    value: OrderFilter.all,
+                    label: Text('Tất cả (${state.visibleOrders.length})'),
+                    icon: const Icon(Icons.inventory_2_outlined),
+                  ),
+                ],
+                selected: {_selectedFilter},
+                onSelectionChanged: (Set<OrderFilter> newSelection) {
+                  setState(() => _selectedFilter = newSelection.first);
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Tìm theo mã ĐH, tên hoặc SĐT khách...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () => _searchController.clear(),
+                  )
+                      : null,
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: state.status == AdminOrdersStatus.loading && displayedOrders.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : displayedOrders.isEmpty
+                  ? Center(child: Text('Không có đơn hàng nào phù hợp.'))
+                  : RefreshIndicator(
+                onRefresh: () => context.read<AdminOrdersCubit>().fetchAllOrders(),
                 child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(8.0, 0, 8.0, 8.0),
-                    itemCount: state.filteredOrders.length,
+                    itemCount: displayedOrders.length,
                     itemBuilder: (context, index) {
-                      final order = state.filteredOrders[index];
+                      final order = displayedOrders[index];
                       return _buildOrderCard(context, order);
                     }),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFilterChip(BuildContext context, String label, String filterValue, String currentFilter) {
-    final bool isSelected = currentFilter == filterValue;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8.0),
-      child: FilterChip(
-        label: Text(label),
-        selected: isSelected,
-        onSelected: (selected) {
-          if (selected) context.read<AdminOrdersCubit>().filterOrdersByStatus(filterValue);
-        },
-        showCheckmark: false,
-        labelStyle: TextStyle(
-          color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
-          fontWeight: FontWeight.bold,
-        ),
-        backgroundColor: Colors.white,
-        selectedColor: Theme.of(context).colorScheme.primary,
-        shape: StadiumBorder(side: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5)),
-      ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -334,6 +351,46 @@ class AdminOrdersView extends StatelessWidget {
     );
   }
 
+  (Color, String) _getStatusInfo(String status, BuildContext context) {
+    switch (status) {
+      case 'pending': return (Colors.orange.shade700, 'Chờ xử lý');
+      case 'processing': return (Colors.blue.shade700, 'Đang xử lý');
+      case 'shipped': return (Colors.teal.shade700, 'Đang giao');
+      case 'completed': return (Theme.of(context).colorScheme.primary, 'Hoàn thành');
+      case 'cancelled': return (Colors.red.shade700, 'Đã hủy');
+      default: return (Colors.grey.shade700, 'Không xác định');
+    }
+  }
+
+  void _showStatusChangeConfirmationDialog(BuildContext context, {
+    required String orderId,
+    required String newStatus,
+    required String newStatusText,
+  }) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Xác nhận thay đổi'),
+          content: Text('Bạn có chắc chắn muốn đổi trạng thái đơn hàng thành "$newStatusText"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('HỦY'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                context.read<AdminOrdersCubit>().updateOrderStatus(orderId, newStatus);
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('XÁC NHẬN'),
+            )
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildInfoRow(String label, String value, {bool isBold = false, Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.0),
@@ -348,9 +405,6 @@ class AdminOrdersView extends StatelessWidget {
   }
 }
 
-// =================================================================
-//                     VIEW SẢN PHẨM
-// =================================================================
 class AdminProductsView extends StatelessWidget {
   const AdminProductsView({super.key});
 
@@ -482,9 +536,6 @@ class AdminProductsView extends StatelessWidget {
   }
 }
 
-// =================================================================
-//                     VIEW DANH MỤC
-// =================================================================
 class AdminCategoriesView extends StatelessWidget {
   const AdminCategoriesView({super.key});
 
@@ -632,9 +683,6 @@ class AdminCategoriesView extends StatelessWidget {
   }
 }
 
-// =================================================================
-//                     VIEW NGƯỜI DÙNG
-// =================================================================
 class AdminUsersView extends StatelessWidget {
   const AdminUsersView({super.key});
 
@@ -792,9 +840,6 @@ class AdminUsersView extends StatelessWidget {
   }
 }
 
-// =================================================================
-//                 VIEW QUẢN LÝ HOA HỒNG
-// =================================================================
 class AdminCommissionsView extends StatelessWidget {
   const AdminCommissionsView({super.key});
 
@@ -1031,9 +1076,6 @@ class AdminCommissionsView extends StatelessWidget {
   }
 }
 
-// =================================================================
-//                 VIEW DUYỆT VOUCHER (MỚI)
-// =================================================================
 class AdminVouchersView extends StatelessWidget {
   const AdminVouchersView({super.key});
 
@@ -1178,9 +1220,6 @@ class AdminVouchersView extends StatelessWidget {
   }
 }
 
-// =================================================================
-//                 VIEW CÀI ĐẶT
-// =================================================================
 class AdminSettingsView extends StatelessWidget {
   const AdminSettingsView({super.key});
 
