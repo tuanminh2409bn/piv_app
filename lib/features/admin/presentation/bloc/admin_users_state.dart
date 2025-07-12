@@ -2,40 +2,40 @@ part of 'admin_users_cubit.dart';
 
 enum AdminUsersStatus { initial, loading, success, error }
 
-class AdminUsersState extends Equatable {
-  final AdminUsersStatus status;
-  // Danh sách đầy đủ tất cả người dùng
-  final List<UserModel> allUsers;
-  // Danh sách người dùng đã được lọc (dựa trên tìm kiếm hoặc bộ lọc trạng thái)
-  final List<UserModel> filteredUsers;
-  final String? errorMessage;
-  // Trạng thái bộ lọc hiện tại, ví dụ: 'all', 'pending_approval'
-  final String currentFilter;
+// Dùng record để nhóm NVKD và số lượng đại lý của họ
+typedef SalesRepWithAgentCount = (UserModel salesRep, int agentCount);
 
+class AdminUsersState extends Equatable {
   const AdminUsersState({
     this.status = AdminUsersStatus.initial,
-    this.allUsers = const [],
-    this.filteredUsers = const [],
+    this.salesReps = const [],
+    this.unassignedAgents = const [],
+    this.admins = const [],
     this.errorMessage,
-    this.currentFilter = 'all',
   });
 
-  @override
-  List<Object?> get props => [status, allUsers, filteredUsers, errorMessage, currentFilter];
+  final AdminUsersStatus status;
+  final List<SalesRepWithAgentCount> salesReps;
+  final List<UserModel> unassignedAgents;
+  final List<UserModel> admins;
+  final String? errorMessage;
 
   AdminUsersState copyWith({
     AdminUsersStatus? status,
-    List<UserModel>? allUsers,
-    List<UserModel>? filteredUsers,
+    List<SalesRepWithAgentCount>? salesReps,
+    List<UserModel>? unassignedAgents,
+    List<UserModel>? admins,
     String? errorMessage,
-    String? currentFilter,
   }) {
     return AdminUsersState(
       status: status ?? this.status,
-      allUsers: allUsers ?? this.allUsers,
-      filteredUsers: filteredUsers ?? this.filteredUsers,
+      salesReps: salesReps ?? this.salesReps,
+      unassignedAgents: unassignedAgents ?? this.unassignedAgents,
+      admins: admins ?? this.admins,
       errorMessage: errorMessage ?? this.errorMessage,
-      currentFilter: currentFilter ?? this.currentFilter,
     );
   }
+
+  @override
+  List<Object?> get props => [status, salesReps, unassignedAgents, admins, errorMessage];
 }
