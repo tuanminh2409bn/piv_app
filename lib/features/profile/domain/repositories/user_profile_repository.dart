@@ -36,4 +36,8 @@ abstract class UserProfileRepository {
 
   /// Xóa một productId khỏi danh sách yêu thích của người dùng.
   Future<Either<Failure, Unit>> removeFromWishlist(String userId, String productId);
+
+  Future<Either<Failure, List<UserModel>>> getUnassignedAgents();
+
+  Future<Either<Failure, Unit>> assignAgentToSalesRep({required String agentId, required String salesRepId});
 }

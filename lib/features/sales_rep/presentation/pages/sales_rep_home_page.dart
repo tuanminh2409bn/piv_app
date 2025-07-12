@@ -8,8 +8,9 @@ import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_commissions_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/agent_order_history_page.dart';
-import 'package:piv_app/features/vouchers/presentation/bloc/voucher_management_cubit.dart'; // <<< THÊM IMPORT
+import 'package:piv_app/features/vouchers/presentation/bloc/voucher_management_cubit.dart';
 import 'package:piv_app/features/vouchers/presentation/pages/voucher_management_page.dart';
+import 'package:piv_app/features/sales_rep/agent_approval/bloc/agent_approval_cubit.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class SalesRepHomePage extends StatelessWidget {
@@ -66,13 +67,11 @@ class SalesRepView extends StatelessWidget {
             ],
           ),
         ),
-        // <<< SỬA LỖI TẠI ĐÂY >>>
         body: TabBarView(
           children: [
             const MyAgentsView(),
             const PendingAgentsView(),
             const SalesRepCommissionsView(),
-            // Bọc VoucherManagementPage bằng BlocProvider để "cung cấp" Cubit cho nó
             BlocProvider(
               create: (context) => sl<VoucherManagementCubit>()..getVouchers(),
               child: const VoucherManagementPage(),
@@ -191,80 +190,118 @@ class PendingAgentsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: () async => context.read<SalesRepCubit>().fetchPendingAgents(),
-      child: BlocBuilder<SalesRepCubit, SalesRepState>(
+    // Sử dụng BlocProvider để cung cấp AgentApprovalCubit cho riêng tab này
+    return BlocProvider(
+      create: (context) => sl<AgentApprovalCubit>()..fetchUnassignedAgents(),
+      child: BlocConsumer<AgentApprovalCubit, AgentApprovalState>(
+        listener: (context, state) {
+          // Hiển thị SnackBar khi có lỗi
+          if (state is AgentApprovalFailure) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: Colors.red,
+                ),
+              );
+          }
+        },
         builder: (context, state) {
-          if (state.status == SalesRepStatus.loading && state.pendingAgents.isEmpty) {
+          if (state is AgentApprovalLoading) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (state.pendingAgents.isEmpty) {
-            return const Center(child: Text('Không có đại lý nào đang chờ duyệt.'));
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(8.0),
-            itemCount: state.pendingAgents.length,
-            itemBuilder: (context, index) {
-              final agent = state.pendingAgents[index];
-              return Card(
-                child: ListTile(
-                  title: Text(agent.displayName ?? 'Chưa có tên', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(agent.email ?? 'Không có email'),
-                  trailing: ElevatedButton(
-                    child: const Text('Phê duyệt'),
-                    onPressed: () => _showApprovalDialog(context, agent),
+
+          if (state is AgentApprovalLoaded) {
+            if (state.users.isEmpty) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text(
+                    'Tuyệt vời! Không có đại lý nào đang chờ bạn duyệt.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                 ),
               );
-            },
-          );
+            }
+            // Thêm RefreshIndicator để người dùng có thể vuốt xuống để tải lại
+            return RefreshIndicator(
+              onRefresh: () async {
+                context.read<AgentApprovalCubit>().fetchUnassignedAgents();
+              },
+              child: ListView.builder(
+                padding: const EdgeInsets.all(8.0),
+                itemCount: state.users.length,
+                itemBuilder: (context, index) {
+                  final agent = state.users[index];
+                  return _buildAgentCard(context, agent);
+                },
+              ),
+            );
+          }
+          // Trạng thái ban đầu hoặc có lỗi cũng sẽ hiển thị thông báo
+          return const Center(child: Text('Đang tải dữ liệu...'));
         },
       ),
     );
   }
 
-  void _showApprovalDialog(BuildContext context, UserModel agent) {
-    String selectedRole = 'agent_2'; // Mặc định là cấp 2
+  // Widget con để hiển thị thông tin đại lý
+  Widget _buildAgentCard(BuildContext context, UserModel agent) {
+    // ‼️ SỬA LỖI TẠI ĐÂY: Dùng `displayName` thay vì `fullName`
+    final agentName = agent.displayName ?? 'Đại lý chưa có tên';
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+          child: Text(agentName.isNotEmpty ? agentName[0].toUpperCase() : 'A'),
+        ),
+        title: Text(agentName, style: const TextStyle(fontWeight: FontWeight.bold)),
+        // ‼️ SỬA LỖI TẠI ĐÂY: Dùng `email` thay vì `phoneNumber`
+        subtitle: Text(agent.email ?? 'Chưa có thông tin liên hệ'),
+        trailing: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green.shade600,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onPressed: () => _showConfirmationDialog(context, agent),
+          child: const Text('Duyệt'),
+        ),
+      ),
+    );
+  }
+
+  // Dialog xác nhận duyệt
+  void _showConfirmationDialog(BuildContext context, UserModel agent) {
+    // ‼️ SỬA LỖI TẠI ĐÂY: Dùng `displayName`
+    final agentName = agent.displayName ?? 'Đại lý chưa có tên';
+
     showDialog(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Phê duyệt Đại lý'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Chọn cấp đại lý cho "${agent.displayName ?? agent.email}":'),
-                  RadioListTile<String>(
-                    title: const Text('Đại lý Cấp 1'),
-                    value: 'agent_1',
-                    groupValue: selectedRole,
-                    onChanged: (value) => setState(() => selectedRole = value!),
-                  ),
-                  RadioListTile<String>(
-                    title: const Text('Đại lý Cấp 2'),
-                    value: 'agent_2',
-                    groupValue: selectedRole,
-                    onChanged: (value) => setState(() => selectedRole = value!),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Hủy')),
-                ElevatedButton(
-                  onPressed: () {
-                    context.read<SalesRepCubit>().approveAgent(agent.id, selectedRole);
-                    Navigator.pop(dialogContext);
-                  },
-                  child: const Text('Xác nhận'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xác Nhận Duyệt'),
+        content: Text('Bạn có chắc chắn muốn duyệt và quản lý đại lý "$agentName"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () {
+              // Gọi hàm approveAgent từ AgentApprovalCubit
+              context.read<AgentApprovalCubit>().approveAgent(agent.id);
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Duyệt'),
+          ),
+        ],
+      ),
     );
   }
 }

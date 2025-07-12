@@ -216,4 +216,46 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
       return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
     }
   }
+
+  @override
+  Future<Either<Failure, List<UserModel>>> getUnassignedAgents() async {
+    try {
+      // SỬA LẠI TRUY VẤN: Lấy các đại lý có trạng thái chờ duyệt
+      final querySnapshot = await _usersCollection
+          .where('status', isEqualTo: 'pending_approval')
+          .get();
+
+      final users = querySnapshot.docs
+          .map((doc) => UserModel.fromJson(doc.data()! as Map<String, dynamic>)) // Chắc chắn rằng doc.data() không null
+          .toList();
+
+      developer.log('Fetched ${users.length} unassigned agents.', name: 'UserProfileRepo');
+      return Right(users);
+
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase khi tải danh sách đại lý: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định khi tải danh sách đại lý: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> assignAgentToSalesRep({required String agentId, required String salesRepId}) async {
+    try {
+      // SỬA LẠI CẬP NHẬT: Gán salesRepId, referrerId, đổi status và tắt cờ mời nhập mã
+      await _usersCollection.doc(agentId).update({
+        'salesRepId': salesRepId,
+        'referrerId': salesRepId,
+        'status': 'active',
+        'referralPromptPending': false,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      developer.log('Assigned, referred, and set referral prompt to false for agent $agentId by sales rep $salesRepId', name: 'UserProfileRepo');
+      return const Right(unit);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase khi duyệt đại lý: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định khi duyệt đại lý: ${e.toString()}'));
+    }
+  }
 }
