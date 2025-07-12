@@ -2,17 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_orders_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_products_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_categories_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_users_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_commissions_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_vouchers_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_settings_page.dart';
+
 
 class AdminHomePage extends StatelessWidget {
   const AdminHomePage({super.key});
 
-  static PageRoute<void> route() {
-    return MaterialPageRoute<void>(builder: (_) => const AdminHomePage());
-  }
-
   @override
   Widget build(BuildContext context) {
-    // Không cần MultiBlocProvider ở đây nữa, vì mỗi trang con sẽ tự quản lý Cubit của mình
     return Scaffold(
       appBar: AppBar(
         title: const Text('Bảng điều khiển'),
@@ -26,64 +28,45 @@ class AdminHomePage extends StatelessWidget {
       ),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
-        // Sử dụng GridView để tạo bố cục lưới
         child: GridView.count(
-          crossAxisCount: 2, // Hiển thị 2 cột
-          crossAxisSpacing: 12, // Khoảng cách ngang giữa các thẻ
-          mainAxisSpacing: 12,  // Khoảng cách dọc giữa các thẻ
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
           children: <Widget>[
-            // --- DANH SÁCH CÁC THẺ CHỨC NĂNG ---
             _DashboardCard(
               title: 'Đơn hàng',
-              subtitle: 'Quản lý các đơn hàng', // Tùy chọn: Thêm mô tả ngắn
               icon: Icons.shopping_cart_outlined,
-              onTap: () {
-                Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const AdminOrdersPage(),
-                ));
-              },
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminOrdersPage())),
             ),
             _DashboardCard(
               title: 'Sản phẩm',
               icon: Icons.inventory_2_outlined,
-              onTap: () {
-                // TODO: Bước 3 - Điều hướng đến trang quản lý sản phẩm
-              },
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminProductsPage())),
             ),
             _DashboardCard(
               title: 'Danh mục',
               icon: Icons.category_outlined,
-              onTap: () {
-                // TODO: Bước 3 - Điều hướng đến trang quản lý danh mục
-              },
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminCategoriesPage())),
             ),
             _DashboardCard(
               title: 'Người dùng',
               icon: Icons.people_outline,
-              onTap: () {
-                // TODO: Bước 3 - Điều hướng đến trang quản lý người dùng
-              },
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminUsersPage())),
             ),
             _DashboardCard(
               title: 'Hoa hồng',
               icon: Icons.percent_rounded,
-              onTap: () {
-                // TODO: Bước 3 - Điều hướng đến trang quản lý hoa hồng
-              },
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminCommissionsPage())),
             ),
             _DashboardCard(
               title: 'Duyệt Voucher',
               icon: Icons.airplane_ticket_outlined,
-              onTap: () {
-                // TODO: Bước 3 - Điều hướng đến trang duyệt voucher
-              },
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminVouchersPage())),
             ),
             _DashboardCard(
               title: 'Cài đặt',
               icon: Icons.settings_outlined,
-              onTap: () {
-                // TODO: Bước 3 - Điều hướng đến trang cài đặt
-              },
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminSettingsPage())),
             ),
           ],
         ),
