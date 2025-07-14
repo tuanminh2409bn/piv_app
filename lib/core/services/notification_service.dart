@@ -1,64 +1,90 @@
 import 'dart:developer' as developer;
+import 'dart:math';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
+import 'package:piv_app/firebase_options.dart';
 
+// Hàm xử lý thông báo nền, phải là một top-level function.
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Khởi tạo Firebase để các plugin khác có thể hoạt động ở chế độ nền.
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   developer.log("Handling a background message: ${message.messageId}", name: "NotificationService");
 }
 
 class NotificationService {
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
-  final UserProfileRepository _userProfileRepository;
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
 
+  // Định nghĩa một Kênh Thông báo với độ ưu tiên cao cho Android.
   final AndroidNotificationChannel _channel = const AndroidNotificationChannel(
-    'high_importance_channel',
-    'High Importance Notifications',
-    description: 'This channel is used for important notifications.',
+    'high_importance_channel', // id
+    'Thông báo Quan trọng', // title
+    description: 'Kênh này được sử dụng cho các thông báo quan trọng.',
     importance: Importance.high,
   );
 
-  NotificationService({required UserProfileRepository userProfileRepository})
-      : _userProfileRepository = userProfileRepository;
+  NotificationService();
 
-  Future<void> initNotifications() async {
+  /// Khởi tạo toàn bộ dịch vụ thông báo.
+  Future<void> init() async {
+    // 1. Xin quyền từ người dùng (iOS & Android 13+).
     await _requestPermission();
 
+    // 2. Yêu cầu FCM hiển thị thông báo khi app đang mở (quan trọng cho iOS).
     await _fcm.setForegroundNotificationPresentationOptions(
       alert: true,
       badge: true,
       sound: true,
     );
 
+    // 3. Tạo Kênh Thông báo cho Android.
     await _localNotifications
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(_channel);
 
+    // 4. Cài đặt cho local notifications.
     await _initLocalNotifications();
+
+    // 5. Lắng nghe các sự kiện thông báo.
     _setupListeners();
-    developer.log("Notification Service Initialized", name: "NotificationService");
+    developer.log("✅ Notification Service Initialized Successfully", name: "NotificationService");
   }
 
+  /// Khởi tạo cài đặt cho flutter_local_notifications.
   Future<void> _initLocalNotifications() async {
     const AndroidInitializationSettings initializationSettingsAndroid =
     AndroidInitializationSettings('@drawable/ic_notification');
 
-    const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings();
+    const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
+
     const InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
       iOS: initializationSettingsIOS,
     );
+
     await _localNotifications.initialize(
       initializationSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) async {
         developer.log('notification payload: ${response.payload}', name: 'NotificationService');
+        // TODO: Xử lý điều hướng khi người dùng nhấn vào thông báo
       },
     );
   }
 
+  /// Xin quyền nhận thông báo từ người dùng.
+  Future<void> _requestPermission() async {
+    await _fcm.requestPermission();
+  }
+
+  /// Lắng nghe các luồng thông báo từ Firebase.
   void _setupListeners() {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       developer.log('Got a message whilst in the foreground!: ${message.data}', name: "NotificationService");
@@ -73,11 +99,13 @@ class NotificationService {
 
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       developer.log('A new onMessageOpenedApp event was published!', name: "NotificationService");
+      // TODO: Điều hướng đến màn hình tương ứng dựa vào dữ liệu của thông báo
     });
 
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   }
 
+  /// Hiển thị một thông báo cục bộ khi ứng dụng đang mở.
   Future<void> _showLocalNotification(String title, String body, Map<String, dynamic> data) async {
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       _channel.id,
@@ -92,33 +120,17 @@ class NotificationService {
       iOS: const DarwinNotificationDetails(presentSound: true, presentBadge: true, presentAlert: true),
     );
 
+    // Sử dụng một số nguyên ngẫu nhiên, an toàn để tránh lỗi ID
     await _localNotifications.show(
-      DateTime.now().millisecondsSinceEpoch.toSigned(53),
+      Random().nextInt(100000),
       title,
       body,
       notificationDetails,
-      payload: data['orderId'],
+      payload: data['orderId'] as String?,
     );
   }
 
-  Future<void> _requestPermission() async {
-    NotificationSettings settings = await _fcm.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
-      sound: true,
-    );
-
-    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      developer.log('User granted permission', name: "NotificationService");
-    } else {
-      developer.log('User declined or has not accepted permission', name: "NotificationService");
-    }
-  }
-
+  /// Lấy và lưu token vào Firestore cho người dùng.
   Future<void> saveTokenForUser(String userId) async {
     try {
       final token = await _fcm.getToken();
@@ -131,6 +143,7 @@ class NotificationService {
     }
   }
 
+  /// Xóa token khỏi Firestore khi người dùng đăng xuất.
   Future<void> removeTokenForUser(String userId) async {
     try {
       await sl<UserProfileRepository>().updateUserProfilePartial(userId, {'fcmToken': null});

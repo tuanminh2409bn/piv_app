@@ -1,33 +1,49 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
-import {onDocumentCreated, onDocumentUpdated, FirestoreEvent, QueryDocumentSnapshot} from "firebase-functions/v2/firestore";
+import {
+  onDocumentCreated,
+  onDocumentUpdated,
+  FirestoreEvent, // Giữ lại để khai báo kiểu
+  QueryDocumentSnapshot, // Giữ lại để khai báo kiểu
+} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import * as crypto from "crypto";
 import * as qs from "qs";
 import {format} from "date-fns-tz";
+// Intl là một đối tượng sẵn có trong Node.js, không cần import
+// import {Intl} from "NumberFormat";
 
 admin.initializeApp();
 const db = admin.firestore();
 
 // --- HÀM HELPER GỬI THÔNG BÁO DATA-ONLY ---
-const sendDataOnlyNotification = async (token: string, data: {[key: string]: string}) => {
-    if (token) {
-        const message = { token, data };
-        try {
-            await admin.messaging().send(message);
-            logger.info("Successfully sent data-only message:", data);
-        } catch (error) {
-            logger.error("Error sending data-only message:", error);
-        }
+const sendDataOnlyNotification = async (
+  token: string | string[] | undefined,
+  data: {[key: string]: string}
+) => {
+  if (!token || (Array.isArray(token) && token.length === 0)) {
+    logger.warn("No valid token provided for notification.", {data});
+    return;
+  }
+  const message = {data};
+  try {
+    if (Array.isArray(token)) {
+      await admin.messaging().sendToDevice(token, message);
+    } else {
+      await admin.messaging().send({token: token, ...message});
     }
+    logger.info("Successfully sent data-only message:", data);
+  } catch (error) {
+    logger.error("Error sending data-only message:", error, {data});
+  }
 };
 
 // ===================================================================
-// FUNCTION 1: TÍNH TOÁN CHIẾT KHẤU ĐẠI LÝ (Giữ nguyên)
+// FUNCTION 1: TÍNH TOÁN CHIẾT KHẤU ĐẠI LÝ
 // ===================================================================
 export const calculateOrderDiscount = onCall(
     {region: "asia-southeast1"},
-    async (request) => {
+    async (request: onCall.Request) => { // SỬA: Thêm kiểu onCall.Request
         if (!request.auth) {
             throw new HttpsError("unauthenticated", "Authentication required.");
         }
@@ -53,7 +69,7 @@ export const calculateOrderDiscount = onCall(
             const productsSnapshot = await db.collection("products")
               .where(admin.firestore.FieldPath.documentId(), "in", productIds).get();
             const productsMap = new Map<string, any>();
-            productsSnapshot.forEach((doc) => productsMap.set(doc.id, doc.data()));
+            productsSnapshot.forEach((doc: QueryDocumentSnapshot) => productsMap.set(doc.id, doc.data())); // SỬA: Thêm kiểu
 
             let foliarTotalValue = 0;
             let rootTotalValue = 0;
@@ -86,14 +102,14 @@ export const calculateOrderDiscount = onCall(
     });
 
 // ===================================================================
-// FUNCTION 2: TẠO LINK THANH TOÁN VNPAY (Giữ nguyên)
+// FUNCTION 2: TẠO LINK THANH TOÁN VNPAY
 // ===================================================================
 export const createVnpayPaymentUrl = onCall(
     {
         region: "asia-southeast1",
         secrets: ["VNP_TMNCODE", "VNP_HASHSECRET"],
     },
-    async (request) => {
+    async (request: onCall.Request) => { // SỬA: Thêm kiểu onCall.Request
         if (!request.auth) {
             throw new HttpsError("unauthenticated", "Authentication required.");
         }
@@ -148,63 +164,162 @@ export const createVnpayPaymentUrl = onCall(
 );
 
 // ===================================================================
-// FUNCTION 3: TỰ ĐỘNG GIẢI PHÓNG ĐẠI LÝ
+// BẮT ĐẦU CÁC HÀM THÔNG BÁO MỚI
 // ===================================================================
-export const onSalesRepStatusChange = onDocumentUpdated("users/{userId}", async (event) => {
-    const beforeData = event.data?.before.data();
-    const afterData = event.data?.after.data();
 
-    if (!beforeData || !afterData) {
-        logger.info("No data change, function terminated.");
+// ===================================================================
+// FUNCTION 3 (MỚI): GỬI THÔNG BÁO KHI CÓ SẢN PHẨM MỚI
+// Gửi cho tất cả Khách hàng (Đại lý) và Admin.
+// ===================================================================
+export const onProductCreated = onDocumentCreated("products/{productId}",
+    async (event: FirestoreEvent<QueryDocumentSnapshot | undefined, {productId: string}>) => {
+        const product = event.data?.data();
+        if (!product) return null;
+
+        const usersSnapshot = await db.collection("users")
+            .where("status", "==", "active")
+            .where("role", "in", ["agent_1", "agent_2", "admin"])
+            .get();
+
+        const tokens = usersSnapshot.docs
+            .map((doc: QueryDocumentSnapshot) => doc.data().fcmToken) // SỬA: Thêm kiểu
+            .filter((token): token is string => !!token);
+
+        if (tokens.length > 0) {
+            await sendDataOnlyNotification(tokens, {
+                title: "🌟 Có sản phẩm mới!",
+                body: `Sản phẩm "${product.name}" vừa được ra mắt. Xem ngay!`,
+                type: "new_product",
+                productId: event.params.productId,
+            });
+        }
         return null;
-    }
-
-    if (beforeData.role !== "sales_rep") {
-        return null;
-    }
-
-    const isSuspended = beforeData.status !== "suspended" && afterData.status === "suspended";
-    const isRoleChanged = afterData.role !== "sales_rep";
-
-    if (!isSuspended && !isRoleChanged) {
-        return null;
-    }
-
-    const salesRepId = event.params.userId;
-    logger.info(`Sales rep ${salesRepId} has been suspended or role changed. Finding assigned agents...`);
-
-    const agentsSnapshot = await db.collection("users")
-        .where("salesRepId", "==", salesRepId)
-        .get();
-
-    if (agentsSnapshot.empty) {
-        logger.info("No agents found for this sales rep. Nothing to do.");
-        return null;
-    }
-
-    const batch = db.batch();
-    agentsSnapshot.forEach((doc) => {
-        logger.log(`Un-assigning agent: ${doc.id}`);
-        batch.update(doc.ref, {salesRepId: null});
     });
 
-    await batch.commit();
-    logger.info(`Successfully un-assigned ${agentsSnapshot.size} agents from sales rep ${salesRepId}.`);
+// ===================================================================
+// FUNCTION 4 (MỚI): XỬ LÝ KHI THÔNG TIN USER THAY ĐỔI
+// Bao gồm: Duyệt tài khoản & Giải phóng đại lý.
+// ===================================================================
+export const onUserUpdate = onDocumentUpdated("users/{userId}", async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+
+    if (!before || !after) return null;
+
+    const updatedUserId = event.params.userId;
+    const updatedUserName = after.displayName ?? "Người dùng";
+
+    // --- Kịch bản 1: Tài khoản được duyệt ---
+    if (before.status === "pending_approval" && after.status === "active") {
+        // Gửi cho người dùng được duyệt
+        await sendDataOnlyNotification(after.fcmToken, {
+            title: "✅ Tài khoản đã được duyệt!",
+            body: `Chúc mừng! Tài khoản của bạn đã được kích hoạt. Hãy bắt đầu trải nghiệm ngay.`,
+            type: "account_approved",
+            userId: updatedUserId,
+        });
+
+        // Gửi cho tất cả Admin
+        const adminsSnapshot = await db.collection("users").where("role", "==", "admin").get();
+        const adminTokens = adminsSnapshot.docs
+            .map((doc: QueryDocumentSnapshot) => doc.data().fcmToken) // SỬA: Thêm kiểu
+            .filter((token): token is string => !!token);
+        if (adminTokens.length > 0) {
+            await sendDataOnlyNotification(adminTokens, {
+                title: "👤 Tài khoản đã được duyệt",
+                body: `Tài khoản của "${updatedUserName}" đã được kích hoạt.`,
+                type: "account_management",
+                userId: updatedUserId,
+            });
+        }
+
+        // Gửi cho NVKD (nếu đại lý này được NVKD quản lý)
+        if (after.salesRepId) {
+            const salesRepDoc = await db.collection("users").doc(after.salesRepId).get();
+            await sendDataOnlyNotification(salesRepDoc.data()?.fcmToken, {
+                title: "🎉 Đại lý mới được duyệt!",
+                body: `Tài khoản của đại lý "${updatedUserName}" mà bạn quản lý đã được kích hoạt.`,
+                type: "agent_approved",
+                agentId: updatedUserId,
+            });
+        }
+    }
+
+    // --- Kịch bản 2: Giải phóng đại lý khi NVKD bị khóa hoặc đổi vai trò ---
+    const wasSalesRep = before.role === "sales_rep";
+    const isNowSuspended = after.status === "suspended";
+    const roleChanged = after.role !== "sales_rep";
+
+    if (wasSalesRep && (isNowSuspended || roleChanged)) {
+         logger.info(`Sales rep ${updatedUserId} status changed. Un-assigning agents...`);
+         const agentsSnapshot = await db.collection("users").where("salesRepId", "==", updatedUserId).get();
+         if (!agentsSnapshot.empty) {
+            const batch = db.batch();
+            agentsSnapshot.forEach((doc: QueryDocumentSnapshot) => { // SỬA: Thêm kiểu
+                batch.update(doc.ref, {salesRepId: null});
+            });
+            await batch.commit();
+            logger.info(`Un-assigned ${agentsSnapshot.size} agents from Sales Rep ${updatedUserId}.`);
+         }
+    }
     return null;
 });
 
 // ===================================================================
-// FUNCTION 4: GỬI THÔNG BÁO KHI CÓ ĐƠN HÀNG MỚI (DATA-ONLY)
+// FUNCTION 5 (MỚI): GỬI THÔNG BÁO KHI CÓ HOA HỒNG
+// Gửi cho NVKD và Admin.
+// ===================================================================
+export const onCommissionCreated = onDocumentCreated("commissions/{commissionId}",
+    async (event: FirestoreEvent<QueryDocumentSnapshot | undefined, {commissionId: string}>) => {
+        const commission = event.data?.data();
+        if (!commission) return null;
+
+        const salesRepId = commission.salesRepId;
+        const orderIdShort = commission.orderId.substring(0, 8).toUpperCase();
+        const amount = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(commission.amount);
+
+        try {
+            const salesRepDoc = await db.collection("users").doc(salesRepId).get();
+            const salesRepData = salesRepDoc.data();
+
+            if (salesRepData) {
+                // Gửi cho Nhân viên kinh doanh
+                await sendDataOnlyNotification(salesRepData.fcmToken, {
+                    title: "💰 Bạn có hoa hồng mới!",
+                    body: `Bạn nhận được ${amount} từ đơn hàng #${orderIdShort}.`,
+                    type: "new_commission",
+                    commissionId: event.params.commissionId,
+                });
+
+                // Gửi cho tất cả Admin
+                const adminsSnapshot = await db.collection("users").where("role", "==", "admin").get();
+                const adminTokens = adminsSnapshot.docs
+                    .map((doc: QueryDocumentSnapshot) => doc.data().fcmToken) // SỬA: Thêm kiểu
+                    .filter((token): token is string => !!token);
+
+                if (adminTokens.length > 0) {
+                    await sendDataOnlyNotification(adminTokens, {
+                        title: "📈 Hoa hồng đã được tạo",
+                        body: `Hoa hồng ${amount} đã được ghi nhận cho NVKD "${salesRepData.displayName}" từ đơn #${orderIdShort}.`,
+                        type: "commission_created_for_admin",
+                        commissionId: event.params.commissionId,
+                    });
+                }
+            }
+        } catch (e) {
+            logger.error(`Error sending commission notification for ${event.params.commissionId}:`, e);
+        }
+        return null;
+    });
+
+// ===================================================================
+// CÁC HÀM CŨ (onOrderCreated, onOrderStatusUpdate - Giữ nguyên)
 // ===================================================================
 export const onOrderCreated = onDocumentCreated("orders/{orderId}",
-    async (event: FirestoreEvent<QueryDocumentSnapshot | undefined, {orderId: string}>) => {
+    async (event) => {
         const snapshot = event.data;
-        if (!snapshot) {
-            logger.error("No data associated with the event for onOrderCreated.");
-            return null;
-        }
+        if (!snapshot) return null;
         const orderData = snapshot.data();
-
         const userId = orderData.userId;
         const userName = orderData.shippingAddress?.recipientName ?? "Quý khách";
         const orderIdShort = event.params.orderId.substring(0, 8).toUpperCase();
@@ -242,13 +357,11 @@ export const onOrderCreated = onDocumentCreated("orders/{orderId}",
                 .filter((token): token is string => !!token);
 
             if (adminTokens.length > 0) {
-                await admin.messaging().sendToDevice(adminTokens, {
-                    data: {
-                        title: "🔔 Có đơn hàng mới",
-                        body: `Đại lý "${userName}" vừa tạo đơn hàng #${orderIdShort}.`,
-                        type: "new_order_for_admin",
-                        orderId: event.params.orderId,
-                    },
+                await sendDataOnlyNotification(adminTokens, {
+                    title: "🔔 Có đơn hàng mới",
+                    body: `Đại lý "${userName}" vừa tạo đơn hàng #${orderIdShort}.`,
+                    type: "new_order_for_admin",
+                    orderId: event.params.orderId,
                 });
             }
         } catch (e) { logger.error("Error queuing notification to admins:", e); }
@@ -256,9 +369,6 @@ export const onOrderCreated = onDocumentCreated("orders/{orderId}",
         return null;
     });
 
-// ===================================================================
-// FUNCTION 5: GỬI THÔNG BÁO KHI TRẠNG THÁI ĐƠN HÀNG THAY ĐỔI (DATA-ONLY)
-// ===================================================================
 export const onOrderStatusUpdate = onDocumentUpdated("orders/{orderId}", async (event) => {
     const beforeData = event.data?.before.data();
     const afterData = event.data?.after.data();
@@ -268,29 +378,93 @@ export const onOrderStatusUpdate = onDocumentUpdated("orders/{orderId}", async (
     }
 
     const userId = afterData.userId;
+    const salesRepId = afterData.salesRepId;
+    const userName = afterData.shippingAddress?.recipientName ?? "Khách hàng";
     const orderIdShort = event.params.orderId.substring(0, 8).toUpperCase();
-    let notificationData: {[key: string]: string} | null = null;
+    const newStatus = afterData.status;
 
-    switch (afterData.status) {
-        case "processing": notificationData = {title: "✅ Đơn hàng đã được xác nhận", body: `Đơn hàng #${orderIdShort} của bạn đang được chuẩn bị.`}; break;
-        case "shipped": notificationData = {title: "🚚 Đơn hàng đang được giao", body: `Đơn hàng #${orderIdShort} của bạn đang trên đường giao đến bạn.`}; break;
-        case "completed": notificationData = {title: "✨ Đơn hàng đã hoàn thành", body: `Đơn hàng #${orderIdShort} đã được giao thành công. Cảm ơn bạn!`}; break;
-        case "cancelled": notificationData = {title: "❌ Đơn hàng đã bị hủy", body: `Rất tiếc, đơn hàng #${orderIdShort} của bạn đã bị hủy.`}; break;
-        default: return null;
+    let customerTitle: string | null = null;
+    let customerBody: string | null = null;
+    let salesRepTitle: string | null = null;
+    let salesRepBody: string | null = null;
+    let adminTitle: string | null = null;
+    let adminBody: string | null = null;
+
+    switch (newStatus) {
+        case "processing":
+            customerTitle = "✅ Đơn hàng đã được xác nhận";
+            customerBody = `Đơn hàng #${orderIdShort} của bạn đang được chuẩn bị.`;
+            adminTitle = "⚙️ Đơn hàng đang được xử lý";
+            adminBody = `Đơn hàng #${orderIdShort} của đại lý ${userName} đã được xác nhận.`;
+            salesRepTitle = adminTitle;
+            salesRepBody = adminBody;
+            break;
+        case "shipped":
+            customerTitle = "🚚 Đơn hàng đang được giao";
+            customerBody = `Đơn hàng #${orderIdShort} của bạn đang trên đường giao đến bạn.`;
+            adminTitle = "🚚 Đơn hàng đã giao";
+            adminBody = `Đơn hàng #${orderIdShort} của đại lý ${userName} đã được giao.`;
+            salesRepTitle = adminTitle;
+            salesRepBody = adminBody;
+            break;
+        case "completed":
+            customerTitle = "✨ Đơn hàng đã hoàn thành";
+            customerBody = `Đơn hàng #${orderIdShort} đã được giao thành công. Cảm ơn bạn!`;
+            adminTitle = "✨ Đơn hàng hoàn thành";
+            adminBody = `Đơn hàng #${orderIdShort} của đại lý ${userName} đã hoàn thành.`;
+            salesRepTitle = adminTitle;
+            salesRepBody = adminBody;
+            break;
+        case "cancelled":
+            customerTitle = "❌ Đơn hàng đã bị hủy";
+            customerBody = `Rất tiếc, đơn hàng #${orderIdShort} của bạn đã bị hủy.`;
+            adminTitle = "❌ Đơn hàng bị hủy";
+            adminBody = `Đơn hàng #${orderIdShort} của đại lý ${userName} đã bị hủy.`;
+            salesRepTitle = adminTitle;
+            salesRepBody = adminBody;
+            break;
+        default:
+            return null;
     }
 
-    if (!notificationData) return null;
+    if (customerTitle && customerBody) {
+        try {
+            const userDoc = await db.collection("users").doc(userId).get();
+            await sendDataOnlyNotification(userDoc.data()?.fcmToken, {
+                title: customerTitle,
+                body: customerBody,
+                type: "order_status",
+                orderId: event.params.orderId,
+            });
+        } catch (e) { logger.error(`Error sending status update to customer ${userId}:`, e); }
+    }
 
-    try {
-        const userDoc = await db.collection("users").doc(userId).get();
-        await sendDataOnlyNotification(userDoc.data()?.fcmToken, {
-            ...notificationData,
-            type: "order_status",
-            orderId: event.params.orderId,
-            status: afterData.status,
-        });
-    } catch (e) { logger.error(`Error sending status update for order ${orderIdShort}:`, e); }
+    if (salesRepId && salesRepTitle && salesRepBody) {
+        try {
+            const salesRepDoc = await db.collection("users").doc(salesRepId).get();
+            await sendDataOnlyNotification(salesRepDoc.data()?.fcmToken, {
+                title: salesRepTitle,
+                body: salesRepBody,
+                type: "order_status_update_for_rep",
+                orderId: event.params.orderId,
+            });
+        } catch (e) { logger.error(`Error sending status update to sales rep ${salesRepId}:`, e); }
+    }
 
+    if (adminTitle && adminBody) {
+        try {
+            const adminsSnapshot = await db.collection("users").where("role", "==", "admin").get();
+            const adminTokens = adminsSnapshot.docs.map((doc) => doc.data().fcmToken).filter((token): token is string => !!token);
+            if (adminTokens.length > 0) {
+                await sendDataOnlyNotification(adminTokens, {
+                    title: adminTitle,
+                    body: adminBody,
+                    type: "order_status_update_for_admin",
+                    orderId: event.params.orderId,
+                });
+            }
+        } catch (e) { logger.error("Error sending status update to admins:", e); }
+    }
     return null;
 });
 

@@ -154,5 +154,5 @@ Future<void> initializeDependencies() async {
 
   sl.registerFactory(() => AgentApprovalCubit(userProfileRepository: sl(), authRepository: sl(),),);
 
-  sl.registerLazySingleton(() => NotificationService(userProfileRepository: sl()));
+  sl.registerLazySingleton(() => NotificationService());
 }

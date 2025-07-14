@@ -24,7 +24,7 @@ Future<void> _initializeApp() async {
   );
   await di.initializeDependencies();
   await initializeDateFormatting('vi_VN', null);
-  await di.sl<NotificationService>().initNotifications();
+  await di.sl<NotificationService>().init();
   Bloc.observer = di.sl<AppBlocObserver>();
 }
 
