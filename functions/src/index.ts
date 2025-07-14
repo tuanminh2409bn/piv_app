@@ -1,5 +1,5 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
-import {onDocumentUpdated} from "firebase-functions/v2/firestore";
+import {onDocumentCreated, onDocumentUpdated, FirestoreEvent, QueryDocumentSnapshot} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import * as crypto from "crypto";
@@ -8,6 +8,19 @@ import {format} from "date-fns-tz";
 
 admin.initializeApp();
 const db = admin.firestore();
+
+// --- HÀM HELPER GỬI THÔNG BÁO DATA-ONLY ---
+const sendDataOnlyNotification = async (token: string, data: {[key: string]: string}) => {
+    if (token) {
+        const message = { token, data };
+        try {
+            await admin.messaging().send(message);
+            logger.info("Successfully sent data-only message:", data);
+        } catch (error) {
+            logger.error("Error sending data-only message:", error);
+        }
+    }
+};
 
 // ===================================================================
 // FUNCTION 1: TÍNH TOÁN CHIẾT KHẤU ĐẠI LÝ (Giữ nguyên)
@@ -28,17 +41,17 @@ export const calculateOrderDiscount = onCall(
         try {
             const userDoc = await db.collection("users").doc(userId).get();
             if (!userDoc.exists) {
-                throw new HttpsError("not-found", "User not found.");
+              throw new HttpsError("not-found", "User not found.");
             }
             const userRole = userDoc.data()?.role;
 
             const productIds: string[] = orderItems.map(
-                (item: { productId: string }) => item.productId,
+              (item: { productId: string }) => item.productId,
             );
             if (productIds.length === 0) return {discount: 0};
 
             const productsSnapshot = await db.collection("products")
-                .where(admin.firestore.FieldPath.documentId(), "in", productIds).get();
+              .where(admin.firestore.FieldPath.documentId(), "in", productIds).get();
             const productsMap = new Map<string, any>();
             productsSnapshot.forEach((doc) => productsMap.set(doc.id, doc.data()));
 
@@ -46,21 +59,22 @@ export const calculateOrderDiscount = onCall(
             let rootTotalValue = 0;
 
             for (const item of orderItems) {
-                const productInfo = productsMap.get(item.productId);
-                if (productInfo) {
-                    const itemValue = item.subtotal;
-                    if (productInfo.productType === "foliar_fertilizer") {
-                        foliarTotalValue += itemValue;
-                    } else if (productInfo.productType === "root_fertilizer") {
-                        rootTotalValue += itemValue;
-                    }
+              const productInfo = productsMap.get(item.productId);
+              if (productInfo) {
+                const itemValue = item.subtotal;
+
+                if (productInfo.productType === "foliar_fertilizer") {
+                  foliarTotalValue += itemValue;
+                } else if (productInfo.productType === "root_fertilizer") {
+                  rootTotalValue += itemValue;
                 }
+              }
             }
 
             let totalDiscount = 0;
             if ((userRole === "agent_1" || userRole === "agent_2") && (foliarTotalValue > 0 || rootTotalValue > 0)) {
-                totalDiscount += calculateDiscountForFoliar(foliarTotalValue, userRole);
-                totalDiscount += calculateDiscountForRoot(rootTotalValue, userRole);
+              totalDiscount += calculateDiscountForFoliar(foliarTotalValue, userRole);
+              totalDiscount += calculateDiscountForRoot(rootTotalValue, userRole);
             }
 
             logger.info(`Calculated discount for user ${userId}: ${totalDiscount}`);
@@ -134,24 +148,21 @@ export const createVnpayPaymentUrl = onCall(
 );
 
 // ===================================================================
-// FUNCTION 3: TỰ ĐỘNG GIẢI PHÓNG ĐẠI LÝ (Function mới)
+// FUNCTION 3: TỰ ĐỘNG GIẢI PHÓNG ĐẠI LÝ
 // ===================================================================
 export const onSalesRepStatusChange = onDocumentUpdated("users/{userId}", async (event) => {
     const beforeData = event.data?.before.data();
     const afterData = event.data?.after.data();
 
-    // Nếu không có dữ liệu trước hoặc sau, thoát
     if (!beforeData || !afterData) {
         logger.info("No data change, function terminated.");
         return null;
     }
 
-    // Điều kiện 1: Chỉ chạy khi tài khoản TRƯỚC ĐÓ là NVKD.
     if (beforeData.role !== "sales_rep") {
         return null;
     }
 
-    // Điều kiện 2: Kiểm tra xem NVKD có bị khóa hoặc bị thay đổi vai trò không.
     const isSuspended = beforeData.status !== "suspended" && afterData.status === "suspended";
     const isRoleChanged = afterData.role !== "sales_rep";
 
@@ -174,7 +185,6 @@ export const onSalesRepStatusChange = onDocumentUpdated("users/{userId}", async 
     const batch = db.batch();
     agentsSnapshot.forEach((doc) => {
         logger.log(`Un-assigning agent: ${doc.id}`);
-        // Cập nhật salesRepId thành null để giải phóng đại lý
         batch.update(doc.ref, {salesRepId: null});
     });
 
@@ -183,6 +193,106 @@ export const onSalesRepStatusChange = onDocumentUpdated("users/{userId}", async 
     return null;
 });
 
+// ===================================================================
+// FUNCTION 4: GỬI THÔNG BÁO KHI CÓ ĐƠN HÀNG MỚI (DATA-ONLY)
+// ===================================================================
+export const onOrderCreated = onDocumentCreated("orders/{orderId}",
+    async (event: FirestoreEvent<QueryDocumentSnapshot | undefined, {orderId: string}>) => {
+        const snapshot = event.data;
+        if (!snapshot) {
+            logger.error("No data associated with the event for onOrderCreated.");
+            return null;
+        }
+        const orderData = snapshot.data();
+
+        const userId = orderData.userId;
+        const userName = orderData.shippingAddress?.recipientName ?? "Quý khách";
+        const orderIdShort = event.params.orderId.substring(0, 8).toUpperCase();
+
+        // Gửi cho Đại lý
+        try {
+            const userDoc = await db.collection("users").doc(userId).get();
+            await sendDataOnlyNotification(userDoc.data()?.fcmToken, {
+                title: "🎉 Đặt hàng thành công!",
+                body: `Chào ${userName}, đơn hàng #${orderIdShort} của bạn đã được tiếp nhận.`,
+                type: "order_status",
+                orderId: event.params.orderId,
+            });
+        } catch (e) { logger.error(`Error queuing notification for agent ${userId}:`, e); }
+
+        // Gửi cho NVKD
+        const salesRepId = orderData.salesRepId;
+        if (salesRepId) {
+            try {
+                const salesRepDoc = await db.collection("users").doc(salesRepId).get();
+                await sendDataOnlyNotification(salesRepDoc.data()?.fcmToken, {
+                    title: "📈 Có đơn hàng mới!",
+                    body: `Đại lý "${userName}" của bạn vừa đặt đơn hàng #${orderIdShort}.`,
+                    type: "new_order_for_rep",
+                    orderId: event.params.orderId,
+                });
+            } catch (e) { logger.error(`Error queuing notification for Sales Rep ${salesRepId}:`, e); }
+        }
+
+        // Gửi cho Admin
+        try {
+            const adminsSnapshot = await db.collection("users").where("role", "==", "admin").get();
+            const adminTokens = adminsSnapshot.docs
+                .map((doc) => doc.data().fcmToken)
+                .filter((token): token is string => !!token);
+
+            if (adminTokens.length > 0) {
+                await admin.messaging().sendToDevice(adminTokens, {
+                    data: {
+                        title: "🔔 Có đơn hàng mới",
+                        body: `Đại lý "${userName}" vừa tạo đơn hàng #${orderIdShort}.`,
+                        type: "new_order_for_admin",
+                        orderId: event.params.orderId,
+                    },
+                });
+            }
+        } catch (e) { logger.error("Error queuing notification to admins:", e); }
+
+        return null;
+    });
+
+// ===================================================================
+// FUNCTION 5: GỬI THÔNG BÁO KHI TRẠNG THÁI ĐƠN HÀNG THAY ĐỔI (DATA-ONLY)
+// ===================================================================
+export const onOrderStatusUpdate = onDocumentUpdated("orders/{orderId}", async (event) => {
+    const beforeData = event.data?.before.data();
+    const afterData = event.data?.after.data();
+
+    if (!beforeData || !afterData || beforeData.status === afterData.status) {
+        return null;
+    }
+
+    const userId = afterData.userId;
+    const orderIdShort = event.params.orderId.substring(0, 8).toUpperCase();
+    let notificationData: {[key: string]: string} | null = null;
+
+    switch (afterData.status) {
+        case "processing": notificationData = {title: "✅ Đơn hàng đã được xác nhận", body: `Đơn hàng #${orderIdShort} của bạn đang được chuẩn bị.`}; break;
+        case "shipped": notificationData = {title: "🚚 Đơn hàng đang được giao", body: `Đơn hàng #${orderIdShort} của bạn đang trên đường giao đến bạn.`}; break;
+        case "completed": notificationData = {title: "✨ Đơn hàng đã hoàn thành", body: `Đơn hàng #${orderIdShort} đã được giao thành công. Cảm ơn bạn!`}; break;
+        case "cancelled": notificationData = {title: "❌ Đơn hàng đã bị hủy", body: `Rất tiếc, đơn hàng #${orderIdShort} của bạn đã bị hủy.`}; break;
+        default: return null;
+    }
+
+    if (!notificationData) return null;
+
+    try {
+        const userDoc = await db.collection("users").doc(userId).get();
+        await sendDataOnlyNotification(userDoc.data()?.fcmToken, {
+            ...notificationData,
+            type: "order_status",
+            orderId: event.params.orderId,
+            status: afterData.status,
+        });
+    } catch (e) { logger.error(`Error sending status update for order ${orderIdShort}:`, e); }
+
+    return null;
+});
 
 // --- Các hàm phụ trợ tính toán (giữ nguyên) ---
 function calculateDiscountForFoliar(total: number, role: string): number {

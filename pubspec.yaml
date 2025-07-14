@@ -31,7 +31,6 @@ dependencies:
 
   # Auth
   google_sign_in: ^6.3.0
-  # --- HẠ CẤP PACKAGE NÀY ĐỂ GIẢI QUYẾT XUNG ĐỘT ---
   flutter_facebook_auth: ^7.1.0
 
   # Helpers & Utilities
@@ -50,6 +49,9 @@ dependencies:
   cloud_functions: ^5.0.1
   flutter_inappwebview: ^6.0.0
   rxdart: ^0.27.7
+
+  firebase_messaging: ^15.1.0
+  flutter_local_notifications: ^17.1.2
 
 dev_dependencies:
   flutter_test:

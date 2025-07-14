@@ -1,10 +1,10 @@
 // lib/features/auth/presentation/bloc/auth_bloc.dart
-
 import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:piv_app/core/di/injection_container.dart';
+import 'package:piv_app/core/services/notification_service.dart';
 import 'package:piv_app/features/auth/domain/repositories/auth_repository.dart';
-// --- THÊM IMPORT MỚI ---
 import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'dart:developer' as developer;
@@ -14,15 +14,14 @@ part 'auth_state.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository _authRepository;
-  // --- THÊM REPOSITORY MỚI ---
   final UserProfileRepository _userProfileRepository;
   StreamSubscription<UserModel>? _userSubscription;
 
   AuthBloc({
     required AuthRepository authRepository,
-    required UserProfileRepository userProfileRepository, // <<< Thêm vào constructor
+    required UserProfileRepository userProfileRepository,
   })  : _authRepository = authRepository,
-        _userProfileRepository = userProfileRepository, // <<< Gán giá trị
+        _userProfileRepository = userProfileRepository,
         super(AuthInitial()) {
     _userSubscription = _authRepository.user.listen(
           (user) => add(AuthUserChanged(user)),
@@ -34,13 +33,62 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthUserRefreshRequested>(_onUserRefreshRequested);
   }
 
-  // --- HÀM _onUserRefreshRequested ĐÃ ĐƯỢC SỬA ---
+  // Giữ nguyên hàm này từ file gốc của bạn
+  Future<void> _onAppStarted(AuthAppStarted event, Emitter<AuthState> emit) async {
+    try {
+      final result = await _authRepository.getCurrentUser();
+      result.fold(
+              (failure) => emit(AuthUnauthenticated()),
+              (user) {
+            if (user.isNotEmpty) {
+              emit(AuthAuthenticated(user: user));
+            } else {
+              emit(AuthUnauthenticated());
+            }
+          });
+    } catch (_) {
+      emit(AuthUnauthenticated());
+    }
+  }
+
+  // Cập nhật hàm này để xử lý FCM Token
+  void _onUserChanged(AuthUserChanged event, Emitter<AuthState> emit) async {
+    developer.log('AuthBloc: User changed - ${event.user.email}, isEmpty: ${event.user.isEmpty}', name: 'AuthBloc');
+    if (event.user.isNotEmpty) {
+      // ‼️ NÂNG CẤP: LƯU TOKEN KHI CÓ THAY ĐỔI NGƯỜI DÙNG (ĐĂNG NHẬP) ‼️
+      try {
+        await sl<NotificationService>().saveTokenForUser(event.user.id);
+      } catch (e) {
+        developer.log("Failed to save FCM token on user change: $e", name: "AuthBloc");
+      }
+      emit(AuthAuthenticated(user: event.user));
+    } else {
+      emit(AuthUnauthenticated());
+    }
+  }
+
+  // Cập nhật hàm này để xử lý FCM Token
+  Future<void> _onLogoutRequested(AuthLogoutRequested event, Emitter<AuthState> emit) async {
+    final state = this.state;
+    // Chỉ xóa token nếu người dùng đang ở trạng thái đã đăng nhập
+    if (state is AuthAuthenticated) {
+      // ‼️ NÂNG CẤP: XÓA TOKEN KHI ĐĂNG XUẤT ‼️
+      try {
+        await sl<NotificationService>().removeTokenForUser(state.user.id);
+      } catch (e) {
+        developer.log("Failed to remove FCM token on logout: $e", name: "AuthBloc");
+      }
+    }
+    await _authRepository.logOut();
+    // Không cần emit nữa, listener _userSubscription sẽ tự động phát ra AuthUnauthenticated
+  }
+
+  // Giữ nguyên hàm này từ file gốc của bạn
   Future<void> _onUserRefreshRequested(
       AuthUserRefreshRequested event, Emitter<AuthState> emit) async {
     final currentState = state;
     if (currentState is AuthAuthenticated) {
       developer.log('AuthBloc: Refresh requested for user ${currentState.user.id}', name: 'AuthBloc');
-      // Gọi đến đúng repository
       final result = await _userProfileRepository.getUserProfile(currentState.user.id);
       result.fold(
             (failure) {
@@ -53,10 +101,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  // Các hàm còn lại giữ nguyên
-  Future<void> _onAppStarted(AuthAppStarted event, Emitter<AuthState> emit) async { try { final result = await _authRepository.getCurrentUser(); result.fold( (failure) => emit(AuthUnauthenticated()), (user) { if (user.isNotEmpty) { emit(AuthAuthenticated(user: user)); } else { emit(AuthUnauthenticated()); } } ); } catch (_) { emit(AuthUnauthenticated()); } }
-  void _onUserChanged(AuthUserChanged event, Emitter<AuthState> emit) { developer.log('AuthBloc: User changed - ${event.user.email}, isEmpty: ${event.user.isEmpty}', name: 'AuthBloc'); if (event.user.isNotEmpty) { emit(AuthAuthenticated(user: event.user)); } else { emit(AuthUnauthenticated()); } }
-  Future<void> _onLogoutRequested(AuthLogoutRequested event, Emitter<AuthState> emit) async { emit(AuthLoading()); await _authRepository.logOut(); }
   @override
-  Future<void> close() { _userSubscription?.cancel(); return super.close(); }
+  Future<void> close() {
+    _userSubscription?.cancel();
+    return super.close();
+  }
 }

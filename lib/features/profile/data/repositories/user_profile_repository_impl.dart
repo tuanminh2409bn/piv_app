@@ -258,4 +258,19 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
       return Left(ServerFailure('Lỗi không xác định khi duyệt đại lý: ${e.toString()}'));
     }
   }
+
+  @override
+  Future<Either<Failure, Unit>> updateUserProfilePartial(String userId, Map<String, dynamic> data) async {
+    try {
+      // Thêm trường updatedAt để luôn ghi lại thời gian cập nhật
+      final dataToUpdate = {...data, 'updatedAt': FieldValue.serverTimestamp()};
+      await _usersCollection.doc(userId).update(dataToUpdate);
+      developer.log('Partially updated profile for user $userId with data: $dataToUpdate', name: 'UserProfileRepo');
+      return const Right(unit);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase khi cập nhật một phần hồ sơ: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định khi cập nhật một phần hồ sơ: ${e.toString()}'));
+    }
+  }
 }

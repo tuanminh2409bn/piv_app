@@ -40,4 +40,6 @@ abstract class UserProfileRepository {
   Future<Either<Failure, List<UserModel>>> getUnassignedAgents();
 
   Future<Either<Failure, Unit>> assignAgentToSalesRep({required String agentId, required String salesRepId});
+
+  Future<Either<Failure, Unit>> updateUserProfilePartial(String userId, Map<String, dynamic> data);
 }

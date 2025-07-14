@@ -99,13 +99,21 @@ class HomeRepositoryImpl implements HomeRepository {
   @override
   Future<Either<Failure, List<ProductModel>>> getFeaturedProducts() async {
     try {
+      // ‼️ BƯỚC 1: LẤY MỘT NHÓM LỚN HƠN (VÍ DỤ 20) ĐỂ TẠO BỘ NGUỒN NGẪU NHIÊN ‼️
       final querySnapshot = await _productsCollection
           .where('isFeatured', isEqualTo: true)
           .orderBy('createdAt', descending: true)
-          .limit(6) // ⬅️ THÊM DÒNG NÀY ĐỂ GIỚI HẠN LÀ 6
+          .limit(20) // Lấy 20 sản phẩm nổi bật mới nhất
           .get();
+
       final products = querySnapshot.docs.map((doc) => ProductModel.fromSnapshot(doc)).toList();
-      return Right(products);
+
+      // ‼️ BƯỚC 2: XÁO TRỘN NGẪU NHIÊN DANH SÁCH NÀY ‼️
+      products.shuffle();
+
+      // ‼️ BƯỚC 3: CHỌN RA 6 SẢN PHẨM ĐẦU TIÊN ĐỂ HIỂN THỊ ‼️
+      return Right(products.take(6).toList());
+
     } on FirebaseException catch (e) {
       return Left(ServerFailure('Lỗi Firebase khi tải sản phẩm nổi bật: ${e.message}'));
     } catch (e) {
