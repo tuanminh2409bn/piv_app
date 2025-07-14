@@ -35,7 +35,6 @@ class AdminUsersView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Lấy ID của Admin đang đăng nhập
     final authState = context.watch<AuthBloc>().state;
     final currentAdminId = (authState is AuthAuthenticated) ? authState.user.id : '';
 
@@ -53,8 +52,9 @@ class AdminUsersView extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.all(8.0),
             children: [
-              _buildSectionHeader(context, 'Nhân viên Kinh doanh', Icons.support_agent_rounded, count: state.salesReps.length),
-              _buildSalesRepsList(context, state.salesReps, currentAdminId),
+              // ‼️ SỬA LỖI TẠI ĐÂY: Dùng đúng tên getter mới
+              _buildSectionHeader(context, 'Nhân viên Kinh doanh', Icons.support_agent_rounded, count: state.salesRepsWithAgentCount.length),
+              _buildSalesRepsList(context, state.salesRepsWithAgentCount, currentAdminId),
               const SizedBox(height: 16),
               _buildSectionHeader(context, 'Đại lý chưa có người phụ trách', Icons.person_add_disabled_outlined, count: state.unassignedAgents.length),
               _buildUnassignedAgentsList(context, state.unassignedAgents, currentAdminId),
@@ -68,7 +68,7 @@ class AdminUsersView extends StatelessWidget {
     );
   }
 
-  // --- CÁC HÀM HELPER ĐỂ DỰNG GIAO DIỆN ---
+  // --- CÁC HÀM HELPER GIỮ NGUYÊN ---
 
   Widget _buildSectionHeader(BuildContext context, String title, IconData icon, {required int count}) {
     return Padding(
@@ -90,6 +90,7 @@ class AdminUsersView extends StatelessWidget {
     );
   }
 
+  // ‼️ SỬA LỖI TẠI ĐÂY: Dùng đúng tên getter mới
   Widget _buildSalesRepsList(BuildContext context, List<SalesRepWithAgentCount> salesReps, String currentAdminId) {
     if (salesReps.isEmpty) return const _EmptyStateCard(message: 'Chưa có Nhân viên Kinh doanh nào.');
     return ListView.builder(
@@ -111,7 +112,10 @@ class AdminUsersView extends StatelessWidget {
             ),
             onTap: () {
               Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => SalesRepAgentsPage(salesRep: salesRep),
+                builder: (_) => BlocProvider.value(
+                  value: context.read<AdminUsersCubit>(),
+                  child: SalesRepAgentsPage(salesRep: salesRep),
+                ),
               ));
             },
             onLongPress: () => _showEditUserDialog(context, salesRep),
@@ -177,7 +181,6 @@ class AdminUsersView extends StatelessWidget {
     );
   }
 
-  // ‼️ HÀM HELPER ĐÃ ĐƯỢC BỔ SUNG ĐẦY ĐỦ ‼️
   void _showEditUserDialog(BuildContext parentContext, UserModel user) {
     final cubit = parentContext.read<AdminUsersCubit>();
     String selectedRole = user.role;
@@ -254,7 +257,6 @@ class AdminUsersView extends StatelessWidget {
   }
 }
 
-// ‼️ CLASS _EmptyStateCard ĐÃ ĐƯỢC ĐỊNH NGHĨA ĐÚNG ‼️
 class _EmptyStateCard extends StatelessWidget {
   const _EmptyStateCard({required this.message});
   final String message;

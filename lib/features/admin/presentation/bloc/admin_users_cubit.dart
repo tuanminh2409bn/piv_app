@@ -12,50 +12,21 @@ class AdminUsersCubit extends Cubit<AdminUsersState> {
       : _adminRepository = adminRepository,
         super(const AdminUsersState());
 
-  /// Lấy tất cả người dùng và phân loại họ vào các nhóm tương ứng.
+  /// Lấy tất cả người dùng và cập nhật vào state.
   Future<void> fetchAndGroupUsers() async {
     emit(state.copyWith(status: AdminUsersStatus.loading));
 
-    final result = await _adminRepository.getAllUsers(); // Dùng hàm có sẵn trong repo của bạn
+    final result = await _adminRepository.getAllUsers();
 
     result.fold(
           (failure) {
         emit(state.copyWith(status: AdminUsersStatus.error, errorMessage: failure.message));
       },
-          (allUsers) {
-        // --- LOGIC PHÂN LOẠI VÀ ĐẾM ---
-        final List<UserModel> reps = [];
-        final List<UserModel> agents = [];
-        final List<UserModel> admins = [];
-
-        for (final user in allUsers) {
-          if (user.isSalesRep) {
-            reps.add(user);
-          } else if (user.isAdmin) {
-            admins.add(user);
-          } else {
-            agents.add(user);
-          }
-        }
-
-        final agentCounts = <String, int>{};
-        for (final agent in agents) {
-          if (agent.salesRepId != null && agent.salesRepId!.isNotEmpty) {
-            agentCounts[agent.salesRepId!] = (agentCounts[agent.salesRepId] ?? 0) + 1;
-          }
-        }
-
-        final List<SalesRepWithAgentCount> salesRepsWithCount = reps.map((rep) {
-          return (rep, agentCounts[rep.id] ?? 0);
-        }).toList();
-
-        final unassigned = agents.where((agent) => agent.salesRepId == null || agent.salesRepId!.isEmpty).toList();
-
+          (users) {
+        // Chỉ cần đưa danh sách tổng vào state. Việc phân loại do state tự xử lý.
         emit(state.copyWith(
           status: AdminUsersStatus.success,
-          salesReps: salesRepsWithCount,
-          unassignedAgents: unassigned,
-          admins: admins,
+          allUsers: users,
         ));
       },
     );
