@@ -16,25 +16,38 @@ import {format} from "date-fns-tz";
 admin.initializeApp({ projectId: 'piv-fertilizer-app' });
 const db = admin.firestore();
 
-// --- HÀM HELPER GỬI THÔNG BÁO DATA-ONLY ---
+// --- HÀM HELPER GỬI THÔNG BÁO (PHIÊN BẢN CUỐI CÙNG) ---
 const sendDataOnlyNotification = async (
   token: string | string[] | undefined,
-  data: {[key: string]: string}
+  data: {[key: string]: string},
 ) => {
   if (!token || (Array.isArray(token) && token.length === 0)) {
     logger.warn("No valid token provided for notification.", {data});
     return;
   }
-  const message = {data};
-  try {
-    if (Array.isArray(token)) {
-      await admin.messaging().sendToDevice(token, message);
-    } else {
-      await admin.messaging().send({token: token, ...message});
+
+  // Chuyển đổi token đơn thành một mảng để xử lý đồng nhất
+  const tokens = Array.isArray(token) ? token : [token];
+
+  const message = {
+      data: data,
+  };
+
+  // Lặp qua từng token và gửi thông báo
+  for (const singleToken of tokens) {
+    if (!singleToken) continue; // Bỏ qua nếu có token rỗng trong mảng
+
+    try {
+      // LUÔN DÙNG PHƯƠNG THỨC send() MÀ CHÚNG TA ĐÃ BIẾT LÀ HOẠT ĐỘNG
+      const response = await admin.messaging().send({
+          ...message,
+          token: singleToken,
+      });
+      logger.info(`Successfully sent message to token: ${singleToken}`, {response, data});
+    } catch (error) {
+      // Nếu một token lỗi, chỉ ghi log và tiếp tục với các token khác
+      logger.error(`Error sending message to token: ${singleToken}`, error, {data});
     }
-    logger.info("Successfully sent data-only message:", data);
-  } catch (error) {
-    logger.error("Error sending data-only message:", error, {data});
   }
 };
 
