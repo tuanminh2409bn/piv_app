@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "435533952242-tk1sksvio988o5m980rufmop9mbr3ki9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.piv.fertilizer.piv_app",
+            "certificate_hash": "5f62f42c80dd58f6c7c89dddca21eca7fcfc33f5"
+          }
+        },
+        {
           "client_id": "435533952242-8n673mvm4t37l3i82f5j48hdv4h8uv8m.apps.googleusercontent.com",
           "client_type": 3
         }

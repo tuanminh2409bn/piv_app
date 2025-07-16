@@ -96,7 +96,6 @@ class MyApp extends StatelessWidget {
           Locale('en', 'US'),
         ],
         locale: const Locale('vi', 'VN'),
-        // ‼️ THAY ĐỔI QUAN TRỌNG: Trang đầu tiên là SplashScreen
         home: const SplashScreen(),
       ),
     );

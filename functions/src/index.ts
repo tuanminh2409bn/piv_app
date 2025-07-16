@@ -13,7 +13,7 @@ import * as crypto from "crypto";
 import * as qs from "qs";
 import {format} from "date-fns-tz";
 
-admin.initializeApp();
+admin.initializeApp({ projectId: 'piv-fertilizer-app' });
 const db = admin.firestore();
 
 // --- HÀM HELPER GỬI THÔNG BÁO DATA-ONLY ---
