@@ -1,52 +1,46 @@
-import 'dart:convert'; // SỬA: Thêm thư viện để làm việc với JSON
+// lib/core/services/notification_service.dart
+
+import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:math';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:piv_app/firebase_options.dart';
 
-// SỬA: Tạo một thể hiện (instance) của NotificationService để dùng trong hàm background
-// Điều này đảm bảo chúng ta có thể gọi hàm _showLocalNotification từ bên ngoài class
-final NotificationService _notificationService = NotificationService();
+// SỬA: Import các trang đích và file main.dart
+import 'package:piv_app/main.dart'; // Để dùng navigatorKey
+import 'package:piv_app/features/orders/presentation/pages/order_detail_page.dart';
+import 'package:piv_app/features/news/presentation/pages/news_detail_page.dart'; // Giả sử bạn có trang này
+import 'package:piv_app/features/main/presentation/pages/main_screen.dart';     // Trang chủ sau khi đăng nhập
 
-// Hàm xử lý thông báo nền, phải là một top-level function.
+// --- Hàm xử lý nền ---
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   developer.log("Handling a background message: ${message.messageId}", name: "NotificationService");
-
-  // SỬA: Hiển thị thông báo khi nhận được ở chế độ nền/tắt
-  final String? title = message.data['title'];
-  final String? body = message.data['body'];
-  if (title != null && body != null) {
-    // Chúng ta không thể truy cập trực tiếp vào _localNotifications từ đây,
-    // nên cần một mẹo nhỏ là gọi qua một instance được tạo ở top-level.
-    // Đầu tiên cần khởi tạo nó.
-    await _notificationService._initLocalNotifications();
-    _notificationService._showLocalNotification(title, body, message.data);
-  }
+  // Ở chế độ nền, Firebase tự hiển thị thông báo.
+  // Nếu bạn muốn tùy chỉnh, bạn cần gọi local notification ở đây.
 }
-
 
 class NotificationService {
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
 
   final AndroidNotificationChannel _channel = const AndroidNotificationChannel(
-    'high_importance_channel', // id
-    'Thông báo Quan trọng', // title
+    'high_importance_channel',
+    'Thông báo Quan trọng',
     description: 'Kênh này được sử dụng cho các thông báo quan trọng.',
     importance: Importance.high,
   );
 
-  // SỬA: Constructor được đặt tên riêng để tránh xung đột với instance top-level
   NotificationService._internal();
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
-
 
   Future<void> init() async {
     await _requestPermission();
@@ -58,20 +52,15 @@ class NotificationService {
     await _localNotifications
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(_channel);
-
     await _initLocalNotifications();
     _setupListeners();
     developer.log("✅ Notification Service Initialized Successfully", name: "NotificationService");
   }
 
   Future<void> _initLocalNotifications() async {
-    const AndroidInitializationSettings initializationSettingsAndroid =
-    AndroidInitializationSettings('@drawable/ic_notification');
-    const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
+    const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@drawable/ic_notification');
+    const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings();
+
     const InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
       iOS: initializationSettingsIOS,
@@ -79,37 +68,21 @@ class NotificationService {
 
     await _localNotifications.initialize(
       initializationSettings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) async {
+      // SỬA: Xử lý khi người dùng nhấn vào thông báo (khi app đang MỞ hoặc chạy NỀN)
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
         developer.log('User tapped notification. Payload: ${response.payload}', name: 'NotificationService');
         if (response.payload != null && response.payload!.isNotEmpty) {
-          // SỬA: Giải mã payload từ JSON thành một Map
           final Map<String, dynamic> data = jsonDecode(response.payload!);
-          final String? type = data['type'];
-
-          // TODO: Xử lý điều hướng dựa trên 'type' và dữ liệu đi kèm
-          // Ví dụ:
-          if (type == 'order_status' || type == 'new_order_for_rep') {
-            final orderId = data['orderId'];
-            developer.log('Navigate to OrderDetails screen with ID: $orderId');
-            // navigatorKey.currentState?.pushNamed('/order-details', arguments: orderId);
-          } else if (type == 'new_product') {
-            final productId = data['productId'];
-            developer.log('Navigate to ProductDetails screen with ID: $productId');
-            // navigatorKey.currentState?.pushNamed('/product-details', arguments: productId);
-          } else if (type == 'account_approved') {
-            developer.log('Navigate to Home screen');
-            // navigatorKey.currentState?.pushNamed('/home');
-          }
+          _handleNotificationNavigation(data); // Gọi hàm điều hướng tập trung
         }
       },
     );
   }
 
-  Future<void> _requestPermission() async {
-    await _fcm.requestPermission();
-  }
+  Future<void> _requestPermission() async => _fcm.requestPermission();
 
   void _setupListeners() {
+    // 1. Khi nhận được thông báo lúc app đang MỞ
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       developer.log('Got a message whilst in the foreground!: ${message.data}', name: "NotificationService");
       final String? title = message.data['title'];
@@ -119,29 +92,29 @@ class NotificationService {
       }
     });
 
+    // 2. Khi người dùng nhấn vào thông báo từ thanh trạng thái (khi app đang chạy NỀN)
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       developer.log('A new onMessageOpenedApp event was published! Data: ${message.data}', name: "NotificationService");
-      // SỬA: Khi người dùng nhấn vào thông báo từ trạng thái terminated,
-      // chúng ta cũng cần điều hướng. Logic tương tự như onDidReceiveNotificationResponse.
-      final String? type = message.data['type'];
-      if (type != null) {
-        // TODO: Thêm logic điều hướng tại đây
-        developer.log('Tapped on notification from terminated state. Type: $type');
-      }
+      _handleNotificationNavigation(message.data);
     });
 
-    // Quan trọng: Đăng ký hàm xử lý nền
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    // 3. Khi app bị TẮT hoàn toàn, kiểm tra xem nó có được mở từ một thông báo không
+    _fcm.getInitialMessage().then((RemoteMessage? message) {
+      if (message != null) {
+        developer.log('App opened from a terminated state by a notification! Data: ${message.data}', name: "NotificationService");
+        // Thêm một chút delay để đảm bảo Navigator đã sẵn sàng
+        Future.delayed(const Duration(seconds: 1), () {
+          _handleNotificationNavigation(message.data);
+        });
+      }
+    });
   }
 
+  // SỬA: Hàm hiển thị thông báo cục bộ, giờ sẽ đính kèm TOÀN BỘ dữ liệu vào payload
   Future<void> _showLocalNotification(String title, String body, Map<String, dynamic> data) async {
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      _channel.id,
-      _channel.name,
-      channelDescription: _channel.description,
-      importance: Importance.max,
-      priority: Priority.high,
-      icon: '@drawable/ic_notification',
+      _channel.id, _channel.name, channelDescription: _channel.description,
+      importance: Importance.max, priority: Priority.high, icon: '@drawable/ic_notification',
     );
     final NotificationDetails notificationDetails = NotificationDetails(
       android: androidDetails,
@@ -149,14 +122,54 @@ class NotificationService {
     );
 
     await _localNotifications.show(
-      Random().nextInt(100000), // ID ngẫu nhiên
-      title,
-      body,
-      notificationDetails,
-      // SỬA: Chuyển toàn bộ dữ liệu (data) thành một chuỗi JSON.
-      // Điều này giúp chúng ta có đầy đủ thông tin khi người dùng nhấn vào thông báo.
-      payload: jsonEncode(data),
+      Random().nextInt(100000), title, body, notificationDetails,
+      payload: jsonEncode(data), // Mã hóa toàn bộ map data thành chuỗi JSON
     );
+  }
+
+  // SỬA: Hàm điều hướng tập trung, "bộ não" của hệ thống deep link
+  void _handleNotificationNavigation(Map<String, dynamic> data) {
+    final String? type = data['type'];
+    final navigator = navigatorKey.currentState;
+
+    if (navigator == null) {
+      developer.log("NavigatorKey is null, cannot navigate.", name: "NotificationService");
+      return;
+    }
+
+    switch (type) {
+      case 'new_article':
+        final articleId = data['articleId'];
+        if (articleId != null) {
+          developer.log('Navigate to NewsDetailPage with ID: $articleId', name: "NotificationService");
+          navigator.push(MaterialPageRoute(builder: (_) => NewsDetailPage(articleId: articleId)));
+        }
+        break;
+
+      case 'order_status':
+      case 'order_status_update_for_admin':
+      case 'order_status_update_for_rep':
+      case 'new_order_for_rep': // Thêm các type liên quan đến đơn hàng
+        final orderId = data['orderId'];
+        if (orderId != null) {
+          developer.log('Navigate to OrderDetails screen with ID: $orderId', name: "NotificationService");
+          navigator.push(OrderDetailPage.route(orderId));
+        }
+        break;
+
+      case 'new_product':
+        final productId = data['productId'];
+        if(productId != null){
+          developer.log('Navigate to ProductDetails screen with ID: $productId', name: "NotificationService");
+          // navigator.push(ProductDetailPage.route(productId)); // Giả sử bạn có trang này
+        }
+        break;
+
+      default:
+        developer.log('Received notification with unknown type or no ID: $type', name: "NotificationService");
+        navigator.push(MaterialPageRoute(builder: (_) => const MainScreen()));
+        break;
+    }
   }
 
   Future<void> saveTokenForUser(String userId) async {

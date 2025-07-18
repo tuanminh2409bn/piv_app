@@ -16,20 +16,27 @@ import 'package:piv_app/features/wishlist/presentation/bloc/wishlist_cubit.dart'
 import 'package:piv_app/features/admin/presentation/pages/admin_home_page.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/sales_rep_home_page.dart';
 
-// Tách logic khởi tạo ra một hàm riêng
-Future<void> _initializeApp() async {
+// SỬA: Thêm GlobalKey để điều hướng từ bên ngoài widget
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+Future<void> main() async {
+  // SỬA: Tối ưu hóa flow khởi tạo, thực hiện tất cả các tác vụ thiết yếu ở đây
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Khởi tạo các dependencies và services
   await di.initializeDependencies();
   await initializeDateFormatting('vi_VN', null);
-  await di.sl<NotificationService>().init();
-  Bloc.observer = di.sl<AppBlocObserver>();
-}
 
-void main() {
-  // Hàm main chỉ còn nhiệm vụ chạy app, rất gọn gàng
+  // Khởi tạo NotificationService sau khi các dependencies khác đã sẵn sàng
+  await di.sl<NotificationService>().init();
+
+  // Cài đặt Bloc Observer
+  Bloc.observer = di.sl<AppBlocObserver>();
+
+  // Chạy ứng dụng
   runApp(const MyApp());
 }
 
@@ -38,7 +45,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // MultiBlocProvider vẫn giữ nguyên để cung cấp các BLoC toàn cục
     return MultiBlocProvider(
       providers: [
         BlocProvider(create: (context) => di.sl<AuthBloc>()..add(AuthAppStarted())),
@@ -47,45 +53,11 @@ class MyApp extends StatelessWidget {
         BlocProvider(create: (context) => di.sl<ProfileCubit>()),
       ],
       child: MaterialApp(
+        // SỬA: Gắn navigatorKey vào MaterialApp
+        navigatorKey: navigatorKey,
         title: 'Phân Bón PIV',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-            primarySwatch: Colors.green,
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.green.shade700),
-            useMaterial3: true,
-            scaffoldBackgroundColor: const Color(0xFFF9F9F9),
-            appBarTheme: const AppBarTheme(
-              elevation: 1,
-              backgroundColor: Colors.white,
-              surfaceTintColor: Colors.transparent,
-            ),
-            inputDecorationTheme: InputDecorationTheme(
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.green.shade700, width: 2),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
-            elevatedButtonTheme: ElevatedButtonThemeData(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green.shade700,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14.0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                )
-            ),
-            textButtonTheme: TextButtonThemeData(
-                style: TextButton.styleFrom(
-                    foregroundColor: Colors.green.shade700,
-                    textStyle: const TextStyle(fontWeight: FontWeight.bold)
-                )
-            )
-        ),
-
+        theme: _buildThemeData(), // Tách theme ra một hàm riêng cho gọn gàng
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
@@ -96,63 +68,52 @@ class MyApp extends StatelessWidget {
           Locale('en', 'US'),
         ],
         locale: const Locale('vi', 'VN'),
-        home: const SplashScreen(),
+        // SỬA: Đơn giản hóa luồng điều khiển, không cần SplashScreen riêng biệt
+        home: const InitialScreenController(),
       ),
     );
   }
-}
 
-// =================================================================
-//          WIDGET MỚI: MÀN HÌNH CHỜ (SPLASH SCREEN)
-// =================================================================
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
-
-  @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen> {
-  @override
-  void initState() {
-    super.initState();
-    _initializeAndNavigate();
-  }
-
-  Future<void> _initializeAndNavigate() async {
-    // Thực hiện tất cả các tác vụ khởi tạo nặng ở đây
-    await _initializeApp();
-
-    // Sau khi xong, điều hướng đến màn hình điều khiển chính
-    // và xóa màn hình chờ khỏi cây widget (không thể quay lại)
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const InitialScreenController()),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Giao diện của màn hình chờ
-    return const Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // TODO: Bạn có thể đặt logo của mình ở đây
-            // Image.asset('assets/logo.png', width: 150),
-            // SizedBox(height: 24),
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Đang khởi tạo...'),
-          ],
+  // Tách theme ra hàm riêng để widget build() gọn hơn
+  ThemeData _buildThemeData() {
+    return ThemeData(
+        primarySwatch: Colors.green,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green.shade700),
+        useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFFF9F9F9),
+        appBarTheme: const AppBarTheme(
+          elevation: 1,
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
         ),
-      ),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.green.shade700, width: 2),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.shade700,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14.0),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            )
+        ),
+        textButtonTheme: TextButtonThemeData(
+            style: TextButton.styleFrom(
+                foregroundColor: Colors.green.shade700,
+                textStyle: const TextStyle(fontWeight: FontWeight.bold)
+            )
+        )
     );
   }
 }
-
 
 // =================================================================
 //        WIDGET ĐIỀU KHIỂN TRANG BAN ĐẦU (GIỮ NGUYÊN)
@@ -162,6 +123,8 @@ class InitialScreenController extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Dùng BlocListener để lắng nghe trạng thái và điều hướng một lần duy nhất
+    // Dùng BlocBuilder để xây dựng giao diện tương ứng
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
         if (state is AuthAuthenticated) {
@@ -173,10 +136,10 @@ class InitialScreenController extends StatelessWidget {
             return const MainScreen();
           }
         }
-        else if (state is AuthUnauthenticated) {
+        if (state is AuthUnauthenticated) {
           return const LoginPage();
         }
-        // Trạng thái loading của AuthBloc, sau khi splash screen đã chạy xong
+        // Hiển thị màn hình chờ trong khi BLoC đang xử lý trạng thái ban đầu
         return const Scaffold(
           body: Center(child: CircularProgressIndicator()),
         );
