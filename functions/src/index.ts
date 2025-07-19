@@ -155,7 +155,7 @@ export const createVnpayPaymentUrl = onCall({region: "asia-southeast1", secrets:
 });
 
 // ===================================================================
-// FUNCTION 3: GỬI THÔNG BÁO KHI CÓ SẢN PHẨM MỚI (ĐÃ NÂNG CẤP 🚀)
+// FUNCTION 3: GỬI THÔNG BÁO KHI CÓ SẢN PHẨM MỚI
 // ===================================================================
 export const onProductCreated = onDocumentCreated(
     {document: "products/{productId}", region: "asia-southeast1"},
@@ -186,7 +186,7 @@ export const onProductCreated = onDocumentCreated(
     });
 
 // ===================================================================
-// FUNCTION 4: XỬ LÝ KHI THÔNG TIN USER THAY ĐỔI (ĐÃ NÂNG CẤP 🚀)
+// FUNCTION 4: XỬ LÝ KHI THÔNG TIN USER THAY ĐỔI
 // ===================================================================
 export const onUserUpdate = onDocumentUpdated(
     {document: "users/{userId}", region: "asia-southeast1"},
@@ -235,11 +235,7 @@ export const onUserUpdate = onDocumentUpdated(
         }
 
         // Kịch bản 2: Giải phóng đại lý khi NVKD bị khóa hoặc đổi vai trò
-        const wasSalesRep = before.role === "sales_rep";
-        const isNowSuspended = after.status === "suspended";
-        const roleChanged = after.role !== "sales_rep";
-
-        if (wasSalesRep && (isNowSuspended || roleChanged)) {
+        if (before.role === "sales_rep" && (after.status === "suspended" || after.role !== "sales_rep")) {
              logger.info(`Sales rep ${updatedUserId} status changed. Un-assigning agents...`);
              const agentsSnapshot = await db.collection("users").where("salesRepId", "==", updatedUserId).get();
              if (!agentsSnapshot.empty) {
@@ -251,11 +247,22 @@ export const onUserUpdate = onDocumentUpdated(
                 logger.info(`Un-assigned ${agentsSnapshot.size} agents from Sales Rep ${updatedUserId}.`);
              }
         }
+
+        // Kịch bản 3: Tự động gỡ đại lý khi được nâng cấp lên NVKD
+        const wasAgent = before.role === 'agent_1' || before.role === 'agent_2';
+        const isNowSalesRep = after.role === 'sales_rep';
+
+        if (wasAgent && isNowSalesRep && after.salesRepId) {
+            logger.info(`Agent ${updatedUserId} was promoted to Sales Rep. Un-assigning from old Sales Rep.`);
+            await db.collection("users").doc(updatedUserId).update({
+                salesRepId: null
+            });
+        }
         return null;
     });
 
 // ===================================================================
-// FUNCTION 5: GỬI THÔNG BÁO KHI CÓ HOA HỒNG (ĐÃ SỬA LỖI 🛠️)
+// FUNCTION 5: GỬI THÔNG BÁO KHI CÓ HOA HỒNG
 // ===================================================================
 export const onCommissionCreated = onDocumentCreated(
     {document: "commissions/{commissionId}", region: "asia-southeast1"},
@@ -308,7 +315,7 @@ export const onCommissionCreated = onDocumentCreated(
     });
 
 // ===================================================================
-// FUNCTION 6: KHI TẠO ĐƠN HÀNG MỚI (ĐÃ NÂNG CẤP 🚀)
+// FUNCTION 6: KHI TẠO ĐƠN HÀNG MỚI
 // ===================================================================
 export const onOrderCreated = onDocumentCreated(
     {document: "orders/{orderId}", region: "asia-southeast1"},
@@ -365,7 +372,7 @@ export const onOrderCreated = onDocumentCreated(
     });
 
 // ===================================================================
-// FUNCTION 7: KHI CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG (ĐÃ NÂNG CẤP 🚀)
+// FUNCTION 7: KHI CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG
 // ===================================================================
 export const onOrderStatusUpdate = onDocumentUpdated(
     {document: "orders/{orderId}", region: "asia-southeast1"},
@@ -407,7 +414,7 @@ export const onOrderStatusUpdate = onDocumentUpdated(
     });
 
 // ===================================================================
-// FUNCTION 8: GỬI THÔNG BÁO KHI CÓ BÀI VIẾT MỚI (ĐÃ ĐỒNG BỘ 🔧)
+// FUNCTION 8: GỬI THÔNG BÁO KHI CÓ BÀI VIẾT MỚI
 // ===================================================================
 export const onNewsArticleCreated = onDocumentCreated(
     {document: "newsArticles/{articleId}", region: "asia-southeast1"},
@@ -422,13 +429,13 @@ export const onNewsArticleCreated = onDocumentCreated(
         if (tokens.length > 0) {
             await sendDataOnlyNotification(tokens, {
                 title: `📰 Tin Tức Mới: ${article.title}`,
-                body: article.summary ?? "Có một bài viết mới đang chờ bạn khám phá!", // Dùng `summary`
+                body: article.summary ?? "Có một bài viết mới đang chờ bạn khám phá!",
                 type: "new_article",
                 articleId: articleId,
                 payload: JSON.stringify({
                     id: articleId,
                     title: article.title,
-                    headerImageUrl: article.imageUrl ?? "", // Dùng `imageUrl`
+                    headerImageUrl: article.imageUrl ?? "",
                 }),
             });
         }
@@ -437,7 +444,7 @@ export const onNewsArticleCreated = onDocumentCreated(
 );
 
 // ===================================================================
-// FUNCTION 9: GỬI THÔNG BÁO THỦ CÔNG (ĐÃ NÂNG CẤP 🚀)
+// FUNCTION 9: GỬI THÔNG BÁO THỦ CÔNG
 // ===================================================================
 export const sendManualNotification = onCall(
     {region: "asia-southeast1"},
@@ -502,6 +509,47 @@ export const sendManualNotification = onCall(
         return { success: true, message: `Đã gửi thông báo thành công đến ${tokens.length} người dùng.` };
     }
 );
+
+// ===================================================================
+// FUNCTION 10: NVKD DUYỆT ĐẠI LÝ
+// ===================================================================
+export const approveAgentBySalesRep = onCall(
+    {region: "asia-southeast1"},
+    async (request: CallableRequest) => {
+        if (!request.auth) {
+            throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
+        }
+        const salesRepId = request.auth.uid;
+        const salesRepDoc = await db.collection("users").doc(salesRepId).get();
+        if (salesRepDoc.data()?.role !== 'sales_rep') {
+            throw new HttpsError("permission-denied", "Chỉ Nhân viên kinh doanh mới có quyền thực hiện.");
+        }
+
+        const { agentId, roleToSet } = request.data;
+        if (!agentId || !roleToSet) {
+            throw new HttpsError("invalid-argument", "Thiếu ID của đại lý hoặc vai trò cần gán.");
+        }
+        if (roleToSet !== 'agent_1' && roleToSet !== 'agent_2') {
+             throw new HttpsError("invalid-argument", "Vai trò không hợp lệ.");
+        }
+
+        const agentRef = db.collection("users").doc(agentId);
+        const agentDoc = await agentRef.get();
+        if (!agentDoc.exists || agentDoc.data()?.status !== 'pending_approval') {
+             throw new HttpsError("not-found", "Không tìm thấy đại lý đang chờ duyệt hợp lệ.");
+        }
+
+        await agentRef.update({
+            status: 'active',
+            role: roleToSet,
+            salesRepId: salesRepId
+        });
+
+        logger.info(`Sales Rep ${salesRepId} approved agent ${agentId} with role ${roleToSet}.`);
+        return { success: true, message: "Duyệt đại lý thành công!" };
+    }
+);
+
 
 // --- Các hàm phụ trợ tính toán (giữ nguyên) ---
 function calculateDiscountForFoliar(total: number, role: string): number {
