@@ -8,6 +8,9 @@ import 'package:piv_app/features/admin/presentation/pages/admin_users_page.dart'
 import 'package:piv_app/features/admin/presentation/pages/admin_commissions_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_vouchers_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_settings_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/manual_notification_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/notification_history_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_news_list_page.dart';
 
 
 class AdminHomePage extends StatelessWidget {
@@ -17,7 +20,7 @@ class AdminHomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bảng điều khiển'),
+        title: const Text('Bảng điều khiển Admin'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -53,13 +56,25 @@ class AdminHomePage extends StatelessWidget {
               icon: Icons.people_outline,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminUsersPage())),
             ),
+            // SỬA: Đổi tên "Thông báo" thành "Soạn Thông Báo" cho rõ ràng
+            _DashboardCard(
+              title: 'Soạn Thông Báo',
+              icon: Icons.send_rounded, // Đổi icon cho phù hợp
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManualNotificationPage())),
+            ),
+            // SỬA: Thêm thẻ chức năng "Lịch Sử Thông Báo"
+            _DashboardCard(
+              title: 'Lịch Sử Gửi',
+              icon: Icons.history_rounded,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationHistoryPage())),
+            ),
             _DashboardCard(
               title: 'Hoa hồng',
               icon: Icons.percent_rounded,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminCommissionsPage())),
             ),
             _DashboardCard(
-              title: 'Duyệt Voucher',
+              title: 'Vouchers', // Đổi tên cho ngắn gọn
               icon: Icons.airplane_ticket_outlined,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminVouchersPage())),
             ),
@@ -68,6 +83,11 @@ class AdminHomePage extends StatelessWidget {
               icon: Icons.settings_outlined,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminSettingsPage())),
             ),
+            _DashboardCard(
+              title: 'Quản lý Tin tức',
+              icon: Icons.article_outlined,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminNewsListPage())),
+            ),
           ],
         ),
       ),
@@ -75,9 +95,6 @@ class AdminHomePage extends StatelessWidget {
   }
 }
 
-// =================================================================
-//        WIDGET THẺ CHỨC NĂNG (ĐÃ THIẾT KẾ Ở BƯỚC 1)
-// =================================================================
 class _DashboardCard extends StatelessWidget {
   const _DashboardCard({
     required this.title,

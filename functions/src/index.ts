@@ -270,15 +270,13 @@ export const onCommissionCreated = onDocumentCreated(
             const formattedAmount = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(amount);
 
             const salesRepDoc = await db.collection("users").doc(salesRepId).get();
-            const salesRepData = salesRepDoc.data(); // Lấy dữ liệu ra trước
+            const salesRepData = salesRepDoc.data();
 
-            // **SỬA LỖI:** Chỉ tiếp tục nếu salesRepData thực sự tồn tại
             if (!salesRepData) {
                 logger.warn(`Sales rep data not found for ID ${salesRepId}, commission ${commissionId}.`);
                 return null;
             }
 
-            // Gửi thông báo cho NVKD
             if (salesRepData.fcmToken) {
                 await sendDataOnlyNotification(salesRepData.fcmToken, {
                     title: `💰 Bạn có hoa hồng mới ${formattedAmount}!`,
@@ -289,7 +287,6 @@ export const onCommissionCreated = onDocumentCreated(
                 });
             }
 
-            // Gửi thông báo cho Admin
             const adminsSnapshot = await db.collection("users").where("role", "==", "admin").get();
             const adminTokens = adminsSnapshot.docs
                 .map((doc) => doc.data().fcmToken)
@@ -325,7 +322,6 @@ export const onOrderCreated = onDocumentCreated(
         const orderIdShort = orderId.substring(0, 8).toUpperCase();
         const formattedTotal = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(total);
 
-        // Thông báo cho khách hàng
         const userDoc = await db.collection("users").doc(userId).get();
         if (userDoc.exists) {
             await sendDataOnlyNotification(userDoc.data()?.fcmToken, {
@@ -337,7 +333,6 @@ export const onOrderCreated = onDocumentCreated(
             });
         }
 
-        // Thông báo cho NVKD
         if (salesRepId) {
             const salesRepDoc = await db.collection("users").doc(salesRepId).get();
             if (salesRepDoc.exists) {
@@ -351,7 +346,6 @@ export const onOrderCreated = onDocumentCreated(
             }
         }
 
-        // Thông báo cho Admin
         const adminsSnapshot = await db.collection("users").where("role", "==", "admin").get();
         const adminTokens = adminsSnapshot.docs
             .map((doc) => doc.data().fcmToken)
@@ -399,11 +393,9 @@ export const onOrderStatusUpdate = onDocumentUpdated(
 
         const payload = JSON.stringify({ id: orderId, status, total, customerName: userName });
 
-        // Gửi cho khách hàng
         const userDoc = await db.collection("users").doc(userId).get();
         if (userDoc.exists) await sendDataOnlyNotification(userDoc.data()?.fcmToken, { title, body, type: "order_status", orderId, payload });
 
-        // Gửi cho NVKD và Admin
         const salesRepDoc = salesRepId ? await db.collection("users").doc(salesRepId).get() : null;
         const adminsSnapshot = await db.collection("users").where("role", "==", "admin").get();
         const adminTokens = adminsSnapshot.docs.map(doc => doc.data().fcmToken).filter((token): token is string => !!token);
@@ -415,14 +407,14 @@ export const onOrderStatusUpdate = onDocumentUpdated(
     });
 
 // ===================================================================
-// FUNCTION 8: GỬI THÔNG BÁO KHI CÓ BÀI VIẾT MỚI (ĐÃ NÂNG CẤP 🚀)
+// FUNCTION 8: GỬI THÔNG BÁO KHI CÓ BÀI VIẾT MỚI (ĐÃ ĐỒNG BỘ 🔧)
 // ===================================================================
-export const onNewsArticlePublished = onDocumentCreated(
+export const onNewsArticleCreated = onDocumentCreated(
     {document: "newsArticles/{articleId}", region: "asia-southeast1"},
     async (event) => {
         const article = event.data?.data();
         const articleId = event.params.articleId;
-        if (!article || article.isPublished !== true) return null;
+        if (!article) return null;
 
         const usersSnapshot = await db.collection("users").where("status", "==", "active").where("role", "in", ["agent_1", "agent_2", "admin"]).get();
         const tokens = usersSnapshot.docs.map((doc) => doc.data().fcmToken).filter((token): token is string => !!token);
@@ -430,17 +422,84 @@ export const onNewsArticlePublished = onDocumentCreated(
         if (tokens.length > 0) {
             await sendDataOnlyNotification(tokens, {
                 title: `📰 Tin Tức Mới: ${article.title}`,
-                body: article.metaDescription ?? "Có một bài viết mới đang chờ bạn khám phá!",
+                body: article.summary ?? "Có một bài viết mới đang chờ bạn khám phá!", // Dùng `summary`
                 type: "new_article",
                 articleId: articleId,
                 payload: JSON.stringify({
                     id: articleId,
                     title: article.title,
-                    headerImageUrl: article.headerImageUrl ?? "",
+                    headerImageUrl: article.imageUrl ?? "", // Dùng `imageUrl`
                 }),
             });
         }
         return null;
+    }
+);
+
+// ===================================================================
+// FUNCTION 9: GỬI THÔNG BÁO THỦ CÔNG (ĐÃ NÂNG CẤP 🚀)
+// ===================================================================
+export const sendManualNotification = onCall(
+    {region: "asia-southeast1"},
+    async (request: CallableRequest) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
+
+        const adminId = request.auth.uid;
+        const adminDoc = await db.collection("users").doc(adminId).get();
+        if (adminDoc.data()?.role !== 'admin') {
+            throw new HttpsError("permission-denied", "Bạn không có quyền thực hiện hành động này.");
+        }
+
+        const { title, body, salesRepId } = request.data;
+        if (!title || !body) {
+            throw new HttpsError("invalid-argument", "Vui lòng nhập đầy đủ tiêu đề và nội dung.");
+        }
+
+        let userQuery = db.collection("users")
+            .where("status", "==", "active")
+            .where("role", "in", ["agent_1", "agent_2", "sales_rep"]);
+
+        if (salesRepId && typeof salesRepId === 'string') {
+            logger.info(`Targeting agents of Sales Rep: ${salesRepId}`);
+            userQuery = userQuery.where("salesRepId", "==", salesRepId);
+        } else {
+            logger.info(`Targeting all agents and sales reps.`);
+        }
+
+        const usersSnapshot = await userQuery.get();
+        const tokens = usersSnapshot.docs
+            .map((doc) => doc.data().fcmToken)
+            .filter((token): token is string => !!token);
+
+        if (tokens.length === 0) {
+            logger.warn("No active tokens found for the selected target.");
+            return { success: true, message: "Không tìm thấy người dùng nào phù hợp để gửi." };
+        }
+
+        await sendDataOnlyNotification(tokens, {
+            title: title,
+            body: body,
+            type: "manual_promo",
+            payload: JSON.stringify({ sentAt: new Date().toISOString() }),
+        });
+
+        const targetDescription = salesRepId ? `Đại lý của NVKD (${salesRepId})` : "Tất cả Đại lý & NVKD";
+
+        await db.collection("manualNotifications").add({
+            title,
+            body,
+            sentAt: new Date(),
+            sentBy: adminId,
+            target: {
+                type: salesRepId ? 'sales_rep_group' : 'all',
+                id: salesRepId ?? null,
+                description: targetDescription
+            },
+            recipientCount: tokens.length,
+        });
+
+        logger.info(`Successfully sent manual notification to ${tokens.length} users.`);
+        return { success: true, message: `Đã gửi thông báo thành công đến ${tokens.length} người dùng.` };
     }
 );
 

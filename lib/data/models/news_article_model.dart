@@ -1,16 +1,16 @@
+// lib/data/models/news_article_model.dart
 import 'package:equatable/equatable.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class NewsArticleModel extends Equatable {
-  final String id; // Document ID từ Firestore
+  final String id;
   final String title;
-  final String summary; // Mô tả ngắn
-  final String content; // Nội dung đầy đủ (có thể là HTML hoặc Markdown)
-  final String imageUrl; // URL ảnh đại diện
+  final String summary;
+  final String content;
+  final String imageUrl;
   final String? author;
   final Timestamp publishedDate;
-  final String? sourceUrl; // Link tới bài viết gốc (nếu có)
-  // final List<String>? tags; // Bạn có thể thêm trường này nếu cần
+  final String? sourceUrl;
 
   const NewsArticleModel({
     required this.id,
@@ -21,40 +21,25 @@ class NewsArticleModel extends Equatable {
     this.author,
     required this.publishedDate,
     this.sourceUrl,
-    // this.tags,
   });
 
   @override
-  List<Object?> get props => [
-    id,
-    title,
-    summary,
-    content,
-    imageUrl,
-    author,
-    publishedDate,
-    sourceUrl,
-    // tags,
-  ];
+  List<Object?> get props => [id, title, summary, content, imageUrl, author, publishedDate, sourceUrl];
 
-  // Factory constructor để tạo NewsArticleModel từ một DocumentSnapshot (Firestore)
   factory NewsArticleModel.fromSnapshot(DocumentSnapshot snap) {
-    final data = snap.data() as Map<String, dynamic>? ?? {}; // Đảm bảo data không bao giờ null
-
+    final data = snap.data() as Map<String, dynamic>? ?? {};
     return NewsArticleModel(
       id: snap.id,
-      title: data['title'] as String? ?? 'N/A', // Xử lý null với giá trị mặc định
+      title: data['title'] as String? ?? 'Chưa có tiêu đề',
       summary: data['summary'] as String? ?? '',
       content: data['content'] as String? ?? '',
       imageUrl: data['imageUrl'] as String? ?? '',
-      author: data['author'] as String?, // Có thể null
-      publishedDate: data['publishedDate'] as Timestamp? ?? Timestamp.now(), // Giá trị mặc định nếu null
-      sourceUrl: data['sourceUrl'] as String?, // Có thể null
-      // tags: (data['tags'] as List<dynamic>?)?.map((e) => e as String).toList(), // Xử lý cho list (nếu có)
+      author: data['author'] as String?,
+      publishedDate: data['publishedDate'] as Timestamp? ?? Timestamp.now(),
+      sourceUrl: data['sourceUrl'] as String?,
     );
   }
 
-  // Phương thức để chuyển NewsArticleModel thành Map để lưu vào Firestore (nếu cần tạo/cập nhật)
   Map<String, dynamic> toJson() {
     return {
       'title': title,
@@ -64,7 +49,29 @@ class NewsArticleModel extends Equatable {
       'author': author,
       'publishedDate': publishedDate,
       'sourceUrl': sourceUrl,
-      // 'tags': tags,
     };
+  }
+
+  // ✅ ADDING THIS METHOD FIXES MANY ERRORS
+  NewsArticleModel copyWith({
+    String? id,
+    String? title,
+    String? summary,
+    String? content,
+    String? imageUrl,
+    String? author,
+    Timestamp? publishedDate,
+    String? sourceUrl,
+  }) {
+    return NewsArticleModel(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      summary: summary ?? this.summary,
+      content: content ?? this.content,
+      imageUrl: imageUrl ?? this.imageUrl,
+      author: author ?? this.author,
+      publishedDate: publishedDate ?? this.publishedDate,
+      sourceUrl: sourceUrl ?? this.sourceUrl,
+    );
   }
 }
