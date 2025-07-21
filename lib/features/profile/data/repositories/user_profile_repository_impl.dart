@@ -7,6 +7,7 @@ import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/data/models/address_model.dart';
 import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
 import 'dart:developer' as developer;
+import 'package:cloud_functions/cloud_functions.dart';
 
 class UserProfileRepositoryImpl implements UserProfileRepository {
   final FirebaseFirestore _firestore;
@@ -271,6 +272,27 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
       return Left(ServerFailure('Lỗi Firebase khi cập nhật một phần hồ sơ: ${e.message}'));
     } catch (e) {
       return Left(ServerFailure('Lỗi không xác định khi cập nhật một phần hồ sơ: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> approveAgentWithRole({
+    required String agentId,
+    required String roleToSet,
+  }) async {
+    try {
+      final functions = FirebaseFunctions.instanceFor(region: 'asia-southeast1');
+      final callable = functions.httpsCallable('approveAgentBySalesRep');
+
+      await callable.call<Map<String, dynamic>>({
+        'agentId': agentId,
+        'roleToSet': roleToSet,
+      });
+      return const Right(null);
+    } on FirebaseFunctionsException catch (e) {
+      return Left(ServerFailure(e.message ?? 'Lỗi từ server.'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
     }
   }
 }

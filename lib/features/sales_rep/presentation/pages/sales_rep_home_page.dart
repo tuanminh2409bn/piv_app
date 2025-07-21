@@ -24,7 +24,7 @@ class SalesRepHomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(create: (_) => sl<SalesRepCubit>()),
+        BlocProvider(create: (_) => sl<SalesRepCubit>()..fetchMyAgents()),
         BlocProvider(create: (_) => sl<SalesRepCommissionsCubit>()..fetchMyCommissions()),
       ],
       child: const SalesRepView(),
@@ -67,15 +67,12 @@ class SalesRepView extends StatelessWidget {
             ],
           ),
         ),
-        body: TabBarView(
+        body: const TabBarView(
           children: [
-            const MyAgentsView(),
-            const PendingAgentsView(),
-            const SalesRepCommissionsView(),
-            BlocProvider(
-              create: (context) => sl<VoucherManagementCubit>()..getVouchers(),
-              child: const VoucherManagementPage(),
-            ),
+            MyAgentsView(),
+            PendingAgentsView(),
+            SalesRepCommissionsView(),
+            VoucherManagementPageWrapper(),
           ],
         ),
       ),
@@ -123,9 +120,18 @@ class SalesRepView extends StatelessWidget {
   }
 }
 
-// =================================================================
-//                     VIEW DANH SÁCH ĐẠI LÝ ĐÃ DUYỆT
-// =================================================================
+class VoucherManagementPageWrapper extends StatelessWidget {
+  const VoucherManagementPageWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => sl<VoucherManagementCubit>()..getVouchers(),
+      child: const VoucherManagementPage(),
+    );
+  }
+}
+
 class MyAgentsView extends StatelessWidget {
   const MyAgentsView({super.key});
 
@@ -134,6 +140,14 @@ class MyAgentsView extends StatelessWidget {
       case 'active': return (Theme.of(context).colorScheme.primary, 'Hoạt động');
       case 'suspended': return (Colors.red.shade700, 'Bị khóa');
       default: return (Colors.grey.shade700, 'Không xác định');
+    }
+  }
+
+  String _getAgentRoleText(String role) {
+    switch (role) {
+      case 'agent_1': return 'Đại lý Cấp 1';
+      case 'agent_2': return 'Đại lý Cấp 2';
+      default: return 'Chưa phân loại';
     }
   }
 
@@ -149,18 +163,29 @@ class MyAgentsView extends StatelessWidget {
           if (state.myAgents.isEmpty) {
             return const Center(child: Text('Bạn chưa có đại lý nào.'));
           }
-          return ListView.separated(
+          return ListView.builder(
             padding: const EdgeInsets.all(8.0),
             itemCount: state.myAgents.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 0),
             itemBuilder: (context, index) {
               final agent = state.myAgents[index];
               final statusInfo = _getStatusInfo(agent.status, context);
+
               return Card(
                 margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                 child: ListTile(
+                  isThreeLine: true,
                   title: Text(agent.displayName ?? 'Chưa có tên', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(agent.email ?? 'Không có email'),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(agent.email ?? 'Không có email'),
+                      const SizedBox(height: 4),
+                      Text(
+                        _getAgentRoleText(agent.role),
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
+                      ),
+                    ],
+                  ),
                   trailing: Chip(
                     label: Text(statusInfo.$2, style: const TextStyle(fontSize: 12)),
                     backgroundColor: statusInfo.$1.withOpacity(0.2),
@@ -182,29 +207,23 @@ class MyAgentsView extends StatelessWidget {
   }
 }
 
-// =================================================================
-//                 VIEW ĐẠI LÝ CHỜ DUYỆT
-// =================================================================
 class PendingAgentsView extends StatelessWidget {
   const PendingAgentsView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Sử dụng BlocProvider để cung cấp AgentApprovalCubit cho riêng tab này
     return BlocProvider(
       create: (context) => sl<AgentApprovalCubit>()..fetchUnassignedAgents(),
       child: BlocConsumer<AgentApprovalCubit, AgentApprovalState>(
         listener: (context, state) {
-          // Hiển thị SnackBar khi có lỗi
           if (state is AgentApprovalFailure) {
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(state.message),
-                  backgroundColor: Colors.red,
-                ),
-              );
+              ..showSnackBar(SnackBar(content: Text(state.message), backgroundColor: Colors.red));
+          }
+          if (state is AgentApprovalSuccess) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Duyệt đại lý thành công!'), backgroundColor: Colors.green));
+            context.read<SalesRepCubit>().fetchMyAgents();
           }
         },
         builder: (context, state) {
@@ -214,22 +233,21 @@ class PendingAgentsView extends StatelessWidget {
 
           if (state is AgentApprovalLoaded) {
             if (state.users.isEmpty) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text(
-                    'Tuyệt vời! Không có đại lý nào đang chờ bạn duyệt.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
+              return RefreshIndicator(
+                onRefresh: () async => context.read<AgentApprovalCubit>().fetchUnassignedAgents(),
+                child: const CustomScrollView(
+                  slivers: [
+                    SliverFillRemaining(
+                      child: Center(
+                        child: Text('Không có đại lý nào đang chờ duyệt.'),
+                      ),
+                    ),
+                  ],
                 ),
               );
             }
-            // Thêm RefreshIndicator để người dùng có thể vuốt xuống để tải lại
             return RefreshIndicator(
-              onRefresh: () async {
-                context.read<AgentApprovalCubit>().fetchUnassignedAgents();
-              },
+              onRefresh: () async => context.read<AgentApprovalCubit>().fetchUnassignedAgents(),
               child: ListView.builder(
                 padding: const EdgeInsets.all(8.0),
                 itemCount: state.users.length,
@@ -240,65 +258,89 @@ class PendingAgentsView extends StatelessWidget {
               ),
             );
           }
-          // Trạng thái ban đầu hoặc có lỗi cũng sẽ hiển thị thông báo
           return const Center(child: Text('Đang tải dữ liệu...'));
         },
       ),
     );
   }
 
-  // Widget con để hiển thị thông tin đại lý
   Widget _buildAgentCard(BuildContext context, UserModel agent) {
-    // ‼️ SỬA LỖI TẠI ĐÂY: Dùng `displayName` thay vì `fullName`
     final agentName = agent.displayName ?? 'Đại lý chưa có tên';
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
           child: Text(agentName.isNotEmpty ? agentName[0].toUpperCase() : 'A'),
         ),
         title: Text(agentName, style: const TextStyle(fontWeight: FontWeight.bold)),
-        // ‼️ SỬA LỖI TẠI ĐÂY: Dùng `email` thay vì `phoneNumber`
         subtitle: Text(agent.email ?? 'Chưa có thông tin liên hệ'),
         trailing: ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.green.shade600,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
-          onPressed: () => _showConfirmationDialog(context, agent),
+          onPressed: () => _showApprovalOptionsDialog(context, agent),
           child: const Text('Duyệt'),
         ),
       ),
     );
   }
 
-  // Dialog xác nhận duyệt
-  void _showConfirmationDialog(BuildContext context, UserModel agent) {
-    // ‼️ SỬA LỖI TẠI ĐÂY: Dùng `displayName`
-    final agentName = agent.displayName ?? 'Đại lý chưa có tên';
 
+  void _showApprovalOptionsDialog(BuildContext context, UserModel agent) {
+    final agentName = agent.displayName ?? 'Đại lý chưa có tên';
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xác Nhận Duyệt'),
-        content: Text('Bạn có chắc chắn muốn duyệt và quản lý đại lý "$agentName"?'),
-        actions: [
+        title: Text('Duyệt Đại lý "$agentName"'),
+        // SỬA: Đưa các lựa chọn vào phần nội dung chính
+        content: Column(
+          mainAxisSize: MainAxisSize.min, // Giúp dialog co lại vừa với nội dung
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Vui lòng chọn cấp bậc cho đại lý này:'),
+            const SizedBox(height: 20),
+
+            // Lựa chọn Cấp 1
+            ElevatedButton.icon(
+              icon: const Icon(Icons.star_rounded),
+              label: const Text('Duyệt thành Đại lý Cấp 1'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              onPressed: () {
+                context.read<AgentApprovalCubit>().approveAgent(agent.id, 'agent_1');
+                Navigator.of(ctx).pop();
+              },
+            ),
+            const SizedBox(height: 12),
+
+            // Lựa chọn Cấp 2
+            ElevatedButton.icon(
+              icon: const Icon(Icons.star_half_rounded),
+              label: const Text('Duyệt thành Đại lý Cấp 2'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                foregroundColor: Theme.of(context).colorScheme.onSecondaryContainer,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              onPressed: () {
+                context.read<AgentApprovalCubit>().approveAgent(agent.id, 'agent_2');
+                Navigator.of(ctx).pop();
+              },
+            ),
+          ],
+        ),
+        // Chỉ còn nút Hủy ở phần actions
+        actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            onPressed: () {
-              // Gọi hàm approveAgent từ AgentApprovalCubit
-              context.read<AgentApprovalCubit>().approveAgent(agent.id);
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Duyệt'),
+            child: const Text('HỦY BỎ'),
           ),
         ],
       ),
@@ -306,9 +348,6 @@ class PendingAgentsView extends StatelessWidget {
   }
 }
 
-// =================================================================
-//                     VIEW HOA HỒNG CỦA NVKD
-// =================================================================
 class SalesRepCommissionsView extends StatelessWidget {
   const SalesRepCommissionsView({super.key});
 

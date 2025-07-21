@@ -119,7 +119,7 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<OrderDetailCubit>(
         () => OrderDetailCubit(
       orderRepository: sl(),
-      functions: sl(), // <<< THÊM VÀO
+      functions: sl(),
     ),
   );
 
@@ -142,7 +142,7 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<QuickOrderCubit>(() => QuickOrderCubit(homeRepository: sl(), cartCubit: sl()));
   sl.registerFactory<AgentOrdersCubit>(() => AgentOrdersCubit(
     orderRepository: sl(),
-    authBloc: sl(), // <<< THÊM VÀO
+    authBloc: sl(),
   ));
 
   // == Voucher ==
@@ -152,7 +152,11 @@ Future<void> initializeDependencies() async {
   sl.registerLazySingleton(() => FirebaseFirestore.instance);
   sl.registerLazySingleton(() => FirebaseFunctions.instanceFor(region: 'asia-southeast1'));
 
-  sl.registerFactory(() => AgentApprovalCubit(userProfileRepository: sl(), authRepository: sl(),),);
+  sl.registerFactory(
+        () => AgentApprovalCubit(
+      userProfileRepository: sl(),
+    ),
+  );
 
   sl.registerLazySingleton(() => NotificationService());
 }

@@ -1,3 +1,5 @@
+// lib/features/sales_rep/agent_approval/bloc/agent_approval_state.dart
+
 part of 'agent_approval_cubit.dart';
 
 abstract class AgentApprovalState extends Equatable {
@@ -10,7 +12,6 @@ class AgentApprovalInitial extends AgentApprovalState {}
 class AgentApprovalLoading extends AgentApprovalState {}
 
 class AgentApprovalLoaded extends AgentApprovalState {
-  // Sửa lại kiểu dữ liệu thành UserModel
   final List<UserModel> users;
   const AgentApprovalLoaded(this.users);
   @override
@@ -23,3 +24,6 @@ class AgentApprovalFailure extends AgentApprovalState {
   @override
   List<Object> get props => [message];
 }
+
+// ✅ THÊM CLASS NÀY VÀO
+class AgentApprovalSuccess extends AgentApprovalState {}
