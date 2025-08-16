@@ -48,25 +48,30 @@ class MyOrdersCubit extends Cubit<MyOrdersState> {
     }
 
     emit(state.copyWith(status: MyOrdersStatus.loading));
-    developer.log('MyOrdersCubit: Fetching orders for user ID: $_currentUserId', name: 'MyOrdersCubit');
-
     final result = await _orderRepository.getUserOrders(_currentUserId);
 
     result.fold(
           (failure) {
-        developer.log('MyOrdersCubit: Failed to fetch orders - ${failure.message}', name: 'MyOrdersCubit');
         emit(state.copyWith(status: MyOrdersStatus.error, errorMessage: failure.message));
       },
           (orders) {
-        developer.log('MyOrdersCubit: Fetched ${orders.length} orders successfully.', name: 'MyOrdersCubit');
-        emit(state.copyWith(status: MyOrdersStatus.success, orders: orders));
+        // --- LOGIC MỚI: Phân loại đơn hàng ---
+        final pendingApproval = orders.where((o) => o.status == 'pending_approval').toList();
+        final ongoing = orders.where((o) => ['pending', 'processing', 'shipped'].contains(o.status)).toList();
+        final completed = orders.where((o) => ['completed', 'cancelled', 'rejected'].contains(o.status)).toList();
+
+        emit(state.copyWith(
+          status: MyOrdersStatus.success,
+          pendingApprovalOrders: pendingApproval,
+          ongoingOrders: ongoing,
+          completedOrders: completed,
+        ));
       },
     );
   }
 
   @override
   Future<void> close() {
-    // Hủy lắng nghe stream khi Cubit bị đóng để tránh rò rỉ bộ nhớ
     _authSubscription?.cancel();
     return super.close();
   }

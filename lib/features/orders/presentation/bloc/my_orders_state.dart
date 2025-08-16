@@ -1,35 +1,42 @@
-part of 'my_orders_cubit.dart'; // Sẽ tạo file my_orders_cubit.dart sau
+// lib/features/orders/presentation/bloc/my_orders_state.dart
 
-enum MyOrdersStatus {
-  initial, // Trạng thái ban đầu
-  loading, // Đang tải danh sách đơn hàng
-  success, // Tải thành công
-  error,   // Có lỗi xảy ra
-}
+part of 'my_orders_cubit.dart';
+
+enum MyOrdersStatus { initial, loading, success, error }
 
 class MyOrdersState extends Equatable {
+  final List<OrderModel> pendingApprovalOrders;
+  final List<OrderModel> ongoingOrders;
+  final List<OrderModel> completedOrders;
+  // ----------------------------------------------------
+
   final MyOrdersStatus status;
-  final List<OrderModel> orders; // Danh sách các đơn hàng
   final String? errorMessage;
 
   const MyOrdersState({
     this.status = MyOrdersStatus.initial,
-    this.orders = const [],
+    this.pendingApprovalOrders = const [],
+    this.ongoingOrders = const [],
+    this.completedOrders = const [],
     this.errorMessage,
   });
 
   MyOrdersState copyWith({
     MyOrdersStatus? status,
-    List<OrderModel>? orders,
+    List<OrderModel>? pendingApprovalOrders,
+    List<OrderModel>? ongoingOrders,
+    List<OrderModel>? completedOrders,
     String? errorMessage,
   }) {
     return MyOrdersState(
       status: status ?? this.status,
-      orders: orders ?? this.orders,
+      pendingApprovalOrders: pendingApprovalOrders ?? this.pendingApprovalOrders,
+      ongoingOrders: ongoingOrders ?? this.ongoingOrders,
+      completedOrders: completedOrders ?? this.completedOrders,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }
 
   @override
-  List<Object?> get props => [status, orders, errorMessage];
+  List<Object?> get props => [status, pendingApprovalOrders, ongoingOrders, completedOrders, errorMessage];
 }

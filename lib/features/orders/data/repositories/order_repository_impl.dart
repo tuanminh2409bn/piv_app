@@ -248,4 +248,31 @@ class OrderRepositoryImpl implements OrderRepository {
       return Left(ServerFailure('Lỗi khi tải đơn hàng của đại lý: ${e.toString()}. Có thể bạn cần tạo chỉ mục (index) trên Firestore.'));
     }
   }
+
+  @override
+  Future<Either<Failure, Unit>> approveOrder(String orderId) async {
+    try {
+      await _firestore.collection('orders').doc(orderId).update({
+        'status': 'pending',
+        'approvedAt': FieldValue.serverTimestamp(),
+      });
+      return const Right(unit);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure(e.message ?? 'Lỗi khi duyệt đơn hàng.'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> rejectOrder({required String orderId, required String reason}) async {
+    try {
+      await _firestore.collection('orders').doc(orderId).update({
+        'status': 'rejected',
+        'rejectionReason': reason,
+        'rejectedAt': FieldValue.serverTimestamp(),
+      });
+      return const Right(unit);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure(e.message ?? 'Lỗi khi từ chối đơn hàng.'));
+    }
+  }
 }

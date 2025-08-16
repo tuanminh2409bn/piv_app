@@ -1,10 +1,11 @@
+// lib/features/orders/presentation/pages/my_orders_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/features/orders/presentation/bloc/my_orders_cubit.dart';
-// Import trang chi tiết đơn hàng
 import 'package:piv_app/features/orders/presentation/pages/order_detail_page.dart';
 
 class MyOrdersPage extends StatelessWidget {
@@ -26,130 +27,205 @@ class MyOrdersPage extends StatelessWidget {
 class MyOrdersView extends StatelessWidget {
   const MyOrdersView({super.key});
 
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 3, // --- THAY ĐỔI: 3 tabs ---
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Đơn hàng của tôi'),
+          bottom: TabBar(
+            tabs: [
+              // --- THAY ĐỔI: Tạo các tab với badge đếm số lượng ---
+              _buildTabWithBadge(context, 'Chờ duyệt', context.select((MyOrdersCubit cubit) => cubit.state.pendingApprovalOrders.length)),
+              _buildTabWithBadge(context, 'Đang xử lý', context.select((MyOrdersCubit cubit) => cubit.state.ongoingOrders.length)),
+              const Tab(text: 'Lịch sử'),
+            ],
+          ),
+        ),
+        body: BlocBuilder<MyOrdersCubit, MyOrdersState>(
+          builder: (context, state) {
+            if (state.status == MyOrdersStatus.loading && state.ongoingOrders.isEmpty && state.pendingApprovalOrders.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (state.status == MyOrdersStatus.error) {
+              return Center(child: Text(state.errorMessage ?? 'Không thể tải đơn hàng.'));
+            }
+
+            // --- THAY ĐỔI: Sử dụng TabBarView ---
+            return TabBarView(
+              children: [
+                _OrderListView(orders: state.pendingApprovalOrders, emptyMessage: 'Không có đơn hàng nào cần bạn phê duyệt.'),
+                _OrderListView(orders: state.ongoingOrders, emptyMessage: 'Không có đơn hàng nào đang được xử lý.'),
+                _OrderListView(orders: state.completedOrders, emptyMessage: 'Chưa có đơn hàng nào trong lịch sử.'),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Tab _buildTabWithBadge(BuildContext context, String text, int count) {
+    return Tab(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(text),
+          if (count > 0) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                count.toString(),
+                style: const TextStyle(color: Colors.white, fontSize: 12),
+              ),
+            ),
+          ]
+        ],
+      ),
+    );
+  }
+}
+
+// --- WIDGET MỚI: Tái sử dụng để hiển thị danh sách đơn hàng ---
+class _OrderListView extends StatelessWidget {
+  final List<OrderModel> orders;
+  final String emptyMessage;
+
+  const _OrderListView({required this.orders, required this.emptyMessage});
+
+  @override
+  Widget build(BuildContext context) {
+    if (orders.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.receipt_long_outlined, size: 80, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(emptyMessage, style: const TextStyle(fontSize: 18)),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: () async => context.read<MyOrdersCubit>().fetchMyOrders(),
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16.0),
+        itemCount: orders.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final order = orders[index];
+          return _OrderCard(order: order);
+        },
+      ),
+    );
+  }
+}
+
+
+// --- WIDGET MỚI: Tách card đơn hàng ra để dễ quản lý ---
+class _OrderCard extends StatelessWidget {
+  final OrderModel order;
+  const _OrderCard({required this.order});
+
   (Color, String) _getStatusInfo(String status, BuildContext context) {
-    // ... (hàm này không đổi)
     switch (status) {
+      case 'pending_approval': return (Colors.blue.shade700, 'Chờ phê duyệt');
       case 'pending': return (Colors.orange.shade700, 'Chờ xử lý');
-      case 'processing': return (Colors.blue.shade700, 'Đang xử lý');
+      case 'processing': return (Colors.cyan.shade700, 'Đang xử lý');
       case 'shipped': return (Colors.teal.shade700, 'Đang giao');
       case 'completed': return (Theme.of(context).colorScheme.primary, 'Hoàn thành');
-      case 'cancelled': return (Colors.red.shade700, 'Đã hủy');
+      case 'cancelled': return (Colors.grey.shade700, 'Đã hủy');
+      case 'rejected': return (Colors.red.shade700, 'Đã từ chối');
       default: return (Colors.grey.shade700, 'Không xác định');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Đơn hàng của tôi'),
-      ),
-      body: BlocBuilder<MyOrdersCubit, MyOrdersState>(
-        builder: (context, state) {
-          if (state.status == MyOrdersStatus.loading && state.orders.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    final statusInfo = _getStatusInfo(order.status, context);
+    final statusColor = statusInfo.$1;
+    final statusText = statusInfo.$2;
+    final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
 
-          if (state.status == MyOrdersStatus.error) {
-            return Center(child: Text(state.errorMessage ?? 'Không thể tải đơn hàng.'));
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: () {
+          if (order.id != null) {
+            Navigator.of(context).push(OrderDetailPage.route(order.id!));
           }
-
-          if (state.orders.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(Icons.receipt_long_outlined, size: 80, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text('Bạn chưa có đơn hàng nào', style: TextStyle(fontSize: 18)),
+                  Text(
+                    'Đơn hàng #${order.id?.substring(0, 6).toUpperCase() ?? 'N/A'}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                  )
                 ],
               ),
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () async => context.read<MyOrdersCubit>().fetchMyOrders(),
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16.0),
-              itemCount: state.orders.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final order = state.orders[index];
-                final statusInfo = _getStatusInfo(order.status, context);
-                final statusColor = statusInfo.$1;
-                final statusText = statusInfo.$2;
-                final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
-                final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
-
-                return Card(
-                  elevation: 3,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: InkWell(
-                    // ** CẬP NHẬT ĐIỀU HƯỚNG Ở ĐÂY **
-                    onTap: () {
-                      if (order.id != null) {
-                        Navigator.of(context).push(OrderDetailPage.route(order.id!));
-                      }
-                    },
-                    borderRadius: BorderRadius.circular(12),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Đơn hàng #${order.id?.substring(0, 6).toUpperCase() ?? 'N/A'}',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  statusText,
-                                  style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12),
-                                ),
-                              )
-                            ],
-                          ),
-                          const Divider(height: 20),
-                          Row(
-                            children: [
-                              Icon(Icons.calendar_today, size: 14, color: Colors.grey.shade600),
-                              const SizedBox(width: 8),
-                              Text('Ngày đặt: ${dateFormat.format(order.createdAt!.toDate())}', style: TextStyle(color: Colors.grey.shade700)),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Icon(Icons.receipt_long, size: 14, color: Colors.grey.shade600),
-                              const SizedBox(width: 8),
-                              Text('${order.items.length} sản phẩm', style: TextStyle(color: Colors.grey.shade700)),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: Text(
-                              'Tổng cộng: ${formatter.format(order.total)}',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                            ),
-                          )
-                        ],
-                      ),
-                    ),
+              if (order.placedBy != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Text(
+                    'Được tạo bởi NVKD/Kế toán',
+                    style: TextStyle(color: Colors.blueGrey.shade700, fontSize: 13, fontStyle: FontStyle.italic),
                   ),
-                );
-              },
-            ),
-          );
-        },
+                ),
+              const Divider(height: 20),
+              Row(
+                children: [
+                  Icon(Icons.calendar_today, size: 14, color: Colors.grey.shade600),
+                  const SizedBox(width: 8),
+                  Text('Ngày đặt: ${order.createdAt != null ? dateFormat.format(order.createdAt!.toDate()) : 'N/A'}', style: TextStyle(color: Colors.grey.shade700)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.receipt_long, size: 14, color: Colors.grey.shade600),
+                  const SizedBox(width: 8),
+                  Text('${order.items.length} sản phẩm', style: TextStyle(color: Colors.grey.shade700)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'Tổng cộng: ${formatter.format(order.finalTotal)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              )
+            ],
+          ),
+        ),
       ),
     );
   }

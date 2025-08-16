@@ -86,6 +86,32 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
     }
   }
 
+  Future<void> approveOrder() async {
+    if (state.order?.id == null) return;
+    emit(state.copyWith(status: OrderDetailStatus.updating));
+    final result = await _orderRepository.approveOrder(state.order!.id!);
+    result.fold(
+          (failure) => emit(state.copyWith(status: OrderDetailStatus.error, errorMessage: failure.message, clearError: false)),
+          (_) {
+        // Không cần emit success vì stream sẽ tự động cập nhật
+        // Chỉ cần chuyển trạng thái về lại success để tắt loading
+        emit(state.copyWith(status: OrderDetailStatus.success, clearError: true));
+      },
+    );
+  }
+
+  Future<void> rejectOrder(String reason) async {
+    if (state.order?.id == null) return;
+    emit(state.copyWith(status: OrderDetailStatus.updating));
+    final result = await _orderRepository.rejectOrder(orderId: state.order!.id!, reason: reason);
+    result.fold(
+          (failure) => emit(state.copyWith(status: OrderDetailStatus.error, errorMessage: failure.message, clearError: false)),
+          (_) {
+        emit(state.copyWith(status: OrderDetailStatus.success, clearError: true));
+      },
+    );
+  }
+
   // Hàm này để reset lại trạng thái sau khi đã xử lý xong URL
   void resetPaymentUrlStatus() {
     emit(state.copyWith(status: OrderDetailStatus.success, forcePaymentUrlToNull: true));

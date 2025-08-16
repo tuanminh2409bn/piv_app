@@ -1,3 +1,5 @@
+// lib/features/orders/presentation/pages/order_detail_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -16,16 +18,16 @@ class OrderDetailPage extends StatelessWidget {
 
   static PageRoute<void> route(String orderId) {
     return MaterialPageRoute<void>(
-      builder: (_) => OrderDetailPage(orderId: orderId),
+      builder: (_) => BlocProvider(
+        create: (_) => sl<OrderDetailCubit>()..listenToOrderDetail(orderId),
+        child: OrderDetailPage(orderId: orderId),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => sl<OrderDetailCubit>()..listenToOrderDetail(orderId),
-      child: const OrderDetailView(),
-    );
+    return const OrderDetailView();
   }
 }
 
@@ -71,105 +73,209 @@ class OrderDetailView extends StatelessWidget {
             }
 
             final order = state.order!;
-            final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
-            final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
-            final statusInfo = _getStatusInfo(order.status, context);
 
             return SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 100.0),
+              padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 120.0), // Tăng padding bottom để không bị che
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildOrderHeader(context, order, statusInfo, dateFormat),
+                  _OrderHeader(order: order),
                   const Divider(height: 32),
-                  _buildSection(
-                    context,
+                  _Section(
                     title: 'Địa chỉ giao hàng',
                     icon: Icons.location_on_outlined,
-                    child: _buildAddressInfo(order.shippingAddress),
+                    child: _AddressInfo(address: order.shippingAddress),
                   ),
                   const Divider(height: 32),
-                  _buildSection(
-                    context,
+                  _Section(
                     title: 'Danh sách sản phẩm',
                     icon: Icons.shopping_bag_outlined,
-                    child: _buildOrderItemsList(order.items, currencyFormatter),
+                    child: _OrderItemsList(items: order.items),
                   ),
                   const Divider(height: 32),
-                  _buildSection(
-                    context,
+                  _Section(
                     title: 'Tóm tắt thanh toán',
                     icon: Icons.receipt_long_outlined,
-                    child: _buildPaymentSummary(context, order, currencyFormatter),
+                    child: _PaymentSummary(order: order),
                   ),
                 ],
               ),
             );
           },
         ),
-        bottomNavigationBar: BlocBuilder<OrderDetailCubit, OrderDetailState>(
-          builder: (context, state) {
-            final authState = context.watch<AuthBloc>().state;
-            final order = state.order;
+        bottomNavigationBar: const _BottomBar(),
+      ),
+    );
+  }
+}
 
-            bool isOrderOwner = false;
-            if (authState is AuthAuthenticated && order != null) {
-              isOrderOwner = authState.user.id == order.userId;
-            }
+// --- TẤT CẢ CÁC WIDGET BÊN DƯỚI ĐỀU ĐƯỢC TỔ CHỨC LẠI HOẶC THÊM MỚI ---
 
-            // <<< LOGIC ĐÃ ĐƯỢC CẬP NHẬT HOÀN CHỈNH TẠI ĐÂY >>>
-            final bool canPay = order != null &&
-                isOrderOwner &&
-                order.paymentMethod == 'COD' &&
-                order.paymentStatus != 'paid' &&
-                order.status != 'completed' && // << THÊM: Không phải đã hoàn thành
-                order.status != 'cancelled';   // << THÊM: Không phải đã hủy
+class _BottomBar extends StatelessWidget {
+  const _BottomBar();
 
-            final bool isCreatingUrl = state.status == OrderDetailStatus.creatingPaymentUrl;
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<OrderDetailCubit, OrderDetailState>(
+      builder: (context, state) {
+        final order = state.order;
+        if (order == null) return const SizedBox.shrink();
 
-            if (canPay) {
-              return Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: ElevatedButton.icon(
-                  icon: isCreatingUrl
-                      ? Container(width: 20, height: 20, child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                      : const Icon(Icons.credit_card),
-                  label: Text(isCreatingUrl ? 'Đang tạo link...' : 'Thanh toán Online qua VNPAY'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: const Color(0xFF005A9C),
-                    foregroundColor: Colors.white,
-                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  onPressed: isCreatingUrl
-                      ? null
-                      : () {
-                    context.read<OrderDetailCubit>().initiateOnlinePayment();
-                  },
-                ),
-              );
-            }
-            return const SizedBox.shrink();
-          },
+        // Trường hợp 1: Đơn hàng đang chờ phê duyệt
+        if (order.status == 'pending_approval') {
+          return _ApprovalActionButtons(order: order);
+        }
+
+        // Trường hợp 2: Đơn hàng có thể thanh toán online
+        final authState = context.watch<AuthBloc>().state;
+        bool isOrderOwner = false;
+        if (authState is AuthAuthenticated) {
+          isOrderOwner = authState.user.id == order.userId;
+        }
+        final bool canPay = isOrderOwner &&
+            order.paymentMethod == 'COD' &&
+            order.paymentStatus != 'paid' &&
+            !['completed', 'cancelled', 'rejected'].contains(order.status);
+
+        if (canPay) {
+          return _PaymentButton(isLoading: state.status == OrderDetailStatus.creatingPaymentUrl);
+        }
+
+        // Mặc định không hiển thị gì
+        return const SizedBox.shrink();
+      },
+    );
+  }
+}
+
+class _ApprovalActionButtons extends StatelessWidget {
+  final OrderModel order;
+  const _ApprovalActionButtons({required this.order});
+
+  void _showRejectionDialog(BuildContext context) {
+    final reasonController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Lý do từ chối'),
+        content: TextField(
+          controller: reasonController,
+          decoration: const InputDecoration(hintText: 'Nhập lý do...'),
+          autofocus: true,
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('HỦY'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () {
+              if (reasonController.text.trim().isNotEmpty) {
+                context.read<OrderDetailCubit>().rejectOrder(reasonController.text.trim());
+                Navigator.of(dialogContext).pop();
+              } else {
+                ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(const SnackBar(content: Text('Vui lòng nhập lý do.'), backgroundColor: Colors.orange,));
+              }
+            },
+            child: const Text('XÁC NHẬN TỪ CHỐI'),
+          ),
+        ],
       ),
     );
   }
 
-  (Color, String) _getStatusInfo(String status, BuildContext context) {
-    switch (status) {
-      case 'pending': return (Colors.orange.shade700, 'Chờ xử lý');
-      case 'processing': return (Colors.blue.shade700, 'Đang xử lý');
-      case 'shipped': return (Colors.teal.shade700, 'Đang giao');
-      case 'completed': return (Theme.of(context).colorScheme.primary, 'Hoàn thành');
-      case 'cancelled': return (Colors.red.shade700, 'Đã hủy');
-      default: return (Colors.grey.shade700, 'Không xác định');
-    }
-  }
+  @override
+  Widget build(BuildContext context) {
+    final isLoading = context.select((OrderDetailCubit cubit) => cubit.state.status == OrderDetailStatus.updating);
 
-  Widget _buildOrderHeader(BuildContext context, OrderModel order, (Color, String) statusInfo, DateFormat dateFormat) {
-    final statusColor = statusInfo.$1;
-    final statusText = statusInfo.$2;
+    return Container(
+      padding: const EdgeInsets.all(16.0).copyWith(bottom: 16.0 + MediaQuery.of(context).padding.bottom),
+      decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, -4))]
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.close),
+              label: const Text('TỪ CHỐI'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed: isLoading ? null : () => _showRejectionDialog(context),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: ElevatedButton.icon(
+              icon: isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.check),
+              label: Text(isLoading ? 'ĐANG XỬ LÝ' : 'PHÊ DUYỆT'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed: isLoading ? null : () {
+                context.read<OrderDetailCubit>().approveOrder();
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentButton extends StatelessWidget {
+  final bool isLoading;
+  const _PaymentButton({required this.isLoading});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: ElevatedButton.icon(
+        icon: isLoading
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+            : const Icon(Icons.credit_card),
+        label: Text(isLoading ? 'Đang tạo link...' : 'Thanh toán Online qua VNPAY'),
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          backgroundColor: const Color(0xFF005A9C),
+          foregroundColor: Colors.white,
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        onPressed: isLoading ? null : () => context.read<OrderDetailCubit>().initiateOnlinePayment(),
+      ),
+    );
+  }
+}
+
+(Color, String) _getStatusInfo(String status, BuildContext context) {
+  switch (status) {
+    case 'pending_approval': return (Colors.blue.shade700, 'Chờ phê duyệt');
+    case 'pending': return (Colors.orange.shade700, 'Chờ xử lý');
+    case 'processing': return (Colors.cyan.shade700, 'Đang xử lý');
+    case 'shipped': return (Colors.teal.shade700, 'Đang giao');
+    case 'completed': return (Theme.of(context).colorScheme.primary, 'Hoàn thành');
+    case 'cancelled': return (Colors.grey.shade700, 'Đã hủy');
+    case 'rejected': return (Colors.red.shade700, 'Đã từ chối');
+    default: return (Colors.grey.shade700, 'Không xác định');
+  }
+}
+
+class _OrderHeader extends StatelessWidget {
+  final OrderModel order;
+  const _OrderHeader({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    final statusInfo = _getStatusInfo(order.status, context);
+    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -186,12 +292,12 @@ class OrderDetailView extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.1),
+                color: statusInfo.$1.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                statusText,
-                style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 13),
+                statusInfo.$2,
+                style: TextStyle(color: statusInfo.$1, fontWeight: FontWeight.bold, fontSize: 13),
               ),
             )
           ],
@@ -205,8 +311,17 @@ class OrderDetailView extends StatelessWidget {
       ],
     );
   }
+}
 
-  Widget _buildSection(BuildContext context, {required String title, required IconData icon, required Widget child}) {
+class _Section extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Widget child;
+
+  const _Section({required this.title, required this.icon, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -225,8 +340,14 @@ class OrderDetailView extends StatelessWidget {
       ],
     );
   }
+}
 
-  Widget _buildAddressInfo(AddressModel address) {
+class _AddressInfo extends StatelessWidget {
+  final AddressModel address;
+  const _AddressInfo({required this.address});
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -236,8 +357,15 @@ class OrderDetailView extends StatelessWidget {
       ],
     );
   }
+}
 
-  Widget _buildOrderItemsList(List<OrderItemModel> items, NumberFormat formatter) {
+class _OrderItemsList extends StatelessWidget {
+  final List<OrderItemModel> items;
+  const _OrderItemsList({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -274,8 +402,15 @@ class OrderDetailView extends StatelessWidget {
       separatorBuilder: (context, index) => const Divider(height: 24),
     );
   }
+}
 
-  Widget _buildPaymentSummary(BuildContext context, OrderModel order, NumberFormat formatter) {
+class _PaymentSummary extends StatelessWidget {
+  final OrderModel order;
+  const _PaymentSummary({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     return Column(
       children: [
         _buildSummaryRow(context, 'Tạm tính', formatter.format(order.subtotal)),

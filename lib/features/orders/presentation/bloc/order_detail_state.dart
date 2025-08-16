@@ -1,12 +1,12 @@
 part of 'order_detail_cubit.dart';
 
-enum OrderDetailStatus { initial, loading, success, error, creatingPaymentUrl, paymentUrlCreated }
+enum OrderDetailStatus { initial, loading, success, error, creatingPaymentUrl, paymentUrlCreated, updating }
 
 class OrderDetailState extends Equatable {
   final OrderDetailStatus status;
   final OrderModel? order;
   final String? errorMessage;
-  final String? paymentUrl; // <<< THÊM MỚI: Để lưu link thanh toán
+  final String? paymentUrl;
 
   const OrderDetailState({
     this.status = OrderDetailStatus.initial,
@@ -24,6 +24,7 @@ class OrderDetailState extends Equatable {
     String? errorMessage,
     String? paymentUrl,
     bool forcePaymentUrlToNull = false,
+    bool clearError = false,
   }) {
     return OrderDetailState(
       status: status ?? this.status,
