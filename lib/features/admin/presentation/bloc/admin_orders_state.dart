@@ -8,12 +8,14 @@ class AdminOrdersState extends Equatable {
     this.allOrders = const [],
     this.searchQuery = '',
     this.errorMessage,
+    this.usersMap = const {},
   });
 
   final AdminOrdersStatus status;
   final List<OrderModel> allOrders;
   final String searchQuery;
   final String? errorMessage;
+  final Map<String, UserModel> usersMap;
 
   // Helper để kiểm tra một đơn hàng có khớp với query tìm kiếm không
   bool _matchesSearch(OrderModel order) {
@@ -53,12 +55,14 @@ class AdminOrdersState extends Equatable {
     List<OrderModel>? allOrders,
     String? searchQuery,
     String? errorMessage,
+    Map<String, UserModel>? usersMap,
   }) {
     return AdminOrdersState(
       status: status ?? this.status,
       allOrders: allOrders ?? this.allOrders,
       searchQuery: searchQuery ?? this.searchQuery,
       errorMessage: errorMessage ?? this.errorMessage,
+      usersMap: usersMap ?? this.usersMap,
     );
   }
 

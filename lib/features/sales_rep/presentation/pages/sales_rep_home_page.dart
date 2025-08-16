@@ -12,6 +12,7 @@ import 'package:piv_app/features/vouchers/presentation/bloc/voucher_management_c
 import 'package:piv_app/features/vouchers/presentation/pages/voucher_management_page.dart';
 import 'package:piv_app/features/sales_rep/agent_approval/bloc/agent_approval_cubit.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:piv_app/features/sales_rep/presentation/pages/create_agent_order_page.dart';
 
 class SalesRepHomePage extends StatelessWidget {
   const SalesRepHomePage({super.key});
@@ -186,17 +187,29 @@ class MyAgentsView extends StatelessWidget {
                       ),
                     ],
                   ),
-                  trailing: Chip(
-                    label: Text(statusInfo.$2, style: const TextStyle(fontSize: 12)),
-                    backgroundColor: statusInfo.$1.withOpacity(0.2),
-                    side: BorderSide.none,
+                  // --- THAY ĐỔI: Thêm menu chức năng ---
+                  trailing: PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'view_history') {
+                        Navigator.of(context).push(AgentOrderHistoryPage.route(
+                          agentId: agent.id,
+                          agentName: agent.displayName ?? 'N/A',
+                        ));
+                      } else if (value == 'place_order') {
+                        Navigator.of(context).push(CreateAgentOrderPage.route(agent));
+                      }
+                    },
+                    itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                      const PopupMenuItem<String>(
+                        value: 'view_history',
+                        child: ListTile(leading: Icon(Icons.history), title: Text('Xem lịch sử')),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'place_order',
+                        child: ListTile(leading: Icon(Icons.add_shopping_cart), title: Text('Đặt hàng hộ')),
+                      ),
+                    ],
                   ),
-                  onTap: () {
-                    Navigator.of(context).push(AgentOrderHistoryPage.route(
-                      agentId: agent.id,
-                      agentName: agent.displayName ?? 'N/A',
-                    ));
-                  },
                 ),
               );
             },

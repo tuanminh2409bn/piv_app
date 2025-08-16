@@ -295,4 +295,27 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
       return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
     }
   }
+
+  @override
+  Future<Either<Failure, List<UserModel>>> getUsersByIds(List<String> userIds) async {
+    if (userIds.isEmpty) {
+      return const Right([]);
+    }
+    try {
+      final List<UserModel> result = [];
+      for (var i = 0; i < userIds.length; i += 30) {
+        final sublist = userIds.sublist(i, i + 30 > userIds.length ? userIds.length : i + 30);
+        final querySnapshot = await _usersCollection.where('id', whereIn: sublist).get();
+        final users = querySnapshot.docs.map((doc) => UserModel.fromJson(doc.data())).toList();
+        result.addAll(users);
+      }
+
+      developer.log('Fetched details for ${result.length} users.', name: 'UserProfileRepo');
+      return Right(result);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase khi tải danh sách người dùng: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định khi tải danh sách người dùng: ${e.toString()}'));
+    }
+  }
 }

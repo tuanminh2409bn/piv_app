@@ -126,7 +126,7 @@ Future<void> initializeDependencies() async {
   // == Admin ==
   sl.registerLazySingleton<StorageRepository>(() => StorageRepository());
   sl.registerLazySingleton<AdminRepository>(() => AdminRepositoryImpl(firestore: sl()));
-  sl.registerFactory<AdminOrdersCubit>(() => AdminOrdersCubit(orderRepository: sl()));
+  sl.registerFactory<AdminOrdersCubit>(() => AdminOrdersCubit(orderRepository: sl(), userProfileRepository: sl(),));
   sl.registerFactory<AdminProductsCubit>(() => AdminProductsCubit(homeRepository: sl()));
   sl.registerFactory<AdminUsersCubit>(() => AdminUsersCubit(adminRepository: sl()));
   sl.registerFactory<ProductFormCubit>(() => ProductFormCubit(homeRepository: sl(), storageRepository: sl()));

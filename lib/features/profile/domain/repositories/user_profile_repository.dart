@@ -44,4 +44,6 @@ abstract class UserProfileRepository {
   Future<Either<Failure, Unit>> updateUserProfilePartial(String userId, Map<String, dynamic> data);
 
   Future<Either<Failure, void>> approveAgentWithRole({required String agentId, required String roleToSet});
+
+  Future<Either<Failure, List<UserModel>>> getUsersByIds(List<String> userIds);
 }

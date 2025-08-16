@@ -13,6 +13,7 @@ import 'package:piv_app/features/orders/domain/repositories/order_repository.dar
 import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 import 'package:piv_app/features/vouchers/domain/repositories/voucher_repository.dart';
+import 'package:piv_app/data/models/user_model.dart';
 
 part 'checkout_state.dart';
 
@@ -125,6 +126,58 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     emit(state.copyWith(paymentMethod: method));
   }
 
+  void startOrderOnBehalfOf(String agentId) {
+    emit(state.copyWith(placeOrderForUserId: agentId));
+    loadCheckoutData();
+  }
+
+  Future<void> placeOrderOnBehalfOf({
+    required String forUserId, // ID của đại lý được đặt hàng cho
+    required AddressModel shippingAddress, // Địa chỉ của đại lý
+    String? agentSalesRepId, // ID của NVKD quản lý đại lý này
+  }) async {
+    if (state.checkoutItems.isEmpty) {
+      emit(state.copyWith(status: CheckoutStatus.error, errorMessage: "Không có sản phẩm để đặt hàng."));
+      return;
+    }
+
+    emit(state.copyWith(status: CheckoutStatus.placingOrder));
+
+    final authState = _authBloc.state;
+    if (authState is! AuthAuthenticated) {
+      emit(state.copyWith(status: CheckoutStatus.error, errorMessage: "Lỗi xác thực người dùng."));
+      return;
+    }
+
+    final order = OrderModel(
+      userId: forUserId,
+      status: 'pending_approval', // SỬ DỤNG STRING
+      placedBy: PlacedByInfo(
+        userId: authState.user.id,
+        role: authState.user.role, // SỬ DỤNG STRING
+      ),
+      salesRepId: agentSalesRepId,
+      items: state.checkoutItems.map((cartItem) => OrderItemModel.fromCartItem(cartItem)).toList(),
+      shippingAddress: shippingAddress,
+      subtotal: state.subtotal,
+      shippingFee: state.shippingFee,
+      discount: state.discount,
+      total: state.total,
+      paymentMethod: state.paymentMethod,
+      commissionDiscount: state.commissionDiscount,
+      finalTotal: state.finalTotal,
+    );
+
+    final result = await _orderRepository.createOrder(order);
+
+    result.fold(
+          (failure) => emit(state.copyWith(status: CheckoutStatus.error, errorMessage: failure.message)),
+          (orderId) {
+        emit(state.copyWith(status: CheckoutStatus.orderSuccess, newOrderId: orderId));
+      },
+    );
+  }
+
   Future<void> applyVoucher(String code) async {
     if (code.isEmpty) return;
     emit(state.copyWith(status: CheckoutStatus.applyingVoucher));
@@ -165,6 +218,78 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       discount: 0.0,
     ));
   }
+
+  void loadCheckoutDataForAgent(UserModel agent) {
+    emit(state.copyWith(status: CheckoutStatus.loading));
+
+    AddressModel? defaultAddress;
+    if (agent.addresses.isNotEmpty) {
+      try {
+        defaultAddress = agent.addresses.firstWhere((a) => a.isDefault);
+      } catch (e) {
+        defaultAddress = agent.addresses.first;
+      }
+    }
+
+    emit(state.copyWith(
+      status: CheckoutStatus.success,
+      addresses: agent.addresses,
+      selectedAddress: defaultAddress,
+      placeOrderForAgent: agent,
+      placeOrderForUserId: agent.id,
+      checkoutItems: [], // Bắt đầu với giỏ hàng trống
+      discount: 0.0,
+      commissionDiscount: 0.0,
+    ));
+  }
+
+  void addItemToOnBehalfCart(CartItemModel newItem) {
+    final currentItems = List<CartItemModel>.from(state.checkoutItems);
+    final existingIndex = currentItems.indexWhere((item) => item.productId == newItem.productId);
+
+    if (existingIndex != -1) {
+      final updatedItem = currentItems[existingIndex].copyWith(
+          quantity: currentItems[existingIndex].quantity + newItem.quantity
+      );
+      currentItems[existingIndex] = updatedItem;
+    } else {
+      currentItems.add(newItem);
+    }
+    _recalculateTotalsAndEmit(currentItems);
+  }
+
+  void updateItemQuantityInOnBehalfCart(String productId, int newQuantity) {
+    final currentItems = List<CartItemModel>.from(state.checkoutItems);
+    final index = currentItems.indexWhere((item) => item.productId == productId);
+    if (index != -1) {
+      if (newQuantity > 0) {
+        currentItems[index] = currentItems[index].copyWith(quantity: newQuantity);
+      } else {
+        currentItems.removeAt(index);
+      }
+      _recalculateTotalsAndEmit(currentItems);
+    }
+  }
+
+  void removeItemFromOnBehalfCart(String cartItemId) {
+    final currentItems = List<CartItemModel>.from(state.checkoutItems);
+    currentItems.removeWhere((item) => item.productId == cartItemId);
+    _recalculateTotalsAndEmit(currentItems);
+  }
+
+  void _recalculateTotalsAndEmit(List<CartItemModel> items) {
+    final subtotal = items.fold<double>(0.0, (sum, item) => sum + item.subtotal);
+    emit(state.copyWith(
+      checkoutItems: items,
+      subtotal: subtotal,
+    ));
+    if (items.isNotEmpty) {
+      calculateCommissionDiscount();
+    } else {
+      emit(state.copyWith(commissionDiscount: 0.0));
+    }
+  }
+
 
   Future<void> placeOrder() async {
     if (state.selectedAddress == null || state.checkoutItems.isEmpty || _currentUserId.isEmpty) {

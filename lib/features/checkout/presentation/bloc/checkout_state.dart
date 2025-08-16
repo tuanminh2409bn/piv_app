@@ -24,6 +24,8 @@ class CheckoutState extends Equatable {
   final double commissionDiscount;
   final String paymentMethod;
   final String? newOrderId;
+  final String? placeOrderForUserId;
+  final UserModel? placeOrderForAgent;
 
   const CheckoutState({
     this.status = CheckoutStatus.initial,
@@ -38,6 +40,8 @@ class CheckoutState extends Equatable {
     this.commissionDiscount = 0.0,
     this.paymentMethod = 'COD',
     this.newOrderId,
+    this.placeOrderForUserId,
+    this.placeOrderForAgent,
   });
 
   double get total => (subtotal + shippingFee - discount).clamp(0, double.infinity);
@@ -47,7 +51,7 @@ class CheckoutState extends Equatable {
   List<Object?> get props => [
     status, addresses, selectedAddress, errorMessage,
     checkoutItems, subtotal, shippingFee, discount, appliedVoucher,
-    commissionDiscount, paymentMethod, newOrderId,
+    commissionDiscount, paymentMethod, newOrderId, placeOrderForUserId, placeOrderForAgent,
   ];
 
   CheckoutState copyWith({
@@ -66,6 +70,9 @@ class CheckoutState extends Equatable {
     double? commissionDiscount,
     String? paymentMethod,
     String? newOrderId,
+    String? placeOrderForUserId,
+    UserModel? placeOrderForAgent,
+    bool clearPlaceOrderForAgent = false,
   }) {
     return CheckoutState(
       status: status ?? this.status,
@@ -80,6 +87,8 @@ class CheckoutState extends Equatable {
       commissionDiscount: commissionDiscount ?? this.commissionDiscount,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       newOrderId: newOrderId ?? this.newOrderId,
+      placeOrderForUserId: placeOrderForUserId ?? this.placeOrderForUserId,
+      placeOrderForAgent: clearPlaceOrderForAgent ? null : placeOrderForAgent ?? this.placeOrderForAgent,
     );
   }
 }

@@ -14,7 +14,7 @@ import {format} from "date-fns-tz";
 admin.initializeApp({ projectId: 'piv-fertilizer-app' });
 const db = admin.firestore();
 
-// --- HÀM HELPER GỬI THÔNG BÁO (Hoàn thiện) ---
+// --- HÀM HELPER GỬI THÔNG BÁO ---
 const sendDataOnlyNotification = async (
   token: string | string[] | undefined,
   data: {[key: string]: string},

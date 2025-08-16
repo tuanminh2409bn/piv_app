@@ -10,16 +10,17 @@ class UserModel extends Equatable {
   final String? displayName;
   final String? photoUrl;
   final List<AddressModel> addresses;
-  final String role; // 'admin', 'accountant', 'sales_rep', 'agent_1', 'agent_2'
-  final String status;
+  final String role; // Giữ nguyên là String: 'admin', 'accountant', 'sales_rep', 'agent_1', 'agent_2'
+  final String status; // Giữ nguyên là String
   final String? referrerId;
   final bool referralPromptPending;
   final List<String> wishlist;
-
-  // --- TRƯỜNG MỚI QUAN TRỌNG ---
-  // ID của NVKD đang phụ trách đại lý này.
   final String? salesRepId;
-  // -------------------------
+
+  // --- TRƯỜNG MỚI ---
+  // Dành cho Sales Rep & Kế toán: Danh sách ID của các đại lý được giao
+  final List<String>? assignedAgentIds;
+  // ------------------
 
   String get referralCode => id;
 
@@ -29,12 +30,13 @@ class UserModel extends Equatable {
     this.displayName,
     this.photoUrl,
     this.addresses = const [],
-    this.role = 'agent_2', // Mặc định khi đăng ký là đại lý cấp 2
-    this.status = 'pending_approval', // Mặc định cần chờ duyệt
+    this.role = 'agent_2',
+    this.status = 'pending_approval',
     this.referrerId,
     this.referralPromptPending = false,
     this.wishlist = const [],
-    this.salesRepId, // Thêm vào constructor
+    this.salesRepId,
+    this.assignedAgentIds, // Thêm vào constructor
   });
 
   bool get isAdmin => role == 'admin';
@@ -57,6 +59,7 @@ class UserModel extends Equatable {
     bool? referralPromptPending,
     List<String>? wishlist,
     String? salesRepId,
+    List<String>? assignedAgentIds,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -70,6 +73,7 @@ class UserModel extends Equatable {
       referralPromptPending: referralPromptPending ?? this.referralPromptPending,
       wishlist: wishlist ?? this.wishlist,
       salesRepId: salesRepId ?? this.salesRepId,
+      assignedAgentIds: assignedAgentIds ?? this.assignedAgentIds,
     );
   }
 
@@ -86,37 +90,32 @@ class UserModel extends Equatable {
       'referralPromptPending': referralPromptPending,
       'wishlist': wishlist,
       'salesRepId': salesRepId,
+      'assignedAgentIds': assignedAgentIds, // Thêm trường mới
     };
   }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
-    final List<AddressModel> addressesList = (json['addresses'] as List<dynamic>?)
-        ?.map((addressMap) => AddressModel.fromMap(addressMap as Map<String, dynamic>))
-        .toList() ?? [];
-
-    final List<String> wishlistList = (json['wishlist'] as List<dynamic>?)
-        ?.map((productId) => productId as String)
-        .toList() ?? [];
-
     return UserModel(
       id: json['id'] as String? ?? '',
       email: json['email'] as String?,
       displayName: json['displayName'] as String?,
       photoUrl: json['photoUrl'] as String?,
-      addresses: addressesList,
+      addresses: (json['addresses'] as List<dynamic>?)
+          ?.map((a) => AddressModel.fromMap(a as Map<String, dynamic>))
+          .toList() ?? [],
       role: json['role'] as String? ?? 'agent_2',
       status: json['status'] as String? ?? 'pending_approval',
       referrerId: json['referrerId'] as String?,
       referralPromptPending: json['referralPromptPending'] as bool? ?? false,
-      wishlist: wishlistList,
+      wishlist: List<String>.from(json['wishlist'] ?? []),
       salesRepId: json['salesRepId'] as String?,
+      assignedAgentIds: List<String>.from(json['assignedAgentIds'] ?? []),
     );
   }
 
   @override
   List<Object?> get props => [
     id, email, displayName, photoUrl, addresses, role, status,
-    referrerId, referralPromptPending, wishlist, salesRepId
+    referrerId, referralPromptPending, wishlist, salesRepId, assignedAgentIds
   ];
-
 }
