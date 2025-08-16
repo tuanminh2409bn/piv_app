@@ -10,11 +10,9 @@ import * as crypto from "crypto";
 import * as qs from "qs";
 import {format} from "date-fns-tz";
 
-// Khởi tạo app với project ID để đảm bảo tính tường minh
 admin.initializeApp({ projectId: 'piv-fertilizer-app' });
 const db = admin.firestore();
 
-// --- HÀM HELPER GỬI THÔNG BÁO ---
 const sendDataOnlyNotification = async (
   token: string | string[] | undefined,
   data: {[key: string]: string},
@@ -99,63 +97,7 @@ export const calculateOrderDiscount = onCall({region: "asia-southeast1"}, async 
 });
 
 // ===================================================================
-// FUNCTION 2: TẠO LINK THANH TOÁN VNPAY
-// ===================================================================
-export const createVnpayPaymentUrl = onCall({region: "asia-southeast1", secrets: ["VNP_TMNCODE", "VNP_HASHSECRET"],}, async (request: CallableRequest) => {
-    if (!request.auth) {
-        throw new HttpsError("unauthenticated", "Authentication required.");
-    }
-    const {orderId, amount, orderInfo} = request.data;
-    if (!orderId || !amount || !orderInfo) {
-        throw new HttpsError("invalid-argument", "Missing order data.");
-    }
-
-    const tmnCode = process.env.VNP_TMNCODE;
-    const secretKey = process.env.VNP_HASHSECRET;
-    const vnpUrl = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
-    const returnUrl = "https://piv-fertilizer-app.web.app/payment-return";
-
-    if (!tmnCode || !secretKey) {
-        logger.error("VNPAY secrets are not configured in environment.");
-        throw new HttpsError("internal", "Server configuration error.");
-    }
-
-    const createDate = format(new Date(), "yyyyMMddHHmmss", {timeZone: "Asia/Ho_Chi_Minh"});
-    const ipAddr = request.rawRequest.ip ?? "127.0.0.1";
-    const txnRef = `${orderId.substring(0, 10)}${createDate}`;
-
-    const vnpParams: {[key: string]: any} = {};
-    vnpParams["vnp_Version"] = "2.1.0";
-    vnpParams["vnp_Command"] = "pay";
-    vnpParams["vnp_TmnCode"] = tmnCode;
-    vnpParams["vnp_Amount"] = amount * 100;
-    vnpParams["vnp_CurrCode"] = "VND";
-    vnpParams["vnp_TxnRef"] = txnRef;
-    vnpParams["vnp_OrderInfo"] = orderInfo;
-    vnpParams["vnp_OrderType"] = "other";
-    vnpParams["vnp_Locale"] = "vn";
-    vnpParams["vnp_ReturnUrl"] = returnUrl;
-    vnpParams["vnp_IpAddr"] = ipAddr;
-    vnpParams["vnp_CreateDate"] = createDate;
-
-    const sortedParams: {[key: string]: any} = {};
-    Object.keys(vnpParams).sort().forEach((key) => {
-        sortedParams[key] = vnpParams[key];
-    });
-
-    const signData = qs.stringify(sortedParams, {encode: false});
-    const hmac = crypto.createHmac("sha512", secretKey);
-    const secureHash = hmac.update(Buffer.from(signData, "utf-8")).digest("hex");
-    sortedParams["vnp_SecureHash"] = secureHash;
-
-    const checkoutUrl = vnpUrl + "?" + qs.stringify(sortedParams, {encode: false});
-
-    logger.info(`Created VNPAY URL for order: ${orderId}`);
-    return {checkoutUrl: checkoutUrl};
-});
-
-// ===================================================================
-// FUNCTION 3: GỬI THÔNG BÁO KHI CÓ SẢN PHẨM MỚI
+// FUNCTION 2: GỬI THÔNG BÁO KHI CÓ SẢN PHẨM MỚI
 // ===================================================================
 export const onProductCreated = onDocumentCreated(
     {document: "products/{productId}", region: "asia-southeast1"},
@@ -186,7 +128,7 @@ export const onProductCreated = onDocumentCreated(
     });
 
 // ===================================================================
-// FUNCTION 4: XỬ LÝ KHI THÔNG TIN USER THAY ĐỔI
+// FUNCTION 3: XỬ LÝ KHI THÔNG TIN USER THAY ĐỔI
 // ===================================================================
 export const onUserUpdate = onDocumentUpdated(
     {document: "users/{userId}", region: "asia-southeast1"},
@@ -262,7 +204,7 @@ export const onUserUpdate = onDocumentUpdated(
     });
 
 // ===================================================================
-// FUNCTION 5: GỬI THÔNG BÁO KHI CÓ HOA HỒNG
+// FUNCTION 4: GỬI THÔNG BÁO KHI CÓ HOA HỒNG
 // ===================================================================
 export const onCommissionCreated = onDocumentCreated(
     {document: "commissions/{commissionId}", region: "asia-southeast1"},
@@ -315,19 +257,36 @@ export const onCommissionCreated = onDocumentCreated(
     });
 
 // ===================================================================
-// FUNCTION 6: KHI TẠO ĐƠN HÀNG MỚI
+// FUNCTION 5: KHI TẠO ĐƠN HÀNG MỚI
 // ===================================================================
 export const onOrderCreated = onDocumentCreated(
     {document: "orders/{orderId}", region: "asia-southeast1"},
     async (event) => {
-        const order = event.data?.data();
+        const orderData = event.data?.data();
         const orderId = event.params.orderId;
-        if (!order) return null;
+        if (!orderData) return null;
 
-        const { userId, salesRepId, shippingAddress, total } = order;
+        const { userId, salesRepId, shippingAddress, total, placedBy, status } = orderData;
         const userName = shippingAddress?.recipientName ?? "Quý khách";
         const orderIdShort = orderId.substring(0, 8).toUpperCase();
         const formattedTotal = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(total);
+
+        if (status === "pending_approval" && placedBy) {
+            const agentDoc = await db.collection("users").doc(userId).get();
+            const placerDoc = await db.collection("users").doc(placedBy.userId).get();
+            const placerName = placerDoc.data()?.displayName ?? "Cấp trên";
+
+            if (agentDoc.exists && agentDoc.data()?.fcmToken) {
+                await sendDataOnlyNotification(agentDoc.data()?.fcmToken, {
+                    title: "🔔 Bạn có đơn hàng mới cần phê duyệt",
+                    body: `${placerName} vừa tạo một đơn hàng hộ cho bạn trị giá ${formattedTotal}. Vui lòng xác nhận.`,
+                    type: "order_approval_request",
+                    orderId: orderId,
+                });
+            }
+            logger.info(`Sent approval notification for order ${orderId} to agent ${userId}.`);
+            return null;
+        }
 
         const userDoc = await db.collection("users").doc(userId).get();
         if (userDoc.exists) {
@@ -336,7 +295,6 @@ export const onOrderCreated = onDocumentCreated(
                 body: `Đơn hàng #${orderIdShort} trị giá ${formattedTotal} của bạn đã được tiếp nhận.`,
                 type: "order_status",
                 orderId: orderId,
-                payload: JSON.stringify({ id: orderId, status: "pending", total }),
             });
         }
 
@@ -348,7 +306,6 @@ export const onOrderCreated = onDocumentCreated(
                     body: `Đại lý "${userName}" của bạn vừa đặt đơn hàng #${orderIdShort}.`,
                     type: "new_order_for_rep",
                     orderId: orderId,
-                    payload: JSON.stringify({ id: orderId, status: "pending", total, customerName: userName }),
                 });
             }
         }
@@ -364,15 +321,15 @@ export const onOrderCreated = onDocumentCreated(
                 body: `Đại lý "${userName}" vừa tạo đơn hàng #${orderIdShort}.`,
                 type: "new_order_for_admin",
                 orderId: orderId,
-                payload: JSON.stringify({ id: orderId, status: "pending", total, customerName: userName }),
             });
         }
 
         return null;
     });
 
+
 // ===================================================================
-// FUNCTION 7: KHI CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG
+// FUNCTION 6: KHI CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG
 // ===================================================================
 export const onOrderStatusUpdate = onDocumentUpdated(
     {document: "orders/{orderId}", region: "asia-southeast1"},
@@ -414,7 +371,7 @@ export const onOrderStatusUpdate = onDocumentUpdated(
     });
 
 // ===================================================================
-// FUNCTION 8: GỬI THÔNG BÁO KHI CÓ BÀI VIẾT MỚI
+// FUNCTION 7: GỬI THÔNG BÁO KHI CÓ BÀI VIẾT MỚI
 // ===================================================================
 export const onNewsArticleCreated = onDocumentCreated(
     {document: "newsArticles/{articleId}", region: "asia-southeast1"},
@@ -444,7 +401,7 @@ export const onNewsArticleCreated = onDocumentCreated(
 );
 
 // ===================================================================
-// FUNCTION 9: GỬI THÔNG BÁO THỦ CÔNG
+// FUNCTION 8: GỬI THÔNG BÁO THỦ CÔNG
 // ===================================================================
 export const sendManualNotification = onCall(
     {region: "asia-southeast1"},
@@ -511,7 +468,7 @@ export const sendManualNotification = onCall(
 );
 
 // ===================================================================
-// FUNCTION 10: NVKD DUYỆT ĐẠI LÝ
+// FUNCTION 9: NVKD DUYỆT ĐẠI LÝ
 // ===================================================================
 export const approveAgentBySalesRep = onCall(
     {region: "asia-southeast1"},
