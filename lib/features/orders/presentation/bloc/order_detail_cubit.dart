@@ -1,26 +1,25 @@
+// lib/features/orders/presentation/bloc/order_detail_cubit.dart
+
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:bloc/bloc.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/order_model.dart';
+import 'package:piv_app/data/models/payment_info_model.dart';
 import 'package:piv_app/features/orders/domain/repositories/order_repository.dart';
 
 part 'order_detail_state.dart';
 
 class OrderDetailCubit extends Cubit<OrderDetailState> {
   final OrderRepository _orderRepository;
-  final FirebaseFunctions _functions;
   StreamSubscription<OrderModel>? _orderSubscription;
 
+  // --- THAY ĐỔI: Xóa bỏ FirebaseFunctions ---
   OrderDetailCubit({
     required OrderRepository orderRepository,
-    required FirebaseFunctions functions,
   })  : _orderRepository = orderRepository,
-        _functions = functions,
         super(const OrderDetailState());
 
-  // <<< THAY THẾ: Dùng hàm này thay cho fetchOrderDetail >>>
   void listenToOrderDetail(String orderId) {
     if (orderId.isEmpty) {
       emit(state.copyWith(
@@ -30,19 +29,19 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
     }
     emit(state.copyWith(status: OrderDetailStatus.loading));
 
-    // Hủy subscription cũ nếu có để tránh memory leak
     _orderSubscription?.cancel();
 
-    // Bắt đầu lắng nghe stream mới từ repository
     _orderSubscription = _orderRepository.getOrderStreamById(orderId).listen(
           (order) {
-        // Mỗi khi có dữ liệu mới từ stream (ví dụ: chiết khấu được cập nhật),
-        // cubit sẽ phát ra một trạng thái success mới với dữ liệu mới.
         developer.log("Received update for order ${order.id}", name: "OrderDetailCubit");
         emit(state.copyWith(status: OrderDetailStatus.success, order: order));
+
+        // --- THÊM MỚI: Nếu đơn hàng chưa thanh toán, tự động tải thông tin QR ---
+        if (order.paymentStatus == 'unpaid') {
+          _fetchPaymentInfo();
+        }
       },
       onError: (error) {
-        // Xử lý lỗi từ stream
         developer.log("Error listening to order: $error", name: "OrderDetailCubit");
         emit(state.copyWith(
             status: OrderDetailStatus.error,
@@ -51,51 +50,33 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
     );
   }
 
-  // <<< HÀM MỚI: Để khởi tạo thanh toán online >>>
-  Future<void> initiateOnlinePayment() async {
-    if (state.order == null) return;
+  // --- HÀM MỚI: Tải thông tin thanh toán của công ty ---
+  Future<void> _fetchPaymentInfo() async {
+    // Chỉ tải nếu chưa có để tránh gọi lại nhiều lần không cần thiết
+    if (state.paymentInfo != null) return;
 
-    emit(state.copyWith(status: OrderDetailStatus.creatingPaymentUrl));
-    try {
-      final order = state.order!;
-      // Gọi đến Callable Function chúng ta đã tạo
-      final HttpsCallable callable = _functions.httpsCallable('createVnpayPaymentUrl');
-
-      final response = await callable.call<Map<String, dynamic>>({
-        'orderId': order.id,
-        'amount': order.finalTotal.toInt(), // VNPAY yêu cầu số nguyên
-        'orderInfo': 'Thanh toan cho don hang #${order.id?.substring(0, 8)}',
-      });
-
-      final url = response.data['checkoutUrl'] as String?;
-      if (url != null) {
-        // Phát ra trạng thái mới chứa link thanh toán
-        emit(state.copyWith(
-          status: OrderDetailStatus.paymentUrlCreated,
-          paymentUrl: url,
-        ));
-      } else {
-        throw Exception('URL thanh toán không hợp lệ.');
-      }
-    } catch (e) {
-      developer.log('Error creating payment URL: $e', name: 'OrderDetailCubit');
-      emit(state.copyWith(
-        status: OrderDetailStatus.error,
-        errorMessage: 'Không thể tạo link thanh toán. Vui lòng thử lại.',
-      ));
-    }
+    final result = await _orderRepository.getPaymentInfo();
+    result.fold(
+          (failure) {
+        // Không emit lỗi ở đây để không che mất chi tiết đơn hàng
+        developer.log("Could not fetch payment info: ${failure.message}", name: "OrderDetailCubit");
+      },
+          (info) => emit(state.copyWith(paymentInfo: info)),
+    );
   }
+
+  // --- XÓA BỎ: Hàm `initiateOnlinePayment` và `resetPaymentUrlStatus` đã được xóa ---
 
   Future<void> approveOrder() async {
     if (state.order?.id == null) return;
     emit(state.copyWith(status: OrderDetailStatus.updating));
     final result = await _orderRepository.approveOrder(state.order!.id!);
     result.fold(
-          (failure) => emit(state.copyWith(status: OrderDetailStatus.error, errorMessage: failure.message, clearError: false)),
+          (failure) => emit(state.copyWith(status: OrderDetailStatus.error, errorMessage: failure.message)),
           (_) {
         // Không cần emit success vì stream sẽ tự động cập nhật
         // Chỉ cần chuyển trạng thái về lại success để tắt loading
-        emit(state.copyWith(status: OrderDetailStatus.success, clearError: true));
+        emit(state.copyWith(status: OrderDetailStatus.success));
       },
     );
   }
@@ -105,19 +86,29 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
     emit(state.copyWith(status: OrderDetailStatus.updating));
     final result = await _orderRepository.rejectOrder(orderId: state.order!.id!, reason: reason);
     result.fold(
-          (failure) => emit(state.copyWith(status: OrderDetailStatus.error, errorMessage: failure.message, clearError: false)),
+          (failure) => emit(state.copyWith(status: OrderDetailStatus.error, errorMessage: failure.message)),
           (_) {
-        emit(state.copyWith(status: OrderDetailStatus.success, clearError: true));
+        emit(state.copyWith(status: OrderDetailStatus.success));
       },
     );
   }
 
-  // Hàm này để reset lại trạng thái sau khi đã xử lý xong URL
-  void resetPaymentUrlStatus() {
-    emit(state.copyWith(status: OrderDetailStatus.success, forcePaymentUrlToNull: true));
+  // --- HÀM MỚI: Xử lý khi người dùng nhấn "Tôi đã chuyển khoản" ---
+  Future<void> notifyPaymentMade() async {
+    if (state.order?.id == null) return;
+    emit(state.copyWith(status: OrderDetailStatus.updatingPaymentStatus));
+    final result = await _orderRepository.notifyPaymentMade(state.order!.id!);
+    result.fold(
+          (failure) {
+        emit(state.copyWith(status: OrderDetailStatus.error, errorMessage: failure.message));
+      },
+          (_) {
+        // Stream sẽ tự động cập nhật UI, không cần làm gì thêm
+        // Trạng thái sẽ tự chuyển về success trong hàm listenToOrderDetail
+      },
+    );
   }
 
-  // <<< QUAN TRỌNG: Hủy subscription khi Cubit bị đóng >>>
   @override
   Future<void> close() {
     _orderSubscription?.cancel();

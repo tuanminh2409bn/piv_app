@@ -6,9 +6,6 @@ import {
 } from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
-import * as crypto from "crypto";
-import * as qs from "qs";
-import {format} from "date-fns-tz";
 
 admin.initializeApp({ projectId: 'piv-fertilizer-app' });
 const db = admin.firestore();
@@ -271,6 +268,7 @@ export const onOrderCreated = onDocumentCreated(
         const orderIdShort = orderId.substring(0, 8).toUpperCase();
         const formattedTotal = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(total);
 
+        // KỊCH BẢN 1: ĐƠN HÀNG CẦN PHÊ DUYỆT
         if (status === "pending_approval" && placedBy) {
             const agentDoc = await db.collection("users").doc(userId).get();
             const placerDoc = await db.collection("users").doc(placedBy.userId).get();
@@ -288,8 +286,9 @@ export const onOrderCreated = onDocumentCreated(
             return null;
         }
 
+        // KỊCH BẢN 2: ĐƠN HÀNG THÔNG THƯỜNG
         const userDoc = await db.collection("users").doc(userId).get();
-        if (userDoc.exists) {
+        if (userDoc.exists && userDoc.data()?.fcmToken) {
             await sendDataOnlyNotification(userDoc.data()?.fcmToken, {
                 title: "🎉 Đặt hàng thành công!",
                 body: `Đơn hàng #${orderIdShort} trị giá ${formattedTotal} của bạn đã được tiếp nhận.`,
@@ -300,7 +299,7 @@ export const onOrderCreated = onDocumentCreated(
 
         if (salesRepId) {
             const salesRepDoc = await db.collection("users").doc(salesRepId).get();
-            if (salesRepDoc.exists) {
+            if (salesRepDoc.exists && salesRepDoc.data()?.fcmToken) {
                 await sendDataOnlyNotification(salesRepDoc.data()?.fcmToken, {
                     title: "📈 Có đơn hàng mới!",
                     body: `Đại lý "${userName}" của bạn vừa đặt đơn hàng #${orderIdShort}.`,
@@ -310,13 +309,13 @@ export const onOrderCreated = onDocumentCreated(
             }
         }
 
-        const adminsSnapshot = await db.collection("users").where("role", "==", "admin").get();
-        const adminTokens = adminsSnapshot.docs
+        const staffSnapshot = await db.collection("users").where("role", "in", ["admin", "accountant"]).get();
+        const staffTokens = staffSnapshot.docs
             .map((doc) => doc.data().fcmToken)
             .filter((token): token is string => !!token);
 
-        if (adminTokens.length > 0) {
-            await sendDataOnlyNotification(adminTokens, {
+        if (staffTokens.length > 0) {
+            await sendDataOnlyNotification(staffTokens, {
                 title: "🔔 Có đơn hàng mới",
                 body: `Đại lý "${userName}" vừa tạo đơn hàng #${orderIdShort}.`,
                 type: "new_order_for_admin",
@@ -338,34 +337,71 @@ export const onOrderStatusUpdate = onDocumentUpdated(
         const afterData = event.data?.after.data();
         if (!beforeData || !afterData || beforeData.status === afterData.status) return null;
 
-        const { userId, salesRepId, shippingAddress, total, status } = afterData;
+        const { userId, salesRepId, shippingAddress, total, status, placedBy } = afterData;
         const orderId = event.params.orderId;
         const userName = shippingAddress?.recipientName ?? "Khách hàng";
         const orderIdShort = orderId.substring(0, 8).toUpperCase();
-        const formattedTotal = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(total);
+        // --- SỬA LỖI: Di chuyển biến formattedTotal vào trong phạm vi cần sử dụng ---
 
-        let title: string | null = null;
-        let body: string | null = null;
+        // KỊCH BẢN 1: XỬ LÝ KẾT QUẢ PHÊ DUYỆT
+        if (beforeData.status === 'pending_approval' && placedBy) {
+            const placerDoc = await db.collection("users").doc(placedBy.userId).get();
+            if (placerDoc.exists && placerDoc.data()?.fcmToken) {
+                let title = "";
+                let body = "";
 
-        switch (status) {
-            case "processing": title = "✅ Đơn hàng đã được xác nhận"; body = `Đơn hàng #${orderIdShort} của bạn trị giá ${formattedTotal} đang được chuẩn bị.`; break;
-            case "shipped": title = "🚚 Đơn hàng đang được giao"; body = `Đơn hàng #${orderIdShort} của bạn đang trên đường vận chuyển.`; break;
-            case "completed": title = "✨ Đơn hàng đã hoàn thành"; body = `Cảm ơn bạn đã mua đơn hàng #${orderIdShort}. PIV rất mong được phục vụ bạn lần sau!`; break;
-            case "cancelled": title = "❌ Đơn hàng đã bị hủy"; body = `Rất tiếc, đơn hàng #${orderIdShort} của bạn đã bị hủy.`; break;
-            default: return null;
+                if (status === 'pending') {
+                    title = "✅ Đơn hàng đã được phê duyệt";
+                    body = `Đại lý "${userName}" đã đồng ý đơn hàng #${orderIdShort} bạn tạo hộ.`;
+                } else if (status === 'rejected') {
+                    title = "❌ Đơn hàng đã bị từ chối";
+                    body = `Đại lý "${userName}" đã từ chối đơn hàng #${orderIdShort} bạn tạo hộ.`;
+                }
+
+                if (title && body) {
+                    await sendDataOnlyNotification(placerDoc.data()?.fcmToken, {
+                        title: title,
+                        body: body,
+                        type: "order_approval_result",
+                        orderId: orderId,
+                    });
+                }
+            }
         }
 
-        const payload = JSON.stringify({ id: orderId, status, total, customerName: userName });
+        // KỊCH BẢN 2: THÔNG BÁO CÁC CẬP NHẬT TRẠNG THÁI KHÁC
+        let userTitle: string | null = null;
+        let userBody: string | null = null;
+        const formattedTotal = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(total);
 
-        const userDoc = await db.collection("users").doc(userId).get();
-        if (userDoc.exists) await sendDataOnlyNotification(userDoc.data()?.fcmToken, { title, body, type: "order_status", orderId, payload });
+        switch (status) {
+            case "processing": userTitle = "✅ Đơn hàng đã được xác nhận"; userBody = `Đơn hàng #${orderIdShort} của bạn trị giá ${formattedTotal} đang được chuẩn bị.`; break;
+            case "shipped": userTitle = "🚚 Đơn hàng đang được giao"; userBody = `Đơn hàng #${orderIdShort} của bạn đang trên đường vận chuyển.`; break;
+            case "completed": userTitle = "✨ Đơn hàng đã hoàn thành"; userBody = `Cảm ơn bạn đã mua đơn hàng #${orderIdShort}.`; break;
+            case "cancelled": userTitle = "❌ Đơn hàng đã bị hủy"; userBody = `Rất tiếc, đơn hàng #${orderIdShort} của bạn đã bị hủy.`; break;
+            case "rejected": userTitle = "❌ Đơn hàng đã bị từ chối"; userBody = `Đơn hàng #${orderIdShort} của bạn đã bị từ chối.`; break;
+        }
 
-        const salesRepDoc = salesRepId ? await db.collection("users").doc(salesRepId).get() : null;
-        const adminsSnapshot = await db.collection("users").where("role", "==", "admin").get();
-        const adminTokens = adminsSnapshot.docs.map(doc => doc.data().fcmToken).filter((token): token is string => !!token);
+        if (userTitle && userBody) {
+            const userDoc = await db.collection("users").doc(userId).get();
+            if (userDoc.exists && userDoc.data()?.fcmToken) {
+                await sendDataOnlyNotification(userDoc.data()?.fcmToken, { title: userTitle, body: userBody, type: "order_status", orderId });
+            }
 
-        if (salesRepDoc?.exists) await sendDataOnlyNotification(salesRepDoc.data()?.fcmToken, { title, body, type: "order_status_update_for_rep", orderId, payload });
-        if (adminTokens.length > 0) await sendDataOnlyNotification(adminTokens, { title, body, type: "order_status_update_for_admin", orderId, payload });
+            const salesRepDoc = salesRepId ? await db.collection("users").doc(salesRepId).get() : null;
+            const staffSnapshot = await db.collection("users").where("role", "in", ["admin", "accountant"]).get();
+            const staffTokens = staffSnapshot.docs.map(doc => doc.data().fcmToken).filter((token): token is string => !!token);
+
+            const staffTitle = `Đơn #${orderIdShort} của ${userName}`;
+            const staffBody = `Trạng thái đã được cập nhật thành: ${status}`;
+
+            if (salesRepDoc?.exists && salesRepDoc.data()?.fcmToken) {
+                await sendDataOnlyNotification(salesRepDoc.data()?.fcmToken, { title: staffTitle, body: staffBody, type: "order_status_update_for_rep", orderId });
+            }
+            if (staffTokens.length > 0) {
+                 await sendDataOnlyNotification(staffTokens, { title: staffTitle, body: staffBody, type: "order_status_update_for_admin", orderId });
+            }
+        }
 
         return null;
     });

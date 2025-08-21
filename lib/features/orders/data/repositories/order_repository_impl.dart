@@ -8,6 +8,7 @@ import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/admin/domain/repositories/settings_repository.dart';
 import 'package:piv_app/features/orders/domain/repositories/order_repository.dart';
+import 'package:piv_app/data/models/payment_info_model.dart';
 import 'dart:developer' as developer;
 
 class OrderRepositoryImpl implements OrderRepository {
@@ -273,6 +274,48 @@ class OrderRepositoryImpl implements OrderRepository {
       return const Right(unit);
     } on FirebaseException catch (e) {
       return Left(ServerFailure(e.message ?? 'Lỗi khi từ chối đơn hàng.'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> confirmOrderPayment(String orderId) async {
+    try {
+      await _firestore.collection('orders').doc(orderId).update({
+        'paymentStatus': 'paid',
+      });
+      developer.log('Confirmed payment for order: $orderId', name: 'OrderRepository');
+      return const Right(unit);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase khi xác nhận thanh toán: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, PaymentInfoModel>> getPaymentInfo() async {
+    try {
+      final docSnapshot = await _firestore.collection('settings').doc('payment_info').get();
+      if (docSnapshot.exists) {
+        return Right(PaymentInfoModel.fromSnapshot(docSnapshot));
+      } else {
+        return Left(ServerFailure('Không tìm thấy thông tin thanh toán.'));
+      }
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure(e.message ?? 'Lỗi khi tải thông tin thanh toán.'));
+    }
+  }
+
+// --- HÀM MỚI ---
+  @override
+  Future<Either<Failure, Unit>> notifyPaymentMade(String orderId) async {
+    try {
+      await _firestore.collection('orders').doc(orderId).update({
+        'paymentStatus': 'verifying',
+      });
+      return const Right(unit);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure(e.message ?? 'Có lỗi xảy ra.'));
     }
   }
 }

@@ -5,7 +5,6 @@ import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/address_model.dart';
 import 'package:piv_app/data/models/order_item_model.dart';
 
-// Lớp mới để lưu thông tin người đặt hộ (An toàn vì không thay đổi code cũ)
 class PlacedByInfo extends Equatable {
   final String userId;
   final String role;
@@ -18,6 +17,13 @@ class PlacedByInfo extends Equatable {
     return PlacedByInfo(
       userId: map['userId'] ?? '',
       role: map['role'] ?? '',
+    );
+  }
+
+  PlacedByInfo copyWith({String? userId, String? role}) {
+    return PlacedByInfo(
+      userId: userId ?? this.userId,
+      role: role ?? this.role,
     );
   }
 
@@ -36,18 +42,16 @@ class OrderModel extends Equatable {
   final double total;
   final String paymentMethod;
   final String paymentStatus;
-  final String status; // Giữ nguyên là String
+  final String status;
   final Timestamp? createdAt;
   final String? salesRepId;
   final double commissionDiscount;
   final double finalTotal;
-
-  // --- CÁC TRƯỜNG MỚI CHO TÍNH NĂNG "ĐẶT HỘ" ---
   final PlacedByInfo? placedBy;
   final Timestamp? approvedAt;
   final Timestamp? rejectedAt;
   final String? rejectionReason;
-  // ------------------------------------------
+
 
   const OrderModel({
     this.id,
@@ -65,12 +69,55 @@ class OrderModel extends Equatable {
     this.salesRepId,
     this.commissionDiscount = 0.0,
     this.finalTotal = 0.0,
-    // Thêm các trường mới
     this.placedBy,
     this.approvedAt,
     this.rejectedAt,
     this.rejectionReason,
   });
+
+  OrderModel copyWith({
+    String? id,
+    String? userId,
+    List<OrderItemModel>? items,
+    AddressModel? shippingAddress,
+    double? subtotal,
+    double? shippingFee,
+    double? discount,
+    double? total,
+    String? paymentMethod,
+    String? paymentStatus,
+    String? status,
+    Timestamp? createdAt,
+    String? salesRepId,
+    double? commissionDiscount,
+    double? finalTotal,
+    PlacedByInfo? placedBy,
+    Timestamp? approvedAt,
+    Timestamp? rejectedAt,
+    String? rejectionReason,
+  }) {
+    return OrderModel(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      items: items ?? this.items,
+      shippingAddress: shippingAddress ?? this.shippingAddress,
+      subtotal: subtotal ?? this.subtotal,
+      shippingFee: shippingFee ?? this.shippingFee,
+      discount: discount ?? this.discount,
+      total: total ?? this.total,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      salesRepId: salesRepId ?? this.salesRepId,
+      commissionDiscount: commissionDiscount ?? this.commissionDiscount,
+      finalTotal: finalTotal ?? this.finalTotal,
+      placedBy: placedBy ?? this.placedBy,
+      approvedAt: approvedAt ?? this.approvedAt,
+      rejectedAt: rejectedAt ?? this.rejectedAt,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
+    );
+  }
 
   @override
   List<Object?> get props => [
@@ -95,7 +142,6 @@ class OrderModel extends Equatable {
       'salesRepId': salesRepId,
       'commissionDiscount': commissionDiscount,
       'finalTotal': finalTotal,
-      // Thêm các trường mới
       'placedBy': placedBy?.toMap(),
       'approvedAt': approvedAt,
       'rejectedAt': rejectedAt,
@@ -105,7 +151,6 @@ class OrderModel extends Equatable {
 
   factory OrderModel.fromSnapshot(DocumentSnapshot snap) {
     final data = snap.data() as Map<String, dynamic>;
-    // ... (logic cũ giữ nguyên)
 
     return OrderModel(
       id: snap.id,
@@ -127,7 +172,6 @@ class OrderModel extends Equatable {
       salesRepId: data['salesRepId'] as String?,
       commissionDiscount: (data['commissionDiscount'] as num?)?.toDouble() ?? 0.0,
       finalTotal: (data['finalTotal'] as num?)?.toDouble() ?? 0.0,
-      // Đọc dữ liệu cho các trường mới
       placedBy: data['placedBy'] != null
           ? PlacedByInfo.fromMap(data['placedBy'] as Map<String, dynamic>)
           : null,

@@ -16,16 +16,16 @@ class CheckoutPage extends StatelessWidget {
 
   static PageRoute<void> route({List<CartItemModel>? buyNowItems}) {
     return MaterialPageRoute<void>(
-      builder: (_) => CheckoutPage(buyNowItems: buyNowItems),
+      builder: (_) => BlocProvider(
+        create: (context) => sl<CheckoutCubit>()..loadCheckoutData(buyNowItems: buyNowItems),
+        child: CheckoutPage(buyNowItems: buyNowItems),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => sl<CheckoutCubit>()..loadCheckoutData(buyNowItems: buyNowItems),
-      child: const CheckoutView(),
-    );
+    return const CheckoutView();
   }
 }
 
@@ -34,18 +34,23 @@ class CheckoutView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final state = context.read<CheckoutCubit>().state;
+      if (state.status == CheckoutStatus.error && state.errorMessage != null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(
+            content: Text(state.errorMessage!),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ));
+      }
+    });
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Thanh toán')),
+      appBar: AppBar(title: const Text('Xác nhận đơn hàng')),
       body: BlocListener<CheckoutCubit, CheckoutState>(
         listener: (context, state) {
-          if (state.status == CheckoutStatus.error && state.errorMessage != null) {
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(SnackBar(
-                content: Text(state.errorMessage!),
-                backgroundColor: Theme.of(context).colorScheme.error,
-              ));
-          } else if (state.status == CheckoutStatus.orderSuccess && state.newOrderId != null) {
+          if (state.status == CheckoutStatus.orderSuccess && state.newOrderId != null) {
             Navigator.of(context).pushAndRemoveUntil(
                 OrderSuccessPage.route(orderId: state.newOrderId!),
                     (route) => route.isFirst);
@@ -59,8 +64,6 @@ class CheckoutView extends StatelessWidget {
               _buildAddressSection(context),
               const Divider(thickness: 8, height: 32),
               _buildOrderItems(context),
-              const Divider(thickness: 8, height: 32),
-              _buildPaymentMethod(context),
               const Divider(thickness: 8, height: 32),
               _buildVoucherSection(context),
               const Divider(thickness: 8, height: 32),

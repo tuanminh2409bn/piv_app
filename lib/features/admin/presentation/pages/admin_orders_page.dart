@@ -5,11 +5,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/data/models/order_model.dart';
+import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_orders_cubit.dart';
 import 'package:piv_app/features/orders/presentation/pages/order_detail_page.dart';
-import 'package:piv_app/data/models/user_model.dart';
 
-enum OrderFilter { pending_approval, processing, completed, rejected, all }
+// --- THÊM MỚI: Bộ lọc cho trạng thái chờ xác minh thanh toán ---
+enum OrderFilter { verifying_payment, pending_approval, processing, completed, rejected, all }
 
 class AdminOrdersPage extends StatelessWidget {
   const AdminOrdersPage({super.key});
@@ -36,7 +37,8 @@ class _AdminOrdersView extends StatefulWidget {
 }
 
 class _AdminOrdersViewState extends State<_AdminOrdersView> {
-  OrderFilter _selectedFilter = OrderFilter.pending_approval;
+  // --- THAY ĐỔI: Bộ lọc mặc định là "Chờ xác nhận TT" ---
+  OrderFilter _selectedFilter = OrderFilter.verifying_payment;
   final _searchController = TextEditingController();
 
   @override
@@ -67,49 +69,60 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
       },
       builder: (context, state) {
         final List<OrderModel> displayedOrders;
+        // --- THÊM LOGIC LỌC MỚI ---
         switch (_selectedFilter) {
+          case OrderFilter.verifying_payment:
+            displayedOrders = state.visibleOrders.where((o) => o.paymentStatus == 'verifying').toList();
+            break;
           case OrderFilter.pending_approval:
             displayedOrders = state.visibleOrders.where((o) => o.status == 'pending_approval').toList();
             break;
           case OrderFilter.processing:
-            displayedOrders = state.visibleOrders.where((o) => o.status == 'pending' || o.status == 'processing').toList();
+            displayedOrders = state.visibleOrders.where((o) => ['pending', 'processing'].contains(o.status)).toList();
             break;
           case OrderFilter.completed:
-            displayedOrders = state.visibleOrders.where((o) => o.status == 'completed' || o.status == 'shipped').toList();
+            displayedOrders = state.visibleOrders.where((o) => ['completed', 'shipped'].contains(o.status)).toList();
             break;
           case OrderFilter.rejected:
-            displayedOrders = state.visibleOrders.where((o) => o.status == 'rejected' || o.status == 'cancelled').toList();
+            displayedOrders = state.visibleOrders.where((o) => ['rejected', 'cancelled'].contains(o.status)).toList();
             break;
           case OrderFilter.all:
             displayedOrders = state.visibleOrders;
             break;
         }
 
+        // --- THÊM BIẾN ĐẾM MỚI ---
+        final verifyingPaymentCount = state.visibleOrders.where((o) => o.paymentStatus == 'verifying').length;
         final pendingApprovalCount = state.visibleOrders.where((o) => o.status == 'pending_approval').length;
-        final processingCount = state.visibleOrders.where((o) => o.status == 'pending' || o.status == 'processing').length;
-        final completedCount = state.visibleOrders.where((o) => o.status == 'completed' || o.status == 'shipped').length;
-        final rejectedCount = state.visibleOrders.where((o) => o.status == 'rejected' || o.status == 'cancelled').length;
+        final processingCount = state.visibleOrders.where((o) => ['pending', 'processing'].contains(o.status)).length;
+        final completedCount = state.visibleOrders.where((o) => ['completed', 'shipped'].contains(o.status)).length;
+        final rejectedCount = state.visibleOrders.where((o) => ['rejected', 'cancelled'].contains(o.status)).length;
 
         return Column(
           children: [
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: SegmentedButton<OrderFilter>(
-                segments: <ButtonSegment<OrderFilter>>[
-                  ButtonSegment(value: OrderFilter.pending_approval, label: Text('Chờ duyệt ($pendingApprovalCount)'), icon: const Icon(Icons.hourglass_top_outlined)),
-                  ButtonSegment(value: OrderFilter.processing, label: Text('Cần xử lý ($processingCount)'), icon: const Icon(Icons.pending_actions_outlined)),
-                  ButtonSegment(value: OrderFilter.completed, label: Text('Hoàn thành ($completedCount)'), icon: const Icon(Icons.check_circle_outline)),
-                  ButtonSegment(value: OrderFilter.rejected, label: Text('Từ chối/Hủy ($rejectedCount)'), icon: const Icon(Icons.cancel_outlined)),
-                  ButtonSegment(value: OrderFilter.all, label: Text('Tất cả (${state.visibleOrders.length})'), icon: const Icon(Icons.inventory_2_outlined)),
-                ],
-                selected: {_selectedFilter},
-                onSelectionChanged: (Set<OrderFilter> newSelection) {
-                  setState(() => _selectedFilter = newSelection.first);
-                },
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SegmentedButton<OrderFilter>(
+                  // --- THÊM SEGMENT MỚI ---
+                  segments: <ButtonSegment<OrderFilter>>[
+                    ButtonSegment(value: OrderFilter.verifying_payment, label: Text('Chờ xác nhận TT ($verifyingPaymentCount)'), icon: const Icon(Icons.credit_score_outlined)),
+                    ButtonSegment(value: OrderFilter.pending_approval, label: Text('Chờ duyệt ($pendingApprovalCount)'), icon: const Icon(Icons.hourglass_top_outlined)),
+                    ButtonSegment(value: OrderFilter.processing, label: Text('Cần xử lý ($processingCount)'), icon: const Icon(Icons.pending_actions_outlined)),
+                    ButtonSegment(value: OrderFilter.completed, label: Text('Hoàn thành ($completedCount)'), icon: const Icon(Icons.check_circle_outline)),
+                    ButtonSegment(value: OrderFilter.rejected, label: Text('Từ chối/Hủy ($rejectedCount)'), icon: const Icon(Icons.cancel_outlined)),
+                    ButtonSegment(value: OrderFilter.all, label: Text('Tất cả (${state.visibleOrders.length})'), icon: const Icon(Icons.inventory_2_outlined)),
+                  ],
+                  selected: {_selectedFilter},
+                  onSelectionChanged: (Set<OrderFilter> newSelection) {
+                    setState(() => _selectedFilter = newSelection.first);
+                  },
+                ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
@@ -135,7 +148,7 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
                   : RefreshIndicator(
                 onRefresh: () => context.read<AdminOrdersCubit>().fetchAllOrders(),
                 child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(8.0, 0, 8.0, 8.0),
+                    padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0),
                     itemCount: displayedOrders.length,
                     itemBuilder: (context, index) {
                       final order = displayedOrders[index];
@@ -154,8 +167,12 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
     final statusInfo = _getStatusInfo(order.status, context);
     const List<String> statusOptions = ['pending_approval', 'pending', 'processing', 'shipped', 'completed', 'cancelled', 'rejected'];
-    final usersMap = context.read<AdminOrdersCubit>().state.usersMap;
+    final usersMap = context.watch<AdminOrdersCubit>().state.usersMap;
     final customerName = usersMap[order.userId]?.displayName ?? order.shippingAddress.recipientName;
+
+    // --- THÊM MỚI: Quyền của Kế toán/Admin ---
+    final bool canConfirmPayment = (order.paymentStatus == 'verifying');
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
       elevation: 2,
@@ -184,7 +201,7 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(color: statusInfo.$1.withOpacity(0.1), borderRadius: BorderRadius.circular(20),),
+                    decoration: BoxDecoration(color: statusInfo.$1.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
                     child: Text(statusInfo.$2, style: TextStyle(color: statusInfo.$1, fontWeight: FontWeight.bold, fontSize: 12)),
                   )
                 ],
@@ -194,14 +211,32 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
                     'Ngày đặt: ${dateFormat.format(order.createdAt!.toDate())}',
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 13)
                 ),
-
               _buildPlacedByInfo(context, order, usersMap),
               const Divider(height: 24),
-              _buildInfoRow('Khách hàng:', order.shippingAddress.recipientName, isBold: true),
+              _buildInfoRow('Khách hàng:', customerName, isBold: true),
               _buildInfoRow('Số điện thoại:', order.shippingAddress.phoneNumber),
-              _buildInfoRow('Địa chỉ:', order.shippingAddress.fullAddress),
+              _buildInfoRow('Thanh toán:', _getPaymentStatusText(order.paymentStatus), valueColor: _getPaymentStatusColor(order.paymentStatus)),
               const SizedBox(height: 12),
-              _buildInfoRow('Tổng tiền:', currencyFormatter.format(order.total), isBold: true, valueColor: Theme.of(context).colorScheme.primary),
+              _buildInfoRow('Tổng tiền:', currencyFormatter.format(order.finalTotal), isBold: true, valueColor: Theme.of(context).colorScheme.primary),
+
+              if (canConfirmPayment) ...[
+                const Divider(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.check_circle),
+                    label: const Text('Xác nhận đã thanh toán'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () {
+                      _showPaymentConfirmationDialog(context, orderId: order.id!);
+                    },
+                  ),
+                ),
+              ],
+
               const Divider(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -250,6 +285,49 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
     }
   }
 
+  String _getPaymentStatusText(String status) {
+    switch(status) {
+      case 'unpaid': return 'Chưa thanh toán';
+      case 'verifying': return 'Chờ xác nhận TT';
+      case 'paid': return 'Đã thanh toán';
+      default: return status;
+    }
+  }
+
+  Color _getPaymentStatusColor(String status) {
+    switch(status) {
+      case 'unpaid': return Colors.orange.shade700;
+      case 'verifying': return Colors.blue.shade700;
+      case 'paid': return Colors.green.shade700;
+      default: return Colors.grey;
+    }
+  }
+
+  void _showPaymentConfirmationDialog(BuildContext context, { required String orderId}) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Xác nhận thanh toán'),
+          content: const Text('Bạn có chắc chắn muốn xác nhận đơn hàng này đã được thanh toán thành công?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('HỦY'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                context.read<AdminOrdersCubit>().confirmOrderPayment(orderId);
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('XÁC NHẬN'),
+            )
+          ],
+        );
+      },
+    );
+  }
+
   void _showStatusChangeConfirmationDialog(BuildContext context, {
     required String orderId,
     required String newStatus,
@@ -291,39 +369,39 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
       ),
     );
   }
-}
 
-Widget _buildPlacedByInfo(BuildContext context, OrderModel order, Map<String, UserModel> usersMap) {
-  if (order.placedBy == null) {
-    return const SizedBox.shrink();
-  }
-  final placerId = order.placedBy!.userId;
-  final placerName = usersMap[placerId]?.displayName ?? 'ID: ${placerId.substring(0,8)}';
-  final placerRole = _translateRole(order.placedBy!.role);
+  Widget _buildPlacedByInfo(BuildContext context, OrderModel order, Map<String, UserModel> usersMap) {
+    if (order.placedBy == null) {
+      return const SizedBox.shrink();
+    }
+    final placerId = order.placedBy!.userId;
+    final placerName = usersMap[placerId]?.displayName ?? 'ID: ${placerId.substring(0,8)}';
+    final placerRole = _translateRole(order.placedBy!.role);
 
-  return Padding(
-    padding: const EdgeInsets.only(top: 4.0),
-    child: RichText(
-      text: TextSpan(
-        style: TextStyle(color: Colors.blueGrey.shade700, fontSize: 13, fontStyle: FontStyle.italic),
-        children: [
-          const TextSpan(text: 'Đặt bởi: '),
-          TextSpan(
-            text: placerName,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          TextSpan(text: ' ($placerRole)'),
-        ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 4.0),
+      child: RichText(
+        text: TextSpan(
+          style: DefaultTextStyle.of(context).style.copyWith(color: Colors.blueGrey.shade700, fontSize: 13, fontStyle: FontStyle.italic),
+          children: [
+            const TextSpan(text: 'Đặt bởi: '),
+            TextSpan(
+              text: placerName,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            TextSpan(text: ' ($placerRole)'),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-String _translateRole(String role) {
-  switch (role) {
-    case 'sales_rep': return 'NVKD';
-    case 'accountant': return 'Kế toán';
-    case 'admin': return 'Admin';
-    default: return role;
+  String _translateRole(String role) {
+    switch (role) {
+      case 'sales_rep': return 'NVKD';
+      case 'accountant': return 'Kế toán';
+      case 'admin': return 'Admin';
+      default: return role;
+    }
   }
 }

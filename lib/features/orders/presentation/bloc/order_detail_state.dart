@@ -1,36 +1,45 @@
+// lib/features/orders/presentation/bloc/order_detail_state.dart
+
 part of 'order_detail_cubit.dart';
 
-enum OrderDetailStatus { initial, loading, success, error, creatingPaymentUrl, paymentUrlCreated, updating }
+// --- THAY ĐỔI: Xóa các trạng thái VNPAY, thêm trạng thái cập nhật thanh toán ---
+enum OrderDetailStatus {
+  initial,
+  loading,
+  success,
+  error,
+  updating, // Dùng cho Phê duyệt/Từ chối
+  updatingPaymentStatus // Dùng cho nút "Tôi đã chuyển khoản"
+}
 
 class OrderDetailState extends Equatable {
   final OrderDetailStatus status;
   final OrderModel? order;
   final String? errorMessage;
-  final String? paymentUrl;
+  final PaymentInfoModel? paymentInfo;
 
   const OrderDetailState({
     this.status = OrderDetailStatus.initial,
     this.order,
     this.errorMessage,
-    this.paymentUrl,
+    this.paymentInfo, // Thêm vào constructor
   });
 
   @override
-  List<Object?> get props => [status, order, errorMessage, paymentUrl];
+  List<Object?> get props => [status, order, errorMessage, paymentInfo];
 
   OrderDetailState copyWith({
     OrderDetailStatus? status,
     OrderModel? order,
     String? errorMessage,
-    String? paymentUrl,
-    bool forcePaymentUrlToNull = false,
+    PaymentInfoModel? paymentInfo,
     bool clearError = false,
   }) {
     return OrderDetailState(
       status: status ?? this.status,
       order: order ?? this.order,
-      errorMessage: errorMessage ?? this.errorMessage,
-      paymentUrl: forcePaymentUrlToNull ? null : paymentUrl ?? this.paymentUrl,
+      errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
+      paymentInfo: paymentInfo ?? this.paymentInfo,
     );
   }
 }
