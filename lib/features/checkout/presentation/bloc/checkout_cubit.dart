@@ -131,13 +131,10 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     loadCheckoutData();
   }
 
-  Future<void> placeOrderOnBehalfOf({
-    required String forUserId, // ID của đại lý được đặt hàng cho
-    required AddressModel shippingAddress, // Địa chỉ của đại lý
-    String? agentSalesRepId, // ID của NVKD quản lý đại lý này
-  }) async {
-    if (state.checkoutItems.isEmpty) {
-      emit(state.copyWith(status: CheckoutStatus.error, errorMessage: "Không có sản phẩm để đặt hàng."));
+  Future<void> placeOrderOnBehalfOf() async {
+    // Tự lấy thông tin từ state
+    if (state.selectedAddress == null || state.checkoutItems.isEmpty || state.placeOrderForAgent == null) {
+      emit(state.copyWith(status: CheckoutStatus.error, errorMessage: "Thiếu thông tin để đặt hàng hộ."));
       return;
     }
 
@@ -149,21 +146,24 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       return;
     }
 
+    final agent = state.placeOrderForAgent!;
+
     final order = OrderModel(
-      userId: forUserId,
-      status: 'pending_approval', // SỬ DỤNG STRING
+      userId: agent.id,
+      status: 'pending_approval',
       placedBy: PlacedByInfo(
         userId: authState.user.id,
-        role: authState.user.role, // SỬ DỤNG STRING
+        role: authState.user.role,
       ),
-      salesRepId: agentSalesRepId,
+      salesRepId: agent.salesRepId,
       items: state.checkoutItems.map((cartItem) => OrderItemModel.fromCartItem(cartItem)).toList(),
-      shippingAddress: shippingAddress,
+      shippingAddress: state.selectedAddress!,
       subtotal: state.subtotal,
       shippingFee: state.shippingFee,
       discount: state.discount,
       total: state.total,
-      paymentMethod: state.paymentMethod,
+      paymentMethod: 'bank_transfer', // Mặc định
+      paymentStatus: 'unpaid', // Mặc định
       commissionDiscount: state.commissionDiscount,
       finalTotal: state.finalTotal,
     );

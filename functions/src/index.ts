@@ -341,9 +341,6 @@ export const onOrderStatusUpdate = onDocumentUpdated(
         const orderId = event.params.orderId;
         const userName = shippingAddress?.recipientName ?? "Khách hàng";
         const orderIdShort = orderId.substring(0, 8).toUpperCase();
-        // --- SỬA LỖI: Di chuyển biến formattedTotal vào trong phạm vi cần sử dụng ---
-
-        // KỊCH BẢN 1: XỬ LÝ KẾT QUẢ PHÊ DUYỆT
         if (beforeData.status === 'pending_approval' && placedBy) {
             const placerDoc = await db.collection("users").doc(placedBy.userId).get();
             if (placerDoc.exists && placerDoc.data()?.fcmToken) {
@@ -393,7 +390,7 @@ export const onOrderStatusUpdate = onDocumentUpdated(
             const staffTokens = staffSnapshot.docs.map(doc => doc.data().fcmToken).filter((token): token is string => !!token);
 
             const staffTitle = `Đơn #${orderIdShort} của ${userName}`;
-            const staffBody = `Trạng thái đã được cập nhật thành: ${status}`;
+            const staffBody = `Trạng thái đơn hàng đã được cập nhật thành công!`;
 
             if (salesRepDoc?.exists && salesRepDoc.data()?.fcmToken) {
                 await sendDataOnlyNotification(salesRepDoc.data()?.fcmToken, { title: staffTitle, body: staffBody, type: "order_status_update_for_rep", orderId });

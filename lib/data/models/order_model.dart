@@ -51,6 +51,7 @@ class OrderModel extends Equatable {
   final Timestamp? approvedAt;
   final Timestamp? rejectedAt;
   final String? rejectionReason;
+  final Timestamp? shippingDate;
 
 
   const OrderModel({
@@ -73,6 +74,7 @@ class OrderModel extends Equatable {
     this.approvedAt,
     this.rejectedAt,
     this.rejectionReason,
+    this.shippingDate,
   });
 
   OrderModel copyWith({
@@ -123,7 +125,7 @@ class OrderModel extends Equatable {
   List<Object?> get props => [
     id, userId, items, shippingAddress, subtotal, shippingFee, discount, total,
     paymentMethod, paymentStatus, status, createdAt, salesRepId, commissionDiscount, finalTotal,
-    placedBy, approvedAt, rejectedAt, rejectionReason
+    placedBy, approvedAt, rejectedAt, rejectionReason, shippingDate,
   ];
 
   Map<String, dynamic> toMap() {
@@ -146,6 +148,7 @@ class OrderModel extends Equatable {
       'approvedAt': approvedAt,
       'rejectedAt': rejectedAt,
       'rejectionReason': rejectionReason,
+      'shippingDate': shippingDate,
     };
   }
 
@@ -178,6 +181,7 @@ class OrderModel extends Equatable {
       approvedAt: data['approvedAt'] as Timestamp?,
       rejectedAt: data['rejectedAt'] as Timestamp?,
       rejectionReason: data['rejectionReason'] as String?,
+      shippingDate: data['shippingDate'] as Timestamp?,
     );
   }
 }

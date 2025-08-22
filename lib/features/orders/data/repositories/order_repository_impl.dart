@@ -318,4 +318,17 @@ class OrderRepositoryImpl implements OrderRepository {
       return Left(ServerFailure(e.message ?? 'Có lỗi xảy ra.'));
     }
   }
+
+  @override
+  Future<Either<Failure, Unit>> updateOrderStatusToShipped(String orderId, DateTime shippingDate) async {
+    try {
+      await _firestore.collection('orders').doc(orderId).update({
+        'status': 'shipped',
+        'shippingDate': Timestamp.fromDate(shippingDate),
+      });
+      return const Right(unit);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+    }
+  }
 }

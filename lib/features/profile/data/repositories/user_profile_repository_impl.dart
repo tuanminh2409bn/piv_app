@@ -318,4 +318,18 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
       return Left(ServerFailure('Lỗi không xác định khi tải danh sách người dùng: ${e.toString()}'));
     }
   }
+
+  @override
+  Future<Either<Failure, List<UserModel>>> getAllAgents() async {
+    try {
+      final querySnapshot = await _usersCollection
+          .where('role', whereIn: ['agent_1', 'agent_2'])
+          .where('status', isEqualTo: 'active')
+          .get();
+      final users = querySnapshot.docs.map((doc) => UserModel.fromJson(doc.data())).toList();
+      return Right(users);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+    }
+  }
 }

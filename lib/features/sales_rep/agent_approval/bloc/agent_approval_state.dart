@@ -24,6 +24,4 @@ class AgentApprovalFailure extends AgentApprovalState {
   @override
   List<Object> get props => [message];
 }
-
-// ✅ THÊM CLASS NÀY VÀO
 class AgentApprovalSuccess extends AgentApprovalState {}

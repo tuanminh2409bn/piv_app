@@ -17,6 +17,8 @@ class MyOrdersPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Sử dụng BlocProvider.value vì MyOrdersCubit đã được đăng ký là singleton
+    // và được khởi tạo từ trước (ví dụ trong main_screen)
     return BlocProvider.value(
       value: sl<MyOrdersCubit>(),
       child: const MyOrdersView(),
@@ -30,13 +32,16 @@ class MyOrdersView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3, // --- THAY ĐỔI: 3 tabs ---
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Đơn hàng của tôi'),
           bottom: TabBar(
+            // --- SỬA LỖI GIAO DIỆN TẠI ĐÂY ---
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            // ------------------------------------
             tabs: [
-              // --- THAY ĐỔI: Tạo các tab với badge đếm số lượng ---
               _buildTabWithBadge(context, 'Chờ duyệt', context.select((MyOrdersCubit cubit) => cubit.state.pendingApprovalOrders.length)),
               _buildTabWithBadge(context, 'Đang xử lý', context.select((MyOrdersCubit cubit) => cubit.state.ongoingOrders.length)),
               const Tab(text: 'Lịch sử'),
@@ -53,7 +58,6 @@ class MyOrdersView extends StatelessWidget {
               return Center(child: Text(state.errorMessage ?? 'Không thể tải đơn hàng.'));
             }
 
-            // --- THAY ĐỔI: Sử dụng TabBarView ---
             return TabBarView(
               children: [
                 _OrderListView(orders: state.pendingApprovalOrders, emptyMessage: 'Không có đơn hàng nào cần bạn phê duyệt.'),
@@ -78,12 +82,12 @@ class MyOrdersView extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.red,
+                color: Theme.of(context).colorScheme.error,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 count.toString(),
-                style: const TextStyle(color: Colors.white, fontSize: 12),
+                style: TextStyle(color: Theme.of(context).colorScheme.onError, fontSize: 12),
               ),
             ),
           ]
@@ -93,7 +97,6 @@ class MyOrdersView extends StatelessWidget {
   }
 }
 
-// --- WIDGET MỚI: Tái sử dụng để hiển thị danh sách đơn hàng ---
 class _OrderListView extends StatelessWidget {
   final List<OrderModel> orders;
   final String emptyMessage;
@@ -104,13 +107,19 @@ class _OrderListView extends StatelessWidget {
   Widget build(BuildContext context) {
     if (orders.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.receipt_long_outlined, size: 80, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text(emptyMessage, style: const TextStyle(fontSize: 18)),
-          ],
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height * 0.5),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.receipt_long_outlined, size: 80, color: Colors.grey),
+                const SizedBox(height: 16),
+                Text(emptyMessage, style: const TextStyle(fontSize: 18), textAlign: TextAlign.center),
+              ],
+            ),
+          ),
         ),
       );
     }
@@ -129,8 +138,6 @@ class _OrderListView extends StatelessWidget {
   }
 }
 
-
-// --- WIDGET MỚI: Tách card đơn hàng ra để dễ quản lý ---
 class _OrderCard extends StatelessWidget {
   final OrderModel order;
   const _OrderCard({required this.order});
@@ -159,13 +166,13 @@ class _OrderCard extends StatelessWidget {
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      clipBehavior: Clip.antiAlias, // Giúp InkWell có bo tròn
       child: InkWell(
         onTap: () {
           if (order.id != null) {
             Navigator.of(context).push(OrderDetailPage.route(order.id!));
           }
         },
-        borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
@@ -174,9 +181,11 @@ class _OrderCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Đơn hàng #${order.id?.substring(0, 6).toUpperCase() ?? 'N/A'}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  Expanded(
+                    child: Text(
+                      'Đơn hàng #${order.id?.substring(0, 6).toUpperCase() ?? 'N/A'}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

@@ -199,7 +199,6 @@ class _MainScreenState extends State<MainScreen> {
                   profileCubit.submitReferralCode(codeController.text.trim());
                   Navigator.of(context).pop();
                 } else {
-                  // Nếu người dùng không nhập gì mà bấm xác nhận, coi như bỏ qua
                   profileCubit.dismissReferralPrompt();
                   Navigator.of(context).pop();
                 }

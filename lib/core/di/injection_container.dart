@@ -56,6 +56,7 @@ import 'package:piv_app/features/admin/presentation/bloc/admin_vouchers_cubit.da
 import 'package:piv_app/features/sales_rep/agent_approval/bloc/agent_approval_cubit.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:piv_app/core/services/notification_service.dart';
+import 'package:piv_app/features/accountant/presentation/bloc/accountant_agents_cubit.dart';
 
 
 final sl = GetIt.instance;
@@ -143,15 +144,9 @@ Future<void> initializeDependencies() async {
   // == Voucher ==
   sl.registerLazySingleton<VoucherRepository>(() => VoucherRepositoryImpl(firestore: sl()));
   sl.registerFactory<VoucherManagementCubit>(() => VoucherManagementCubit(voucherRepository: sl(), authBloc: sl()));
-
   sl.registerLazySingleton(() => FirebaseFirestore.instance);
   sl.registerLazySingleton(() => FirebaseFunctions.instanceFor(region: 'asia-southeast1'));
-
-  sl.registerFactory(
-        () => AgentApprovalCubit(
-      userProfileRepository: sl(),
-    ),
-  );
-
+  sl.registerFactory(() => AgentApprovalCubit(userProfileRepository: sl(),),);
   sl.registerLazySingleton(() => NotificationService());
+  sl.registerFactory<AccountantAgentsCubit>(() => AccountantAgentsCubit(userProfileRepository: sl()));
 }

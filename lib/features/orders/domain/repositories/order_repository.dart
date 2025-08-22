@@ -22,4 +22,5 @@ abstract class OrderRepository {
   Future<Either<Failure, Unit>> confirmOrderPayment(String orderId);
   Future<Either<Failure, PaymentInfoModel>> getPaymentInfo();
   Future<Either<Failure, Unit>> notifyPaymentMade(String orderId);
+  Future<Either<Failure, Unit>> updateOrderStatusToShipped(String orderId, DateTime shippingDate);
 }

@@ -307,15 +307,12 @@ class PendingAgentsView extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Duyệt Đại lý "$agentName"'),
-        // SỬA: Đưa các lựa chọn vào phần nội dung chính
         content: Column(
-          mainAxisSize: MainAxisSize.min, // Giúp dialog co lại vừa với nội dung
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text('Vui lòng chọn cấp bậc cho đại lý này:'),
             const SizedBox(height: 20),
-
-            // Lựa chọn Cấp 1
             ElevatedButton.icon(
               icon: const Icon(Icons.star_rounded),
               label: const Text('Duyệt thành Đại lý Cấp 1'),
@@ -331,8 +328,6 @@ class PendingAgentsView extends StatelessWidget {
               },
             ),
             const SizedBox(height: 12),
-
-            // Lựa chọn Cấp 2
             ElevatedButton.icon(
               icon: const Icon(Icons.star_half_rounded),
               label: const Text('Duyệt thành Đại lý Cấp 2'),
@@ -349,7 +344,6 @@ class PendingAgentsView extends StatelessWidget {
             ),
           ],
         ),
-        // Chỉ còn nút Hủy ở phần actions
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),

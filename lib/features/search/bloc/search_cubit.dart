@@ -1,4 +1,4 @@
-// lib/features/search/presentation/bloc/search_cubit.dart
+// lib/features/search/bloc/search_cubit.dart
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
@@ -34,32 +34,45 @@ class SearchCubit extends Cubit<SearchState> {
 
   Future<void> searchProducts(String query) async {
     final cleanQuery = query.trim();
-    if (cleanQuery.isEmpty) {
-      // Nếu query rỗng, chỉ cần tải lại lịch sử và xóa kết quả
-      final history = await _searchRepository.getSearchHistory();
-      emit(state.copyWith(status: SearchStatus.success, searchResults: [], searchHistory: history));
-      return;
+
+    // Chỉ lưu vào lịch sử nếu có nội dung tìm kiếm thực sự
+    if (cleanQuery.isNotEmpty) {
+      await _searchRepository.saveSearchTerm(cleanQuery);
     }
 
     emit(state.copyWith(status: SearchStatus.loading));
 
-    // Lưu từ khóa vào lịch sử
-    await _searchRepository.saveSearchTerm(cleanQuery);
-
-    // Tải toàn bộ sản phẩm để tìm kiếm
+    // Luôn tải toàn bộ sản phẩm
     final productsResult = await _homeRepository.getAllProducts();
 
     productsResult.fold(
           (failure) => emit(state.copyWith(status: SearchStatus.error, errorMessage: failure.message)),
-          (allProducts) {
-        final normalizedQuery = _removeDiacritics(cleanQuery.toLowerCase());
-        final filtered = allProducts.where((product) {
-          final normalizedProductName = _removeDiacritics(product.name.toLowerCase());
-          final normalizedProductDesc = _removeDiacritics(product.description.toLowerCase());
-          return normalizedProductName.contains(normalizedQuery) || normalizedProductDesc.contains(normalizedQuery);
-        }).toList();
+          (allProducts) async {
 
-        emit(state.copyWith(status: SearchStatus.success, searchResults: filtered));
+        final List<ProductModel> filteredProducts;
+
+        // --- LOGIC MỚI QUAN TRỌNG ---
+        // Nếu query rỗng, hiển thị tất cả sản phẩm.
+        // Nếu có query, lọc danh sách.
+        if (cleanQuery.isEmpty) {
+          filteredProducts = allProducts;
+        } else {
+          final normalizedQuery = _removeDiacritics(cleanQuery.toLowerCase());
+          filteredProducts = allProducts.where((product) {
+            final normalizedProductName = _removeDiacritics(product.name.toLowerCase());
+            final normalizedProductDesc = _removeDiacritics(product.description.toLowerCase());
+            return normalizedProductName.contains(normalizedQuery) || normalizedProductDesc.contains(normalizedQuery);
+          }).toList();
+        }
+
+        // Tải lại lịch sử để UI luôn được cập nhật
+        final updatedHistory = await _searchRepository.getSearchHistory();
+
+        emit(state.copyWith(
+          status: SearchStatus.success,
+          searchResults: filteredProducts,
+          searchHistory: updatedHistory,
+        ));
       },
     );
   }

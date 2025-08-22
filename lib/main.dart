@@ -15,6 +15,7 @@ import 'package:piv_app/features/profile/presentation/bloc/profile_cubit.dart';
 import 'package:piv_app/features/wishlist/presentation/bloc/wishlist_cubit.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_home_page.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/sales_rep_home_page.dart';
+import 'package:piv_app/features/accountant/presentation/pages/accountant_home_page.dart';
 
 // SỬA: Thêm GlobalKey để điều hướng từ bên ngoài widget
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -123,8 +124,6 @@ class InitialScreenController extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Dùng BlocListener để lắng nghe trạng thái và điều hướng một lần duy nhất
-    // Dùng BlocBuilder để xây dựng giao diện tương ứng
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
         if (state is AuthAuthenticated) {
@@ -132,14 +131,17 @@ class InitialScreenController extends StatelessWidget {
             return const AdminHomePage();
           } else if (state.user.isSalesRep) {
             return const SalesRepHomePage();
-          } else {
+          }
+          else if (state.user.isAccountant) {
+            return const AccountantHomePage();
+          }
+          else {
             return const MainScreen();
           }
         }
         if (state is AuthUnauthenticated) {
           return const LoginPage();
         }
-        // Hiển thị màn hình chờ trong khi BLoC đang xử lý trạng thái ban đầu
         return const Scaffold(
           body: Center(child: CircularProgressIndicator()),
         );

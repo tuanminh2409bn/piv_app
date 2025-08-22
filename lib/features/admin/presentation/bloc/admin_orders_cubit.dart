@@ -87,4 +87,14 @@ class AdminOrdersCubit extends Cubit<AdminOrdersState> {
           (_) => fetchAllOrders(),
     );
   }
+
+  Future<void> updateOrderStatusToShipped(String orderId, DateTime shippingDate) async {
+    final result = await _orderRepository.updateOrderStatusToShipped(orderId, shippingDate);
+    result.fold(
+          (failure) {
+        emit(state.copyWith(status: AdminOrdersStatus.error, errorMessage: failure.message));
+      },
+          (_) => fetchAllOrders(),
+    );
+  }
 }

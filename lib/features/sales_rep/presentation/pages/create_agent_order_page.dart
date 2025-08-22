@@ -82,7 +82,13 @@ class _CreateAgentOrderView extends StatelessWidget {
               leading: const Icon(Icons.add_shopping_cart, color: Colors.green),
               title: const Text('Thêm sản phẩm vào đơn hàng', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
               onTap: () async {
-                final result = await Navigator.of(context).push(SearchPage.route(isSelectionMode: true));
+                // --- SỬA LỖI: Lấy vai trò của đại lý từ state ---
+                final agentRole = context.read<CheckoutCubit>().state.placeOrderForAgent?.role;
+
+                final result = await Navigator.of(context).push(SearchPage.route(
+                  isSelectionMode: true,
+                  targetUserRole: agentRole,
+                ));
                 if (result != null && result is CartItemModel && context.mounted) {
                   context.read<CheckoutCubit>().addItemToOnBehalfCart(result);
                 }
@@ -98,7 +104,6 @@ class _CreateAgentOrderView extends StatelessWidget {
             else
               Expanded(
                 child: ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 16),
                   itemCount: state.checkoutItems.length,
                   itemBuilder: (context, index) {
                     final item = state.checkoutItems[index];
@@ -136,7 +141,7 @@ class _CreateAgentOrderView extends StatelessWidget {
             const SizedBox(width: 16),
             Expanded(
               child: address == null
-                  ? const Text('Vui lòng chọn địa chỉ giao hàng', style: TextStyle(color: Colors.red))
+                  ? const Text('Chưa có địa chỉ giao hàng.', style: TextStyle(color: Colors.red))
                   : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -188,8 +193,6 @@ class _CheckoutBottomBar extends StatelessWidget {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     return BlocBuilder<CheckoutCubit, CheckoutState>(
       builder: (context, state) {
-        final agent = state.placeOrderForAgent;
-
         return Container(
           padding: const EdgeInsets.all(16.0).copyWith(bottom: 16.0 + MediaQuery.of(context).padding.bottom),
           decoration: BoxDecoration(
@@ -226,19 +229,13 @@ class _CheckoutBottomBar extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
                     textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
                 ),
-                onPressed: (state.checkoutItems.isEmpty || state.selectedAddress == null || state.status == CheckoutStatus.placingOrder || agent == null)
+                onPressed: (state.checkoutItems.isEmpty || state.selectedAddress == null || state.status == CheckoutStatus.placingOrder)
                     ? null
                     : () {
-                  // --- SỬA LỖI: Sử dụng ! để khẳng định agent và selectedAddress không null ---
-                  // Điều này an toàn vì nút đã bị vô hiệu hóa nếu chúng null.
-                  context.read<CheckoutCubit>().placeOrderOnBehalfOf(
-                    forUserId: agent.id,
-                    shippingAddress: state.selectedAddress!,
-                    agentSalesRepId: agent.salesRepId,
-                  );
+                  context.read<CheckoutCubit>().placeOrderOnBehalfOf();
                 },
                 child: state.status == CheckoutStatus.placingOrder
-                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white))
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
                     : const Text('GỬI YÊU CẦU'),
               )
             ],

@@ -1,3 +1,5 @@
+// lib/features/admin/presentation/pages/admin_users_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
@@ -5,6 +7,7 @@ import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
 import 'package:piv_app/features/admin/presentation/pages/sales_rep_agents_page.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
+
 
 class AdminUsersPage extends StatelessWidget {
   const AdminUsersPage({super.key});
@@ -14,6 +17,7 @@ class AdminUsersPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => sl<AdminUsersCubit>()..fetchAndGroupUsers(),
       child: Scaffold(
+        // AppBar không đổi, giữ nguyên
         appBar: AppBar(
           title: const Text('Quản lý Người dùng'),
           actions: [
@@ -36,7 +40,8 @@ class AdminUsersView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authState = context.watch<AuthBloc>().state;
-    final currentAdminId = (authState is AuthAuthenticated) ? authState.user.id : '';
+    // Lấy thông tin người dùng hiện tại, bao gồm cả vai trò
+    final currentUser = (authState is AuthAuthenticated) ? authState.user : null;
 
     return BlocBuilder<AdminUsersCubit, AdminUsersState>(
       builder: (context, state) {
@@ -47,20 +52,26 @@ class AdminUsersView extends StatelessWidget {
           return Center(child: Text(state.errorMessage ?? 'Có lỗi xảy ra'));
         }
 
+        // Lọc danh sách dựa trên vai trò
+        final admins = state.admins.where((user) => user.role == 'admin').toList();
+        final accountants = state.admins.where((user) => user.role == 'accountant').toList();
+
         return RefreshIndicator(
           onRefresh: () => context.read<AdminUsersCubit>().fetchAndGroupUsers(),
           child: ListView(
             padding: const EdgeInsets.all(8.0),
             children: [
-              // ‼️ SỬA LỖI TẠI ĐÂY: Dùng đúng tên getter mới
               _buildSectionHeader(context, 'Nhân viên Kinh doanh', Icons.support_agent_rounded, count: state.salesRepsWithAgentCount.length),
-              _buildSalesRepsList(context, state.salesRepsWithAgentCount, currentAdminId),
+              _buildSalesRepsList(context, state.salesRepsWithAgentCount, currentUser?.id ?? ''),
               const SizedBox(height: 16),
-              _buildSectionHeader(context, 'Đại lý chưa có người phụ trách', Icons.person_add_disabled_outlined, count: state.unassignedAgents.length),
-              _buildUnassignedAgentsList(context, state.unassignedAgents, currentAdminId),
+              _buildSectionHeader(context, 'Kế toán', Icons.account_balance_wallet_outlined, count: accountants.length),
+              _buildAccountantsList(context, accountants, currentUser?.id ?? ''),
               const SizedBox(height: 16),
-              _buildSectionHeader(context, 'Quản trị viên', Icons.admin_panel_settings_outlined, count: state.admins.length),
-              _buildAdminsList(context, state.admins, currentAdminId),
+              _buildSectionHeader(context, 'Đại lý chờ duyệt & chưa gán', Icons.person_add_disabled_outlined, count: state.unassignedAgents.length),
+              _buildUnassignedAgentsList(context, state.unassignedAgents, currentUser?.id ?? ''),
+              const SizedBox(height: 16),
+              _buildSectionHeader(context, 'Quản trị viên', Icons.admin_panel_settings_outlined, count: admins.length),
+              _buildAdminsList(context, admins, currentUser?.id ?? ''),
             ],
           ),
         );
@@ -68,7 +79,6 @@ class AdminUsersView extends StatelessWidget {
     );
   }
 
-  // --- CÁC HÀM HELPER GIỮ NGUYÊN ---
 
   Widget _buildSectionHeader(BuildContext context, String title, IconData icon, {required int count}) {
     return Padding(
@@ -90,7 +100,6 @@ class AdminUsersView extends StatelessWidget {
     );
   }
 
-  // ‼️ SỬA LỖI TẠI ĐÂY: Dùng đúng tên getter mới
   Widget _buildSalesRepsList(BuildContext context, List<SalesRepWithAgentCount> salesReps, String currentAdminId) {
     if (salesReps.isEmpty) return const _EmptyStateCard(message: 'Chưa có Nhân viên Kinh doanh nào.');
     return ListView.builder(
@@ -181,16 +190,42 @@ class AdminUsersView extends StatelessWidget {
     );
   }
 
-  void _showEditUserDialog(BuildContext parentContext, UserModel user) {
+  Widget _buildAccountantsList(BuildContext context, List<UserModel> accountants, String currentUserId) {
+    if (accountants.isEmpty) return const _EmptyStateCard(message: 'Chưa có Kế toán nào.');
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: accountants.length,
+      itemBuilder: (context, index) {
+        final accountant = accountants[index];
+        return Card(
+          child: ListTile(
+            leading: CircleAvatar(backgroundColor: Colors.purple.shade50, child: const Icon(Icons.receipt_long, color: Colors.purple)),
+            title: Text(accountant.displayName ?? 'Chưa có tên', style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(accountant.email ?? 'Chưa có email'),
+            onTap: () => _showEditUserDialog(context, accountant),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showEditUserDialog(BuildContext parentContext, UserModel userToEdit) {
     final cubit = parentContext.read<AdminUsersCubit>();
-    String selectedRole = user.role;
-    String selectedStatus = user.status;
+    // Lấy thông tin người dùng hiện tại đang đăng nhập
+    final currentUser = (parentContext.read<AuthBloc>().state as AuthAuthenticated).user;
+
+    String selectedRole = userToEdit.role;
+    String selectedStatus = userToEdit.status;
 
     showDialog(
       context: parentContext,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setState) {
+            // --- LOGIC MỚI: Lấy danh sách vai trò được phép gán ---
+            final availableRoles = _getAvailableRolesForUser(currentUser.role);
+
             return AlertDialog(
               title: const Text('Cập nhật người dùng'),
               content: SingleChildScrollView(
@@ -198,19 +233,17 @@ class AdminUsersView extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(user.displayName ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    Text(user.email ?? ''),
+                    Text(userToEdit.displayName ?? 'N/A', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text(userToEdit.email ?? ''),
                     const Divider(height: 24),
                     const Text('Vai trò', style: TextStyle(fontWeight: FontWeight.bold)),
                     DropdownButton<String>(
-                      value: selectedRole,
+                      // Nếu vai trò hiện tại không có trong danh sách được phép, không cho chọn
+                      value: availableRoles.any((item) => item.value == selectedRole) ? selectedRole : null,
                       isExpanded: true,
-                      items: const [
-                        DropdownMenuItem(value: 'agent_1', child: Text('Đại lý cấp 1')),
-                        DropdownMenuItem(value: 'agent_2', child: Text('Đại lý cấp 2')),
-                        DropdownMenuItem(value: 'sales_rep', child: Text('Nhân viên Kinh doanh')),
-                        DropdownMenuItem(value: 'admin', child: Text('Quản trị viên')),
-                      ],
+                      hint: const Text('Không có quyền thay đổi vai trò'),
+                      // --- HIỂN THỊ DANH SÁCH VAI TRÒ ĐỘNG ---
+                      items: availableRoles,
                       onChanged: (value) {
                         if (value != null) {
                           setState(() => selectedRole = value);
@@ -243,7 +276,7 @@ class AdminUsersView extends StatelessWidget {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    cubit.updateUser(user.id, selectedRole, selectedStatus);
+                    cubit.updateUser(userToEdit.id, selectedRole, selectedStatus);
                     Navigator.of(dialogContext).pop();
                   },
                   child: const Text('Lưu'),
@@ -254,6 +287,31 @@ class AdminUsersView extends StatelessWidget {
         );
       },
     );
+  }
+
+  // --- HÀM HELPER MỚI ĐỂ LẤY VAI TRÒ THEO QUYỀN ---
+  List<DropdownMenuItem<String>> _getAvailableRolesForUser(String currentUserRole) {
+    const allRoles = {
+      'accountant': 'Kế toán',
+      'sales_rep': 'Nhân viên Kinh doanh',
+      'agent_1': 'Đại lý cấp 1',
+      'agent_2': 'Đại lý cấp 2',
+      'admin': 'Quản trị viên',
+    };
+
+    List<String> allowedRoleKeys = [];
+
+    if (currentUserRole == 'admin') {
+      // Admin có mọi quyền
+      allowedRoleKeys = ['accountant', 'sales_rep', 'agent_1', 'agent_2', 'admin'];
+    } else if (currentUserRole == 'accountant') {
+      // Kế toán có thể nâng cấp lên NVKD và Đại lý
+      allowedRoleKeys = ['sales_rep', 'agent_1', 'agent_2'];
+    }
+
+    return allowedRoleKeys
+        .map((key) => DropdownMenuItem(value: key, child: Text(allRoles[key]!)))
+        .toList();
   }
 }
 

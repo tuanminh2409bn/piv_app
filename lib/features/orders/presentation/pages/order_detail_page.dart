@@ -262,9 +262,19 @@ class _PaymentQrInfo extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildInfoRow('Ngân hàng', paymentInfo.bankName),
-        _buildInfoRow('Chủ tài khoản', paymentInfo.accountHolder),
-        _buildInfoRow('Số tài khoản', paymentInfo.accountNumber),
+        // --- SỬA LỖI: Sử dụng Table để căn chỉnh ---
+        Table(
+          columnWidths: const {
+            0: IntrinsicColumnWidth(), // Cột 0 (nhãn) sẽ có độ rộng bằng nội dung dài nhất
+            1: FlexColumnWidth(),      // Cột 1 (giá trị) sẽ chiếm phần còn lại
+          },
+          defaultVerticalAlignment: TableCellVerticalAlignment.top,
+          children: [
+            _buildTableRow('Ngân hàng:', paymentInfo.bankName),
+            _buildTableRow('Chủ tài khoản:', paymentInfo.accountHolder),
+            _buildTableRow('Số tài khoản:', paymentInfo.accountNumber),
+          ],
+        ),
         const SizedBox(height: 16),
         if (paymentInfo.qrCodeImageUrl.isNotEmpty)
           Center(
@@ -312,6 +322,23 @@ class _PaymentQrInfo extends StatelessWidget {
       ],
     );
   }
+
+  TableRow _buildTableRow(String title, String value) {
+    return TableRow(
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(right: 16.0, bottom: 8.0),
+          child: Text(title, style: TextStyle(color: Colors.grey.shade700)),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      ],
+    );
+  }
+
+
 
   Widget _buildInfoRow(String title, String value) {
     return Padding(
