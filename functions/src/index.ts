@@ -6,6 +6,7 @@ import {
 } from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
+import {format} from "date-fns-tz";
 
 admin.initializeApp({ projectId: 'piv-fertilizer-app' });
 const db = admin.firestore();
@@ -373,7 +374,7 @@ export const onOrderStatusUpdate = onDocumentUpdated(
 
         switch (status) {
             case "processing": userTitle = "✅ Đơn hàng đã được xác nhận"; userBody = `Đơn hàng #${orderIdShort} của bạn trị giá ${formattedTotal} đang được chuẩn bị.`; break;
-            case "shipped": userTitle = "🚚 Đơn hàng đang được giao"; userBody = `Đơn hàng #${orderIdShort} của bạn đang trên đường vận chuyển.`; break;
+            case "shipped": userTitle = "🚚 Đơn hàng đang được giao"; if (shippingDate && shippingDate.toDate) { const formattedDate = format(shippingDate.toDate(), "dd/MM/yyyy", { timeZone: "Asia/Ho_Chi_Minh" }); userBody = `Đơn hàng #${orderIdShort} đang trên đường vận chuyển, dự kiến giao vào ngày ${formattedDate}.`; } else { userBody = `Đơn hàng #${orderIdShort} của bạn đang trên đường vận chuyển.`; } break;
             case "completed": userTitle = "✨ Đơn hàng đã hoàn thành"; userBody = `Cảm ơn bạn đã mua đơn hàng #${orderIdShort}.`; break;
             case "cancelled": userTitle = "❌ Đơn hàng đã bị hủy"; userBody = `Rất tiếc, đơn hàng #${orderIdShort} của bạn đã bị hủy.`; break;
             case "rejected": userTitle = "❌ Đơn hàng đã bị từ chối"; userBody = `Đơn hàng #${orderIdShort} của bạn đã bị từ chối.`; break;

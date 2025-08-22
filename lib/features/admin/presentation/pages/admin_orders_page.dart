@@ -9,7 +9,6 @@ import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_orders_cubit.dart';
 import 'package:piv_app/features/orders/presentation/pages/order_detail_page.dart';
 
-// --- THÊM MỚI: Bộ lọc cho trạng thái chờ xác minh thanh toán ---
 enum OrderFilter { verifying_payment, pending_approval, processing, completed, rejected, all }
 
 class AdminOrdersPage extends StatelessWidget {
@@ -37,7 +36,6 @@ class _AdminOrdersView extends StatefulWidget {
 }
 
 class _AdminOrdersViewState extends State<_AdminOrdersView> {
-  // --- THAY ĐỔI: Bộ lọc mặc định là "Chờ xác nhận TT" ---
   OrderFilter _selectedFilter = OrderFilter.verifying_payment;
   final _searchController = TextEditingController();
 
@@ -69,7 +67,6 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
       },
       builder: (context, state) {
         final List<OrderModel> displayedOrders;
-        // --- THÊM LOGIC LỌC MỚI ---
         switch (_selectedFilter) {
           case OrderFilter.verifying_payment:
             displayedOrders = state.visibleOrders.where((o) => o.paymentStatus == 'verifying').toList();
@@ -105,7 +102,6 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: SegmentedButton<OrderFilter>(
-                  // --- THÊM SEGMENT MỚI ---
                   segments: <ButtonSegment<OrderFilter>>[
                     ButtonSegment(value: OrderFilter.verifying_payment, label: Text('Chờ xác nhận TT ($verifyingPaymentCount)'), icon: const Icon(Icons.credit_score_outlined)),
                     ButtonSegment(value: OrderFilter.pending_approval, label: Text('Chờ duyệt ($pendingApprovalCount)'), icon: const Icon(Icons.hourglass_top_outlined)),
@@ -170,7 +166,6 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
     final usersMap = context.watch<AdminOrdersCubit>().state.usersMap;
     final customerName = usersMap[order.userId]?.displayName ?? order.shippingAddress.recipientName;
 
-    // --- THÊM MỚI: Quyền của Kế toán/Admin ---
     final bool canConfirmPayment = (order.paymentStatus == 'verifying');
 
     return Card(
@@ -248,12 +243,16 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
                     underline: Container(height: 2, color: statusInfo.$1),
                     onChanged: (String? newStatus) {
                       if (newStatus != null && newStatus != order.status) {
-                        _showStatusChangeConfirmationDialog(
-                          context,
-                          orderId: order.id!,
-                          newStatus: newStatus,
-                          newStatusText: _getStatusInfo(newStatus, context).$2,
-                        );
+                         if (newStatus == 'shipped') {
+                          _showShippingDatePicker(context, orderId: order.id!);
+                      } else {
+                         _showStatusChangeConfirmationDialog(
+                         context,
+                         orderId: order.id!,
+                         newStatus: newStatus,
+                         newStatusText: _getStatusInfo(newStatus, context).$2,
+                         );
+                         }
                       }
                     },
                     items: statusOptions.map<DropdownMenuItem<String>>((String value) {
@@ -270,6 +269,21 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
         ),
       ),
     );
+  }
+
+  void _showShippingDatePicker(BuildContext context, {required String orderId}) async {
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+      locale: const Locale('vi', 'VN'),
+      helpText: 'CHỌN NGÀY GIAO DỰ KIẾN',
+    );
+
+    if (pickedDate != null && context.mounted) {
+      context.read<AdminOrdersCubit>().updateOrderStatusToShipped(orderId, pickedDate);
+    }
   }
 
   (Color, String) _getStatusInfo(String status, BuildContext context) {
