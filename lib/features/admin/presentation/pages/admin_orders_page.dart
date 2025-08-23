@@ -75,10 +75,12 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
             displayedOrders = state.visibleOrders.where((o) => o.status == 'pending_approval').toList();
             break;
           case OrderFilter.processing:
-            displayedOrders = state.visibleOrders.where((o) => ['pending', 'processing'].contains(o.status)).toList();
+          // SỬA ĐỔI: Thêm 'shipped' vào tab "Cần xử lý"
+            displayedOrders = state.visibleOrders.where((o) => ['pending', 'processing', 'shipped'].contains(o.status)).toList();
             break;
           case OrderFilter.completed:
-            displayedOrders = state.visibleOrders.where((o) => ['completed', 'shipped'].contains(o.status)).toList();
+          // SỬA ĐỔI: Chỉ giữ lại 'completed' cho tab "Hoàn thành"
+            displayedOrders = state.visibleOrders.where((o) => o.status == 'completed').toList();
             break;
           case OrderFilter.rejected:
             displayedOrders = state.visibleOrders.where((o) => ['rejected', 'cancelled'].contains(o.status)).toList();
@@ -91,9 +93,11 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
         // --- THÊM BIẾN ĐẾM MỚI ---
         final verifyingPaymentCount = state.visibleOrders.where((o) => o.paymentStatus == 'verifying').length;
         final pendingApprovalCount = state.visibleOrders.where((o) => o.status == 'pending_approval').length;
-        final processingCount = state.visibleOrders.where((o) => ['pending', 'processing'].contains(o.status)).length;
-        final completedCount = state.visibleOrders.where((o) => ['completed', 'shipped'].contains(o.status)).length;
+        // SỬA ĐỔI: Cập nhật biến đếm cho đúng với logic mới
+        final processingCount = state.visibleOrders.where((o) => ['pending', 'processing', 'shipped'].contains(o.status)).length;
+        final completedCount = state.visibleOrders.where((o) => o.status == 'completed').length;
         final rejectedCount = state.visibleOrders.where((o) => ['rejected', 'cancelled'].contains(o.status)).length;
+
 
         return Column(
           children: [

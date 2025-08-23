@@ -12,9 +12,11 @@ class AdminUsersCubit extends Cubit<AdminUsersState> {
       : _adminRepository = adminRepository,
         super(const AdminUsersState());
 
-  /// Lấy tất cả người dùng và cập nhật vào state.
   Future<void> fetchAndGroupUsers() async {
-    emit(state.copyWith(status: AdminUsersStatus.loading));
+    // Giữ trạng thái cũ nếu đang tải lại, chỉ hiện loading lần đầu
+    if (state.status != AdminUsersStatus.success) {
+      emit(state.copyWith(status: AdminUsersStatus.loading));
+    }
 
     final result = await _adminRepository.getAllUsers();
 
@@ -23,7 +25,6 @@ class AdminUsersCubit extends Cubit<AdminUsersState> {
         emit(state.copyWith(status: AdminUsersStatus.error, errorMessage: failure.message));
       },
           (users) {
-        // Chỉ cần đưa danh sách tổng vào state. Việc phân loại do state tự xử lý.
         emit(state.copyWith(
           status: AdminUsersStatus.success,
           allUsers: users,
@@ -32,13 +33,21 @@ class AdminUsersCubit extends Cubit<AdminUsersState> {
     );
   }
 
-  /// Cập nhật người dùng và tải lại toàn bộ danh sách.
   Future<void> updateUser(String userId, String role, String status) async {
+    // SỬA LỖI: Phát ra trạng thái updating để UI có thể phản hồi (ví dụ: hiện loading)
+    emit(state.copyWith(status: AdminUsersStatus.updating));
+
     final result = await _adminRepository.updateUser(userId, role, status);
+
     result.fold(
           (failure) {
-        emit(state.copyWith(status: AdminUsersStatus.error, errorMessage: failure.message));
+        // Nếu lỗi, quay lại trạng thái success với dữ liệu cũ và thông báo lỗi
+        emit(state.copyWith(
+          status: AdminUsersStatus.success, // Quay lại success để UI không bị treo ở màn hình lỗi
+          errorMessage: 'Cập nhật thất bại: ${failure.message}', // Có thể hiển thị SnackBar từ lỗi này
+        ));
       },
+      // Nếu thành công, gọi lại fetchAndGroupUsers để đảm bảo dữ liệu là mới nhất
           (_) => fetchAndGroupUsers(),
     );
   }

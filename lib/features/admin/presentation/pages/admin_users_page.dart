@@ -8,7 +8,6 @@ import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart'
 import 'package:piv_app/features/admin/presentation/pages/sales_rep_agents_page.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 
-
 class AdminUsersPage extends StatelessWidget {
   const AdminUsersPage({super.key});
 
@@ -16,20 +15,22 @@ class AdminUsersPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => sl<AdminUsersCubit>()..fetchAndGroupUsers(),
-      child: Scaffold(
-        // AppBar không đổi, giữ nguyên
-        appBar: AppBar(
-          title: const Text('Quản lý Người dùng'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Tải lại',
-              onPressed: () => context.read<AdminUsersCubit>().fetchAndGroupUsers(),
-            ),
-          ],
-        ),
-        body: const AdminUsersView(),
-      ),
+      child: Builder(builder: (context) {
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Quản lý Người dùng'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Tải lại',
+                onPressed: () =>
+                    context.read<AdminUsersCubit>().fetchAndGroupUsers(),
+              ),
+            ],
+          ),
+          body: const AdminUsersView(),
+        );
+      }),
     );
   }
 }
@@ -41,7 +42,8 @@ class AdminUsersView extends StatelessWidget {
   Widget build(BuildContext context) {
     final authState = context.watch<AuthBloc>().state;
     // Lấy thông tin người dùng hiện tại, bao gồm cả vai trò
-    final currentUser = (authState is AuthAuthenticated) ? authState.user : null;
+    final currentUser =
+    (authState is AuthAuthenticated) ? authState.user : null;
 
     return BlocBuilder<AdminUsersCubit, AdminUsersState>(
       builder: (context, state) {
@@ -52,26 +54,48 @@ class AdminUsersView extends StatelessWidget {
           return Center(child: Text(state.errorMessage ?? 'Có lỗi xảy ra'));
         }
 
-        // Lọc danh sách dựa trên vai trò
-        final admins = state.admins.where((user) => user.role == 'admin').toList();
-        final accountants = state.admins.where((user) => user.role == 'accountant').toList();
+        // Lọc danh sách một cách chính xác
+        final admins = state.allUsers.where((user) => user.role == 'admin').toList();
+        final accountants = state.allUsers.where((user) => user.role == 'accountant').toList();
+
+        // --- LOGIC MỚI: Kiểm tra vai trò của người dùng hiện tại ---
+        final bool isAdmin = currentUser?.role == 'admin';
 
         return RefreshIndicator(
           onRefresh: () => context.read<AdminUsersCubit>().fetchAndGroupUsers(),
           child: ListView(
             padding: const EdgeInsets.all(8.0),
             children: [
-              _buildSectionHeader(context, 'Nhân viên Kinh doanh', Icons.support_agent_rounded, count: state.salesRepsWithAgentCount.length),
-              _buildSalesRepsList(context, state.salesRepsWithAgentCount, currentUser?.id ?? ''),
+              _buildSectionHeader(context, 'Nhân viên Kinh doanh',
+                  Icons.support_agent_rounded,
+                  count: state.salesRepsWithAgentCount.length),
+              _buildSalesRepsList(context, state.salesRepsWithAgentCount,
+                  currentUser?.id ?? ''),
               const SizedBox(height: 16),
-              _buildSectionHeader(context, 'Kế toán', Icons.account_balance_wallet_outlined, count: accountants.length),
-              _buildAccountantsList(context, accountants, currentUser?.id ?? ''),
+
+              // --- THAY ĐỔI: Chỉ hiển thị mục này cho Admin ---
+              if (isAdmin) ...[
+                _buildSectionHeader(context, 'Kế toán',
+                    Icons.account_balance_wallet_outlined,
+                    count: accountants.length),
+                _buildAccountantsList(context, accountants, currentUser?.id ?? ''),
+                const SizedBox(height: 16),
+              ],
+
+              _buildSectionHeader(context, 'Đại lý chờ duyệt & chưa gán',
+                  Icons.person_add_disabled_outlined,
+                  count: state.unassignedAgents.length),
+              _buildUnassignedAgentsList(
+                  context, state.unassignedAgents, currentUser?.id ?? ''),
               const SizedBox(height: 16),
-              _buildSectionHeader(context, 'Đại lý chờ duyệt & chưa gán', Icons.person_add_disabled_outlined, count: state.unassignedAgents.length),
-              _buildUnassignedAgentsList(context, state.unassignedAgents, currentUser?.id ?? ''),
-              const SizedBox(height: 16),
-              _buildSectionHeader(context, 'Quản trị viên', Icons.admin_panel_settings_outlined, count: admins.length),
-              _buildAdminsList(context, admins, currentUser?.id ?? ''),
+
+              // --- THAY ĐỔI: Chỉ hiển thị mục này cho Admin ---
+              if (isAdmin) ...[
+                _buildSectionHeader(context, 'Quản trị viên',
+                    Icons.admin_panel_settings_outlined,
+                    count: admins.length),
+                _buildAdminsList(context, admins, currentUser?.id ?? ''),
+              ],
             ],
           ),
         );
@@ -79,7 +103,9 @@ class AdminUsersView extends StatelessWidget {
     );
   }
 
-
+  // Các hàm widget con (_buildSectionHeader, _buildSalesRepsList, etc.)
+  // và dialog _showEditUserDialog không thay đổi.
+  // ... (Giữ nguyên toàn bộ code còn lại của bạn ở đây) ...
   Widget _buildSectionHeader(BuildContext context, String title, IconData icon, {required int count}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),

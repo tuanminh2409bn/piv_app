@@ -1,21 +1,19 @@
 part of 'admin_users_cubit.dart';
 
-enum AdminUsersStatus { initial, loading, success, error }
+enum AdminUsersStatus { initial, loading, success, error, updating }
 
 typedef SalesRepWithAgentCount = (UserModel salesRep, int agentCount);
 
 class AdminUsersState extends Equatable {
   const AdminUsersState({
     this.status = AdminUsersStatus.initial,
-    this.allUsers = const [], // ‼️ THÊM LẠI DANH SÁCH TỔNG
+    this.allUsers = const [],
     this.errorMessage,
   });
 
   final AdminUsersStatus status;
-  final List<UserModel> allUsers; // Danh sách tổng chứa tất cả người dùng
+  final List<UserModel> allUsers;
   final String? errorMessage;
-
-  // --- GETTERS TỰ ĐỘNG LỌC TỪ `allUsers` ---
 
   List<SalesRepWithAgentCount> get salesRepsWithAgentCount {
     final reps = allUsers.where((user) => user.isSalesRep).toList();
@@ -31,7 +29,11 @@ class AdminUsersState extends Equatable {
 
   List<UserModel> get unassignedAgents {
     return allUsers.where((user) {
-      return !user.isAdmin && !user.isSalesRep && (user.salesRepId == null || user.salesRepId!.isEmpty);
+      // THAY ĐỔI: Thêm điều kiện user không phải là Kế toán
+      return !user.isAdmin &&
+          !user.isSalesRep &&
+          !user.isAccountant && // <-- THÊM DÒNG NÀY
+          (user.salesRepId == null || user.salesRepId!.isEmpty);
     }).toList();
   }
 

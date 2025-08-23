@@ -1,3 +1,5 @@
+// functions/src/index.ts
+
 import {onCall, HttpsError, CallableRequest} from "firebase-functions/v2/https";
 import {
   onDocumentCreated,
@@ -8,7 +10,8 @@ import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import {format} from "date-fns-tz";
 
-admin.initializeApp({ projectId: 'piv-fertilizer-app' });
+// Sửa: Bỏ projectId để Firebase tự động nhận diện môi trường
+admin.initializeApp();
 const db = admin.firestore();
 
 const sendDataOnlyNotification = async (
@@ -19,17 +22,37 @@ const sendDataOnlyNotification = async (
     logger.warn("No valid token provided for notification.", {data});
     return;
   }
-  const tokens = Array.isArray(token) ? token : [token];
-  const message = { data: data };
 
-  for (const singleToken of tokens) {
-    if (!singleToken || typeof singleToken !== 'string') continue;
-    try {
-      const response = await admin.messaging().send({ ...message, token: singleToken });
-      logger.info(`Successfully sent message to token: ${singleToken}`, {response, data});
-    } catch (error) {
-      logger.error(`Error sending message to token: ${singleToken}`, error, {data});
+  // Sửa: Đảm bảo tokens là một mảng duy nhất các token hợp lệ
+  const validTokens = (Array.isArray(token) ? token : [token]).filter(
+      (t): t is string => !!t && typeof t === "string" && t.length > 0
+  );
+
+  if (validTokens.length === 0) {
+    logger.warn("Token list is empty after filtering.", {data});
+    return;
+  }
+
+  const message = {
+    data: data,
+    tokens: validTokens, // Sử dụng `tokens` để gửi multicast
+  };
+
+  try {
+    const response = await admin.messaging().sendEachForMulticast(message);
+    logger.info(`Successfully sent ${response.successCount} messages.`, {
+        failureCount: response.failureCount,
+        data,
+    });
+    if (response.failureCount > 0) {
+        response.responses.forEach((resp, idx) => {
+            if (!resp.success) {
+                logger.error(`Failed to send to token: ${validTokens[idx]}`, resp.error);
+            }
+        });
     }
+  } catch (error) {
+    logger.error("Error sending multicast message:", error, {data});
   }
 };
 
@@ -336,28 +359,45 @@ export const onOrderStatusUpdate = onDocumentUpdated(
     async (event) => {
         const beforeData = event.data?.before.data();
         const afterData = event.data?.after.data();
-        if (!beforeData || !afterData || beforeData.status === afterData.status) return null;
 
-        const { userId, salesRepId, shippingAddress, total, status, placedBy } = afterData;
+        if (!beforeData || !afterData || beforeData.status === afterData.status) {
+            return null;
+        }
+
+        const {
+            userId,
+            salesRepId,
+            shippingAddress,
+            total,
+            status,
+            placedBy,
+            shippingDate,
+        } = afterData;
+
         const orderId = event.params.orderId;
         const userName = shippingAddress?.recipientName ?? "Khách hàng";
         const orderIdShort = orderId.substring(0, 8).toUpperCase();
-        if (beforeData.status === 'pending_approval' && placedBy) {
+
+        // --- KỊCH BẢN 1: THÔNG BÁO KẾT QUẢ PHÊ DUYỆT CHO NGƯỜI ĐẶT HỘ ---
+        if (beforeData.status === "pending_approval" && placedBy?.userId) {
             const placerDoc = await db.collection("users").doc(placedBy.userId).get();
-            if (placerDoc.exists && placerDoc.data()?.fcmToken) {
+            // SỬA LỖI: dùng .exists thay vì .exists()
+            const placerData = placerDoc.data();
+            if (placerDoc.exists && placerData?.fcmToken) {
                 let title = "";
                 let body = "";
 
-                if (status === 'pending') {
+                if (status === "pending") {
                     title = "✅ Đơn hàng đã được phê duyệt";
                     body = `Đại lý "${userName}" đã đồng ý đơn hàng #${orderIdShort} bạn tạo hộ.`;
-                } else if (status === 'rejected') {
+                } else if (status === "rejected") {
                     title = "❌ Đơn hàng đã bị từ chối";
                     body = `Đại lý "${userName}" đã từ chối đơn hàng #${orderIdShort} bạn tạo hộ.`;
                 }
 
                 if (title && body) {
-                    await sendDataOnlyNotification(placerDoc.data()?.fcmToken, {
+                    // SỬA LỖI: dùng placerData đã lấy ra
+                    await sendDataOnlyNotification(placerData.fcmToken, {
                         title: title,
                         body: body,
                         type: "order_approval_result",
@@ -367,43 +407,72 @@ export const onOrderStatusUpdate = onDocumentUpdated(
             }
         }
 
-        // KỊCH BẢN 2: THÔNG BÁO CÁC CẬP NHẬT TRẠNG THÁI KHÁC
-        let userTitle: string | null = null;
-        let userBody: string | null = null;
+        // --- KỊCH BẢN 2: THÔNG BÁO CÁC CẬP NHẬT TRẠNG THÁI KHÁC ---
+        let notificationTitle: string | null = null;
+        let notificationBody: string | null = null;
         const formattedTotal = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(total);
 
         switch (status) {
-            case "processing": userTitle = "✅ Đơn hàng đã được xác nhận"; userBody = `Đơn hàng #${orderIdShort} của bạn trị giá ${formattedTotal} đang được chuẩn bị.`; break;
-            case "shipped": userTitle = "🚚 Đơn hàng đang được giao"; if (shippingDate && shippingDate.toDate) { const formattedDate = format(shippingDate.toDate(), "dd/MM/yyyy", { timeZone: "Asia/Ho_Chi_Minh" }); userBody = `Đơn hàng #${orderIdShort} đang trên đường vận chuyển, dự kiến giao vào ngày ${formattedDate}.`; } else { userBody = `Đơn hàng #${orderIdShort} của bạn đang trên đường vận chuyển.`; } break;
-            case "completed": userTitle = "✨ Đơn hàng đã hoàn thành"; userBody = `Cảm ơn bạn đã mua đơn hàng #${orderIdShort}.`; break;
-            case "cancelled": userTitle = "❌ Đơn hàng đã bị hủy"; userBody = `Rất tiếc, đơn hàng #${orderIdShort} của bạn đã bị hủy.`; break;
-            case "rejected": userTitle = "❌ Đơn hàng đã bị từ chối"; userBody = `Đơn hàng #${orderIdShort} của bạn đã bị từ chối.`; break;
+            case "processing":
+                notificationTitle = "✅ Đơn hàng đã được xác nhận";
+                notificationBody = `Đơn hàng #${orderIdShort} của "${userName}" trị giá ${formattedTotal} đang được chuẩn bị.`;
+                break;
+            case "shipped":
+                notificationTitle = "🚚 Đơn hàng đang được giao";
+                if (shippingDate?.toDate) {
+                    const formattedDate = format(shippingDate.toDate(), "dd/MM/yyyy", {timeZone: "Asia/Ho_Chi_Minh"});
+                    notificationBody = `Đơn hàng #${orderIdShort} của "${userName}" đang được vận chuyển, dự kiến giao ngày ${formattedDate}.`;
+                } else {
+                    notificationBody = `Đơn hàng #${orderIdShort} của "${userName}" đang trên đường vận chuyển.`;
+                }
+                break;
+            case "completed":
+                notificationTitle = "✨ Đơn hàng đã hoàn thành";
+                notificationBody = `Đơn hàng #${orderIdShort} của "${userName}" đã giao thành công.`;
+                break;
+            case "cancelled":
+                notificationTitle = "❌ Đơn hàng đã bị hủy";
+                notificationBody = `Đơn hàng #${orderIdShort} của "${userName}" đã bị hủy.`;
+                break;
         }
 
-        if (userTitle && userBody) {
-            const userDoc = await db.collection("users").doc(userId).get();
-            if (userDoc.exists && userDoc.data()?.fcmToken) {
-                await sendDataOnlyNotification(userDoc.data()?.fcmToken, { title: userTitle, body: userBody, type: "order_status", orderId });
-            }
+        if (notificationTitle && notificationBody) {
+            const commonPayload = {
+                title: notificationTitle,
+                body: notificationBody,
+                orderId: orderId,
+            };
 
+            const userDoc = await db.collection("users").doc(userId).get();
             const salesRepDoc = salesRepId ? await db.collection("users").doc(salesRepId).get() : null;
             const staffSnapshot = await db.collection("users").where("role", "in", ["admin", "accountant"]).get();
-            const staffTokens = staffSnapshot.docs.map(doc => doc.data().fcmToken).filter((token): token is string => !!token);
 
-            const staffTitle = `Đơn #${orderIdShort} của ${userName}`;
-            const staffBody = `Trạng thái đơn hàng đã được cập nhật thành công!`;
+            // Sửa: Tạo một mảng token duy nhất để gửi 1 lần
+            const allTokensToSend: Set<string> = new Set();
 
-            if (salesRepDoc?.exists && salesRepDoc.data()?.fcmToken) {
-                await sendDataOnlyNotification(salesRepDoc.data()?.fcmToken, { title: staffTitle, body: staffBody, type: "order_status_update_for_rep", orderId });
+            // SỬA LỖI: dùng .exists
+            if (userDoc.exists && userDoc.data()?.fcmToken) {
+                allTokensToSend.add(userDoc.data()?.fcmToken);
             }
-            if (staffTokens.length > 0) {
-                 await sendDataOnlyNotification(staffTokens, { title: staffTitle, body: staffBody, type: "order_status_update_for_admin", orderId });
+            if (salesRepDoc?.exists && salesRepDoc.data()?.fcmToken) {
+                allTokensToSend.add(salesRepDoc.data()?.fcmToken);
+            }
+            staffSnapshot.forEach((doc) => {
+                const token = doc.data().fcmToken;
+                if (token) {
+                    allTokensToSend.add(token);
+                }
+            });
+
+            if (allTokensToSend.size > 0) {
+                 await sendDataOnlyNotification(Array.from(allTokensToSend), {
+                    ...commonPayload,
+                    type: "order_status_general", // Dùng một type chung
+                });
             }
         }
-
         return null;
     });
-
 // ===================================================================
 // FUNCTION 7: GỬI THÔNG BÁO KHI CÓ BÀI VIẾT MỚI
 // ===================================================================
