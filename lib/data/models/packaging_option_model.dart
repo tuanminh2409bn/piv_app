@@ -1,3 +1,5 @@
+// lib/data/models/packaging_option_model.dart
+
 import 'package:equatable/equatable.dart';
 
 class PackagingOptionModel extends Equatable {
@@ -27,7 +29,7 @@ class PackagingOptionModel extends Equatable {
     }
     return PackagingOptionModel(
       name: map['name'] as String? ?? 'N/A',
-      quantityPerPackage: (map['packingOptions'] as num? ?? 1).toInt(),
+      quantityPerPackage: (map['quantityPerPackage'] as num? ?? 1).toInt(),
       unit: map['unit'] as String? ?? 'sản phẩm',
       prices: pricesMap,
     );
