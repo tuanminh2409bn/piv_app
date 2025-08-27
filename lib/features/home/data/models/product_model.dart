@@ -14,7 +14,7 @@ class ProductModel extends Equatable {
   final Timestamp? createdAt;
   final Map<String, dynamic>? attributes;
   final List<PackagingOptionModel> packingOptions;
-  final String? productType; // <<< THÊM TRƯỜNG MỚI
+  final String? productType;
 
   const ProductModel({
     required this.id,
@@ -26,7 +26,7 @@ class ProductModel extends Equatable {
     this.createdAt,
     this.attributes,
     this.packingOptions = const [],
-    this.productType, // <<< THÊM VÀO CONSTRUCTOR
+    this.productType,
   });
 
   double getPriceForRole(String role) {
@@ -63,7 +63,7 @@ class ProductModel extends Equatable {
       createdAt: data['createdAt'] as Timestamp?,
       attributes: data['attributes'] is Map ? Map<String, dynamic>.from(data['attributes']) : null,
       packingOptions: optionsList,
-      productType: data['productType'] as String?, // <<< ĐỌC DỮ LIỆU TỪ FIRESTORE
+      productType: data['productType'] as String?,
     );
   }
 
@@ -77,7 +77,7 @@ class ProductModel extends Equatable {
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'attributes': attributes,
       'packingOptions': packingOptions.map((option) => option.toMap()).toList(),
-      'productType': productType, // <<< LƯU DỮ LIỆU LÊN FIRESTORE
+      'productType': productType,
     };
   }
 }

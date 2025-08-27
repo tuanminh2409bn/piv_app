@@ -2,7 +2,7 @@ import 'package:equatable/equatable.dart';
 
 class PackagingOptionModel extends Equatable {
   final String name;
-  final int quantityPerPackage; // THỐNG NHẤT SỬ DỤNG TÊN NÀY
+  final int quantityPerPackage;
   final String unit;
   final Map<String, double> prices;
 
@@ -27,7 +27,7 @@ class PackagingOptionModel extends Equatable {
     }
     return PackagingOptionModel(
       name: map['name'] as String? ?? 'N/A',
-      quantityPerPackage: (map['quantityPerPackage'] as num? ?? 1).toInt(),
+      quantityPerPackage: (map['packingOptions'] as num? ?? 1).toInt(),
       unit: map['unit'] as String? ?? 'sản phẩm',
       prices: pricesMap,
     );

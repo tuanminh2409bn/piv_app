@@ -1,3 +1,5 @@
+// lib/features/cart/presentation/bloc/cart_cubit.dart
+
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/cart_item_model.dart';
@@ -62,22 +64,35 @@ class CartCubit extends Cubit<CartState> {
   }) async {
     final userId = _userId;
     if (userId.isEmpty) return;
+
     final authState = _authBloc.state;
-    String userRole = 'agent_2';
+    String userRole = 'agent_2'; // Giá trị mặc định
     if (authState is AuthAuthenticated) {
       userRole = authState.user.role;
     }
+
     emit(state.copyWith(status: CartStatus.itemAdding));
+
+    // --- LOGIC SỬA LỖI TÍNH TOÁN GIÁ ---
+    // 1. Lấy giá của cả thùng hàng từ quy cách đã chọn.
+    final double packagePrice = selectedOption.getPriceForRole(userRole);
+
+    // 2. Lấy số lượng chai trong một thùng.
+    final int itemsPerPackage = selectedOption.quantityPerPackage;
+
+    // 3. Tính toán giá của một chai.
+    //    Đây là điểm mấu chốt để `subtotal` trong CartItemModel tính đúng.
+    final double itemPrice = (itemsPerPackage > 0) ? packagePrice / itemsPerPackage : 0.0;
 
     final cartItem = CartItemModel(
       productId: product.id,
       productName: product.name,
       imageUrl: product.imageUrl,
-      price: selectedOption.getPriceForRole(userRole),
-      itemUnitName: selectedOption.unit,
-      quantity: quantity,
-      quantityPerPackage: selectedOption.quantityPerPackage,
-      caseUnitName: selectedOption.name,
+      price: itemPrice, // <<< SỬA: Cung cấp giá của 1 chai
+      itemUnitName: selectedOption.unit, // <<< SỬA: Lấy đơn vị ("chai") từ quy cách đã chọn
+      quantity: quantity, // Số lượng thùng
+      quantityPerPackage: itemsPerPackage, // Số chai trong 1 thùng
+      caseUnitName: selectedOption.name, // Tên quy cách ("Thùng")
       categoryId: product.categoryId,
     );
 

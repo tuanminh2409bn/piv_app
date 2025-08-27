@@ -9,10 +9,8 @@ import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
 import 'package:piv_app/features/search/bloc/search_cubit.dart';
-import 'package:piv_app/data/models/cart_item_model.dart';
 
 class SearchPage extends StatelessWidget {
-  // --- THÊM MỚI: Các tham số để xác định chế độ hoạt động ---
   final bool isSelectionMode;
   final String? targetUserRole;
 
@@ -22,14 +20,13 @@ class SearchPage extends StatelessWidget {
     this.targetUserRole,
   });
 
-  // --- NÂNG CẤP ROUTE: Nhận tham số và trả về CartItemModel ---
-  static PageRoute<CartItemModel?> route({
+  // --- NÂNG CẤP ROUTE: Trả về ProductModel thay vì CartItemModel ---
+  static PageRoute<ProductModel?> route({
     bool isSelectionMode = false,
     String? targetUserRole,
   }) {
-    return MaterialPageRoute<CartItemModel?>(
+    return MaterialPageRoute<ProductModel?>(
       builder: (_) => BlocProvider(
-        // --- THAY ĐỔI: Gọi tìm kiếm với chuỗi rỗng để tải tất cả sản phẩm ---
         create: (_) => sl<SearchCubit>()..searchProducts(''),
         child: SearchPage(
           isSelectionMode: isSelectionMode,
@@ -49,7 +46,6 @@ class SearchPage extends StatelessWidget {
 }
 
 class SearchView extends StatefulWidget {
-  // --- THÊM MỚI ---
   final bool isSelectionMode;
   final String? targetUserRole;
 
@@ -71,14 +67,12 @@ class _SearchViewState extends State<SearchView> {
   void initState() {
     super.initState();
     _searchController.addListener(() {
-      // --- THÊM MỚI: Debouncer để tìm kiếm mượt mà hơn ---
       if (_debounce?.isActive ?? false) _debounce!.cancel();
       _debounce = Timer(const Duration(milliseconds: 400), () {
         if (mounted) {
           context.read<SearchCubit>().searchProducts(_searchController.text);
         }
       });
-      // Cập nhật UI để hiển thị/ẩn nút clear
       setState(() {});
     });
   }
@@ -120,7 +114,6 @@ class _SearchViewState extends State<SearchView> {
       ),
       body: BlocBuilder<SearchCubit, SearchState>(
         builder: (context, state) {
-          // --- THAY ĐỔI: Luôn hiển thị danh sách sản phẩm, không còn lịch sử tìm kiếm ---
           if (state.status == SearchStatus.loading) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -138,8 +131,6 @@ class _SearchViewState extends State<SearchView> {
     );
   }
 
-  // Widget _buildSearchHistory đã bị xóa vì không còn dùng đến
-
   Widget _buildSearchResultsList(
       BuildContext context,
       List<ProductModel> products,
@@ -148,17 +139,13 @@ class _SearchViewState extends State<SearchView> {
       ) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
 
-    // --- LOGIC QUAN TRỌNG NHẤT VỀ GIÁ ---
     String userRole;
     if (isSelectionMode && targetUserRole != null) {
-      // Nếu ở chế độ chọn (đặt hàng hộ), ưu tiên vai trò của Đại lý được truyền vào
       userRole = targetUserRole;
     } else {
-      // Nếu không, lấy vai trò của người dùng đang đăng nhập
       final authState = context.read<AuthBloc>().state;
       userRole = (authState is AuthAuthenticated) ? authState.user.role : 'agent_2';
     }
-    // ------------------------------------------
 
     return ListView.separated(
       padding: const EdgeInsets.all(16.0),
@@ -184,30 +171,15 @@ class _SearchViewState extends State<SearchView> {
           trailing: Icon(isSelectionMode ? Icons.add_shopping_cart : Icons.arrow_forward_ios, size: 16),
           onTap: () {
             if (isSelectionMode) {
-              // Logic trả về sản phẩm để thêm vào giỏ hàng hộ
-              if (price <= 0) {
+              // --- THAY ĐỔI: Trả về ProductModel đầy đủ ---
+              if (product.packingOptions.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('Sản phẩm này chưa có giá, không thể thêm vào đơn.'),
+                    content: Text('Sản phẩm này chưa có quy cách đóng gói.'),
                     backgroundColor: Colors.orange));
                 return;
               }
-
-              // TODO: Hiển thị dialog để người dùng nhập số lượng.
-              // Tạm thời, chúng ta sẽ mặc định số lượng là 1.
-              final cartItem = CartItemModel(
-                productId: product.id,
-                productName: product.name,
-                imageUrl: product.imageUrl,
-                price: price,
-                itemUnitName: product.displayUnit,
-                quantity: 1, // Mặc định là 1
-                quantityPerPackage: 1, // Cần lấy từ product model nếu có
-                caseUnitName: 'Thùng', // Cần lấy từ product model nếu có
-                categoryId: product.categoryId,
-              );
-              Navigator.of(context).pop(cartItem);
+              Navigator.of(context).pop(product);
             } else {
-              // Logic cũ: Đi đến trang chi tiết sản phẩm
               Navigator.of(context).push(ProductDetailPage.route(product.id));
             }
           },

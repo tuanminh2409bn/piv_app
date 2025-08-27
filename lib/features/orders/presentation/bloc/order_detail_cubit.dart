@@ -6,66 +6,72 @@ import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/data/models/payment_info_model.dart';
+import 'package:piv_app/data/models/user_model.dart'; // <<< THÊM IMPORT
 import 'package:piv_app/features/orders/domain/repositories/order_repository.dart';
+import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart'; // <<< THÊM IMPORT
 
 part 'order_detail_state.dart';
 
 class OrderDetailCubit extends Cubit<OrderDetailState> {
   final OrderRepository _orderRepository;
+  final UserProfileRepository _userProfileRepository; // <<< THÊM REPO
   StreamSubscription<OrderModel>? _orderSubscription;
 
-  // --- THAY ĐỔI: Xóa bỏ FirebaseFunctions ---
   OrderDetailCubit({
     required OrderRepository orderRepository,
+    required UserProfileRepository userProfileRepository, // <<< THÊM VÀO CONSTRUCTOR
   })  : _orderRepository = orderRepository,
+        _userProfileRepository = userProfileRepository,
         super(const OrderDetailState());
 
   void listenToOrderDetail(String orderId) {
     if (orderId.isEmpty) {
-      emit(state.copyWith(
-          status: OrderDetailStatus.error,
-          errorMessage: 'ID đơn hàng không hợp lệ.'));
+      emit(state.copyWith(status: OrderDetailStatus.error, errorMessage: 'ID đơn hàng không hợp lệ.'));
       return;
     }
     emit(state.copyWith(status: OrderDetailStatus.loading));
-
     _orderSubscription?.cancel();
 
     _orderSubscription = _orderRepository.getOrderStreamById(orderId).listen(
-          (order) {
+          (order) async {
         developer.log("Received update for order ${order.id}", name: "OrderDetailCubit");
-        emit(state.copyWith(status: OrderDetailStatus.success, order: order));
 
-        // --- THÊM MỚI: Nếu đơn hàng chưa thanh toán, tự động tải thông tin QR ---
+        UserModel? placedByUser;
+        // Lấy thông tin chi tiết của người đặt hộ nếu có
+        if (order.placedBy != null && order.placedBy!.userId.isNotEmpty) {
+          final userResult = await _userProfileRepository.getUserProfile(order.placedBy!.userId);
+          // Dùng fold để xử lý cả trường hợp thành công và thất bại
+          userResult.fold(
+                (failure) => placedByUser = null, // Nếu lỗi thì không có thông tin user
+                (user) => placedByUser = user,     // Gán user nếu thành công
+          );
+        }
+
+        emit(state.copyWith(
+          status: OrderDetailStatus.success,
+          order: order,
+          placedByUser: placedByUser,
+        ));
+
         if (order.paymentStatus == 'unpaid') {
           _fetchPaymentInfo();
         }
       },
       onError: (error) {
         developer.log("Error listening to order: $error", name: "OrderDetailCubit");
-        emit(state.copyWith(
-            status: OrderDetailStatus.error,
-            errorMessage: 'Lỗi lắng nghe đơn hàng: $error'));
+        emit(state.copyWith(status: OrderDetailStatus.error, errorMessage: 'Lỗi lắng nghe đơn hàng: $error'));
       },
     );
   }
 
-  // --- HÀM MỚI: Tải thông tin thanh toán của công ty ---
   Future<void> _fetchPaymentInfo() async {
-    // Chỉ tải nếu chưa có để tránh gọi lại nhiều lần không cần thiết
     if (state.paymentInfo != null) return;
-
     final result = await _orderRepository.getPaymentInfo();
     result.fold(
-          (failure) {
-        // Không emit lỗi ở đây để không che mất chi tiết đơn hàng
-        developer.log("Could not fetch payment info: ${failure.message}", name: "OrderDetailCubit");
-      },
+          (failure) => developer.log("Could not fetch payment info: ${failure.message}", name: "OrderDetailCubit"),
           (info) => emit(state.copyWith(paymentInfo: info)),
     );
   }
-
-  // --- XÓA BỎ: Hàm `initiateOnlinePayment` và `resetPaymentUrlStatus` đã được xóa ---
 
   Future<void> approveOrder() async {
     if (state.order?.id == null) return;
@@ -74,9 +80,7 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
     result.fold(
           (failure) => emit(state.copyWith(status: OrderDetailStatus.error, errorMessage: failure.message)),
           (_) {
-        // Không cần emit success vì stream sẽ tự động cập nhật
-        // Chỉ cần chuyển trạng thái về lại success để tắt loading
-        emit(state.copyWith(status: OrderDetailStatus.success));
+        // Stream sẽ tự động cập nhật, không cần emit lại state để tránh ghi đè chiết khấu
       },
     );
   }
@@ -87,25 +91,17 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
     final result = await _orderRepository.rejectOrder(orderId: state.order!.id!, reason: reason);
     result.fold(
           (failure) => emit(state.copyWith(status: OrderDetailStatus.error, errorMessage: failure.message)),
-          (_) {
-        emit(state.copyWith(status: OrderDetailStatus.success));
-      },
+          (_) => emit(state.copyWith(status: OrderDetailStatus.success)),
     );
   }
 
-  // --- HÀM MỚI: Xử lý khi người dùng nhấn "Tôi đã chuyển khoản" ---
   Future<void> notifyPaymentMade() async {
     if (state.order?.id == null) return;
     emit(state.copyWith(status: OrderDetailStatus.updatingPaymentStatus));
     final result = await _orderRepository.notifyPaymentMade(state.order!.id!);
     result.fold(
-          (failure) {
-        emit(state.copyWith(status: OrderDetailStatus.error, errorMessage: failure.message));
-      },
-          (_) {
-        // Stream sẽ tự động cập nhật UI, không cần làm gì thêm
-        // Trạng thái sẽ tự chuyển về success trong hàm listenToOrderDetail
-      },
+          (failure) => emit(state.copyWith(status: OrderDetailStatus.error, errorMessage: failure.message)),
+          (_) { /* Stream tự cập nhật */ },
     );
   }
 

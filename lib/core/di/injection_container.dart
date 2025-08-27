@@ -117,7 +117,7 @@ Future<void> initializeDependencies() async {
     functions: sl(),
   ));
   sl.registerLazySingleton<MyOrdersCubit>(() => MyOrdersCubit(orderRepository: sl(), authBloc: sl()));
-  sl.registerFactory<OrderDetailCubit>(() => OrderDetailCubit(orderRepository: sl(),),);
+  sl.registerFactory<OrderDetailCubit>(() => OrderDetailCubit(orderRepository: sl(), userProfileRepository: sl(),),);
 
   // == Admin ==
   sl.registerLazySingleton<StorageRepository>(() => StorageRepository());

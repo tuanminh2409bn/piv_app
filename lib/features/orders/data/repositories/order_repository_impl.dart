@@ -22,26 +22,31 @@ class OrderRepositoryImpl implements OrderRepository {
         _settingsRepository = settingsRepository;
 
   @override
-  Future<Either<Failure, String>> createOrder(OrderModel order) async {
+  Future<Either<Failure, String>> createOrder(OrderModel order, {bool clearCart = true}) async {
     try {
       final newOrderId = await _firestore.runTransaction((transaction) async {
         final newOrderRef = _firestore.collection('orders').doc();
-        final cartRef = _firestore.collection('carts').doc(order.userId);
 
         final agentDoc = await _firestore.collection('users').doc(order.userId).get();
         String? salesRepId;
-        if(agentDoc.exists) {
+        if (agentDoc.exists) {
           final agent = UserModel.fromJson(agentDoc.data()!);
           salesRepId = agent.salesRepId;
         }
 
         var orderMap = order.toMap();
-        if(salesRepId != null) {
+        if (salesRepId != null) {
           orderMap['salesRepId'] = salesRepId;
         }
 
         transaction.set(newOrderRef, orderMap);
-        transaction.delete(cartRef);
+
+        // Chỉ xóa giỏ hàng nếu được yêu cầu
+        if (clearCart) {
+          final cartRef = _firestore.collection('carts').doc(order.userId);
+          transaction.delete(cartRef);
+        }
+
         return newOrderRef.id;
       });
       return Right(newOrderId);

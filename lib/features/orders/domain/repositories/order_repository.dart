@@ -7,7 +7,6 @@ import 'package:piv_app/data/models/payment_info_model.dart';
 
 abstract class OrderRepository {
   Future<Either<Failure, List<OrderModel>>> getUserOrders(String userId);
-  Future<Either<Failure, String>> createOrder(OrderModel order);
   Future<Either<Failure, OrderModel>> getOrderById(String orderId);
   Stream<OrderModel> getOrderStreamById(String orderId);
   Future<Either<Failure, List<OrderModel>>> getAllOrders();
@@ -23,4 +22,5 @@ abstract class OrderRepository {
   Future<Either<Failure, PaymentInfoModel>> getPaymentInfo();
   Future<Either<Failure, Unit>> notifyPaymentMade(String orderId);
   Future<Either<Failure, Unit>> updateOrderStatusToShipped(String orderId, DateTime shippingDate);
+  Future<Either<Failure, String>> createOrder(OrderModel order, {bool clearCart = true});
 }

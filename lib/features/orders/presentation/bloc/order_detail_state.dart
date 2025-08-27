@@ -2,14 +2,13 @@
 
 part of 'order_detail_cubit.dart';
 
-// --- THAY ĐỔI: Xóa các trạng thái VNPAY, thêm trạng thái cập nhật thanh toán ---
 enum OrderDetailStatus {
   initial,
   loading,
   success,
   error,
-  updating, // Dùng cho Phê duyệt/Từ chối
-  updatingPaymentStatus // Dùng cho nút "Tôi đã chuyển khoản"
+  updating,
+  updatingPaymentStatus
 }
 
 class OrderDetailState extends Equatable {
@@ -17,22 +16,25 @@ class OrderDetailState extends Equatable {
   final OrderModel? order;
   final String? errorMessage;
   final PaymentInfoModel? paymentInfo;
+  final UserModel? placedByUser; // <<< THÊM TRƯỜNG MỚI
 
   const OrderDetailState({
     this.status = OrderDetailStatus.initial,
     this.order,
     this.errorMessage,
-    this.paymentInfo, // Thêm vào constructor
+    this.paymentInfo,
+    this.placedByUser, // <<< THÊM VÀO CONSTRUCTOR
   });
 
   @override
-  List<Object?> get props => [status, order, errorMessage, paymentInfo];
+  List<Object?> get props => [status, order, errorMessage, paymentInfo, placedByUser];
 
   OrderDetailState copyWith({
     OrderDetailStatus? status,
     OrderModel? order,
     String? errorMessage,
     PaymentInfoModel? paymentInfo,
+    UserModel? placedByUser,
     bool clearError = false,
   }) {
     return OrderDetailState(
@@ -40,6 +42,7 @@ class OrderDetailState extends Equatable {
       order: order ?? this.order,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
       paymentInfo: paymentInfo ?? this.paymentInfo,
+      placedByUser: placedByUser ?? this.placedByUser,
     );
   }
 }

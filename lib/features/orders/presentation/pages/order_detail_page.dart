@@ -9,6 +9,7 @@ import 'package:piv_app/data/models/address_model.dart';
 import 'package:piv_app/data/models/order_item_model.dart';
 import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/data/models/payment_info_model.dart';
+import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/orders/presentation/bloc/order_detail_cubit.dart';
 
@@ -44,7 +45,6 @@ class OrderDetailView extends StatelessWidget {
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.red));
-            // Reset lại trạng thái để không hiển thị lỗi liên tục
             context.read<OrderDetailCubit>().emit(state.copyWith(status: OrderDetailStatus.success, clearError: true));
           }
         },
@@ -59,25 +59,20 @@ class OrderDetailView extends StatelessWidget {
 
           final order = state.order!;
           return SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 150.0), // Tăng padding bottom để không bị che
+            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 150.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _OrderHeader(order: order),
+                _OrderHeader(order: order, placedByUser: state.placedByUser),
                 const Divider(height: 32),
-
                 if (order.paymentStatus == 'unpaid' && order.status != 'pending_approval' && state.paymentInfo != null) ...[
                   _Section(
                     title: 'Thông tin thanh toán',
                     icon: Icons.qr_code_scanner,
-                    child: _PaymentQrInfo(
-                      paymentInfo: state.paymentInfo!,
-                      order: order,
-                    ),
+                    child: _PaymentQrInfo(paymentInfo: state.paymentInfo!, order: order),
                   ),
                   const Divider(height: 32),
                 ],
-
                 _Section(
                   title: 'Địa chỉ giao hàng',
                   icon: Icons.location_on_outlined,
@@ -105,7 +100,156 @@ class OrderDetailView extends StatelessWidget {
   }
 }
 
-// --- WIDGETS CHO PHẦN GIAO DIỆN ---
+// --- WIDGETS ---
+
+class _OrderHeader extends StatelessWidget {
+  final OrderModel order;
+  final UserModel? placedByUser;
+  const _OrderHeader({required this.order, this.placedByUser});
+
+  @override
+  Widget build(BuildContext context) {
+    final statusInfo = _getStatusInfo(order.status, context);
+    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                'Mã đơn: #${order.id?.substring(0, 8).toUpperCase() ?? 'N/A'}',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(color: statusInfo.$1.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+              child: Text(statusInfo.$2, style: TextStyle(color: statusInfo.$1, fontWeight: FontWeight.bold, fontSize: 13)),
+            )
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (order.createdAt != null)
+          Text('Ngày đặt: ${dateFormat.format(order.createdAt!.toDate())}', style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+
+        if (placedByUser != null) ...[
+          const SizedBox(height: 4),
+          Text.rich(
+            TextSpan(
+              text: 'Được tạo bởi: ',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+              children: [
+                TextSpan(
+                  text: placedByUser!.displayName ?? 'Không rõ',
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _OrderItemsList extends StatelessWidget {
+  final List<OrderItemModel> items;
+  const _OrderItemsList({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final item = items[index];
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(item.imageUrl, width: 60, height: 60, fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(width: 60, height: 60, color: Colors.grey.shade200)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(item.productName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    'Đơn giá: ${formatter.format(item.price)} / ${item.unit}',
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                  ),
+                  Text(
+                    'Số lượng: ${item.quantity} thùng', // Sửa theo yêu cầu
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              formatter.format(item.subtotal), // Sẽ gọi getter subtotal đã được sửa
+              style: const TextStyle(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.end,
+            ),
+          ],
+        );
+      },
+      separatorBuilder: (context, index) => const Divider(height: 24),
+    );
+  }
+}
+
+class _PaymentSummary extends StatelessWidget {
+  final OrderModel order;
+  const _PaymentSummary({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    return Column(
+      children: [
+        _buildSummaryRow(context, 'Tạm tính', formatter.format(order.subtotal)),
+        const SizedBox(height: 8),
+        _buildSummaryRow(context, 'Phí vận chuyển', formatter.format(order.shippingFee)),
+        const SizedBox(height: 8),
+        if (order.discount > 0)
+          _buildSummaryRow(context, 'Giảm giá voucher', '- ${formatter.format(order.discount)}', isDiscount: true),
+        if (order.commissionDiscount > 0) ...[
+          const SizedBox(height: 8),
+          _buildSummaryRow(context, 'Chiết khấu', '- ${formatter.format(order.commissionDiscount)}', isDiscount: true),
+        ],
+        const Divider(height: 24),
+        _buildSummaryRow(context, 'Tổng cộng', formatter.format(order.finalTotal), isTotal: true),
+        const SizedBox(height: 8),
+        _buildSummaryRow(context, 'Thanh toán', _getPaymentStatusText(order.paymentStatus), isBold: true, color: _getPaymentStatusColor(order.paymentStatus)),
+      ],
+    );
+  }
+
+  Widget _buildSummaryRow(BuildContext context, String label, String value, {bool isTotal = false, bool isDiscount = false, bool isBold = false, Color? color}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(fontSize: isTotal ? 17 : 15, fontWeight: isTotal ? FontWeight.bold : FontWeight.normal, color: Colors.grey.shade700)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: isTotal ? 18 : 16,
+            fontWeight: isTotal || isBold ? FontWeight.bold : FontWeight.w500,
+            color: color ?? (isDiscount ? Colors.green.shade700 : (isTotal ? Theme.of(context).colorScheme.primary : Colors.black87)),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class _BottomBar extends StatelessWidget {
   const _BottomBar();
@@ -123,17 +267,14 @@ class _BottomBar extends StatelessWidget {
           isOrderOwner = authState.user.id == order.userId;
         }
 
-        // Ưu tiên 1: Hiển thị nút phê duyệt nếu user là chủ đơn hàng và đơn hàng đang chờ duyệt
         if (isOrderOwner && order.status == 'pending_approval') {
           return const _ApprovalActionButtons();
         }
 
-        // Ưu tiên 2: Hiển thị nút xác nhận đã thanh toán nếu user là chủ đơn hàng và đơn hàng chưa thanh toán
         if (isOrderOwner && order.paymentStatus == 'unpaid') {
           return _PaymentConfirmationButton(isLoading: state.status == OrderDetailStatus.updatingPaymentStatus);
         }
 
-        // Mặc định không hiển thị gì
         return const SizedBox.shrink();
       },
     );
@@ -229,21 +370,24 @@ class _PaymentConfirmationButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(16.0).copyWith(bottom: 16.0 + MediaQuery.of(context).padding.bottom),
-      child: ElevatedButton.icon(
-        icon: isLoading
-            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-            : const Icon(Icons.check_circle_outline),
-        label: Text(isLoading ? 'ĐANG GỬI...' : 'TÔI ĐÃ CHUYỂN KHOẢN'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.blue.shade700,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          icon: isLoading
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+              : const Icon(Icons.check_circle_outline),
+          label: Text(isLoading ? 'ĐANG GỬI...' : 'TÔI ĐÃ CHUYỂN KHOẢN'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue.shade700,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          onPressed: isLoading ? null : () {
+            context.read<OrderDetailCubit>().notifyPaymentMade();
+          },
         ),
-        onPressed: isLoading ? null : () {
-          context.read<OrderDetailCubit>().notifyPaymentMade();
-        },
       ),
     );
   }
@@ -262,11 +406,10 @@ class _PaymentQrInfo extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // --- SỬA LỖI: Sử dụng Table để căn chỉnh ---
         Table(
           columnWidths: const {
-            0: IntrinsicColumnWidth(), // Cột 0 (nhãn) sẽ có độ rộng bằng nội dung dài nhất
-            1: FlexColumnWidth(),      // Cột 1 (giá trị) sẽ chiếm phần còn lại
+            0: IntrinsicColumnWidth(),
+            1: FlexColumnWidth(),
           },
           defaultVerticalAlignment: TableCellVerticalAlignment.top,
           children: [
@@ -337,66 +480,6 @@ class _PaymentQrInfo extends StatelessWidget {
       ],
     );
   }
-
-
-
-  Widget _buildInfoRow(String title, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('$title: ', style: TextStyle(color: Colors.grey.shade700)),
-          Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.bold))),
-        ],
-      ),
-    );
-  }
-}
-
-class _OrderHeader extends StatelessWidget {
-  final OrderModel order;
-  const _OrderHeader({required this.order});
-
-  @override
-  Widget build(BuildContext context) {
-    final statusInfo = _getStatusInfo(order.status, context);
-    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Text(
-                'Mã đơn: #${order.id?.substring(0, 8).toUpperCase() ?? 'N/A'}',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: statusInfo.$1.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                statusInfo.$2,
-                style: TextStyle(color: statusInfo.$1, fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-            )
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (order.createdAt != null)
-          Text(
-            'Ngày đặt: ${dateFormat.format(order.createdAt!.toDate())}',
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
-          ),
-      ],
-    );
-  }
 }
 
 class _Section extends StatelessWidget {
@@ -439,107 +522,6 @@ class _AddressInfo extends StatelessWidget {
         Text(address.recipientName, style: const TextStyle(fontWeight: FontWeight.bold)),
         Text(address.phoneNumber),
         Text(address.fullAddress),
-      ],
-    );
-  }
-}
-
-class _OrderItemsList extends StatelessWidget {
-  final List<OrderItemModel> items;
-  const _OrderItemsList({required this.items});
-
-  @override
-  Widget build(BuildContext context) {
-    final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                item.imageUrl,
-                width: 60,
-                height: 60,
-                fit: BoxFit.cover,
-                errorBuilder: (c, e, s) => Container(width: 60, height: 60, color: Colors.grey.shade200),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.productName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text('SL: ${item.quantity}'),
-                ],
-              ),
-            ),
-            Text(formatter.format(item.price * item.quantity)),
-          ],
-        );
-      },
-      separatorBuilder: (context, index) => const Divider(height: 24),
-    );
-  }
-}
-
-class _PaymentSummary extends StatelessWidget {
-  final OrderModel order;
-  const _PaymentSummary({required this.order});
-
-  @override
-  Widget build(BuildContext context) {
-    final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
-    return Column(
-      children: [
-        _buildSummaryRow(context, 'Tạm tính', formatter.format(order.subtotal)),
-        const SizedBox(height: 8),
-        _buildSummaryRow(context, 'Phí vận chuyển', formatter.format(order.shippingFee)),
-        const SizedBox(height: 8),
-        if (order.discount > 0)
-          _buildSummaryRow(context, 'Giảm giá voucher', '- ${formatter.format(order.discount)}', isDiscount: true),
-        if (order.commissionDiscount > 0) ...[
-          const SizedBox(height: 8),
-          _buildSummaryRow(context, 'Chiết khấu đại lý', '- ${formatter.format(order.commissionDiscount)}', isDiscount: true),
-        ],
-        const Divider(height: 24),
-        _buildSummaryRow(context, 'Tổng cộng', formatter.format(order.finalTotal > 0 ? order.finalTotal : order.total), isTotal: true),
-        const SizedBox(height: 8),
-        _buildSummaryRow(context, 'Thanh toán', _getPaymentStatusText(order.paymentStatus), isBold: true, color: _getPaymentStatusColor(order.paymentStatus)),
-      ],
-    );
-  }
-
-  Widget _buildSummaryRow(BuildContext context, String label, String value, {bool isTotal = false, bool isDiscount = false, bool isBold = false, Color? color}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: isTotal ? 18 : 16,
-            fontWeight: isTotal || isBold ? FontWeight.bold : FontWeight.normal,
-            color: Colors.grey.shade700,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Text(
-            value,
-            textAlign: TextAlign.end,
-            style: TextStyle(
-              fontSize: isTotal ? 18 : 16,
-              fontWeight: isTotal || isBold ? FontWeight.bold : FontWeight.w500,
-              color: color ?? (isDiscount ? Colors.green.shade700 : (isTotal ? Theme.of(context).colorScheme.primary : Colors.black87)),
-            ),
-          ),
-        ),
       ],
     );
   }
