@@ -73,28 +73,23 @@ class CartCubit extends Cubit<CartState> {
 
     emit(state.copyWith(status: CartStatus.itemAdding));
 
-    // --- LOGIC SỬA LỖI TÍNH TOÁN GIÁ ---
-    // 1. Lấy giá của cả thùng hàng từ quy cách đã chọn.
-    final double packagePrice = selectedOption.getPriceForRole(userRole);
+    // ======================== LOGIC ĐÃ SỬA LỖI ========================
+    // 1. Lấy giá của MỘT sản phẩm lẻ dựa trên vai trò người dùng.
+    final double singleItemPrice = selectedOption.getPriceForRole(userRole);
 
-    // 2. Lấy số lượng chai trong một thùng.
-    final int itemsPerPackage = selectedOption.quantityPerPackage;
-
-    // 3. Tính toán giá của một chai.
-    //    Đây là điểm mấu chốt để `subtotal` trong CartItemModel tính đúng.
-    final double itemPrice = (itemsPerPackage > 0) ? packagePrice / itemsPerPackage : 0.0;
-
+    // 2. Tạo đối tượng CartItemModel với thông tin chính xác.
     final cartItem = CartItemModel(
       productId: product.id,
       productName: product.name,
       imageUrl: product.imageUrl,
-      price: itemPrice, // <<< SỬA: Cung cấp giá của 1 chai
-      itemUnitName: selectedOption.unit, // <<< SỬA: Lấy đơn vị ("chai") từ quy cách đã chọn
+      price: singleItemPrice, // <<< SỬA: Truyền trực tiếp giá của sản phẩm lẻ
+      itemUnitName: selectedOption.unit,
       quantity: quantity, // Số lượng thùng
-      quantityPerPackage: itemsPerPackage, // Số chai trong 1 thùng
-      caseUnitName: selectedOption.name, // Tên quy cách ("Thùng")
+      quantityPerPackage: selectedOption.quantityPerPackage, // Số sản phẩm lẻ trong 1 thùng
+      caseUnitName: selectedOption.name, // Tên quy cách ("Thùng...")
       categoryId: product.categoryId,
     );
+    // ================================================================
 
     final result = await _cartRepository.addProductToCart(userId: userId, item: cartItem);
 
@@ -141,27 +136,22 @@ class CartCubit extends Cubit<CartState> {
     );
   }
 
-  // --- THÊM HÀM CÒN THIẾU VÀO ĐÂY ---
   Future<void> clearCart() async {
     final userId = _userId;
     if (userId.isEmpty) return;
 
-    // Không cần emit loading vì đây là hành động ngầm sau khi đặt hàng
     final result = await _cartRepository.clearCart(userId);
 
     result.fold(
           (failure) {
-        // Có thể log lỗi ra nhưng không cần hiển thị cho người dùng
         developer.log('Failed to clear cart: ${failure.message}', name: 'CartCubit');
       },
           (_) {
-        // Sau khi xóa thành công trên DB, cập nhật lại state ở client
-        emit(const CartState(status: CartStatus.success)); // Trạng thái giỏ hàng rỗng
+        emit(const CartState(status: CartStatus.success));
         developer.log('Cart cleared successfully for user $userId', name: 'CartCubit');
       },
     );
   }
-  // ------------------------------------
 
   @override
   Future<void> close() {

@@ -1,6 +1,4 @@
 // lib/features/cart/data/repositories/cart_repository_impl.dart
-// (Nội dung file này giống hệt với file tôi đã cung cấp ở câu trả lời trước, bạn có thể bỏ qua nếu đã thay thế)
-// ... Dán lại toàn bộ nội dung file cart_repository_impl.dart đã cung cấp trước đó vào đây ...
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
@@ -130,13 +128,17 @@ class CartRepositoryImpl implements CartRepository {
     }
   }
 
+  // ======================== LOGIC ĐÃ SỬA LỖI ========================
   @override
   Future<Either<Failure, Unit>> clearCart(String userId) async {
     try {
-      await _userCartRef(userId).update({'items': []});
+      // SỬA: Dùng .delete() thay vì .update() để tránh lỗi khi document không tồn tại.
+      await _userCartRef(userId).delete();
       return const Right(unit);
     } catch (e) {
+      developer.log('Lỗi khi xóa giỏ hàng: ${e.toString()}', name: 'CartRepository');
       return Left(ServerFailure('Lỗi không xác định khi xóa giỏ hàng: ${e.toString()}'));
     }
   }
+// ================================================================
 }
