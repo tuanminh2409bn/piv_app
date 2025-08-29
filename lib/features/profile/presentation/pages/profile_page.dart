@@ -1,12 +1,16 @@
+// lib/features/profile/presentation/pages/profile_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
+import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/profile/presentation/bloc/profile_cubit.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/data/models/address_model.dart';
 import 'package:piv_app/features/orders/presentation/pages/my_orders_page.dart';
 import 'package:piv_app/features/wishlist/presentation/pages/wishlist_page.dart';
 import 'package:piv_app/features/profile/presentation/pages/qr_scanner_page.dart';
+import 'package:piv_app/features/sales_commitment/presentation/pages/sales_commitment_page.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -57,7 +61,8 @@ class ProfileView extends StatelessWidget {
               child: Column(
                 children: [
                   const SizedBox(height: 16),
-                  _buildManagementOptions(context),
+                  // SỬA: Truyền `state.user` vào widget
+                  _buildManagementOptions(context, state.user),
                   const Divider(thickness: 8, height: 24, color: Color(0xFFF2F2F7)),
                   _buildReferralSection(context, state.user),
                   const Divider(thickness: 8, height: 24, color: Color(0xFFF2F2F7)),
@@ -80,7 +85,8 @@ class ProfileView extends StatelessWidget {
     );
   }
 
-  Widget _buildManagementOptions(BuildContext context) {
+  // SỬA: Nhận `UserModel` để kiểm tra vai trò
+  Widget _buildManagementOptions(BuildContext context, UserModel user) {
     return Column(
       children: [
         ListTile(
@@ -102,11 +108,28 @@ class ProfileView extends StatelessWidget {
             Navigator.of(context).push(WishlistPage.route());
           },
         ),
+        // ====================== THÊM MỤC MỚI CHO ĐẠI LÝ ======================
+        if (user.role == 'agent_1' || user.role == 'agent_2') ...[
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          ListTile(
+            leading: const Icon(Icons.military_tech_outlined, color: Colors.amber),
+            title: const Text('Chương trình thưởng'),
+            subtitle: const Text('Đăng ký & theo dõi cam kết'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SalesCommitmentPage()),
+              );
+            },
+          ),
+        ]
+        // ===================================================================
       ],
     );
   }
 
   Widget _buildReferralSection(BuildContext context, UserModel user) {
+    // ... (Giữ nguyên không đổi)
     if (user.isAdmin || user.isSalesRep) {
       return const SizedBox.shrink();
     }
@@ -130,6 +153,7 @@ class ProfileView extends StatelessWidget {
   }
 
   void _showReferralInputDialog(BuildContext context) {
+    // ... (Giữ nguyên không đổi)
     final profileCubit = context.read<ProfileCubit>();
     final formKey = GlobalKey<FormState>();
     final codeController = TextEditingController();
@@ -186,6 +210,7 @@ class ProfileView extends StatelessWidget {
   }
 }
 
+// ... (Các class _ProfileForm, _AddressSection, _AddressCard, _AddressFormDialog giữ nguyên không đổi)
 class _ProfileForm extends StatefulWidget {
   final UserModel user;
   const _ProfileForm({required this.user});

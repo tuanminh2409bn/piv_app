@@ -57,6 +57,14 @@ import 'package:piv_app/features/sales_rep/agent_approval/bloc/agent_approval_cu
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:piv_app/core/services/notification_service.dart';
 import 'package:piv_app/features/accountant/presentation/bloc/accountant_agents_cubit.dart';
+import 'package:piv_app/features/sales_commitment/data/repositories/sales_commitment_repository_impl.dart';
+import 'package:piv_app/features/sales_commitment/domain/repositories/sales_commitment_repository.dart';
+import 'package:piv_app/features/sales_commitment/presentation/bloc/admin/sales_commitment_admin_cubit.dart';
+import 'package:piv_app/features/sales_commitment/presentation/bloc/agent/sales_commitment_agent_cubit.dart';
+import 'package:piv_app/features/lucky_wheel/data/repositories/lucky_wheel_repository_impl.dart';
+import 'package:piv_app/features/lucky_wheel/domain/repositories/lucky_wheel_repository.dart';
+import 'package:piv_app/features/lucky_wheel/presentation/bloc/admin/lucky_wheel_admin_cubit.dart';
+import 'package:piv_app/features/lucky_wheel/presentation/bloc/lucky_wheel_cubit.dart';
 
 
 final sl = GetIt.instance;
@@ -108,14 +116,7 @@ Future<void> initializeDependencies() async {
 
   // == Order & Checkout ==
   sl.registerLazySingleton<OrderRepository>(() => OrderRepositoryImpl(firestore: sl(), settingsRepository: sl()));
-  sl.registerFactory<CheckoutCubit>(() => CheckoutCubit(
-    userProfileRepository: sl(),
-    orderRepository: sl(),
-    authBloc: sl(),
-    cartCubit: sl(),
-    voucherRepository: sl(),
-    functions: sl(),
-  ));
+  sl.registerFactory<CheckoutCubit>(() => CheckoutCubit(userProfileRepository: sl(), orderRepository: sl(), authBloc: sl(), cartCubit: sl(), voucherRepository: sl(), functions: sl(),));
   sl.registerLazySingleton<MyOrdersCubit>(() => MyOrdersCubit(orderRepository: sl(), authBloc: sl()));
   sl.registerFactory<OrderDetailCubit>(() => OrderDetailCubit(orderRepository: sl(), userProfileRepository: sl(),),);
 
@@ -136,12 +137,8 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<SalesRepCubit>(() => SalesRepCubit(adminRepository: sl(), authBloc: sl()));
   sl.registerFactory<SalesRepCommissionsCubit>(() => SalesRepCommissionsCubit(orderRepository: sl(), authBloc: sl()));
   sl.registerFactory<QuickOrderCubit>(() => QuickOrderCubit(homeRepository: sl(), cartCubit: sl()));
-  sl.registerFactory<AgentOrdersCubit>(() => AgentOrdersCubit(
-    orderRepository: sl(),
-    authBloc: sl(),
-  ));
+  sl.registerFactory<AgentOrdersCubit>(() => AgentOrdersCubit(orderRepository: sl(), authBloc: sl(),));
 
-  // == Voucher ==
   sl.registerLazySingleton<VoucherRepository>(() => VoucherRepositoryImpl(firestore: sl()));
   sl.registerFactory<VoucherManagementCubit>(() => VoucherManagementCubit(voucherRepository: sl(), authBloc: sl()));
   sl.registerLazySingleton(() => FirebaseFirestore.instance);
@@ -149,4 +146,12 @@ Future<void> initializeDependencies() async {
   sl.registerFactory(() => AgentApprovalCubit(userProfileRepository: sl(),),);
   sl.registerLazySingleton(() => NotificationService());
   sl.registerFactory<AccountantAgentsCubit>(() => AccountantAgentsCubit(userProfileRepository: sl()));
+
+  sl.registerLazySingleton<SalesCommitmentRepository>(() => SalesCommitmentRepositoryImpl(firestore: sl(), functions: sl(),),);
+  sl.registerFactory(() => SalesCommitmentAgentCubit(repository: sl(), authBloc: sl(),),);
+  sl.registerFactory(() => SalesCommitmentAdminCubit(repository: sl(),),);
+
+  sl.registerLazySingleton<LuckyWheelRepository>(() => LuckyWheelRepositoryImpl(firestore: sl(), functions: sl(), auth: sl(),),);
+  sl.registerFactory(() => LuckyWheelCubit(repository: sl(), authBloc: sl(),),);
+  sl.registerFactory(() => LuckyWheelAdminCubit(repository: sl(),),);
 }

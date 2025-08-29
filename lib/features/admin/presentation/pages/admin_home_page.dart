@@ -1,3 +1,5 @@
+// lib/features/admin/presentation/pages/admin_home_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
@@ -11,6 +13,7 @@ import 'package:piv_app/features/admin/presentation/pages/admin_settings_page.da
 import 'package:piv_app/features/admin/presentation/pages/manual_notification_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/notification_history_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_news_list_page.dart';
+import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
 
 
 class AdminHomePage extends StatelessWidget {
@@ -56,37 +59,42 @@ class AdminHomePage extends StatelessWidget {
               icon: Icons.people_outline,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminUsersPage())),
             ),
-            // SỬA: Đổi tên "Thông báo" thành "Soạn Thông Báo" cho rõ ràng
             _DashboardCard(
               title: 'Soạn Thông Báo',
-              icon: Icons.send_rounded, // Đổi icon cho phù hợp
+              icon: Icons.send_rounded,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManualNotificationPage())),
             ),
-            // SỬA: Thêm thẻ chức năng "Lịch Sử Thông Báo"
             _DashboardCard(
               title: 'Lịch Sử Gửi',
               icon: Icons.history_rounded,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationHistoryPage())),
             ),
+            // ====================== THÊM MỤC MỚI ======================
+            _DashboardCard(
+              title: 'Quản lý Cam kết',
+              icon: Icons.workspace_premium_outlined,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminCommitmentsPage())),
+            ),
+            // ========================================================
             _DashboardCard(
               title: 'Hoa hồng',
               icon: Icons.percent_rounded,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminCommissionsPage())),
             ),
             _DashboardCard(
-              title: 'Vouchers', // Đổi tên cho ngắn gọn
+              title: 'Vouchers',
               icon: Icons.airplane_ticket_outlined,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminVouchersPage())),
-            ),
-            _DashboardCard(
-              title: 'Cài đặt',
-              icon: Icons.settings_outlined,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminSettingsPage())),
             ),
             _DashboardCard(
               title: 'Quản lý Tin tức',
               icon: Icons.article_outlined,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminNewsListPage())),
+            ),
+            _DashboardCard(
+              title: 'Cài đặt',
+              icon: Icons.settings_outlined,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminSettingsPage())),
             ),
           ],
         ),

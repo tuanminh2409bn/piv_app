@@ -9,6 +9,8 @@ import 'package:piv_app/features/admin/presentation/pages/admin_orders_page.dart
 import 'package:piv_app/features/admin/presentation/pages/admin_users_page.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/create_agent_order_page.dart';
+import 'package:piv_app/features/sales_commitment/presentation/bloc/admin/sales_commitment_admin_cubit.dart';
+import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
 
 class AccountantHomePage extends StatelessWidget {
   const AccountantHomePage({super.key});
@@ -20,8 +22,9 @@ class AccountantHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
+
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: Text('Kế toán: ${user.displayName ?? ''}'),
@@ -33,9 +36,12 @@ class AccountantHomePage extends StatelessWidget {
             ),
           ],
           bottom: const TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             tabs: [
               Tab(icon: Icon(Icons.people_outline), text: 'Người dùng'),
               Tab(icon: Icon(Icons.receipt_long_outlined), text: 'Đơn hàng'),
+              Tab(icon: Icon(Icons.workspace_premium_outlined), text: 'Cam kết'),
               Tab(icon: Icon(Icons.add_shopping_cart), text: 'Đặt hàng hộ'),
             ],
           ),
@@ -44,10 +50,23 @@ class AccountantHomePage extends StatelessWidget {
           children: [
             AdminUsersPage(),
             AdminOrdersPage(),
+            CommitmentManagementPageWrapper(),
             AllAgentsViewForAccountant(),
           ],
         ),
       ),
+    );
+  }
+}
+
+class CommitmentManagementPageWrapper extends StatelessWidget {
+  const CommitmentManagementPageWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => sl<SalesCommitmentAdminCubit>()..watchAllCommitments(),
+      child: const AdminCommitmentsPage(),
     );
   }
 }

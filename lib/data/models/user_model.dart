@@ -2,7 +2,6 @@
 
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/address_model.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserModel extends Equatable {
   final String id;
@@ -10,17 +9,17 @@ class UserModel extends Equatable {
   final String? displayName;
   final String? photoUrl;
   final List<AddressModel> addresses;
-  final String role; // Giữ nguyên là String: 'admin', 'accountant', 'sales_rep', 'agent_1', 'agent_2'
-  final String status; // Giữ nguyên là String
+  final String role;
+  final String status;
   final String? referrerId;
   final bool referralPromptPending;
   final List<String> wishlist;
   final String? salesRepId;
-
-  // --- TRƯỜNG MỚI ---
-  // Dành cho Sales Rep & Kế toán: Danh sách ID của các đại lý được giao
   final List<String>? assignedAgentIds;
-  // ------------------
+
+  // ====================== THÊM TRƯỜNG MỚI ======================
+  final String activeRewardProgram;
+  // =============================================================
 
   String get referralCode => id;
 
@@ -36,7 +35,10 @@ class UserModel extends Equatable {
     this.referralPromptPending = false,
     this.wishlist = const [],
     this.salesRepId,
-    this.assignedAgentIds, // Thêm vào constructor
+    this.assignedAgentIds,
+    // ====================== THÊM VÀO CONSTRUCTOR ======================
+    this.activeRewardProgram = 'instant_discount',
+    // =================================================================
   });
 
   bool get isAdmin => role == 'admin';
@@ -60,6 +62,7 @@ class UserModel extends Equatable {
     List<String>? wishlist,
     String? salesRepId,
     List<String>? assignedAgentIds,
+    String? activeRewardProgram, // <<< Thêm vào đây
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -74,6 +77,7 @@ class UserModel extends Equatable {
       wishlist: wishlist ?? this.wishlist,
       salesRepId: salesRepId ?? this.salesRepId,
       assignedAgentIds: assignedAgentIds ?? this.assignedAgentIds,
+      activeRewardProgram: activeRewardProgram ?? this.activeRewardProgram, // <<< Thêm vào đây
     );
   }
 
@@ -90,7 +94,8 @@ class UserModel extends Equatable {
       'referralPromptPending': referralPromptPending,
       'wishlist': wishlist,
       'salesRepId': salesRepId,
-      'assignedAgentIds': assignedAgentIds, // Thêm trường mới
+      'assignedAgentIds': assignedAgentIds,
+      'activeRewardProgram': activeRewardProgram, // <<< Thêm vào đây
     };
   }
 
@@ -110,12 +115,19 @@ class UserModel extends Equatable {
       wishlist: List<String>.from(json['wishlist'] ?? []),
       salesRepId: json['salesRepId'] as String?,
       assignedAgentIds: List<String>.from(json['assignedAgentIds'] ?? []),
+      // ====================== THÊM LOGIC ĐỌC DỮ LIỆU ======================
+      activeRewardProgram: json['activeRewardProgram'] as String? ?? 'instant_discount',
+      // =================================================================
     );
   }
+
+  // Lưu ý: factory `fromSnap` không có trong file gốc của bạn, nên tôi sẽ không thêm vào đây
+  // để đảm bảo tính nhất quán. Nếu bạn dùng cả `fromSnap` ở nơi khác, hãy cập nhật nó tương tự.
 
   @override
   List<Object?> get props => [
     id, email, displayName, photoUrl, addresses, role, status,
-    referrerId, referralPromptPending, wishlist, salesRepId, assignedAgentIds
+    referrerId, referralPromptPending, wishlist, salesRepId, assignedAgentIds,
+    activeRewardProgram // <<< Thêm vào đây
   ];
 }

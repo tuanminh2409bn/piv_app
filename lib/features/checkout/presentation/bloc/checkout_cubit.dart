@@ -141,42 +141,45 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     emit(state.copyWith(status: CheckoutStatus.loading));
     developer.log('CheckoutCubit: Loading checkout data...', name: 'CheckoutCubit');
 
-    final result = await _userProfileRepository.getUserProfile(_currentUserId);
+    // SỬA ĐỔI: Thay vì gọi repo, chúng ta có thể lấy user trực tiếp từ AuthBloc
+    // để có dữ liệu mới nhất, bao gồm cả `activeRewardProgram`.
+    final user = authState.user;
 
-    result.fold(
-          (failure) => emit(state.copyWith(status: CheckoutStatus.error, errorMessage: failure.message)),
-          (user) {
-        final addresses = user.addresses;
-        AddressModel? defaultAddress;
-        if (addresses.isNotEmpty) {
-          try {
-            defaultAddress = addresses.firstWhere((a) => a.isDefault);
-          } catch (e) {
-            defaultAddress = addresses.first;
-          }
-        }
+    final addresses = user.addresses;
+    AddressModel? defaultAddress;
+    if (addresses.isNotEmpty) {
+      try {
+        defaultAddress = addresses.firstWhere((a) => a.isDefault);
+      } catch (e) {
+        defaultAddress = addresses.first;
+      }
+    }
 
-        final itemsToCheckout = buyNowItems ?? _cartCubit.state.items;
-        final subtotal = itemsToCheckout.fold<double>(0.0, (sum, item) => sum + item.subtotal);
-        const shippingFee = 0.0;
+    final itemsToCheckout = buyNowItems ?? _cartCubit.state.items;
+    final subtotal = itemsToCheckout.fold<double>(0.0, (sum, item) => sum + item.subtotal);
+    const shippingFee = 0.0;
 
-        emit(state.copyWith(
-          status: CheckoutStatus.success,
-          addresses: addresses,
-          selectedAddress: defaultAddress,
-          checkoutItems: itemsToCheckout,
-          subtotal: subtotal,
-          shippingFee: shippingFee,
-          forceVoucherToNull: true,
-          discount: 0.0,
-          commissionDiscount: 0.0,
-        ));
+    // Mặc định chiết khấu là 0
+    double commissionDiscount = 0.0;
 
-        if (itemsToCheckout.isNotEmpty) {
-          calculateCommissionDiscount();
-        }
-      },
-    );
+    // Chỉ tính chiết khấu nếu user ở chương trình "instant_discount"
+    final shouldCalculateDiscount = user.activeRewardProgram == 'instant_discount' && itemsToCheckout.isNotEmpty;
+
+    emit(state.copyWith(
+      status: shouldCalculateDiscount ? CheckoutStatus.calculatingDiscount : CheckoutStatus.success,
+      addresses: addresses,
+      selectedAddress: defaultAddress,
+      checkoutItems: itemsToCheckout,
+      subtotal: subtotal,
+      shippingFee: shippingFee,
+      forceVoucherToNull: true,
+      discount: 0.0,
+      commissionDiscount: commissionDiscount,
+    ));
+
+    if (shouldCalculateDiscount) {
+      await calculateCommissionDiscount();
+    }
   }
 
   Future<void> calculateCommissionDiscount() async {
@@ -191,7 +194,17 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         'subtotal': item.subtotal,
       }).toList();
 
-      final response = await callable.call({'items': itemsPayload});
+      final Map<String, dynamic> payload = {
+        'items': itemsPayload,
+      };
+
+      // Nếu đây là đơn hàng đặt hộ, hãy thêm agentId
+      if (state.placeOrderForAgent != null) {
+        payload['agentId'] = state.placeOrderForAgent!.id;
+      }
+
+      // Gửi payload đã được cập nhật
+      final response = await callable.call(payload);
       final discount = (response.data['discount'] as num).toDouble();
 
       emit(state.copyWith(

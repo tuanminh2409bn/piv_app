@@ -10,7 +10,6 @@ import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
 import {format} from "date-fns-tz";
 
-// Sửa: Bỏ projectId để Firebase tự động nhận diện môi trường
 admin.initializeApp();
 const db = admin.firestore();
 
@@ -23,7 +22,6 @@ const sendDataOnlyNotification = async (
     return;
   }
 
-  // Sửa: Đảm bảo tokens là một mảng duy nhất các token hợp lệ
   const validTokens = (Array.isArray(token) ? token : [token]).filter(
       (t): t is string => !!t && typeof t === "string" && t.length > 0
   );
@@ -35,7 +33,7 @@ const sendDataOnlyNotification = async (
 
   const message = {
     data: data,
-    tokens: validTokens, // Sử dụng `tokens` để gửi multicast
+    tokens: validTokens,
   };
 
   try {
@@ -63,19 +61,36 @@ export const calculateOrderDiscount = onCall({region: "asia-southeast1"}, async 
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Authentication required.");
     }
-    const userId = request.auth.uid;
-    const orderItems = request.data.items;
+    const callerId = request.auth.uid;
+    const { items: orderItems, agentId } = request.data;
 
     if (!orderItems || !Array.isArray(orderItems)) {
         throw new HttpsError("invalid-argument", "Missing 'items' array.");
     }
 
     try {
-        const userDoc = await db.collection("users").doc(userId).get();
-        if (!userDoc.exists) {
-            throw new HttpsError("not-found", "User not found.");
+        if (agentId && typeof agentId === "string") {
+            const callerDoc = await db.collection("users").doc(callerId).get();
+            const callerRole = callerDoc.data()?.role;
+            if (!["admin", "sales_rep", "accountant"].includes(callerRole)) {
+                throw new HttpsError("permission-denied", "You do not have permission to calculate discounts for other users.");
+            }
         }
-        const userRole = userDoc.data()?.role;
+
+        const targetUserId = agentId || callerId;
+
+        const userDoc = await db.collection("users").doc(targetUserId).get();
+        if (!userDoc.exists) {
+            throw new HttpsError("not-found", `User with ID ${targetUserId} not found.`);
+        }
+        const userData = userDoc.data()!;
+        const userRole = userData.role;
+
+        if (userData.activeRewardProgram === "sales_target") {
+            logger.info(`User ${targetUserId} is on sales_target program. Skipping discount calculation.`);
+            return {discount: 0};
+        }
+        // ================================================================
 
         const productIds: string[] = orderItems.map(
             (item: { productId: string }) => item.productId
@@ -109,10 +124,13 @@ export const calculateOrderDiscount = onCall({region: "asia-southeast1"}, async 
             totalDiscount += calculateDiscountForRoot(rootTotalValue, userRole);
         }
 
-        logger.info(`Calculated discount for user ${userId}: ${totalDiscount}`);
+        logger.info(`Calculated discount for user ${targetUserId}: ${totalDiscount}`);
         return {discount: totalDiscount};
     } catch (error) {
         logger.error("Error in calculateOrderDiscount:", error);
+        if (error instanceof HttpsError) {
+          throw error;
+        }
         throw new HttpsError("internal", "Error calculating discount.", error);
     }
 });
@@ -292,7 +310,7 @@ export const onOrderCreated = onDocumentCreated(
         const orderIdShort = orderId.substring(0, 8).toUpperCase();
         const formattedTotal = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(total);
 
-        // KỊCH BẢN 1: ĐƠN HÀNG CẦN PHÊ DUYỆT
+        // KỊCH BẢN 1: ĐƠN HÀNG CẦN PHÊ DUYỆT (Giữ nguyên)
         if (status === "pending_approval" && placedBy) {
             const agentDoc = await db.collection("users").doc(userId).get();
             const placerDoc = await db.collection("users").doc(placedBy.userId).get();
@@ -307,10 +325,11 @@ export const onOrderCreated = onDocumentCreated(
                 });
             }
             logger.info(`Sent approval notification for order ${orderId} to agent ${userId}.`);
+            // Kết thúc hàm tại đây vì đây là luồng riêng
             return null;
         }
 
-        // KỊCH BẢN 2: ĐƠN HÀNG THÔNG THƯỜNG
+        // KỊCH BẢN 2: ĐƠN HÀNG THÔNG THƯỜNG (SỬA LỖI: logic gửi thông báo giờ sẽ chạy đúng)
         const userDoc = await db.collection("users").doc(userId).get();
         if (userDoc.exists && userDoc.data()?.fcmToken) {
             await sendDataOnlyNotification(userDoc.data()?.fcmToken, {
@@ -321,6 +340,7 @@ export const onOrderCreated = onDocumentCreated(
             });
         }
 
+        // Logic thông báo cho NVKD và Nhân viên khác (Giữ nguyên)
         if (salesRepId) {
             const salesRepDoc = await db.collection("users").doc(salesRepId).get();
             if (salesRepDoc.exists && salesRepDoc.data()?.fcmToken) {
@@ -350,7 +370,6 @@ export const onOrderCreated = onDocumentCreated(
         return null;
     });
 
-
 // ===================================================================
 // FUNCTION 6: KHI CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG
 // ===================================================================
@@ -364,39 +383,114 @@ export const onOrderStatusUpdate = onDocumentUpdated(
             return null;
         }
 
-        const {
-            userId,
-            salesRepId,
-            shippingAddress,
-            total,
-            status,
-            placedBy,
-            shippingDate,
-        } = afterData;
-
         const orderId = event.params.orderId;
+        const { userId, total, status: newStatus, salesRepId, shippingAddress, placedBy, shippingDate } = afterData;
+        const oldStatus = beforeData.status;
+
+
+        if (newStatus === "completed" && oldStatus !== "completed") {
+            try {
+                const userDoc = await db.collection("users").doc(userId).get();
+                if (userDoc.exists) {
+                    const userData = userDoc.data()!;
+
+                    if (userData.activeRewardProgram === "sales_target") {
+                        const now = new Date();
+                        const activeCommitmentQuery = db.collection("sales_commitments")
+                            .where("userId", "==", userId)
+                            .where("status", "==", "active")
+                            .where("startDate", "<=", admin.firestore.Timestamp.fromDate(now))
+                            .where("endDate", ">=", admin.firestore.Timestamp.fromDate(now))
+                            .limit(1);
+
+                        const commitmentSnapshot = await activeCommitmentQuery.get();
+
+                        if (!commitmentSnapshot.empty) {
+                            const commitmentDoc = commitmentSnapshot.docs[0];
+                            const commitment = commitmentDoc.data();
+                            const newAmount = (commitment.currentAmount || 0) + total;
+
+                            await commitmentDoc.ref.update({ currentAmount: newAmount });
+                            logger.info(`Successfully updated sales commitment ${commitmentDoc.id} for user ${userId}. New amount: ${newAmount}`);
+
+                            if (newAmount >= commitment.targetAmount) {
+                                await commitmentDoc.ref.update({ status: "completed" });
+                                logger.info(`Sales commitment ${commitmentDoc.id} for user ${userId} has been completed.`);
+                                if (userData.fcmToken) {
+                                    await sendDataOnlyNotification(userData.fcmToken, {
+                                        title: "🎉 Chúc mừng! Bạn đã đạt mục tiêu!",
+                                        body: `Bạn đã hoàn thành cam kết doanh thu của mình. Liên hệ với công ty để nhận thưởng!`,
+                                        type: "commitment_completed",
+                                        commitmentId: commitmentDoc.id,
+                                    });
+                                }
+                            }
+                        } else {
+                            logger.warn(`No active sales commitment found for user ${userId} to apply order ${orderId} total.`);
+                        }
+                    }
+                }
+            } catch (error) {
+                logger.error(`Failed to update sales commitment for order ${orderId}. Error:`, error);
+            }
+        }
+
+        if (newStatus === "completed" && oldStatus !== "completed") {
+                try {
+                    const userDoc = await db.collection("users").doc(userId).get();
+                    if (userDoc.exists) {
+                        const campaignQuery = db.collection("lucky_wheel_campaigns")
+                            .where("isActive", "==", true)
+                            .where("startDate", "<=", admin.firestore.Timestamp.now())
+                            .where("endDate", ">=", admin.firestore.Timestamp.now());
+
+                        const campaignSnapshot = await campaignQuery.get();
+                        if (!campaignSnapshot.empty) {
+                            let spinsToGrant = 0;
+                            campaignSnapshot.forEach(doc => {
+                                const campaign = doc.data();
+                                const spendRule = campaign.rules.find((r: any) => r.type === "SPEND_THRESHOLD");
+                                if (spendRule && spendRule.amount > 0) {
+                                    spinsToGrant += Math.floor(total / spendRule.amount) * spendRule.spinsGranted;
+                                }
+                            });
+
+                            if (spinsToGrant > 0) {
+                                await db.collection("users").doc(userId).update({
+                                    spinCount: admin.firestore.FieldValue.increment(spinsToGrant)
+                                });
+                                logger.info(`Granted ${spinsToGrant} spins to user ${userId} for order ${orderId}`);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    logger.error(`Failed to grant spins for order ${orderId}. Error:`, error);
+                }
+            }
+        // =====================================================================
+
+        // SỬA LỖI: Di chuyển toàn bộ logic thông báo ra ngoài để nó luôn được chạy
         const userName = shippingAddress?.recipientName ?? "Khách hàng";
         const orderIdShort = orderId.substring(0, 8).toUpperCase();
+        const formattedTotal = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(total);
 
         // --- KỊCH BẢN 1: THÔNG BÁO KẾT QUẢ PHÊ DUYỆT CHO NGƯỜI ĐẶT HỘ ---
-        if (beforeData.status === "pending_approval" && placedBy?.userId) {
+        if (oldStatus === "pending_approval" && placedBy?.userId) {
             const placerDoc = await db.collection("users").doc(placedBy.userId).get();
-            // SỬA LỖI: dùng .exists thay vì .exists()
             const placerData = placerDoc.data();
             if (placerDoc.exists && placerData?.fcmToken) {
                 let title = "";
                 let body = "";
 
-                if (status === "pending") {
+                if (newStatus === "pending") {
                     title = "✅ Đơn hàng đã được phê duyệt";
                     body = `Đại lý "${userName}" đã đồng ý đơn hàng #${orderIdShort} bạn tạo hộ.`;
-                } else if (status === "rejected") {
+                } else if (newStatus === "rejected") {
                     title = "❌ Đơn hàng đã bị từ chối";
                     body = `Đại lý "${userName}" đã từ chối đơn hàng #${orderIdShort} bạn tạo hộ.`;
                 }
 
                 if (title && body) {
-                    // SỬA LỖI: dùng placerData đã lấy ra
                     await sendDataOnlyNotification(placerData.fcmToken, {
                         title: title,
                         body: body,
@@ -410,9 +504,8 @@ export const onOrderStatusUpdate = onDocumentUpdated(
         // --- KỊCH BẢN 2: THÔNG BÁO CÁC CẬP NHẬT TRẠNG THÁI KHÁC ---
         let notificationTitle: string | null = null;
         let notificationBody: string | null = null;
-        const formattedTotal = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(total);
 
-        switch (status) {
+        switch (newStatus) {
             case "processing":
                 notificationTitle = "✅ Đơn hàng đã được xác nhận";
                 notificationBody = `Đơn hàng #${orderIdShort} của "${userName}" trị giá ${formattedTotal} đang được chuẩn bị.`;
@@ -447,15 +540,13 @@ export const onOrderStatusUpdate = onDocumentUpdated(
             const salesRepDoc = salesRepId ? await db.collection("users").doc(salesRepId).get() : null;
             const staffSnapshot = await db.collection("users").where("role", "in", ["admin", "accountant"]).get();
 
-            // Sửa: Tạo một mảng token duy nhất để gửi 1 lần
             const allTokensToSend: Set<string> = new Set();
 
-            // SỬA LỖI: dùng .exists
             if (userDoc.exists && userDoc.data()?.fcmToken) {
-                allTokensToSend.add(userDoc.data()?.fcmToken);
+                allTokensToSend.add(userDoc.data()!.fcmToken);
             }
             if (salesRepDoc?.exists && salesRepDoc.data()?.fcmToken) {
-                allTokensToSend.add(salesRepDoc.data()?.fcmToken);
+                allTokensToSend.add(salesRepDoc.data()!.fcmToken);
             }
             staffSnapshot.forEach((doc) => {
                 const token = doc.data().fcmToken;
@@ -467,7 +558,7 @@ export const onOrderStatusUpdate = onDocumentUpdated(
             if (allTokensToSend.size > 0) {
                  await sendDataOnlyNotification(Array.from(allTokensToSend), {
                     ...commonPayload,
-                    type: "order_status_general", // Dùng một type chung
+                    type: "order_status_general",
                 });
             }
         }
@@ -609,6 +700,274 @@ export const approveAgentBySalesRep = onCall(
         return { success: true, message: "Duyệt đại lý thành công!" };
     }
 );
+
+// ===================================================================
+// FUNCTION 10: TẠO MỘT CAM KẾT DOANH THU MỚI
+// ===================================================================
+export const createSalesCommitment = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Authentication required.");
+    }
+    const userId = request.auth.uid;
+    const { targetAmount, startDate, endDate } = request.data;
+
+    if (!targetAmount || !startDate || !endDate) {
+        throw new HttpsError("invalid-argument", "Missing required fields: targetAmount, startDate, endDate.");
+    }
+
+    try {
+        const userRef = db.collection("users").doc(userId);
+        const userDoc = await userRef.get();
+
+        if (!userDoc.exists) {
+            throw new HttpsError("not-found", "User not found.");
+        }
+        const userData = userDoc.data()!;
+        if (userData.role !== "agent_1" && userData.role !== "agent_2") {
+             throw new HttpsError("permission-denied", "Only agents can create a sales commitment.");
+        }
+
+        // Bắt đầu một transaction để đảm bảo cả hai thao tác cùng thành công
+        await db.runTransaction(async (transaction) => {
+            // 1. Tạo document cam kết mới
+            const commitmentRef = db.collection("sales_commitments").doc();
+            transaction.set(commitmentRef, {
+                userId: userId,
+                userDisplayName: userData.displayName,
+                userRole: userData.role,
+                targetAmount: Number(targetAmount),
+                currentAmount: 0,
+                startDate: admin.firestore.Timestamp.fromDate(new Date(startDate)),
+                endDate: admin.firestore.Timestamp.fromDate(new Date(endDate)),
+                status: "active",
+                commitmentDetails: null,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+
+            transaction.update(userRef, {
+                activeRewardProgram: "sales_target"
+            });
+        });
+
+        logger.info(`Successfully created sales commitment for user ${userId}.`);
+        return { success: true, message: "Đăng ký cam kết doanh thu thành công!" };
+    } catch (error) {
+        logger.error("Error in createSalesCommitment:", error);
+        if (error instanceof HttpsError) {
+          throw error;
+        }
+        throw new HttpsError("internal", "Failed to create sales commitment.", error);
+    }
+});
+
+// ===================================================================
+// FUNCTION 11: THIẾT LẬP CHI TIẾT CAM KẾT (BỞI ADMIN/NVKD)
+// ===================================================================
+export const setSalesCommitmentDetails = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Authentication required.");
+    }
+    const setterId = request.auth.uid; // ID của người thiết lập (Admin/NVKD)
+    const { commitmentId, detailsText } = request.data;
+
+    if (!commitmentId || !detailsText) {
+        throw new HttpsError("invalid-argument", "Missing required fields: commitmentId, detailsText.");
+    }
+
+    try {
+        const setterDoc = await db.collection("users").doc(setterId).get();
+        const setterData = setterDoc.data();
+        if (!setterDoc.exists || !["admin", "sales_rep", "accountant"].includes(setterData?.role)) {
+            throw new HttpsError("permission-denied", "You do not have permission to perform this action.");
+        }
+
+        const commitmentRef = db.collection("sales_commitments").doc(commitmentId);
+        await commitmentRef.update({
+            "commitmentDetails": {
+                text: detailsText,
+                setByUserId: setterId,
+                setByUserName: setterData?.displayName ?? "Không rõ",
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            }
+        });
+
+        // Gửi thông báo cho đại lý
+        const commitmentDoc = await commitmentRef.get();
+        const agentId = commitmentDoc.data()?.userId;
+        if(agentId) {
+             const agentDoc = await db.collection("users").doc(agentId).get();
+             if (agentDoc.exists && agentDoc.data()?.fcmToken) {
+                 await sendDataOnlyNotification(agentDoc.data()?.fcmToken, {
+                     title: "🎁 Cam kết của bạn đã được xác nhận!",
+                     body: `Công ty đã xác nhận phần thưởng cho cam kết doanh thu của bạn. Hãy xem ngay!`,
+                     type: "commitment_details_set",
+                     commitmentId: commitmentId,
+                 });
+             }
+        }
+
+        logger.info(`Admin/Rep ${setterId} set details for commitment ${commitmentId}.`);
+        return { success: true, message: "Thiết lập cam kết thành công." };
+    } catch (error) {
+        logger.error("Error in setSalesCommitmentDetails:", error);
+        if (error instanceof HttpsError) {
+          throw error;
+        }
+        throw new HttpsError("internal", "Failed to set commitment details.", error);
+    }
+});
+
+// ===================================================================
+// FUNCTION 12: VÒNG QUAY MAY MẮN FUNCTIONS
+// ===================================================================
+/**
+ * Thưởng lượt quay miễn phí cho lần đăng nhập đầu tiên trong ngày.
+ * Client sẽ gọi hàm này mỗi khi khởi động app.
+ */
+export const grantDailyLoginSpin = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
+    }
+    const userId = request.auth.uid;
+    const userRef = db.collection("users").doc(userId);
+
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0]; // Lấy chuỗi YYYY-MM-DD
+
+    try {
+        const userDoc = await userRef.get();
+        if (!userDoc.exists) {
+            throw new HttpsError("not-found", "Không tìm thấy người dùng.");
+        }
+        const userData = userDoc.data()!;
+
+        // Nếu hôm nay đã nhận lượt quay rồi thì bỏ qua
+        if (userData.lastDailySpin === todayStr) {
+            return { success: false, message: "Hôm nay bạn đã nhận lượt quay rồi." };
+        }
+
+        // Kiểm tra xem có chiến dịch nào có luật DAILY_LOGIN đang hoạt động không
+        const campaignQuery = db.collection("lucky_wheel_campaigns")
+            .where("isActive", "==", true)
+            .where("startDate", "<=", admin.firestore.Timestamp.now())
+            .where("endDate", ">=", admin.firestore.Timestamp.now())
+            .where("rules", "array-contains", { type: "DAILY_LOGIN", spinsGranted: 1 }); // Giả sử chỉ có 1 loại rule daily
+
+        const campaignSnapshot = await campaignQuery.get();
+        if (campaignSnapshot.empty) {
+            return { success: false, message: "Hiện không có chương trình tặng lượt quay hàng ngày." };
+        }
+
+        // Cộng lượt quay và cập nhật ngày nhận cuối cùng
+        await userRef.update({
+            spinCount: admin.firestore.FieldValue.increment(1),
+            lastDailySpin: todayStr,
+        });
+
+        logger.info(`Granted daily spin for user ${userId}`);
+        return { success: true, message: "Bạn nhận được 1 lượt quay miễn phí!" };
+    } catch (error) {
+        logger.error("Error in grantDailyLoginSpin:", error);
+        throw new HttpsError("internal", "Lỗi khi nhận lượt quay hàng ngày.", error);
+    }
+});
+
+
+/**
+ * Thực hiện quay thưởng, chọn phần thưởng và ghi lại lịch sử.
+ */
+export const spinTheWheel = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
+    }
+    const userId = request.auth.uid;
+    const userRef = db.collection("users").doc(userId);
+
+    try {
+        let winningReward: any;
+
+        await db.runTransaction(async (transaction) => {
+            const userDoc = await transaction.get(userRef);
+            if (!userDoc.exists) {
+                throw new HttpsError("not-found", "Không tìm thấy người dùng.");
+            }
+            const userData = userDoc.data()!;
+
+            // 1. Kiểm tra và trừ lượt quay
+            if (!userData.spinCount || userData.spinCount <= 0) {
+                throw new HttpsError("failed-precondition", "Bạn đã hết lượt quay.");
+            }
+            transaction.update(userRef, {
+                spinCount: admin.firestore.FieldValue.increment(-1),
+            });
+
+            // 2. Tìm chiến dịch đang hoạt động cho vai trò của người dùng
+            const campaignQuery = db.collection("lucky_wheel_campaigns")
+                .where("isActive", "==", true)
+                .where("wheelConfig.appliesToRole", "array-contains", userData.role)
+                .where("startDate", "<=", admin.firestore.Timestamp.now())
+                .where("endDate", ">=", admin.firestore.Timestamp.now())
+                .limit(1);
+
+            const campaignSnapshot = await transaction.get(campaignQuery);
+            if (campaignSnapshot.empty) {
+                throw new HttpsError("not-found", "Không có chương trình vòng quay nào dành cho bạn lúc này.");
+            }
+            const campaignDoc = campaignSnapshot.docs[0];
+            const campaign = campaignDoc.data();
+            const rewards = campaign.wheelConfig.rewards;
+
+            // 3. Thuật toán chọn phần thưởng theo tỷ lệ
+            const totalProbability = rewards.reduce((sum: number, reward: any) => sum + reward.probability, 0);
+            let randomPoint = Math.random() * totalProbability;
+
+            let chosenReward = null;
+            for (const reward of rewards) {
+                if (randomPoint < reward.probability) {
+                    chosenReward = reward;
+                    break;
+                }
+                randomPoint -= reward.probability;
+            }
+
+            // Nếu không chọn được (do lỗi làm tròn), chọn phần thưởng cuối cùng
+            if (!chosenReward) {
+                chosenReward = rewards[rewards.length - 1];
+            }
+
+            winningReward = chosenReward; // Lưu lại để trả về cho client
+
+            // 4. Ghi lại lịch sử
+            const historyRef = db.collection("spin_history").doc();
+            transaction.set(historyRef, {
+                userId: userId,
+                userDisplayName: userData.displayName,
+                campaignId: campaignDoc.id,
+                campaignName: campaign.name,
+                rewardName: chosenReward.name,
+                spunAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+
+             // 5. (Tùy chọn) Giảm số lượng phần thưởng nếu có giới hạn
+            if (chosenReward.limit !== null) {
+                // Cần có cơ chế riêng để xử lý việc giảm `limit` một cách an toàn
+                // Hiện tại chỉ ghi log, sẽ hoàn thiện sau nếu cần
+                logger.info(`User ${userId} won a limited prize: ${chosenReward.name}`);
+            }
+        });
+
+        logger.info(`User ${userId} won: ${winningReward.name}`);
+        return { success: true, reward: winningReward };
+
+    } catch (error) {
+        logger.error("Error in spinTheWheel:", error);
+        if (error instanceof HttpsError) {
+          throw error;
+        }
+        throw new HttpsError("internal", "Đã có lỗi xảy ra khi quay thưởng.", error);
+    }
+});
+
 
 
 // --- Các hàm phụ trợ tính toán (giữ nguyên) ---
