@@ -820,10 +820,6 @@ export const setSalesCommitmentDetails = onCall({region: "asia-southeast1"}, asy
 // ===================================================================
 // FUNCTION 12: VÒNG QUAY MAY MẮN FUNCTIONS
 // ===================================================================
-/**
- * Thưởng lượt quay miễn phí cho lần đăng nhập đầu tiên trong ngày.
- * Client sẽ gọi hàm này mỗi khi khởi động app.
- */
 export const grantDailyLoginSpin = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
@@ -872,53 +868,54 @@ export const grantDailyLoginSpin = onCall({region: "asia-southeast1"}, async (re
     }
 });
 
-
-/**
- * Thực hiện quay thưởng, chọn phần thưởng và ghi lại lịch sử.
- */
 export const spinTheWheel = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
     }
     const userId = request.auth.uid;
     const userRef = db.collection("users").doc(userId);
+    logger.info(`[spinTheWheel] User ${userId} started a spin.`);
 
     try {
         let winningReward: any;
 
         await db.runTransaction(async (transaction) => {
+            logger.info(`[spinTheWheel] Starting transaction for user ${userId}.`);
             const userDoc = await transaction.get(userRef);
             if (!userDoc.exists) {
                 throw new HttpsError("not-found", "Không tìm thấy người dùng.");
             }
             const userData = userDoc.data()!;
 
-            // 1. Kiểm tra và trừ lượt quay
-            if (!userData.spinCount || userData.spinCount <= 0) {
-                throw new HttpsError("failed-precondition", "Bạn đã hết lượt quay.");
-            }
-            transaction.update(userRef, {
-                spinCount: admin.firestore.FieldValue.increment(-1),
-            });
-
-            // 2. Tìm chiến dịch đang hoạt động cho vai trò của người dùng
             const campaignQuery = db.collection("lucky_wheel_campaigns")
                 .where("isActive", "==", true)
                 .where("wheelConfig.appliesToRole", "array-contains", userData.role)
                 .where("startDate", "<=", admin.firestore.Timestamp.now())
-                .where("endDate", ">=", admin.firestore.Timestamp.now())
                 .limit(1);
-
             const campaignSnapshot = await transaction.get(campaignQuery);
+
+            // BƯỚC 2: KIỂM TRA DỮ LIỆU ĐÃ ĐỌC VÀ XỬ LÝ LOGIC
+            logger.info(`[spinTheWheel] Fetched user data, current spin count: ${userData.spinCount || 0}.`);
+            if (!userData.spinCount || userData.spinCount <= 0) {
+                throw new HttpsError("failed-precondition", "Bạn đã hết lượt quay.");
+            }
+
             if (campaignSnapshot.empty) {
                 throw new HttpsError("not-found", "Không có chương trình vòng quay nào dành cho bạn lúc này.");
             }
             const campaignDoc = campaignSnapshot.docs[0];
             const campaign = campaignDoc.data();
             const rewards = campaign.wheelConfig.rewards;
+            logger.info(`[spinTheWheel] Found active campaign: ${campaign.name} (${campaignDoc.id}).`);
 
-            // 3. Thuật toán chọn phần thưởng theo tỷ lệ
-            const totalProbability = rewards.reduce((sum: number, reward: any) => sum + reward.probability, 0);
+            // Thuật toán chọn phần thưởng
+            if (!rewards || !Array.isArray(rewards) || rewards.length === 0) {
+                throw new HttpsError("internal", "Cấu hình phần thưởng của chiến dịch bị lỗi.");
+            }
+            const totalProbability = rewards.reduce((sum: number, reward: any) => sum + (reward.probability || 0), 0);
+            if (totalProbability === 0) {
+                 throw new HttpsError("internal", "Tổng tỷ lệ phần thưởng bằng 0.");
+            }
             let randomPoint = Math.random() * totalProbability;
 
             let chosenReward = null;
@@ -929,38 +926,37 @@ export const spinTheWheel = onCall({region: "asia-southeast1"}, async (request: 
                 }
                 randomPoint -= reward.probability;
             }
-
-            // Nếu không chọn được (do lỗi làm tròn), chọn phần thưởng cuối cùng
             if (!chosenReward) {
-                chosenReward = rewards[rewards.length - 1];
+                chosenReward = rewards.find((r:any) => r.type === "NO_PRIZE") || rewards[rewards.length - 1];
             }
 
-            winningReward = chosenReward; // Lưu lại để trả về cho client
+            winningReward = chosenReward;
+            logger.info(`[spinTheWheel] User ${userId} won reward: "${winningReward.name}".`);
 
-            // 4. Ghi lại lịch sử
+            // BƯỚC 3: THỰC HIỆN TẤT CẢ CÁC THAO TÁC GHI SAU CÙNG
+            // Trừ lượt quay của người dùng
+            transaction.update(userRef, {
+                spinCount: admin.firestore.FieldValue.increment(-1),
+            });
+            logger.info(`[spinTheWheel] Decrementing spin count for user ${userId}.`);
+
+            // Ghi lại lịch sử
             const historyRef = db.collection("spin_history").doc();
             transaction.set(historyRef, {
                 userId: userId,
                 userDisplayName: userData.displayName,
                 campaignId: campaignDoc.id,
                 campaignName: campaign.name,
-                rewardName: chosenReward.name,
+                rewardName: winningReward.name,
                 spunAt: admin.firestore.FieldValue.serverTimestamp(),
             });
-
-             // 5. (Tùy chọn) Giảm số lượng phần thưởng nếu có giới hạn
-            if (chosenReward.limit !== null) {
-                // Cần có cơ chế riêng để xử lý việc giảm `limit` một cách an toàn
-                // Hiện tại chỉ ghi log, sẽ hoàn thiện sau nếu cần
-                logger.info(`User ${userId} won a limited prize: ${chosenReward.name}`);
-            }
+            logger.info(`[spinTheWheel] Logged spin history for user ${userId}.`);
         });
 
-        logger.info(`User ${userId} won: ${winningReward.name}`);
         return { success: true, reward: winningReward };
 
     } catch (error) {
-        logger.error("Error in spinTheWheel:", error);
+        logger.error(`[spinTheWheel] CRITICAL ERROR for user ${userId}:`, error);
         if (error instanceof HttpsError) {
           throw error;
         }
@@ -968,9 +964,6 @@ export const spinTheWheel = onCall({region: "asia-southeast1"}, async (request: 
     }
 });
 
-
-
-// --- Các hàm phụ trợ tính toán (giữ nguyên) ---
 function calculateDiscountForFoliar(total: number, role: string): number {
     let discountRate = 0;
     if (role === "agent_1") {

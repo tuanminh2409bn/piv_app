@@ -2,6 +2,7 @@
 
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/address_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserModel extends Equatable {
   final String id;
@@ -16,10 +17,8 @@ class UserModel extends Equatable {
   final List<String> wishlist;
   final String? salesRepId;
   final List<String>? assignedAgentIds;
-
-  // ====================== THÊM TRƯỜNG MỚI ======================
   final String activeRewardProgram;
-  // =============================================================
+  final int spinCount;
 
   String get referralCode => id;
 
@@ -36,9 +35,8 @@ class UserModel extends Equatable {
     this.wishlist = const [],
     this.salesRepId,
     this.assignedAgentIds,
-    // ====================== THÊM VÀO CONSTRUCTOR ======================
     this.activeRewardProgram = 'instant_discount',
-    // =================================================================
+    this.spinCount = 0,
   });
 
   bool get isAdmin => role == 'admin';
@@ -62,7 +60,8 @@ class UserModel extends Equatable {
     List<String>? wishlist,
     String? salesRepId,
     List<String>? assignedAgentIds,
-    String? activeRewardProgram, // <<< Thêm vào đây
+    String? activeRewardProgram,
+    int? spinCount,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -77,7 +76,8 @@ class UserModel extends Equatable {
       wishlist: wishlist ?? this.wishlist,
       salesRepId: salesRepId ?? this.salesRepId,
       assignedAgentIds: assignedAgentIds ?? this.assignedAgentIds,
-      activeRewardProgram: activeRewardProgram ?? this.activeRewardProgram, // <<< Thêm vào đây
+      activeRewardProgram: activeRewardProgram ?? this.activeRewardProgram,
+      spinCount: spinCount ?? this.spinCount,
     );
   }
 
@@ -95,9 +95,36 @@ class UserModel extends Equatable {
       'wishlist': wishlist,
       'salesRepId': salesRepId,
       'assignedAgentIds': assignedAgentIds,
-      'activeRewardProgram': activeRewardProgram, // <<< Thêm vào đây
+      'activeRewardProgram': activeRewardProgram,
+      'spinCount': spinCount,
     };
   }
+
+  // ====================== BỔ SUNG HÀM `fromSnap` CÒN THIẾU ======================
+  factory UserModel.fromSnap(DocumentSnapshot snap) {
+    final data = snap.data() as Map<String, dynamic>? ?? {};
+    var addressesData = data['addresses'] as List<dynamic>? ?? [];
+    List<AddressModel> addressesList =
+    addressesData.map((a) => AddressModel.fromMap(a)).toList();
+
+    return UserModel(
+      id: snap.id,
+      email: data['email'] as String?,
+      displayName: data['displayName'] as String?,
+      photoUrl: data['photoUrl'] as String?,
+      addresses: addressesList,
+      role: data['role'] as String? ?? 'agent_2',
+      status: data['status'] as String? ?? 'pending_approval',
+      referrerId: data['referrerId'] as String?,
+      referralPromptPending: data['referralPromptPending'] as bool? ?? false,
+      wishlist: List<String>.from(data['wishlist'] ?? []),
+      salesRepId: data['salesRepId'] as String?,
+      assignedAgentIds: List<String>.from(data['assignedAgentIds'] ?? []),
+      activeRewardProgram: data['activeRewardProgram'] as String? ?? 'instant_discount',
+      spinCount: data['spinCount'] as int? ?? 0,
+    );
+  }
+  // ===========================================================================
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
@@ -115,19 +142,16 @@ class UserModel extends Equatable {
       wishlist: List<String>.from(json['wishlist'] ?? []),
       salesRepId: json['salesRepId'] as String?,
       assignedAgentIds: List<String>.from(json['assignedAgentIds'] ?? []),
-      // ====================== THÊM LOGIC ĐỌC DỮ LIỆU ======================
       activeRewardProgram: json['activeRewardProgram'] as String? ?? 'instant_discount',
-      // =================================================================
+      spinCount: json['spinCount'] as int? ?? 0,
     );
   }
-
-  // Lưu ý: factory `fromSnap` không có trong file gốc của bạn, nên tôi sẽ không thêm vào đây
-  // để đảm bảo tính nhất quán. Nếu bạn dùng cả `fromSnap` ở nơi khác, hãy cập nhật nó tương tự.
 
   @override
   List<Object?> get props => [
     id, email, displayName, photoUrl, addresses, role, status,
     referrerId, referralPromptPending, wishlist, salesRepId, assignedAgentIds,
-    activeRewardProgram // <<< Thêm vào đây
+    activeRewardProgram,
+    spinCount
   ];
 }

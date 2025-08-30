@@ -11,6 +11,8 @@ import 'package:piv_app/features/orders/presentation/pages/my_orders_page.dart';
 import 'package:piv_app/features/wishlist/presentation/pages/wishlist_page.dart';
 import 'package:piv_app/features/profile/presentation/pages/qr_scanner_page.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/sales_commitment_page.dart';
+import 'package:piv_app/features/lucky_wheel/presentation/pages/lucky_wheel_page.dart';
+
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -61,7 +63,6 @@ class ProfileView extends StatelessWidget {
               child: Column(
                 children: [
                   const SizedBox(height: 16),
-                  // SỬA: Truyền `state.user` vào widget
                   _buildManagementOptions(context, state.user),
                   const Divider(thickness: 8, height: 24, color: Color(0xFFF2F2F7)),
                   _buildReferralSection(context, state.user),
@@ -85,12 +86,11 @@ class ProfileView extends StatelessWidget {
     );
   }
 
-  // SỬA: Nhận `UserModel` để kiểm tra vai trò
   Widget _buildManagementOptions(BuildContext context, UserModel user) {
     return Column(
       children: [
         ListTile(
-          leading: const Icon(Icons.receipt_long_outlined),
+          leading: const Icon(Icons.receipt_long_outlined, color: Colors.lightBlueAccent),
           title: const Text('Đơn hàng của tôi'),
           subtitle: const Text('Xem lịch sử các đơn hàng đã đặt'),
           trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -108,7 +108,6 @@ class ProfileView extends StatelessWidget {
             Navigator.of(context).push(WishlistPage.route());
           },
         ),
-        // ====================== THÊM MỤC MỚI CHO ĐẠI LÝ ======================
         if (user.role == 'agent_1' || user.role == 'agent_2') ...[
           const Divider(height: 1, indent: 16, endIndent: 16),
           ListTile(
@@ -122,8 +121,21 @@ class ProfileView extends StatelessWidget {
               );
             },
           ),
+          // ====================== THÊM MỤC VÒNG QUAY ======================
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          ListTile(
+            leading: const Icon(Icons.casino_outlined, color: Colors.teal),
+            title: const Text('Vòng Quay May Mắn'),
+            subtitle: const Text('Nhận quà liền tay, vận may mỗi ngày'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const LuckyWheelPage()),
+              );
+            },
+          ),
+          // =============================================================
         ]
-        // ===================================================================
       ],
     );
   }

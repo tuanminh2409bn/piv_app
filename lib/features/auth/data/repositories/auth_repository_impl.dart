@@ -1,3 +1,5 @@
+// lib/features/auth/data/repositories/auth_repository_impl.dart
+
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -14,7 +16,10 @@ class AuthRepositoryImpl implements AuthRepository {
   final FirebaseFirestore _firestore;
   final GoogleSignIn _googleSignIn;
 
+  // StreamController vẫn giữ nguyên
   final _userStreamController = StreamController<UserModel>.broadcast();
+  // SỬA: Thêm một biến để quản lý việc lắng nghe Firestore
+  StreamSubscription<DocumentSnapshot>? _firestoreSubscription;
 
   AuthRepositoryImpl({
     firebase_auth.FirebaseAuth? firebaseAuth,
@@ -23,37 +28,44 @@ class AuthRepositoryImpl implements AuthRepository {
   })  : _firebaseAuth = firebaseAuth ?? firebase_auth.FirebaseAuth.instance,
         _firestore = firestore ?? FirebaseFirestore.instance,
         _googleSignIn = googleSignIn ?? GoogleSignIn() {
-    // Lắng nghe sự thay đổi trạng thái người dùng từ Firebase Auth
-    _firebaseAuth.authStateChanges().listen((firebaseUser) async {
+
+    // ====================== THAY ĐỔI LOGIC LẮNG NGHE TẠI ĐÂY ======================
+    _firebaseAuth.authStateChanges().listen((firebaseUser) {
+      // Hủy bỏ việc lắng nghe cũ (nếu có) trước khi tạo một cái mới
+      _firestoreSubscription?.cancel();
+
       if (firebaseUser == null) {
         _userStreamController.add(UserModel.empty);
       } else {
-        // Sau khi xác thực, đọc thông tin đầy đủ từ Firestore, bao gồm cả status và role
-        final userDoc = await _firestore.collection('users').doc(firebaseUser.uid).get();
-        if (userDoc.exists && userDoc.data() != null) {
-          final user = UserModel.fromJson(userDoc.data()!);
-          // Kiểm tra trạng thái tài khoản
-          if (user.status != 'active') {
-            // Nếu tài khoản không hoạt động, tự động đăng xuất và phát ra trạng thái rỗng
-            developer.log('User ${user.id} logged in but status is ${user.status}. Forcing logout.', name: 'AuthRepository');
-            await logOut(); // Gọi hàm logOut nội bộ để đảm bảo đăng xuất khỏi các nhà cung cấp khác
-            _userStreamController.add(UserModel.empty);
+        // Dùng .snapshots() để lắng nghe sự thay đổi theo thời gian thực
+        _firestoreSubscription = _firestore
+            .collection('users')
+            .doc(firebaseUser.uid)
+            .snapshots()
+            .listen((userDoc) {
+          if (userDoc.exists && userDoc.data() != null) {
+            final user = UserModel.fromSnap(userDoc); // Dùng fromSnap cho DocumentSnapshot
+            if (user.status != 'active') {
+              developer.log('User ${user.id} status is ${user.status}. Forcing logout.', name: 'AuthRepository');
+              logOut();
+              // _userStreamController đã được xử lý ở authStateChanges tiếp theo
+            } else {
+              _userStreamController.add(user);
+            }
           } else {
-            // Nếu tài khoản hoạt động, phát ra thông tin người dùng
-            _userStreamController.add(user);
+            // User đã xác thực nhưng không có document trong 'users'
+            _userStreamController.add(UserModel.empty);
           }
-        } else {
-          // Trường hợp này xảy ra khi người dùng đăng nhập lần đầu bằng Mạng xã hội
-          // và document chưa được tạo kịp. Coi như chưa đăng nhập cho đến khi được duyệt.
-          _userStreamController.add(UserModel.empty);
-        }
+        });
       }
     });
+    // ===========================================================================
   }
 
   @override
   Stream<UserModel> get user => _userStreamController.stream;
 
+  // ... (Tất cả các hàm khác từ getCurrentUser đến hết file giữ nguyên không đổi)
   @override
   Future<Either<Failure, UserModel>> getCurrentUser() async {
     try {
@@ -61,7 +73,7 @@ class AuthRepositoryImpl implements AuthRepository {
       if (firebaseUser != null) {
         final userDoc = await _firestore.collection('users').doc(firebaseUser.uid).get();
         if (userDoc.exists && userDoc.data() != null) {
-          return Right(UserModel.fromJson(userDoc.data()!));
+          return Right(UserModel.fromSnap(userDoc)); // Sửa lại dùng fromSnap
         } else {
           return Right(UserModel(
             id: firebaseUser.uid,
@@ -98,19 +110,16 @@ class AuthRepositoryImpl implements AuthRepository {
         }
 
         String? foundReferrerId;
-        String? foundSalesRepId; // << BIẾN MỚI
+        String? foundSalesRepId;
 
         if (referralCode != null && referralCode.isNotEmpty) {
           final referrerDoc = await _firestore.collection('users').doc(referralCode).get();
           if (referrerDoc.exists) {
             foundReferrerId = referrerDoc.id;
-            final referrerData = UserModel.fromJson(referrerDoc.data()!);
-            // --- LOGIC MỚI: KIỂM TRA VAI TRÒ CỦA NGƯỜI GIỚI THIỆU ---
-            // Giả định rằng vai trò của NVKD là 'sales_rep'
+            final referrerData = UserModel.fromSnap(referrerDoc);
             if (referrerData.role == 'sales_rep') {
               foundSalesRepId = referrerDoc.id;
             }
-            // --------------------------------------------------------
           }
         }
 
@@ -119,14 +128,11 @@ class AuthRepositoryImpl implements AuthRepository {
           email: firebaseUser.email,
           displayName: displayName ?? firebaseUser.displayName,
           referrerId: foundReferrerId,
-          salesRepId: foundSalesRepId, // << GÁN ID CỦA NVKD
-          // Nếu không có mã giới thiệu, hoặc mã giới thiệu không hợp lệ,
-          // thì coi như cần hỏi lại sau.
+          salesRepId: foundSalesRepId,
           referralPromptPending: (foundReferrerId == null),
         );
         await _firestore.collection('users').doc(firebaseUser.uid).set(newUser.toJson());
 
-        // Đăng xuất người dùng ngay sau khi đăng ký để họ không tự động đăng nhập
         await _firebaseAuth.signOut();
 
         return const Right(unit);
@@ -166,7 +172,7 @@ class AuthRepositoryImpl implements AuthRepository {
         return Left(AuthFailure('Tài khoản không tồn tại trong hệ thống. Vui lòng liên hệ quản trị viên.'));
       }
 
-      final user = UserModel.fromJson(userDoc.data()!);
+      final user = UserModel.fromSnap(userDoc);
 
       if (user.status == 'pending_approval') {
         await _firebaseAuth.signOut();
@@ -276,19 +282,18 @@ class AuthRepositoryImpl implements AuthRepository {
             photoUrl: firebaseUser.photoURL,
             role: 'agent_2',
             status: 'pending_approval',
-            referralPromptPending: true, // Đặt cờ khi đăng nhập mạng xã hội lần đầu
+            referralPromptPending: true,
           );
           await userDoc.set(newUser.toJson());
         }
 
-        // Sau khi đăng nhập, kiểm tra lại trạng thái của user
         final updatedUserSnapshot = await userDoc.get();
         if (!updatedUserSnapshot.exists) {
           await logOut();
           return Left(AuthFailure('Không tìm thấy thông tin tài khoản sau khi đăng nhập.'));
         }
 
-        final user = UserModel.fromJson(updatedUserSnapshot.data()!);
+        final user = UserModel.fromSnap(updatedUserSnapshot);
         if (user.status != 'active') {
           await logOut();
           if (user.status == 'pending_approval') {

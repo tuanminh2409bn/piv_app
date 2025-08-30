@@ -8,11 +8,13 @@ class RewardModel extends Equatable {
   final String name;
   final int probability;
   final int? limit;
+  final String? imageUrl;
 
   const RewardModel({
     required this.name,
     required this.probability,
     this.limit,
+    this.imageUrl,
   });
 
   @override
@@ -23,6 +25,7 @@ class RewardModel extends Equatable {
       name: map['name'] as String? ?? 'N/A',
       probability: (map['probability'] as num? ?? 0).toInt(),
       limit: (map['limit'] as num?)?.toInt(),
+      imageUrl: map['imageUrl'] as String?,
     );
   }
 
@@ -31,6 +34,7 @@ class RewardModel extends Equatable {
       'name': name,
       'probability': probability,
       'limit': limit,
+      'imageUrl': imageUrl,
     };
   }
 }

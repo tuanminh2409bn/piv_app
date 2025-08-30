@@ -14,6 +14,7 @@ import 'package:piv_app/features/admin/presentation/pages/manual_notification_pa
 import 'package:piv_app/features/admin/presentation/pages/notification_history_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_news_list_page.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
+import 'package:piv_app/features/lucky_wheel/presentation/pages/lucky_wheel_admin_page.dart';
 
 
 class AdminHomePage extends StatelessWidget {
@@ -69,13 +70,18 @@ class AdminHomePage extends StatelessWidget {
               icon: Icons.history_rounded,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationHistoryPage())),
             ),
-            // ====================== THÊM MỤC MỚI ======================
             _DashboardCard(
               title: 'Quản lý Cam kết',
               icon: Icons.workspace_premium_outlined,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminCommitmentsPage())),
             ),
-            // ========================================================
+            _DashboardCard(
+              title: 'Vòng Quay May Mắn',
+              icon: Icons.casino_outlined,
+              onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const LuckyWheelAdminPage())
+              ),
+            ),
             _DashboardCard(
               title: 'Hoa hồng',
               icon: Icons.percent_rounded,
@@ -104,6 +110,7 @@ class AdminHomePage extends StatelessWidget {
 }
 
 class _DashboardCard extends StatelessWidget {
+  // ... (Widget này giữ nguyên không đổi)
   const _DashboardCard({
     required this.title,
     required this.icon,

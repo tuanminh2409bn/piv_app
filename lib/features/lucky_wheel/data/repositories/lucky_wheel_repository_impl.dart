@@ -40,7 +40,7 @@ class LuckyWheelRepositoryImpl implements LuckyWheelRepository {
     try {
       final callable = _functions.httpsCallable('spinTheWheel');
       final result = await callable.call();
-      final rewardData = result.data['reward'] as Map<String, dynamic>;
+      final rewardData = Map<String, dynamic>.from(result.data['reward']);
       return Right(RewardModel.fromMap(rewardData));
     } on FirebaseFunctionsException catch (e) {
       return Left(ServerFailure(e.message ?? 'Lỗi không xác định từ server.'));
