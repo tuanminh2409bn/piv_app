@@ -123,12 +123,12 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
                 // ====================== THAY ĐỔI VỊ TRÍ VÒNG QUAY ======================
                 mainAxisAlignment: MainAxisAlignment.start, // Căn trên cùng
                 children: [
-                  const SizedBox(height: 95), // Thêm khoảng trống từ trên xuống để vòng quay không bị sát mép
+                  const SizedBox(height: 80), // Thêm khoảng trống từ trên xuống để vòng quay không bị sát mép
                   // ======================================================================
                   SizedBox(
                     // ====================== THAY ĐỔI KÍCH THƯỚC VÒNG QUAY ======================
-                    height: 300, // Giảm chiều cao
-                    width: 300,  // Giảm chiều rộng
+                    height: 261, // Giảm chiều cao
+                    width: 261,  // Giảm chiều rộng
                     // ==========================================================================
                     child: FortuneWheel(
                       selected: selected.stream,
@@ -156,7 +156,7 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: i.isEven ? Colors.white : Colors.black,
-                                          fontSize: 12,
+                                          fontSize: 9,
                                         ),
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
