@@ -8,6 +8,8 @@ import 'package:piv_app/data/models/lucky_wheel_campaign_model.dart';
 import 'package:piv_app/data/models/spin_history_model.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/bloc/admin/lucky_wheel_admin_cubit.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/pages/spin_history_page.dart';
+import 'package:piv_app/features/lucky_wheel/presentation/pages/campaign_form_page.dart';
+
 
 class LuckyWheelAdminPage extends StatelessWidget {
   const LuckyWheelAdminPage({super.key});
@@ -36,7 +38,9 @@ class LuckyWheelAdminPage extends StatelessWidget {
           ),
           floatingActionButton: FloatingActionButton(
             onPressed: () {
-              // TODO: Điều hướng đến trang tạo/sửa chiến dịch
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CampaignFormPage()),
+              );
             },
             child: const Icon(Icons.add),
           ),
@@ -90,7 +94,11 @@ class CampaignCard extends StatelessWidget {
           labelStyle: const TextStyle(color: Colors.white),
         ),
         onTap: () {
-          // TODO: Điều hướng đến trang chi tiết/chỉnh sửa chiến dịch
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => CampaignFormPage(campaign: campaign),
+            ),
+          );
         },
       ),
     );
