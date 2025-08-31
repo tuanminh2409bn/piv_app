@@ -6,13 +6,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_fortune_wheel/flutter_fortune_wheel.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/data/models/lucky_wheel_campaign_model.dart';
-import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/bloc/lucky_wheel_cubit.dart';
 import 'package:rxdart/rxdart.dart';
-
-// TODO: Import trang lịch sử khi chúng ta tạo nó
-// import 'spin_history_page.dart';
+import 'package:piv_app/features/lucky_wheel/presentation/pages/spin_history_page.dart';
+import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
 
 class LuckyWheelPage extends StatelessWidget {
   const LuckyWheelPage({super.key});
@@ -36,6 +34,14 @@ class LuckyWheelView extends StatefulWidget {
 class _LuckyWheelViewState extends State<LuckyWheelView> {
   final selected = BehaviorSubject<int>();
   RewardModel? _lastWinningReward;
+  late final Stream<int> _spinCountStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final userId = (context.read<AuthBloc>().state as AuthAuthenticated).user.id;
+    _spinCountStream = sl<UserProfileRepository>().watchSpinCount(userId);
+  }
 
   @override
   void dispose() {
@@ -45,8 +51,6 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
 
   @override
   Widget build(BuildContext context) {
-    final user = (context.watch<AuthBloc>().state as AuthAuthenticated).user;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Vòng Quay May Mắn'),
@@ -55,9 +59,10 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
             icon: const Icon(Icons.history),
             tooltip: 'Lịch sử quay',
             onPressed: () {
-              // TODO: Điều hướng tới trang lịch sử
-              ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Chức năng Lịch sử sẽ được thêm ở bước sau.'))
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const SpinHistoryPage(isMyHistory: true),
+                ),
               );
             },
           ),
@@ -69,11 +74,9 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
             setState(() {
               _lastWinningReward = state.winningReward;
             });
-
             final winningIndex = state.activeCampaign!.rewards.indexWhere(
                   (r) => r.name == state.winningReward!.name,
             );
-
             if (winningIndex != -1) {
               selected.add(winningIndex);
             }
@@ -120,16 +123,14 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
             ),
             child: Center(
               child: Column(
-                // ====================== THAY ĐỔI VỊ TRÍ VÒNG QUAY ======================
+                // THAY ĐỔI VỊ TRÍ VÒNG QUAY
                 mainAxisAlignment: MainAxisAlignment.start, // Căn trên cùng
                 children: [
                   const SizedBox(height: 80), // Thêm khoảng trống từ trên xuống để vòng quay không bị sát mép
-                  // ======================================================================
                   SizedBox(
-                    // ====================== THAY ĐỔI KÍCH THƯỚC VÒNG QUAY ======================
+                    // THAY ĐỔI KÍCH THƯỚC VÒNG QUAY
                     height: 261, // Giảm chiều cao
                     width: 261,  // Giảm chiều rộng
-                    // ==========================================================================
                     child: FortuneWheel(
                       selected: selected.stream,
                       animateFirst: false,
@@ -143,11 +144,9 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
                       items: [
                         for (var i = 0; i < rewards.length; i++)
                           FortuneItem(
-                            // ====================== THAY ĐỔI TẠI ĐÂY ======================
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  // Đưa Text vào trong (bên trái)
                                   Flexible(
                                     child: Padding(
                                       padding: const EdgeInsets.only(left: 8.0), // Thêm padding để chữ không dính tâm
@@ -164,7 +163,6 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-
                                   // Đưa Icon ra ngoài (bên phải)
                                   if (rewards[i].imageUrl != null && rewards[i].imageUrl!.isNotEmpty)
                                     Image.network(rewards[i].imageUrl!, width: 30, height: 30)
@@ -176,7 +174,6 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
                                     ),
                                 ],
                               ),
-                              // =============================================================
                               style: FortuneItemStyle(
                                 color: i.isEven ? Colors.redAccent : Colors.white,
                                 borderColor: Colors.grey.shade400,
@@ -213,23 +210,33 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
                       },
                     ),
                   ),
-                  const Spacer(), // Đẩy phần tử dưới lên trên (tức là vòng quay sẽ ở trên)
-                  Text('Bạn còn: ${user.spinCount} lượt quay', style: const TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: (state.status == LuckyWheelStatus.spinning || user.spinCount == 0)
-                        ? null
-                        : () {
-                      context.read<LuckyWheelCubit>().spinWheel();
+                  const Spacer(),
+                  StreamBuilder<int>(
+                    stream: _spinCountStream,
+                    builder: (context, snapshot) {
+                      final spinCount = snapshot.data ?? 0;
+                      return Column(
+                        children: [
+                          Text('Bạn còn: $spinCount lượt quay', style: const TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                          const SizedBox(height: 24),
+                          ElevatedButton(
+                            onPressed: (state.status == LuckyWheelStatus.spinning || spinCount == 0)
+                                ? null
+                                : () {
+                              context.read<LuckyWheelCubit>().spinWheel();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 20),
+                              textStyle: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                              shape: const StadiumBorder(),
+                            ),
+                            child: state.status == LuckyWheelStatus.spinning
+                                ? const CircularProgressIndicator(color: Colors.white)
+                                : const Text('QUAY'),
+                          ),
+                        ],
+                      );
                     },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 20),
-                      textStyle: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                      shape: const StadiumBorder(),
-                    ),
-                    child: state.status == LuckyWheelStatus.spinning
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text('QUAY'),
                   ),
                   const SizedBox(height: 48),
                 ],

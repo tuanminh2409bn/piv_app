@@ -48,4 +48,6 @@ abstract class UserProfileRepository {
   Future<Either<Failure, List<UserModel>>> getUsersByIds(List<String> userIds);
 
   Future<Either<Failure, List<UserModel>>> getAllAgents();
+
+  Stream<int> watchSpinCount(String userId);
 }

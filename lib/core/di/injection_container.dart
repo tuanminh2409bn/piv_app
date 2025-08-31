@@ -65,6 +65,7 @@ import 'package:piv_app/features/lucky_wheel/data/repositories/lucky_wheel_repos
 import 'package:piv_app/features/lucky_wheel/domain/repositories/lucky_wheel_repository.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/bloc/admin/lucky_wheel_admin_cubit.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/bloc/lucky_wheel_cubit.dart';
+import 'package:piv_app/features/lucky_wheel/presentation/bloc/history/spin_history_cubit.dart';
 
 
 final sl = GetIt.instance;
@@ -154,4 +155,5 @@ Future<void> initializeDependencies() async {
   sl.registerLazySingleton<LuckyWheelRepository>(() => LuckyWheelRepositoryImpl(firestore: sl(), functions: sl(), auth: sl(),),);
   sl.registerFactory(() => LuckyWheelCubit(repository: sl(), authBloc: sl(),),);
   sl.registerFactory(() => LuckyWheelAdminCubit(repository: sl(),),);
+  sl.registerFactory(() => SpinHistoryCubit(repository: sl()));
 }

@@ -332,4 +332,15 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
       return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
     }
   }
+
+  @override
+  Stream<int> watchSpinCount(String userId) {
+    return _firestore.collection('users').doc(userId).snapshots().map((snap) {
+      if (!snap.exists || snap.data() == null) {
+        return 0;
+      }
+      // Trích xuất và trả về chỉ số spinCount
+      return (snap.data()!['spinCount'] as int?) ?? 0;
+    });
+  }
 }

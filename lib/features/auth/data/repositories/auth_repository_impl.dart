@@ -1,5 +1,3 @@
-// lib/features/auth/data/repositories/auth_repository_impl.dart
-
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,61 +9,48 @@ import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/auth/domain/repositories/auth_repository.dart';
 
+
+
 class AuthRepositoryImpl implements AuthRepository {
   final firebase_auth.FirebaseAuth _firebaseAuth;
   final FirebaseFirestore _firestore;
   final GoogleSignIn _googleSignIn;
-
-  // StreamController vẫn giữ nguyên
   final _userStreamController = StreamController<UserModel>.broadcast();
-  // SỬA: Thêm một biến để quản lý việc lắng nghe Firestore
-  StreamSubscription<DocumentSnapshot>? _firestoreSubscription;
+
+
 
   AuthRepositoryImpl({
     firebase_auth.FirebaseAuth? firebaseAuth,
     FirebaseFirestore? firestore,
     GoogleSignIn? googleSignIn,
-  })  : _firebaseAuth = firebaseAuth ?? firebase_auth.FirebaseAuth.instance,
+  }) :
+        _firebaseAuth = firebaseAuth ?? firebase_auth.FirebaseAuth.instance,
         _firestore = firestore ?? FirebaseFirestore.instance,
         _googleSignIn = googleSignIn ?? GoogleSignIn() {
 
-    // ====================== THAY ĐỔI LOGIC LẮNG NGHE TẠI ĐÂY ======================
-    _firebaseAuth.authStateChanges().listen((firebaseUser) {
-      // Hủy bỏ việc lắng nghe cũ (nếu có) trước khi tạo một cái mới
-      _firestoreSubscription?.cancel();
-
+    _firebaseAuth.authStateChanges().listen((firebaseUser) async {
       if (firebaseUser == null) {
         _userStreamController.add(UserModel.empty);
       } else {
-        // Dùng .snapshots() để lắng nghe sự thay đổi theo thời gian thực
-        _firestoreSubscription = _firestore
-            .collection('users')
-            .doc(firebaseUser.uid)
-            .snapshots()
-            .listen((userDoc) {
-          if (userDoc.exists && userDoc.data() != null) {
-            final user = UserModel.fromSnap(userDoc); // Dùng fromSnap cho DocumentSnapshot
-            if (user.status != 'active') {
-              developer.log('User ${user.id} status is ${user.status}. Forcing logout.', name: 'AuthRepository');
-              logOut();
-              // _userStreamController đã được xử lý ở authStateChanges tiếp theo
-            } else {
-              _userStreamController.add(user);
-            }
-          } else {
-            // User đã xác thực nhưng không có document trong 'users'
+        final userDoc = await _firestore.collection('users').doc(firebaseUser.uid).get();
+        if (userDoc.exists && userDoc.data() != null) {
+          final user = UserModel.fromJson(userDoc.data()!);
+          if (user.status != 'active') {
+            developer.log('User ${user.id} logged in but status is ${user.status}. Forcing logout.', name: 'AuthRepository');
+            await logOut();
             _userStreamController.add(UserModel.empty);
+          } else {
+            _userStreamController.add(user);
           }
-        });
+        } else {
+          _userStreamController.add(UserModel.empty);
+        }
       }
     });
-    // ===========================================================================
   }
 
   @override
   Stream<UserModel> get user => _userStreamController.stream;
-
-  // ... (Tất cả các hàm khác từ getCurrentUser đến hết file giữ nguyên không đổi)
   @override
   Future<Either<Failure, UserModel>> getCurrentUser() async {
     try {
@@ -73,7 +58,7 @@ class AuthRepositoryImpl implements AuthRepository {
       if (firebaseUser != null) {
         final userDoc = await _firestore.collection('users').doc(firebaseUser.uid).get();
         if (userDoc.exists && userDoc.data() != null) {
-          return Right(UserModel.fromSnap(userDoc)); // Sửa lại dùng fromSnap
+          return Right(UserModel.fromJson(userDoc.data()!));
         } else {
           return Right(UserModel(
             id: firebaseUser.uid,
@@ -107,6 +92,7 @@ class AuthRepositoryImpl implements AuthRepository {
         final firebaseUser = userCredential.user!;
         if (displayName != null && displayName.isNotEmpty) {
           await firebaseUser.updateDisplayName(displayName);
+
         }
 
         String? foundReferrerId;
@@ -116,7 +102,7 @@ class AuthRepositoryImpl implements AuthRepository {
           final referrerDoc = await _firestore.collection('users').doc(referralCode).get();
           if (referrerDoc.exists) {
             foundReferrerId = referrerDoc.id;
-            final referrerData = UserModel.fromSnap(referrerDoc);
+            final referrerData = UserModel.fromJson(referrerDoc.data()!);
             if (referrerData.role == 'sales_rep') {
               foundSalesRepId = referrerDoc.id;
             }
@@ -132,13 +118,12 @@ class AuthRepositoryImpl implements AuthRepository {
           referralPromptPending: (foundReferrerId == null),
         );
         await _firestore.collection('users').doc(firebaseUser.uid).set(newUser.toJson());
-
         await _firebaseAuth.signOut();
-
         return const Right(unit);
       } else {
         return const Left(AuthFailure('Không thể tạo người dùng.'));
       }
+
     } on firebase_auth.FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
         return Left(AuthFailure('Địa chỉ email này đã được sử dụng.'));
@@ -160,20 +145,17 @@ class AuthRepositoryImpl implements AuthRepository {
         password: password,
       );
       final firebaseUser = userCredential.user;
-
       if (firebaseUser == null) {
         return Left(AuthFailure('Đăng nhập thất bại, không có thông tin người dùng.'));
       }
 
       final userDoc = await _firestore.collection('users').doc(firebaseUser.uid).get();
-
       if (!userDoc.exists) {
         await _firebaseAuth.signOut();
         return Left(AuthFailure('Tài khoản không tồn tại trong hệ thống. Vui lòng liên hệ quản trị viên.'));
       }
 
-      final user = UserModel.fromSnap(userDoc);
-
+      final user = UserModel.fromJson(userDoc.data()!);
       if (user.status == 'pending_approval') {
         await _firebaseAuth.signOut();
         return Left(AuthFailure('Tài khoản của bạn đang chờ phê duyệt.'));
@@ -185,7 +167,6 @@ class AuthRepositoryImpl implements AuthRepository {
       }
 
       return const Right(unit);
-
     } on firebase_auth.FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
         return Left(AuthFailure('Email hoặc mật khẩu không chính xác.'));
@@ -195,6 +176,8 @@ class AuthRepositoryImpl implements AuthRepository {
       return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
     }
   }
+
+
 
   @override
   Future<Either<Failure, Unit>> logOut() async {
@@ -242,6 +225,8 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
+
+
   @override
   Future<Either<Failure, Unit>> signInWithFacebook() async {
     try {
@@ -250,7 +235,6 @@ class AuthRepositoryImpl implements AuthRepository {
         final AccessToken accessToken = result.accessToken!;
         final firebase_auth.AuthCredential credential =
         firebase_auth.FacebookAuthProvider.credential(accessToken.tokenString);
-
         return _linkOrCreateUser(credential);
       } else if (result.status == LoginStatus.cancelled) {
         return Left(AuthFailure('Đã hủy đăng nhập bằng Facebook.'));
@@ -268,11 +252,9 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       final userCredential = await _firebaseAuth.signInWithCredential(credential);
       final firebaseUser = userCredential.user;
-
       if (firebaseUser != null) {
         final userDoc = _firestore.collection('users').doc(firebaseUser.uid);
         final docSnapshot = await userDoc.get();
-
         if (!docSnapshot.exists) {
           developer.log('Creating new user in Firestore: ${firebaseUser.uid}', name: 'AuthRepository');
           final newUser = UserModel(
@@ -293,7 +275,7 @@ class AuthRepositoryImpl implements AuthRepository {
           return Left(AuthFailure('Không tìm thấy thông tin tài khoản sau khi đăng nhập.'));
         }
 
-        final user = UserModel.fromSnap(updatedUserSnapshot);
+        final user = UserModel.fromJson(updatedUserSnapshot.data()!);
         if (user.status != 'active') {
           await logOut();
           if (user.status == 'pending_approval') {
@@ -301,6 +283,8 @@ class AuthRepositoryImpl implements AuthRepository {
           }
           return Left(AuthFailure('Tài khoản của bạn không hoạt động.'));
         }
+
+
 
         return const Right(unit);
       } else {
@@ -322,6 +306,8 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 }
+
+
 
 extension StringExtension on String {
   String capitalize() {

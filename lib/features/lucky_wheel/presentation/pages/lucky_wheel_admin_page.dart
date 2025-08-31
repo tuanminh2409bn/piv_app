@@ -7,6 +7,7 @@ import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/data/models/lucky_wheel_campaign_model.dart';
 import 'package:piv_app/data/models/spin_history_model.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/bloc/admin/lucky_wheel_admin_cubit.dart';
+import 'package:piv_app/features/lucky_wheel/presentation/pages/spin_history_page.dart';
 
 class LuckyWheelAdminPage extends StatelessWidget {
   const LuckyWheelAdminPage({super.key});
@@ -30,7 +31,7 @@ class LuckyWheelAdminPage extends StatelessWidget {
           body: const TabBarView(
             children: [
               CampaignsManagementView(),
-              SpinHistoryView(),
+              SpinHistoryPage(isMyHistory: false),
             ],
           ),
           floatingActionButton: FloatingActionButton(
