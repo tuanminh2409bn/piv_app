@@ -204,6 +204,7 @@ class _RewardInputTileState extends State<RewardInputTile> {
               decoration: const InputDecoration(labelText: 'Tên phần thưởng'),
               onChanged: (_) => _update(),
             ),
+            const SizedBox(height: 15),
             Row(
               children: [
                 Expanded(
@@ -236,7 +237,6 @@ class _RewardInputTileState extends State<RewardInputTile> {
   }
 }
 
-// Thêm copyWith vào RewardModel để dễ dàng cập nhật
 extension RewardModelCopyWith on RewardModel {
   RewardModel copyWith({String? name, int? probability, int? limit}) {
     return RewardModel(
