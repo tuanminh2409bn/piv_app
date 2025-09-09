@@ -162,10 +162,6 @@ Future<void> initializeDependencies() async {
   sl.registerFactory(() => SpinHistoryCubit(repository: sl()));
   sl.registerFactory(() => CampaignFormCubit(repository: sl()));
 
-  void _registerNotificationFeature() {
-    sl.registerLazySingleton<NotificationRepository>(() =>
-        NotificationRepositoryImpl(),);
-    sl.registerFactory(() =>
-        NotificationCubit(notificationRepository: sl(), authBloc: sl(),),);
-  }
+  sl.registerLazySingleton<NotificationRepository>(() => NotificationRepositoryImpl(),);
+  sl.registerFactory(() => NotificationCubit(notificationRepository: sl(), authBloc: sl(),),);
 }
