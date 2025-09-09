@@ -16,6 +16,10 @@ import 'package:piv_app/features/wishlist/presentation/bloc/wishlist_cubit.dart'
 import 'package:piv_app/features/admin/presentation/pages/admin_home_page.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/sales_rep_home_page.dart';
 import 'package:piv_app/features/accountant/presentation/pages/accountant_home_page.dart';
+import 'package:piv_app/features/notifications/presentation/bloc/notification_cubit.dart';
+import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
+import 'package:piv_app/features/cart/presentation/widgets/cart_icon_with_badge.dart';
+import 'package:timeago/timeago.dart' as timeago;
 
 // SỬA: Thêm GlobalKey để điều hướng từ bên ngoài widget
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -37,6 +41,8 @@ Future<void> main() async {
   // Cài đặt Bloc Observer
   Bloc.observer = di.sl<AppBlocObserver>();
 
+  timeago.setLocaleMessages('vi', timeago.ViMessages());
+
   // Chạy ứng dụng
   runApp(const MyApp());
 }
@@ -52,13 +58,13 @@ class MyApp extends StatelessWidget {
         BlocProvider(create: (context) => di.sl<CartCubit>()),
         BlocProvider(create: (context) => di.sl<WishlistCubit>()),
         BlocProvider(create: (context) => di.sl<ProfileCubit>()),
+        BlocProvider(create: (context) => di.sl<NotificationCubit>()),
       ],
       child: MaterialApp(
-        // SỬA: Gắn navigatorKey vào MaterialApp
         navigatorKey: navigatorKey,
         title: 'Phân Bón PIV',
         debugShowCheckedModeBanner: false,
-        theme: _buildThemeData(), // Tách theme ra một hàm riêng cho gọn gàng
+        theme: _buildThemeData(),
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
@@ -69,13 +75,11 @@ class MyApp extends StatelessWidget {
           Locale('en', 'US'),
         ],
         locale: const Locale('vi', 'VN'),
-        // SỬA: Đơn giản hóa luồng điều khiển, không cần SplashScreen riêng biệt
         home: const InitialScreenController(),
       ),
     );
   }
 
-  // Tách theme ra hàm riêng để widget build() gọn hơn
   ThemeData _buildThemeData() {
     return ThemeData(
         primarySwatch: Colors.green,

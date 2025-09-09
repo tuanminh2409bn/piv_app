@@ -1,3 +1,5 @@
+// Dán toàn bộ mã này để thay thế file cũ
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
@@ -11,6 +13,9 @@ import 'package:piv_app/features/profile/presentation/pages/profile_page.dart';
 import 'package:piv_app/features/products/presentation/pages/all_categories_page.dart';
 import 'package:piv_app/features/profile/presentation/pages/qr_scanner_page.dart';
 import 'package:piv_app/features/quick_order/presentation/pages/quick_order_page.dart';
+// ** LƯU Ý: 2 import này giống hệt nhau, bạn có thể xóa 1 dòng đi **
+// import 'package:piv_app/features/cart/presentation/widgets/cart_icon_with_badge.dart';
+import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -87,6 +92,7 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           actionsIconTheme: const IconThemeData(color: Colors.white),
+          // ====> [SỬA ĐỔI DUY NHẤT Ở ĐÂY] <====
           actions: [
             IconButton(
               icon: const Icon(Icons.flash_on_outlined),
@@ -95,17 +101,11 @@ class _MainScreenState extends State<MainScreen> {
                 Navigator.of(context).push(QuickOrderPage.route());
               },
             ),
+            const NotificationIconWithBadge(iconColor: Colors.white), // THÊM VÀO
             CartIconWithBadge(
               iconColor: Colors.white,
               onPressed: () {
                 Navigator.of(context).push(CartPage.route());
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Đăng xuất',
-              onPressed: () {
-                context.read<AuthBloc>().add(AuthLogoutRequested());
               },
             ),
           ],
@@ -142,6 +142,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _showReferralPromptDialog(BuildContext context) {
+    // ... Giữ nguyên hàm này ...
     final profileCubit = context.read<ProfileCubit>();
     final formKey = GlobalKey<FormState>();
     final codeController = TextEditingController();

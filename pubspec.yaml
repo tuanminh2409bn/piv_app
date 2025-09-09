@@ -52,6 +52,8 @@ dependencies:
   firebase_messaging:
   flutter_local_notifications:
   flutter_fortune_wheel:
+  timeago:
+  badges:
 
 dev_dependencies:
   flutter_test:

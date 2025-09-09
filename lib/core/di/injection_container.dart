@@ -67,6 +67,9 @@ import 'package:piv_app/features/lucky_wheel/presentation/bloc/admin/lucky_wheel
 import 'package:piv_app/features/lucky_wheel/presentation/bloc/lucky_wheel_cubit.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/bloc/history/spin_history_cubit.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/bloc/admin/campaign_form_cubit.dart';
+import 'package:piv_app/features/notifications/data/repositories/notification_repository_impl.dart';
+import 'package:piv_app/features/notifications/domain/repositories/notification_repository.dart';
+import 'package:piv_app/features/notifications/presentation/bloc/notification_cubit.dart';
 
 
 final sl = GetIt.instance;
@@ -158,4 +161,11 @@ Future<void> initializeDependencies() async {
   sl.registerFactory(() => LuckyWheelAdminCubit(repository: sl(),),);
   sl.registerFactory(() => SpinHistoryCubit(repository: sl()));
   sl.registerFactory(() => CampaignFormCubit(repository: sl()));
+
+  void _registerNotificationFeature() {
+    sl.registerLazySingleton<NotificationRepository>(() =>
+        NotificationRepositoryImpl(),);
+    sl.registerFactory(() =>
+        NotificationCubit(notificationRepository: sl(), authBloc: sl(),),);
+  }
 }

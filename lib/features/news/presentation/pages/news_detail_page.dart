@@ -1,10 +1,11 @@
+//lib/features/news/presentation/pages/news_detail_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/news/presentation/bloc/news_detail_cubit.dart';
 import 'package:piv_app/data/models/news_article_model.dart';
-// 1. Import package url_launcher
 import 'package:url_launcher/url_launcher.dart';
 
 class NewsDetailPage extends StatelessWidget {
