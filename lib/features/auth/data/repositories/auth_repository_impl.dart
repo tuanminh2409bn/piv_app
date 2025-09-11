@@ -266,13 +266,11 @@ class AuthRepositoryImpl implements AuthRepository {
           );
           await userDoc.set(newUser.toJson());
         }
-
         final updatedUserSnapshot = await userDoc.get();
         if (!updatedUserSnapshot.exists) {
           await logOut();
           return Left(AuthFailure('Không tìm thấy thông tin tài khoản sau khi đăng nhập.'));
         }
-
         final user = UserModel.fromJson(updatedUserSnapshot.data()!);
         if (user.status != 'active') {
           await logOut();
@@ -281,31 +279,15 @@ class AuthRepositoryImpl implements AuthRepository {
           }
           return Left(AuthFailure('Tài khoản của bạn không hoạt động.'));
         }
-
-
-
         return const Right(unit);
       } else {
         return Left(AuthFailure('Không thể lấy thông tin người dùng.'));
       }
-    } on firebase_auth.FirebaseAuthException catch (e) {
-      if (e.code == 'account-exists-with-different-credential' && e.email != null) {
-        final methods = await _firebaseAuth.fetchSignInMethodsForEmail(e.email!);
-        if (methods.isNotEmpty) {
-          String provider = methods.first.replaceAll('.com', '').capitalize();
-          return Left(AuthFailure('Email này đã được sử dụng. Vui lòng đăng nhập bằng $provider.'));
-        } else {
-          return Left(AuthFailure('Tài khoản đã tồn tại với một phương thức đăng nhập khác.'));
-        }
-      }
-      return Left(AuthFailure(e.message ?? 'Lỗi xác thực.'));
     } catch (e) {
       return Left(ServerFailure(e.toString()));
     }
   }
 }
-
-
 
 extension StringExtension on String {
   String capitalize() {

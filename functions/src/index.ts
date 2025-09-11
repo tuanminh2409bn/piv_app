@@ -479,7 +479,6 @@ export const onOrderStatusUpdate = onDocumentUpdated(
         const { userId, total, status: newStatus, salesRepId, shippingAddress, placedBy, shippingDate } = afterData;
         const oldStatus = beforeData.status;
 
-        // ... logic tính cam kết và vòng quay may mắn giữ nguyên ...
         if (newStatus === "completed" && oldStatus !== "completed") {
             try {
                 const userDoc = await db.collection("users").doc(userId).get();
@@ -565,105 +564,110 @@ export const onOrderStatusUpdate = onDocumentUpdated(
 
 
         const userName = shippingAddress?.recipientName ?? "Khách hàng";
-        const orderIdShort = orderId.substring(0, 8).toUpperCase();
-        const formattedTotal = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(total);
+                const orderIdShort = orderId.substring(0, 8).toUpperCase();
+                const formattedTotal = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(total);
 
-        // --- KỊCH BẢN 1: THÔNG BÁO KẾT QUẢ PHÊ DUYỆT CHO NGƯỜI ĐẶT HỘ ---
-        if (oldStatus === "pending_approval" && placedBy?.userId) {
-            const placerDoc = await db.collection("users").doc(placedBy.userId).get();
-            const placerData = placerDoc.data();
-            if (placerDoc.exists && placerData?.fcmToken) {
-                let title = "";
-                let body = "";
-                const type = "order_approval_result";
+                if (oldStatus === "pending_approval" && placedBy?.userId) {
+                    const placerDoc = await db.collection("users").doc(placedBy.userId).get();
+                    const placerData = placerDoc.data();
+                    if (placerDoc.exists) {
+                        let title = "";
+                        let body = "";
+                        const type = "order_approval_result";
 
-                if (newStatus === "pending") {
-                    title = "✅ Đơn hàng đã được phê duyệt";
-                    body = `Đại lý "${userName}" đã đồng ý đơn hàng #${orderIdShort} bạn tạo hộ.`;
-                } else if (newStatus === "rejected") {
-                    title = "❌ Đơn hàng đã bị từ chối";
-                    body = `Đại lý "${userName}" đã từ chối đơn hàng #${orderIdShort} bạn tạo hộ.`;
+                        if (newStatus === "pending") {
+                            title = "✅ Đơn hàng đã được phê duyệt";
+                            body = `Đại lý "${userName}" đã đồng ý đơn hàng #${orderIdShort} bạn tạo hộ.`;
+                        } else if (newStatus === "rejected") {
+                            title = "❌ Đơn hàng đã bị từ chối";
+                            body = `Đại lý "${userName}" đã từ chối đơn hàng #${orderIdShort} bạn tạo hộ.`;
+                        }
+
+                        if (title && body) {
+                            // Luôn lưu lịch sử
+                            await saveNotificationToFirestore(placedBy.userId, title, body, type, { orderId });
+
+                            // Chỉ gửi thông báo nếu có token
+                            if (placerData?.fcmToken) {
+                                 await sendDataOnlyNotification(placerData.fcmToken, {
+                                    title, body, type, orderId,
+                                });
+                            }
+                        }
+                    }
                 }
 
-                if (title && body) {
-                    await sendDataOnlyNotification(placerData.fcmToken, {
-                        title, body, type, orderId,
+                let notificationTitle: string | null = null;
+                let notificationBody: string | null = null;
+
+                switch (newStatus) {
+                    case "processing":
+                        notificationTitle = "✅ Đơn hàng đã được xác nhận";
+                        notificationBody = `Đơn hàng #${orderIdShort} của bạn trị giá ${formattedTotal} đang được chuẩn bị.`;
+                        break;
+                    case "shipped":
+                        notificationTitle = "🚚 Đơn hàng đang được giao";
+                        if (shippingDate?.toDate) {
+                            const formattedDate = format(shippingDate.toDate(), "dd/MM/yyyy", {timeZone: "Asia/Ho_Chi_Minh"});
+                            notificationBody = `Đơn hàng #${orderIdShort} của bạn đang được vận chuyển, dự kiến giao ngày ${formattedDate}.`;
+                        } else {
+                            notificationBody = `Đơn hàng #${orderIdShort} của bạn đang trên đường vận chuyển.`;
+                        }
+                        break;
+                    case "completed":
+                        notificationTitle = "✨ Đơn hàng đã hoàn thành";
+                        notificationBody = `Đơn hàng #${orderIdShort} của bạn đã giao thành công.`;
+                        break;
+                    case "cancelled":
+                        notificationTitle = "❌ Đơn hàng đã bị hủy";
+                        notificationBody = `Đơn hàng #${orderIdShort} của bạn đã bị hủy.`;
+                        break;
+                }
+
+                if (notificationTitle && notificationBody) {
+                    const commonPayload = {
+                        title: notificationTitle,
+                        body: notificationBody,
+                        orderId: orderId,
+                    };
+                    const type = "order_status_general";
+
+                    const recipientIds = new Set<string>();
+
+                    if (userId) recipientIds.add(userId);
+
+                    if (salesRepId) recipientIds.add(salesRepId);
+
+                    const staffSnapshot = await db.collection("users").where("role", "in", ["admin", "accountant"]).get();
+                    staffSnapshot.forEach((doc) => {
+                        recipientIds.add(doc.id);
                     });
-                    // [MỚI] Lưu thông báo
-                    await saveNotificationToFirestore(placedBy.userId, title, body, type, { orderId });
+
+                    const savePromises = Array.from(recipientIds).map(id =>
+                        saveNotificationToFirestore(id, commonPayload.title, commonPayload.body, type, { orderId })
+                    );
+                    await Promise.all(savePromises);
+
+
+                    if (recipientIds.size > 0) {
+                         const usersSnapshot = await db.collection("users")
+                            .where(admin.firestore.FieldPath.documentId(), "in", Array.from(recipientIds))
+                            .get();
+
+                         const tokensToSend = usersSnapshot.docs
+                            .map(doc => doc.data().fcmToken as string)
+                            .filter(token => token);
+
+                         if (tokensToSend.length > 0) {
+                            await sendDataOnlyNotification(tokensToSend, {
+                               ...commonPayload,
+                               type,
+                            });
+                         }
+                    }
                 }
-            }
-        }
-
-        // --- KỊCH BẢN 2: THÔNG BÁO CÁC CẬP NHẬT TRẠNG THÁI KHÁC ---
-        let notificationTitle: string | null = null;
-        let notificationBody: string | null = null;
-
-        switch (newStatus) {
-            case "processing":
-                notificationTitle = "✅ Đơn hàng đã được xác nhận";
-                notificationBody = `Đơn hàng #${orderIdShort} của "${userName}" trị giá ${formattedTotal} đang được chuẩn bị.`;
-                break;
-            case "shipped":
-                notificationTitle = "🚚 Đơn hàng đang được giao";
-                if (shippingDate?.toDate) {
-                    const formattedDate = format(shippingDate.toDate(), "dd/MM/yyyy", {timeZone: "Asia/Ho_Chi_Minh"});
-                    notificationBody = `Đơn hàng #${orderIdShort} của "${userName}" đang được vận chuyển, dự kiến giao ngày ${formattedDate}.`;
-                } else {
-                    notificationBody = `Đơn hàng #${orderIdShort} của "${userName}" đang trên đường vận chuyển.`;
-                }
-                break;
-            case "completed":
-                notificationTitle = "✨ Đơn hàng đã hoàn thành";
-                notificationBody = `Đơn hàng #${orderIdShort} của "${userName}" đã giao thành công.`;
-                break;
-            case "cancelled":
-                notificationTitle = "❌ Đơn hàng đã bị hủy";
-                notificationBody = `Đơn hàng #${orderIdShort} của "${userName}" đã bị hủy.`;
-                break;
-        }
-
-        if (notificationTitle && notificationBody) {
-            const commonPayload = {
-                title: notificationTitle,
-                body: notificationBody,
-                orderId: orderId,
-            };
-            const type = "order_status_general";
-
-            // [SỬA ĐỔI] Tập hợp người nhận để lưu thông báo
-            const recipients: { id: string, token?: string }[] = [];
-
-            const userDoc = await db.collection("users").doc(userId).get();
-            if (userDoc.exists) recipients.push({ id: userId, token: userDoc.data()?.fcmToken });
-
-            if (salesRepId) {
-                const salesRepDoc = await db.collection("users").doc(salesRepId).get();
-                if (salesRepDoc.exists) recipients.push({ id: salesRepId, token: salesRepDoc.data()?.fcmToken });
-            }
-
-            const staffSnapshot = await db.collection("users").where("role", "in", ["admin", "accountant"]).get();
-            staffSnapshot.forEach((doc) => {
-                recipients.push({ id: doc.id, token: doc.data().fcmToken });
+                return null;
             });
-
-            const validRecipients = recipients.filter(r => r.token);
-
-            if (validRecipients.length > 0) {
-                await sendDataOnlyNotification(validRecipients.map(r => r.token!), {
-                   ...commonPayload,
-                   type,
-                });
-
-                // [MỚI] Lưu thông báo cho tất cả người nhận
-                const savePromises = validRecipients.map(r =>
-                    saveNotificationToFirestore(r.id, commonPayload.title, commonPayload.body, type, { orderId })
-                );
-                await Promise.all(savePromises);
-            }
-        }
-        return null;
-    });
 // ===================================================================
 // FUNCTION 7: GỬI THÔNG BÁO KHI CÓ BÀI VIẾT MỚI
 // ===================================================================
