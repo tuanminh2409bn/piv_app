@@ -7,17 +7,17 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:435533952242:android:1fea7d3c939a79bc004c6b",
+        "mobilesdk_app_id": "1:435533952242:android:4b2d0f67ad239bd9004c6b",
         "android_client_info": {
-          "package_name": "com.piv.fertilizer.piv_app"
+          "package_name": "com.piv.app"
         }
       },
       "oauth_client": [
         {
-          "client_id": "435533952242-prh6q5dmuoql3mj9ql5a24ucu2gdn5lu.apps.googleusercontent.com",
+          "client_id": "435533952242-2am4np65t8ceg86mlabfd3hailc4ln1d.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.piv.fertilizer.piv_app",
+            "package_name": "com.piv.app",
             "certificate_hash": "6f94031f9a6ecc9d69fdd527c1e7e29f759d39b2"
           }
         },
@@ -39,10 +39,10 @@
               "client_type": 3
             },
             {
-              "client_id": "435533952242-ghv5fujaiq52p5r3d9bounsugmeh5bsa.apps.googleusercontent.com",
+              "client_id": "435533952242-16p9q7bah0iv22m3p75urrabuc0p7v9e.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.piv.fertilizer.pivApp"
+                "bundle_id": "com.piv.app"
               }
             }
           ]

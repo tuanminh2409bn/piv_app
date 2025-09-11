@@ -52,7 +52,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyAcn3v0PcMwc1jQe7S427oteWsq1q_F2_s',
-    appId: '1:435533952242:android:1fea7d3c939a79bc004c6b',
+    appId: '1:435533952242:android:4b2d0f67ad239bd9004c6b',
     messagingSenderId: '435533952242',
     projectId: 'piv-fertilizer-app',
     storageBucket: 'piv-fertilizer-app.firebasestorage.app',
@@ -60,10 +60,12 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBUWgSXb-CzTFuwdCnNQnbnKKH_WFtzDYA',
-    appId: '1:435533952242:ios:efe0855ee802f4a8004c6b',
+    appId: '1:435533952242:ios:84cc04c427d1f9f8004c6b',
     messagingSenderId: '435533952242',
     projectId: 'piv-fertilizer-app',
     storageBucket: 'piv-fertilizer-app.firebasestorage.app',
+    androidClientId: '435533952242-2am4np65t8ceg86mlabfd3hailc4ln1d.apps.googleusercontent.com',
+    iosClientId: '435533952242-ghv5fujaiq52p5r3d9bounsugmeh5bsa.apps.googleusercontent.com',
     iosBundleId: 'com.piv.fertilizer.pivApp',
   );
 

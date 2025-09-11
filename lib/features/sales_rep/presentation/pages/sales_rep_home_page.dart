@@ -1,5 +1,6 @@
 // lib/features/sales_rep/presentation/pages/sales_rep_home_page.dart
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -388,7 +389,8 @@ class SalesRepCommissionsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    // Nội dung gốc của màn hình hoa hồng
+    final originalContent = Column(
       children: [
         _buildFilters(context),
         const Divider(height: 1),
@@ -423,8 +425,48 @@ class SalesRepCommissionsView extends StatelessWidget {
         ),
       ],
     );
+
+    // Sử dụng Stack để chồng lớp phủ lên trên nội dung gốc
+    return Stack(
+      children: [
+        // Lớp 1: Nội dung gốc
+        originalContent,
+
+        // Lớp 2: Lớp kính mờ
+        Positioned.fill(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 4.0, sigmaY: 4.0),
+            child: Container(
+              color: Colors.black.withOpacity(0.1),
+            ),
+          ),
+        ),
+
+        // Lớp 3: Lớp thông báo
+        Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Text(
+              'Tính năng này tạm thời chưa được áp dụng',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
+  // Các hàm helper bên dưới được giữ nguyên để không gây lỗi biên dịch,
+  // mặc dù chúng sẽ bị lớp phủ che đi.
   Widget _buildFilters(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(8.0),

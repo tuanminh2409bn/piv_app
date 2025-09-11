@@ -17,8 +17,6 @@ import 'package:piv_app/features/admin/presentation/pages/admin_home_page.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/sales_rep_home_page.dart';
 import 'package:piv_app/features/accountant/presentation/pages/accountant_home_page.dart';
 import 'package:piv_app/features/notifications/presentation/bloc/notification_cubit.dart';
-import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
-import 'package:piv_app/features/cart/presentation/widgets/cart_icon_with_badge.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 // SỬA: Thêm GlobalKey để điều hướng từ bên ngoài widget

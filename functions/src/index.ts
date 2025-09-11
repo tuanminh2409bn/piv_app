@@ -312,7 +312,7 @@ export const onUserUpdate = onDocumentUpdated(
 // ===================================================================
 // FUNCTION 4: GỬI THÔNG BÁO KHI CÓ HOA HỒNG
 // ===================================================================
-export const onCommissionCreated = onDocumentCreated(
+/* export const onCommissionCreated = onDocumentCreated(
     {document: "commissions/{commissionId}", region: "asia-southeast1"},
     async (event) => {
         const commission = event.data?.data();
@@ -372,7 +372,7 @@ export const onCommissionCreated = onDocumentCreated(
             logger.error(`Error sending commission notification for ${commissionId}:`, e);
         }
         return null;
-    });
+    }); */
 
 // ===================================================================
 // FUNCTION 5: KHI TẠO ĐƠN HÀNG MỚI

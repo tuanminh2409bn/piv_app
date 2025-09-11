@@ -20,7 +20,7 @@ fun getLocalProperty(key: String, project: Project): String {
 }
 
 android {
-    namespace = "com.piv.fertilizer.piv_app"
+    namespace = "com.piv.app"
     compileSdk = 35
     ndkVersion = "27.0.12077973"
 
@@ -39,7 +39,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.piv.fertilizer.piv_app"
+        applicationId = "com.piv.app"
         minSdkVersion(23)
         targetSdk = 35
         versionCode = getLocalProperty("flutter.versionCode", project).toIntOrNull() ?: 1
