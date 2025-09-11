@@ -21,11 +21,18 @@ class AdminOrdersCubit extends Cubit<AdminOrdersState> {
         super(const AdminOrdersState());
 
   Future<void> fetchAllOrders() async {
+    if (isClosed) return;
     emit(state.copyWith(status: AdminOrdersStatus.loading));
+
     final ordersResult = await _orderRepository.getAllOrders();
 
+    if (isClosed) return;
+
     await ordersResult.fold(
-          (failure) async => emit(state.copyWith(status: AdminOrdersStatus.error, errorMessage: failure.message)),
+          (failure) async {
+        if (isClosed) return;
+        emit(state.copyWith(status: AdminOrdersStatus.error, errorMessage: failure.message));
+      },
           (orders) async {
         final userIds = <String>{};
         for (final order in orders) {
@@ -36,11 +43,15 @@ class AdminOrdersCubit extends Cubit<AdminOrdersState> {
         }
 
         if (userIds.isEmpty) {
+          if (isClosed) return;
           emit(state.copyWith(status: AdminOrdersStatus.success, allOrders: orders, usersMap: {}));
           return;
         }
 
         final usersResult = await _userProfileRepository.getUsersByIds(userIds.toList());
+
+        // Kiểm tra lần cuối trước khi emit kết quả cuối cùng
+        if (isClosed) return;
 
         usersResult.fold(
                 (failure) {

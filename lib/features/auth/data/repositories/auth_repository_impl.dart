@@ -9,15 +9,11 @@ import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/auth/domain/repositories/auth_repository.dart';
 
-
-
 class AuthRepositoryImpl implements AuthRepository {
   final firebase_auth.FirebaseAuth _firebaseAuth;
   final FirebaseFirestore _firestore;
   final GoogleSignIn _googleSignIn;
   final _userStreamController = StreamController<UserModel>.broadcast();
-
-
 
   AuthRepositoryImpl({
     firebase_auth.FirebaseAuth? firebaseAuth,
@@ -225,17 +221,19 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
-
-
   @override
   Future<Either<Failure, Unit>> signInWithFacebook() async {
     try {
-      final LoginResult result = await FacebookAuth.instance.login();
+      final LoginResult result = await FacebookAuth.instance.login(
+        permissions: ['public_profile', 'email'],
+      );
+
       if (result.status == LoginStatus.success) {
         final AccessToken accessToken = result.accessToken!;
         final firebase_auth.AuthCredential credential =
         firebase_auth.FacebookAuthProvider.credential(accessToken.tokenString);
         return _linkOrCreateUser(credential);
+
       } else if (result.status == LoginStatus.cancelled) {
         return Left(AuthFailure('Đã hủy đăng nhập bằng Facebook.'));
       } else {
