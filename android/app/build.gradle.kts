@@ -9,6 +9,14 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Đọc file key.properties ngay tại thư mục app
+val keyProperties = Properties()
+// Dùng file() thay vì rootProject.file() để nó hiểu là đọc từ thư mục hiện tại (android/app)
+val keyPropertiesFile = file("key.properties")
+if (keyPropertiesFile.exists()) {
+    keyProperties.load(FileInputStream(keyPropertiesFile))
+}
+
 fun getLocalProperty(key: String, project: Project): String {
     val properties = Properties()
     val localPropertiesFile = project.rootProject.file("local.properties")
@@ -46,9 +54,20 @@ android {
         versionName = getLocalProperty("flutter.versionName", project)
     }
 
+    signingConfigs {
+        create("release") {
+            if (keyPropertiesFile.exists()) {
+                keyAlias = keyProperties.getProperty("keyAlias")
+                keyPassword = keyProperties.getProperty("keyPassword")
+                storeFile = file(keyProperties.getProperty("storeFile"))
+                storePassword = keyProperties.getProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

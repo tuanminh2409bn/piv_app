@@ -1,3 +1,6 @@
+// lib/features/admin/presentation/pages/admin_settings_page.dart
+
+import 'dart:ui'; // <--- THÊM IMPORT NÀY
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
@@ -14,12 +17,50 @@ class AdminSettingsPage extends StatelessWidget {
         appBar: AppBar(
           title: const Text('Cài đặt'),
         ),
-        body: const AdminSettingsView(),
+        // ====================== BẮT ĐẦU SỬA ĐỔI ======================
+        body: Stack(
+          children: [
+            // Lớp 1: Nội dung gốc của trang
+            const AdminSettingsView(),
+
+            // Lớp 2: Lớp kính mờ
+            Positioned.fill(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 4.0, sigmaY: 4.0),
+                child: Container(
+                  color: Colors.black.withOpacity(0.1),
+                ),
+              ),
+            ),
+
+            // Lớp 3: Lớp thông báo
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'Tính năng này tạm thời chưa được áp dụng',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        // ======================= KẾT THÚC SỬA ĐỔI =======================
       ),
     );
   }
 }
 
+// Nội dung của AdminSettingsView và các widget con được giữ nguyên không đổi
 class AdminSettingsView extends StatelessWidget {
   const AdminSettingsView({super.key});
 
