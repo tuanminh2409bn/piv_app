@@ -70,4 +70,4 @@ flutter:
     - assets/
 
 dependency_overrides:
-  facebook_auth_desktop: ^1.0.4
+  facebook_auth_desktop:

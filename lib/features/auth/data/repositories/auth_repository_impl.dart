@@ -235,7 +235,7 @@ class AuthRepositoryImpl implements AuthRepository {
       if (result.status == LoginStatus.success) {
         final AccessToken accessToken = result.accessToken!;
         final firebase_auth.AuthCredential credential =
-        firebase_auth.FacebookAuthProvider.credential(accessToken.token);
+        firebase_auth.FacebookAuthProvider.credential(accessToken.tokenString);
         return _linkOrCreateUser(credential);
 
       } else if (result.status == LoginStatus.cancelled) {
