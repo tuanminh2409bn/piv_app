@@ -1,3 +1,5 @@
+// lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -18,35 +20,53 @@ import 'package:piv_app/features/sales_rep/presentation/pages/sales_rep_home_pag
 import 'package:piv_app/features/accountant/presentation/pages/accountant_home_page.dart';
 import 'package:piv_app/features/notifications/presentation/bloc/notification_cubit.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'dart:developer' as developer;
 
-// SỬA: Thêm GlobalKey để điều hướng từ bên ngoài widget
+// 1. Thêm GlobalKey để điều hướng từ bên ngoài widget
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+// 2. Thêm hàm xử lý thông báo nền (phải nằm ở ngoài cùng)
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  developer.log("Handling a background message: ${message.messageId}", name: "BackgroundNotification");
+}
+
 Future<void> main() async {
-  // SỬA: Tối ưu hóa flow khởi tạo, thực hiện tất cả các tác vụ thiết yếu ở đây
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Khởi tạo các dependencies và services
+  // 3. Đăng ký hàm xử lý nền
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
   await di.initializeDependencies();
   await initializeDateFormatting('vi_VN', null);
 
-  // Khởi tạo NotificationService sau khi các dependencies khác đã sẵn sàng
-  await di.sl<NotificationService>().init();
+  // 4. Xóa dòng init() service ở đây, chúng ta sẽ chuyển nó vào trong MyApp
 
-  // Cài đặt Bloc Observer
   Bloc.observer = di.sl<AppBlocObserver>();
-
   timeago.setLocaleMessages('vi', timeago.ViMessages());
 
-  // Chạy ứng dụng
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+// 5. Chuyển MyApp thành StatefulWidget để khởi tạo service trong initState
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    di.sl<NotificationService>().init();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,9 +138,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// =================================================================
-//        WIDGET ĐIỀU KHIỂN TRANG BAN ĐẦU (GIỮ NGUYÊN)
-// =================================================================
+
 class InitialScreenController extends StatelessWidget {
   const InitialScreenController({super.key});
 

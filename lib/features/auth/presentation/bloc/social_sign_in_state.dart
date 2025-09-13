@@ -1,3 +1,5 @@
+//lib/features/auth/presentation/bloc/social_sign_in_state.dart
+
 part of 'social_sign_in_cubit.dart';
 
 enum SocialSignInStatus { initial, submitting, success, error }

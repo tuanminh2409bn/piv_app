@@ -1,3 +1,5 @@
+// lib/features/auth/domain/repositories/auth_repository.dart
+
 import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/user_model.dart';
@@ -37,4 +39,7 @@ abstract class AuthRepository {
 
   /// Đăng nhập bằng tài khoản Facebook.
   Future<Either<Failure, Unit>> signInWithFacebook();
+
+  /// Đăng nhập bằng tài khoản Apple.
+  Future<Either<Failure, Unit>> signInWithApple();
 }

@@ -1,9 +1,13 @@
+//lib/features/auth/presentation/pages/login_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/auth/presentation/bloc/login_cubit.dart';
 import 'package:piv_app/features/auth/presentation/bloc/social_sign_in_cubit.dart';
 import 'package:piv_app/features/auth/presentation/pages/register_page.dart';
+import 'dart:io';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
@@ -115,6 +119,14 @@ class _LoginFormState extends State<LoginForm> {
               create: (_) => sl<SocialSignInCubit>(),
               child: const _FacebookLoginButton(),
             ),
+
+            if (Platform.isIOS) ...[
+              const SizedBox(height: 12),
+              BlocProvider(
+                create: (_) => sl<SocialSignInCubit>(),
+                child: const _AppleLoginButton(),
+              ),
+            ],
 
             const SizedBox(height: 16.0),
 
@@ -298,6 +310,36 @@ class _FacebookLoginButton extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AppleLoginButton extends StatelessWidget {
+  const _AppleLoginButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<SocialSignInCubit, SocialSignInState>(
+      listener: (context, state) {
+        if (state.status == SocialSignInStatus.error) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(state.errorMessage ?? 'Đăng nhập Apple thất bại.')));
+        }
+      },
+      child: BlocBuilder<SocialSignInCubit, SocialSignInState>(
+        builder: (context, state) {
+          return state.status == SocialSignInStatus.submitting
+              ? const Center(child: CircularProgressIndicator())
+          // Sử dụng widget có sẵn từ package để đảm bảo đúng theo thiết kế của Apple
+              : SignInWithAppleButton(
+            onPressed: () => context.read<SocialSignInCubit>().logInWithApple(),
+            style: SignInWithAppleButtonStyle.black, // Có thể đổi thành .white hoặc .whiteOutline
+            borderRadius: const BorderRadius.all(Radius.circular(12.0)),
+            height: 48, // Đồng bộ chiều cao với các nút khác
           );
         },
       ),

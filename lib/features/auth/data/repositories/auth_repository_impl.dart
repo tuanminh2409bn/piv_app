@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:crypto/crypto.dart';
 import 'package:dartz/dartz.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:google_sign_in/google_sign_in.dart';
@@ -8,6 +11,7 @@ import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/auth/domain/repositories/auth_repository.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final firebase_auth.FirebaseAuth _firebaseAuth;
@@ -231,7 +235,7 @@ class AuthRepositoryImpl implements AuthRepository {
       if (result.status == LoginStatus.success) {
         final AccessToken accessToken = result.accessToken!;
         final firebase_auth.AuthCredential credential =
-        firebase_auth.FacebookAuthProvider.credential(accessToken.tokenString);
+        firebase_auth.FacebookAuthProvider.credential(accessToken.token);
         return _linkOrCreateUser(credential);
 
       } else if (result.status == LoginStatus.cancelled) {
@@ -244,6 +248,61 @@ class AuthRepositoryImpl implements AuthRepository {
     } catch (e) {
       return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
     }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> signInWithApple() async {
+    try {
+      final rawNonce = _generateNonce();
+      final nonce = _sha256ofString(rawNonce);
+
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: nonce,
+      );
+
+      final oauthCredential = firebase_auth.OAuthProvider('apple.com').credential(
+        idToken: appleCredential.identityToken,
+        rawNonce: rawNonce,
+        accessToken: appleCredential.authorizationCode,
+      );
+
+      // Cập nhật tên hiển thị nếu người dùng cung cấp lần đầu
+      if (appleCredential.givenName != null || appleCredential.familyName != null) {
+        String displayName = '${appleCredential.givenName ?? ''} ${appleCredential.familyName ?? ''}'.trim();
+        if (displayName.isNotEmpty && _firebaseAuth.currentUser?.displayName == null) {
+          await _firebaseAuth.currentUser?.updateDisplayName(displayName);
+        }
+      }
+
+      return _linkOrCreateUser(oauthCredential);
+
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      return Left(AuthFailure(e.message ?? 'Lỗi đăng nhập Apple.'));
+    } catch (e) {
+      // Bắt lỗi khi người dùng hủy bỏ
+      if (e is SignInWithAppleAuthorizationException && e.code == AuthorizationErrorCode.canceled) {
+        return Left(AuthFailure('Đã hủy đăng nhập bằng Apple.'));
+      }
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+    }
+  }
+
+  /// Tạo một chuỗi ngẫu nhiên (nonce) cho việc đăng nhập.
+  String _generateNonce([int length = 32]) {
+    final random = Random.secure();
+    final values = List<int>.generate(length, (i) => random.nextInt(256));
+    return base64Url.encode(values);
+  }
+
+  /// Băm một chuỗi sử dụng SHA256.
+  String _sha256ofString(String input) {
+    final bytes = utf8.encode(input);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
   }
 
   Future<Either<Failure, Unit>> _linkOrCreateUser(firebase_auth.AuthCredential credential) async {

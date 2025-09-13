@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>435533952242-ghv5fujaiq52p5r3d9bounsugmeh5bsa.apps.googleusercontent.com</string>
+	<string>435533952242-16p9q7bah0iv22m3p75urrabuc0p7v9e.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.435533952242-ghv5fujaiq52p5r3d9bounsugmeh5bsa</string>
+	<string>com.googleusercontent.apps.435533952242-16p9q7bah0iv22m3p75urrabuc0p7v9e</string>
 	<key>ANDROID_CLIENT_ID</key>
 	<string>435533952242-2am4np65t8ceg86mlabfd3hailc4ln1d.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
@@ -15,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.piv.fertilizer.pivApp</string>
+	<string>com.piv.app</string>
 	<key>PROJECT_ID</key>
 	<string>piv-fertilizer-app</string>
 	<key>STORAGE_BUCKET</key>
@@ -31,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:435533952242:ios:84cc04c427d1f9f8004c6b</string>
+	<string>1:435533952242:ios:947b0ac9eacfd3ad004c6b</string>
 </dict>
 </plist>
