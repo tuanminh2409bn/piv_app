@@ -69,10 +69,6 @@
 		<string>fbapi</string>
 		<string>fb-messenger-share-api</string>
 	</array>
-
-	<key>NSUserTrackingUsageDescription</key>
-	<string>Thông tin này được dùng để cá nhân hóa trải nghiệm và hỗ trợ các tính năng đăng nhập, giúp chúng tôi phục vụ bạn tốt hơn.</string>
-
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
