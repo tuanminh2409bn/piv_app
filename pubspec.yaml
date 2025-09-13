@@ -68,3 +68,6 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
+
+dependency_overrides:
+  facebook_auth_desktop: ^1.0.4
