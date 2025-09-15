@@ -6,12 +6,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart';
 import 'package:dartz/dartz.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/auth/domain/repositories/auth_repository.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final firebase_auth.FirebaseAuth _firebaseAuth;
@@ -228,6 +229,9 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<Either<Failure, Unit>> signInWithFacebook() async {
     try {
+      final status = await AppTrackingTransparency.requestTrackingAuthorization();
+      developer.log('App Tracking Transparency status: $status', name: 'AuthRepository');
+
       final LoginResult result = await FacebookAuth.instance.login(
         permissions: ['public_profile', 'email'],
       );

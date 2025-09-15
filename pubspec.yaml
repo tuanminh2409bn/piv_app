@@ -31,6 +31,7 @@ dependencies:
   # Auth
   google_sign_in: 6.3.0
   flutter_facebook_auth:
+  app_tracking_transparency:
 
   # Helpers & Utilities
   shared_preferences:
