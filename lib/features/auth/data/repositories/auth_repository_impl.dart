@@ -1,3 +1,5 @@
+//lib/features/auth/data/repositories/auth_repository_impl.dart
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
@@ -234,6 +236,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
       final LoginResult result = await FacebookAuth.instance.login(
         permissions: ['public_profile', 'email'],
+        loginTracking: LoginTracking.enabled,
       );
 
       if (result.status == LoginStatus.success) {
@@ -291,6 +294,40 @@ class AuthRepositoryImpl implements AuthRepository {
       if (e is SignInWithAppleAuthorizationException && e.code == AuthorizationErrorCode.canceled) {
         return Left(AuthFailure('Đã hủy đăng nhập bằng Apple.'));
       }
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> signInAnonymously() async {
+    try {
+      final userCredential = await _firebaseAuth.signInAnonymously();
+      final firebaseUser = userCredential.user;
+
+      if (firebaseUser != null) {
+        final userDoc = _firestore.collection('users').doc(firebaseUser.uid);
+        final docSnapshot = await userDoc.get();
+
+        // Chỉ tạo mới nếu user chưa tồn tại trong Firestore
+        if (!docSnapshot.exists) {
+          developer.log('Creating new GUEST user in Firestore: ${firebaseUser.uid}', name: 'AuthRepository');
+          final guestUser = UserModel(
+            id: firebaseUser.uid,
+            displayName: 'Khách',
+            role: 'guest', // <-- Gán vai trò 'guest'
+            status: 'active', // <-- Guest luôn 'active' để có thể vào app
+            referralPromptPending: false, // Guest không cần nhập mã giới thiệu
+          );
+          await userDoc.set(guestUser.toJson());
+        }
+        // Stream `authStateChanges` sẽ tự động xử lý và cập nhật AuthBloc
+        return const Right(unit);
+      } else {
+        return Left(AuthFailure('Không thể tạo phiên đăng nhập khách.'));
+      }
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      return Left(AuthFailure(e.message ?? 'Lỗi đăng nhập khách.'));
+    } catch (e) {
       return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
     }
   }

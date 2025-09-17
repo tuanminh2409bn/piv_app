@@ -5,6 +5,7 @@ import 'package:piv_app/data/models/address_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserModel extends Equatable {
+  // ... (giữ nguyên các trường hiện tại)
   final String id;
   final String? email;
   final String? displayName;
@@ -39,6 +40,10 @@ class UserModel extends Equatable {
     this.spinCount = 0,
   });
 
+  // ========== THÊM GETTER NÀY ==========
+  bool get isGuest => role == 'guest';
+  // =====================================
+
   bool get isAdmin => role == 'admin';
   bool get isSalesRep => role == 'sales_rep';
   bool get isAccountant => role == 'accountant';
@@ -47,6 +52,7 @@ class UserModel extends Equatable {
   bool get isEmpty => this == UserModel.empty;
   bool get isNotEmpty => this != UserModel.empty;
 
+  // ... (giữ nguyên hàm copyWith, toJson, fromSnap, fromJson và props)
   UserModel copyWith({
     String? id,
     String? email,
@@ -100,7 +106,6 @@ class UserModel extends Equatable {
     };
   }
 
-  // ====================== BỔ SUNG HÀM `fromSnap` CÒN THIẾU ======================
   factory UserModel.fromSnap(DocumentSnapshot snap) {
     final data = snap.data() as Map<String, dynamic>? ?? {};
     var addressesData = data['addresses'] as List<dynamic>? ?? [];
@@ -124,7 +129,6 @@ class UserModel extends Equatable {
       spinCount: data['spinCount'] as int? ?? 0,
     );
   }
-  // ===========================================================================
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
