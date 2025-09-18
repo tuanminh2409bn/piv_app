@@ -1,3 +1,5 @@
+// lib/features/admin/data/repositories/admin_repository_impl.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
@@ -16,15 +18,22 @@ class AdminRepositoryImpl implements AdminRepository {
     try {
       final querySnapshot = await _firestore
           .collection('users')
-          .orderBy('email') // Sắp xếp theo email cho dễ nhìn
+          .orderBy('email')
           .get();
 
-      final users = querySnapshot.docs
+      final allUsers = querySnapshot.docs
           .map((doc) => UserModel.fromJson(doc.data()))
           .toList();
 
-      developer.log('Fetched ${users.length} users.', name: 'AdminRepository');
-      return Right(users);
+      // ========== BẮT ĐẦU SỬA ĐỔI ==========
+      // Lọc bỏ những người dùng có vai trò là 'guest' ở phía client
+      final nonGuestUsers = allUsers.where((user) => user.role != 'guest').toList();
+
+      developer.log('Fetched ${allUsers.length} total users, returning ${nonGuestUsers.length} non-guest users.', name: 'AdminRepository');
+
+      // Trả về danh sách đã được lọc
+      return Right(nonGuestUsers);
+      // ========== KẾT THÚC SỬA ĐỔI ==========
 
     } on FirebaseException catch (e) {
       return Left(ServerFailure('Lỗi Firebase khi tải danh sách người dùng: ${e.message}'));
@@ -33,6 +42,7 @@ class AdminRepositoryImpl implements AdminRepository {
     }
   }
 
+  // ... (Toàn bộ các hàm còn lại trong file này được giữ nguyên) ...
   @override
   Future<Either<Failure, Unit>> updateUser(String userId, String newRole, String newStatus) async {
     try {
