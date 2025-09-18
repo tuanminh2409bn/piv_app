@@ -13,7 +13,18 @@ import 'package:piv_app/features/profile/presentation/pages/qr_scanner_page.dart
 import 'package:piv_app/features/sales_commitment/presentation/pages/sales_commitment_page.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/pages/lucky_wheel_page.dart';
 import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+Future<void> _launchURL(BuildContext context, String urlString) async {
+  final Uri url = Uri.parse(urlString);
+  if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể mở đường dẫn: $urlString')),
+      );
+    }
+  }
+}
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -81,19 +92,48 @@ class ProfileView extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 16.0),
                     child: _AddressSection(addresses: user.addresses),
                   ),
-
-                  // ========== THÊM MỤC XÓA TÀI KHOẢN ==========
                   if (isAgent) ...[
                     const Divider(thickness: 8, height: 24, color: Color(0xFFF2F2F7)),
                     _buildDeleteAccountSection(context, state.status),
-                  ]
-                  // ===============================================
+                  ],
+                  const Divider(thickness: 8, height: 24, color: Color(0xFFF2F2F7)),
+                  _buildLegalAndSupportSection(context),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildLegalAndSupportSection(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Thông tin & Hỗ trợ',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            leading: const Icon(Icons.description_outlined),
+            title: const Text('Điều khoản Dịch vụ'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () => _launchURL(context, 'https://tuanminh2409bn.github.io/piv-terms/'),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          ListTile(
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: const Text('Chính sách Bảo mật'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () => _launchURL(context, 'https://tuanminh2409bn.github.io/piv-privacy/'),
+          ),
+        ],
+      ),
     );
   }
 

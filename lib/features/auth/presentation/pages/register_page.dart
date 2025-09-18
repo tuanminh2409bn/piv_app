@@ -1,9 +1,20 @@
 //lib/features/auth/presentation/pages/register_page.dart
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/auth/presentation/bloc/register_cubit.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+Future<void> _launchURL(BuildContext context, String urlString) async {
+  final Uri url = Uri.parse(urlString);
+  if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Không thể mở đường dẫn: $urlString')),
+    );
+  }
+}
 
 class RegisterPage extends StatelessWidget {
   const RegisterPage({super.key});
@@ -106,11 +117,11 @@ class _RegisterFormState extends State<RegisterForm> {
             const SizedBox(height: 16.0),
             _ConfirmPasswordInput(focusNode: _confirmPasswordFocusNode),
             const SizedBox(height: 16.0),
-
             _ReferralCodeInput(focusNode: _referralCodeFocusNode),
             const SizedBox(height: 24.0),
-
             const _RegisterButton(),
+            const SizedBox(height: 24.0),
+            _buildTermsAndPolicyText(context),
             const SizedBox(height: 16.0),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -129,9 +140,45 @@ class _RegisterFormState extends State<RegisterForm> {
       ),
     );
   }
+
+  Widget _buildTermsAndPolicyText(BuildContext context) {
+    final theme = Theme.of(context);
+    return RichText(
+      textAlign: TextAlign.center,
+      text: TextSpan(
+        text: 'Bằng việc đăng ký, bạn đồng ý với ',
+        style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
+        children: <TextSpan>[
+          TextSpan(
+            text: 'Điều khoản Dịch vụ',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.primary,
+              decoration: TextDecoration.underline,
+            ),
+            recognizer: TapGestureRecognizer()
+              ..onTap = () {
+                _launchURL(context, 'https://tuanminh2409bn.github.io/piv-terms/');
+              },
+          ),
+          const TextSpan(text: ' và '),
+          TextSpan(
+            text: 'Chính sách Bảo mật',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.primary,
+              decoration: TextDecoration.underline,
+            ),
+            recognizer: TapGestureRecognizer()
+              ..onTap = () {
+                _launchURL(context, 'https://tuanminh2409bn.github.io/piv-privacy/');
+              },
+          ),
+          const TextSpan(text: ' của chúng tôi.'),
+        ],
+      ),
+    );
+  }
 }
 
-// Các widget con được định nghĩa đầy đủ ở đây
 
 class _DisplayNameInput extends StatelessWidget {
   final FocusNode focusNode;
