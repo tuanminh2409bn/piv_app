@@ -42,4 +42,7 @@ abstract class AuthRepository {
 
   /// Đăng nhập bằng tài khoản Apple.
   Future<Either<Failure, Unit>> signInWithApple();
+
+  /// Đăng nhập bằng tài khoản Khách
+  Future<Either<Failure, Unit>> signInAnonymously();
 }

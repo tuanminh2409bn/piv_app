@@ -1,3 +1,5 @@
+//lib/features/home/presentation/pages/home_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -12,6 +14,7 @@ import 'package:piv_app/features/news/presentation/pages/news_detail_page.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
 import 'package:piv_app/features/products/presentation/pages/category_products_page.dart';
 import 'package:piv_app/features/products/presentation/pages/search_page.dart';
+import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -29,10 +32,16 @@ class HomeView extends StatelessWidget {
   Widget build(BuildContext context) {
     final authState = context.watch<AuthBloc>().state;
     String userIdentifier = 'Khách';
-    String userRole = 'agent_2';
+    String userRole = 'guest';
+    bool canViewPrice = false;
+
     if (authState is AuthAuthenticated) {
-      userIdentifier = authState.user.displayName ?? authState.user.email ?? 'Đại lý';
-      userRole = authState.user.role;
+      final user = authState.user;
+      userIdentifier = user.displayName ?? user.email ?? 'Đại lý';
+      userRole = user.role;
+      if (!user.isGuest && user.status == 'active') {
+        canViewPrice = true;
+      }
     }
 
     return BlocBuilder<HomeCubit, HomeState>(
@@ -59,7 +68,6 @@ class HomeView extends StatelessWidget {
 
         return Scaffold(
           body: RefreshIndicator(
-            // <<< SỬA LẠI: GỌI HÀM refreshHomeData >>>
             onRefresh: () async => context.read<HomeCubit>().refreshHomeData(),
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -71,33 +79,24 @@ class HomeView extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 0),
                     child: Text('Chào mừng trở lại, $userIdentifier!', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600, color: Colors.green.shade800)),
                   ),
-                  if (state.banners.isNotEmpty)
-                    _buildBannerCarousel(context, state.banners)
-                  else
-                    _buildPlaceholderContainer(context, 'Không có banner', height: MediaQuery.of(context).size.width * (9 / 16)),
-
+                  if (state.banners.isNotEmpty) _buildBannerCarousel(context, state.banners) else _buildPlaceholderContainer(context, 'Không có banner', height: MediaQuery.of(context).size.width * (9 / 16)),
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildSectionTitle(context, 'Danh Mục Nổi Bật'),
-                        if (state.categories.isNotEmpty)
-                          _buildCategoriesRow(context, state.categories)
-                        else
-                          _buildPlaceholderContainer(context, 'Không có danh mục', height: 120),
+                        if (state.categories.isNotEmpty) _buildCategoriesRow(context, state.categories) else _buildPlaceholderContainer(context, 'Không có danh mục', height: 120),
                         const SizedBox(height: 24),
                         _buildSectionTitle(context, 'Sản Phẩm Nổi Bật'),
                         if (state.featuredProducts.isNotEmpty)
-                          _buildFeaturedProductsGrid(context, state.featuredProducts, userRole)
+                        // ========== TRUYỀN THÊM BIẾN canViewPrice ==========
+                          _buildFeaturedProductsGrid(context, state.featuredProducts, userRole, canViewPrice)
                         else
                           _buildPlaceholderContainer(context, 'Không có sản phẩm nổi bật.', height: 200),
                         const SizedBox(height: 24),
                         _buildSectionTitle(context, 'Tin Tức & Sự Kiện'),
-                        if (state.newsArticles.isNotEmpty)
-                          _buildNewsList(context, state.newsArticles)
-                        else
-                          _buildPlaceholderContainer(context, 'Không có tin tức', height: 150),
+                        if (state.newsArticles.isNotEmpty) _buildNewsList(context, state.newsArticles) else _buildPlaceholderContainer(context, 'Không có tin tức', height: 150),
                       ],
                     ),
                   ),
@@ -194,7 +193,7 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  Widget _buildFeaturedProductsGrid(BuildContext context, List<ProductModel> products, String userRole) {
+  Widget _buildFeaturedProductsGrid(BuildContext context, List<ProductModel> products, String userRole, bool canViewPrice) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     return GridView.builder(
       shrinkWrap: true,
@@ -223,7 +222,16 @@ class HomeView extends StatelessWidget {
                     children: [
                       Text(product.name, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 4),
-                      Text('${currencyFormatter.format(price)} / $unit', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
+                      // --- HIỂN THỊ GIÁ CÓ ĐIỀU KIỆN ---
+                      if (canViewPrice)
+                        Text('${currencyFormatter.format(price)} / $unit', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold))
+                      else
+                        TextButton(
+                          style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(50, 20), alignment: Alignment.centerLeft),
+                          onPressed: () => Navigator.of(context).pushAndRemoveUntil(LoginPage.route(), (route) => false),
+                          child: const Text('Xem giá'),
+                        ),
+                      // ------------------------------------
                     ],
                   ),
                 ),

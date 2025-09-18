@@ -130,6 +130,13 @@ class _LoginFormState extends State<LoginForm> {
 
             const SizedBox(height: 16.0),
 
+            BlocProvider(
+              create: (_) => sl<SocialSignInCubit>(),
+              child: const _GuestLoginButton(),
+            ),
+
+            const SizedBox(height: 16.0),
+
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -340,6 +347,41 @@ class _AppleLoginButton extends StatelessWidget {
             style: SignInWithAppleButtonStyle.black, // Có thể đổi thành .white hoặc .whiteOutline
             borderRadius: const BorderRadius.all(Radius.circular(12.0)),
             height: 48, // Đồng bộ chiều cao với các nút khác
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _GuestLoginButton extends StatelessWidget {
+  const _GuestLoginButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<SocialSignInCubit, SocialSignInState>(
+      listener: (context, state) {
+        if (state.status == SocialSignInStatus.error) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(
+              content: Text(state.errorMessage ?? 'Không thể vào với tư cách khách.'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ));
+        }
+        // AuthBloc sẽ tự động xử lý điều hướng khi đăng nhập thành công
+      },
+      child: BlocBuilder<SocialSignInCubit, SocialSignInState>(
+        builder: (context, state) {
+          return state.status == SocialSignInStatus.submitting
+              ? const Center(child: CircularProgressIndicator())
+              : OutlinedButton(
+            onPressed: () => context.read<SocialSignInCubit>().logInAsGuest(),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Trải nghiệm ứng dụng (Không cần tài khoản)'),
           );
         },
       ),

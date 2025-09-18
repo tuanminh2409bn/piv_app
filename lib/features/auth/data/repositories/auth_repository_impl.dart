@@ -1,4 +1,4 @@
-//lib/features/auth/data/repositories/auth_repository_impl.dart
+// lib/features/auth/data/repositories/auth_repository_impl.dart
 
 import 'dart:async';
 import 'dart:convert';
@@ -31,25 +31,52 @@ class AuthRepositoryImpl implements AuthRepository {
         _firestore = firestore ?? FirebaseFirestore.instance,
         _googleSignIn = googleSignIn ?? GoogleSignIn() {
 
+    // ========== BẮT ĐẦU THAY ĐỔI LOGIC LẮNG NGHE ==========
     _firebaseAuth.authStateChanges().listen((firebaseUser) async {
       if (firebaseUser == null) {
+        // Người dùng đã đăng xuất, phát ra user rỗng
         _userStreamController.add(UserModel.empty);
       } else {
-        final userDoc = await _firestore.collection('users').doc(firebaseUser.uid).get();
+        // Người dùng đã đăng nhập, kiểm tra trong Firestore
+        final userDocRef = _firestore.collection('users').doc(firebaseUser.uid);
+        final userDoc = await userDocRef.get();
+
         if (userDoc.exists && userDoc.data() != null) {
+          // Document người dùng tồn tại, xử lý như bình thường
           final user = UserModel.fromJson(userDoc.data()!);
           if (user.status != 'active') {
             developer.log('User ${user.id} logged in but status is ${user.status}. Forcing logout.', name: 'AuthRepository');
-            await logOut();
-            _userStreamController.add(UserModel.empty);
+            await logOut(); // Đăng xuất sẽ tự kích hoạt lại stream này với user là null
           } else {
             _userStreamController.add(user);
           }
         } else {
-          _userStreamController.add(UserModel.empty);
+          // Document người dùng CHƯA tồn tại
+          // Kiểm tra xem đây có phải là người dùng ẩn danh (khách) không
+          if (firebaseUser.isAnonymous) {
+            developer.log('New anonymous user detected (${firebaseUser.uid}). Creating guest document.', name: 'AuthRepository');
+            // Tạo một UserModel cho khách
+            final guestUser = UserModel(
+              id: firebaseUser.uid,
+              displayName: 'Khách',
+              role: 'guest',
+              status: 'active',
+              referralPromptPending: false,
+            );
+            // Lưu document vào Firestore
+            await userDocRef.set(guestUser.toJson());
+            // Phát ra UserModel của khách để AuthBloc xử lý
+            _userStreamController.add(guestUser);
+          } else {
+            // Đây là một người dùng mới (ví dụ: đăng nhập bằng Google lần đầu)
+            // nhưng document chưa được tạo. _linkOrCreateUser sẽ xử lý việc này.
+            // Trong lúc chờ, chúng ta có thể coi họ là chưa xác thực.
+            _userStreamController.add(UserModel.empty);
+          }
         }
       }
     });
+    // ========== KẾT THÚC THAY ĐỔI LOGIC LẮNG NGHE ==========
   }
 
   @override
@@ -301,30 +328,10 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<Either<Failure, Unit>> signInAnonymously() async {
     try {
-      final userCredential = await _firebaseAuth.signInAnonymously();
-      final firebaseUser = userCredential.user;
-
-      if (firebaseUser != null) {
-        final userDoc = _firestore.collection('users').doc(firebaseUser.uid);
-        final docSnapshot = await userDoc.get();
-
-        // Chỉ tạo mới nếu user chưa tồn tại trong Firestore
-        if (!docSnapshot.exists) {
-          developer.log('Creating new GUEST user in Firestore: ${firebaseUser.uid}', name: 'AuthRepository');
-          final guestUser = UserModel(
-            id: firebaseUser.uid,
-            displayName: 'Khách',
-            role: 'guest', // <-- Gán vai trò 'guest'
-            status: 'active', // <-- Guest luôn 'active' để có thể vào app
-            referralPromptPending: false, // Guest không cần nhập mã giới thiệu
-          );
-          await userDoc.set(guestUser.toJson());
-        }
-        // Stream `authStateChanges` sẽ tự động xử lý và cập nhật AuthBloc
-        return const Right(unit);
-      } else {
-        return Left(AuthFailure('Không thể tạo phiên đăng nhập khách.'));
-      }
+      await _firebaseAuth.signInAnonymously();
+      // Logic tạo document đã được chuyển vào stream authStateChanges,
+      // vì vậy hàm này chỉ cần gọi đăng nhập là đủ.
+      return const Right(unit);
     } on firebase_auth.FirebaseAuthException catch (e) {
       return Left(AuthFailure(e.message ?? 'Lỗi đăng nhập khách.'));
     } catch (e) {

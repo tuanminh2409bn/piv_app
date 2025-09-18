@@ -8,6 +8,7 @@ import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/products/presentation/bloc/category_products_cubit.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
 import 'package:intl/intl.dart';
 
 class CategoryProductsPage extends StatelessWidget {
@@ -33,10 +34,16 @@ class CategoryProductsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authState = context.read<AuthBloc>().state;
-    String userRole = 'agent_2';
+    final authState = context.watch<AuthBloc>().state;
+    String userRole = 'guest';
+    bool canViewPrice = false;
+
     if (authState is AuthAuthenticated) {
-      userRole = authState.user.role;
+      final user = authState.user;
+      userRole = user.role;
+      if (!user.isGuest && user.status == 'active') {
+        canViewPrice = true;
+      }
     }
 
     return Scaffold(
@@ -86,7 +93,7 @@ class CategoryProductsView extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: Colors.grey.shade700),
                 ),
                 const SizedBox(height: 12),
-                _buildProductList(context, state.products, userRole),
+                _buildProductList(context, state.products, userRole, canViewPrice),
               ],
             ],
           );
@@ -139,7 +146,7 @@ class CategoryProductsView extends StatelessWidget {
   }
 
   // --- HÀM NÀY ĐÃ ĐƯỢC SỬA ---
-  Widget _buildProductList(BuildContext context, List<ProductModel> products, String userRole) {
+  Widget _buildProductList(BuildContext context, List<ProductModel> products, String userRole, bool canViewPrice) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     return ListView.separated(
       shrinkWrap: true,
@@ -148,26 +155,27 @@ class CategoryProductsView extends StatelessWidget {
       separatorBuilder: (_, __) => const Divider(),
       itemBuilder: (context, index) {
         final product = products[index];
-        // Sử dụng các getter mới trong ProductModel
         final price = product.getPriceForRole(userRole);
         final unit = product.displayUnit;
         return ListTile(
           leading: ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: (product.imageUrl.isNotEmpty)
-                ? Image.network(
-                product.imageUrl,
-                width: 70, height: 70, fit: BoxFit.cover,
-                errorBuilder: (c,e,s) => Container(width: 70, height: 70, color: Colors.grey.shade200, child: const Icon(Icons.image, color: Colors.grey))
-            )
+                ? Image.network(product.imageUrl, width: 70, height: 70, fit: BoxFit.cover, errorBuilder: (c,e,s) => Container(width: 70, height: 70, color: Colors.grey.shade200, child: const Icon(Icons.image, color: Colors.grey)))
                 : Container(width: 70, height: 70, color: Colors.grey.shade200, child: const Icon(Icons.image, color: Colors.grey)),
           ),
           title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Text(
-            // Hiển thị giá và đơn vị mới
+          // --- HIỂN THỊ GIÁ CÓ ĐIỀU KIỆN ---
+          subtitle: canViewPrice
+              ? Text(
             '${currencyFormatter.format(price)} / $unit',
             style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w500),
+          )
+              : Text(
+            'Đăng nhập để xem giá',
+            style: TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic),
           ),
+          // ------------------------------------
           trailing: const Icon(Icons.arrow_forward_ios, size: 16),
           onTap: () {
             Navigator.of(context).push(ProductDetailPage.route(product.id));

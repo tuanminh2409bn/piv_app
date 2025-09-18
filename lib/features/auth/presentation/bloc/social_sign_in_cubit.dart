@@ -30,7 +30,6 @@ class SocialSignInCubit extends Cubit<SocialSignInState> {
     );
   }
 
-  // ====================== BẮT ĐẦU SỬA ĐỔI ======================
   Future<void> logInWithApple() async {
     emit(state.copyWith(status: SocialSignInStatus.submitting));
     final result = await _authRepository.signInWithApple();
@@ -39,5 +38,16 @@ class SocialSignInCubit extends Cubit<SocialSignInState> {
           (_) => emit(state.copyWith(status: SocialSignInStatus.success)),
     );
   }
-// ======================= KẾT THÚC SỬA ĐỔI =======================
+
+  Future<void> logInAsGuest() async {
+    emit(state.copyWith(status: SocialSignInStatus.submitting));
+    final result = await _authRepository.signInAnonymously();
+    result.fold(
+          (failure) => emit(state.copyWith(
+        status: SocialSignInStatus.error,
+        errorMessage: failure.message,
+      )),
+          (_) => emit(state.copyWith(status: SocialSignInStatus.success)),
+    );
+  }
 }
