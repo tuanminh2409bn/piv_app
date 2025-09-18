@@ -400,7 +400,7 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
       padding: const EdgeInsets.only(top: 4.0),
       child: RichText(
         text: TextSpan(
-          style: DefaultTextStyle.of(context).style.copyWith(color: Colors.blueGrey.shade700, fontSize: 13, fontStyle: FontStyle.italic),
+          style: DefaultTextStyle.of(context).style.copyWith(color: Colors.blueGrey.shade700, fontSize: 13),
           children: [
             const TextSpan(text: 'Đặt bởi: '),
             TextSpan(

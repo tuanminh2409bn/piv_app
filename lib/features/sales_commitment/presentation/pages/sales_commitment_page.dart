@@ -182,7 +182,7 @@ class ActiveCommitmentDashboard extends StatelessWidget {
                   commitment.commitmentDetails != null
                       ? Text(
                     commitment.commitmentDetails!.text,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontStyle: FontStyle.italic),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontStyle: FontStyle.normal),
                   )
                       : const Text(
                     'Chờ công ty xác nhận phần thưởng...',

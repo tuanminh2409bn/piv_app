@@ -205,7 +205,7 @@ class _OrderCard extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 4.0),
                   child: Text(
                     'Được tạo bởi NVKD/Kế toán',
-                    style: TextStyle(color: Colors.blueGrey.shade700, fontSize: 13, fontStyle: FontStyle.italic),
+                    style: TextStyle(color: Colors.blueGrey.shade700, fontSize: 13),
                   ),
                 ),
               const Divider(height: 20),

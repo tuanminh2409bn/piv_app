@@ -230,7 +230,6 @@ class NewsDetailView extends StatelessWidget {
   Widget _buildSummarySection(BuildContext context, String summary) {
     final summaryStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
       fontWeight: FontWeight.w500,
-      fontStyle: FontStyle.italic,
       color: Colors.black.withOpacity(0.75),
       height: 1.5,
     );

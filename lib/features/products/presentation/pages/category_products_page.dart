@@ -173,7 +173,7 @@ class CategoryProductsView extends StatelessWidget {
           )
               : Text(
             'Đăng nhập để xem giá',
-            style: TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+            style: TextStyle(color: Colors.grey.shade600),
           ),
           // ------------------------------------
           trailing: const Icon(Icons.arrow_forward_ios, size: 16),
