@@ -1,3 +1,5 @@
+//lib/features/profile/presentation/bloc/profile_cubit.dart
+
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/user_model.dart';
@@ -152,6 +154,26 @@ class ProfileCubit extends Cubit<ProfileState> {
     result.fold(
           (failure) => emit(state.copyWith(status: ProfileStatus.error, errorMessage: failure.message)),
           (_) => fetchUserProfile(state.user.id),
+    );
+  }
+
+  Future<void> deleteAccount() async {
+    // Phát ra trạng thái đang cập nhật để UI có thể hiển thị loading
+    emit(state.copyWith(status: ProfileStatus.updating, clearErrorMessage: true));
+
+    final result = await _userProfileRepository.deleteAccount();
+
+    result.fold(
+          (failure) {
+        // Nếu có lỗi, phát ra trạng thái lỗi với thông điệp
+        developer.log('ProfileCubit: Failed to delete account - ${failure.message}', name: 'ProfileCubit');
+        emit(state.copyWith(status: ProfileStatus.error, errorMessage: failure.message));
+      },
+          (_) {
+        // Nếu thành công, không cần làm gì ở đây.
+        // AuthBloc sẽ tự động xử lý việc đăng xuất và điều hướng người dùng.
+        developer.log('ProfileCubit: Account deletion process initiated successfully.', name: 'ProfileCubit');
+      },
     );
   }
 

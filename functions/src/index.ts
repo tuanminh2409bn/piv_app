@@ -1085,6 +1085,103 @@ export const spinTheWheel = onCall({region: "asia-southeast1"}, async (request: 
 });
 
 // ===================================================================
+// FUNCTION 13: XÓA TÀI KHOẢN NGƯỜI DÙNG (PHIÊN BẢN HOÀN CHỈNH)
+// ===================================================================
+export const deleteUserAccount = onCall(
+  {region: "asia-southeast1"},
+  async (request: CallableRequest) => {
+    // 1. Kiểm tra người dùng đã được xác thực.
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "Yêu cầu xác thực để thực hiện hành động này."
+      );
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+    const auth = admin.auth();
+
+    logger.log(`Bắt đầu yêu cầu xóa tài khoản cho người dùng: ${uid}`);
+
+    // 2. Lấy thông tin vai trò của người dùng trước khi xóa.
+    const userDocRef = db.collection("users").doc(uid);
+    const userDoc = await userDocRef.get();
+
+    if (!userDoc.exists) {
+      logger.warn(`Người dùng ${uid} yêu cầu xóa nhưng không tìm thấy document trong Firestore. Chỉ xóa trong Auth.`);
+      await auth.deleteUser(uid);
+      return { success: true, message: "Tài khoản không có dữ liệu, đã xóa thành công." };
+    }
+
+    const userData = userDoc.data()!;
+    const userRole = userData.role;
+
+    // 3. **KIỂM TRA QUYỀN:** Chỉ cho phép 'agent_1' và 'agent_2' tự xóa.
+    if (userRole !== "agent_1" && userRole !== "agent_2") {
+      logger.error(`Từ chối yêu cầu xóa: Người dùng ${uid} có vai trò là '${userRole}', không được phép tự xóa.`);
+      throw new HttpsError(
+        "permission-denied",
+        "Tài khoản của bạn không thể tự xóa từ ứng dụng."
+      );
+    }
+
+    // 4. Bắt đầu quá trình xóa dữ liệu.
+    try {
+      const batch = db.batch();
+
+      // Xóa document chính của người dùng
+      batch.delete(userDocRef);
+
+      // Xóa giỏ hàng
+      const cartDocRef = db.collection("carts").doc(uid);
+      batch.delete(cartDocRef);
+
+      // Xóa các đơn hàng
+      const ordersQuery = db.collection("orders").where("userId", "==", uid);
+      const ordersSnapshot = await ordersQuery.get();
+      ordersSnapshot.forEach((doc) => batch.delete(doc.ref));
+      logger.log(`Đã thêm ${ordersSnapshot.size} đơn hàng vào batch xóa.`);
+
+      // Xóa các thông báo
+      const notificationsQuery = db.collection("notifications").where("userId", "==", uid);
+      const notificationsSnapshot = await notificationsQuery.get();
+      notificationsSnapshot.forEach((doc) => batch.delete(doc.ref));
+      logger.log(`Đã thêm ${notificationsSnapshot.size} thông báo vào batch xóa.`);
+
+      // Xóa lịch sử vòng quay
+      const spinHistoryQuery = db.collection("spin_history").where("userId", "==", uid);
+      const spinHistorySnapshot = await spinHistoryQuery.get();
+      spinHistorySnapshot.forEach((doc) => batch.delete(doc.ref));
+      logger.log(`Đã thêm ${spinHistorySnapshot.size} lịch sử vòng quay vào batch xóa.`);
+
+      // Xóa cam kết doanh thu
+      const commitmentsQuery = db.collection("sales_commitments").where("userId", "==", uid);
+      const commitmentsSnapshot = await commitmentsQuery.get();
+      commitmentsSnapshot.forEach((doc) => batch.delete(doc.ref));
+      logger.log(`Đã thêm ${commitmentsSnapshot.size} cam kết doanh thu vào batch xóa.`);
+
+      // Thực thi xóa dữ liệu Firestore
+      await batch.commit();
+      logger.log(`Đã xóa thành công dữ liệu Firestore cho người dùng: ${uid}`);
+
+      // 5. Xóa tài khoản khỏi Firebase Authentication
+      await auth.deleteUser(uid);
+      logger.log(`Đã xóa thành công tài khoản Auth cho người dùng: ${uid}`);
+
+      return {success: true, message: "Tài khoản đã được xóa thành công."};
+    } catch (error) {
+      logger.error(`[CRITICAL] Lỗi khi xóa tài khoản ${uid}:`, error);
+      throw new HttpsError(
+        "internal",
+        "Đã có lỗi xảy ra trong quá trình xóa tài khoản.",
+        error
+      );
+    }
+  }
+);
+
+// ===================================================================
 // SECTION: PRIVATE HELPER FUNCTIONS (Không thay đổi)
 // ===================================================================
 

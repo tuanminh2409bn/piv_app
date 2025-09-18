@@ -17,9 +17,6 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
 
   CollectionReference<Map<String, dynamic>> get _usersCollection => _firestore.collection('users');
 
-  // ... các hàm getUserProfile, updateUserProfile, và các hàm address giữ nguyên ...
-
-  // --- HÀM NÀY SẼ ĐƯỢC CẬP NHẬT HOÀN TOÀN ---
   @override
   Future<Either<Failure, Unit>> submitReferralCode(String userId, String referralCode) async {
     try {
@@ -342,5 +339,33 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
       // Trích xuất và trả về chỉ số spinCount
       return (snap.data()!['spinCount'] as int?) ?? 0;
     });
+  }
+
+  @override
+  Future<Either<Failure, Unit>> deleteAccount() async {
+    try {
+      // Khởi tạo Cloud Functions và trỏ đến đúng region của bạn
+      final functions = FirebaseFunctions.instanceFor(region: 'asia-southeast1');
+      // Lấy function có tên 'deleteUserAccount'
+      final callable = functions.httpsCallable('deleteUserAccount');
+
+      // Gọi function. Không cần truyền tham số vì UID được lấy từ context ở backend.
+      await callable.call();
+
+      // Thành công! Stream trong AuthBloc sẽ tự động phát hiện người dùng bị xóa
+      // và cập nhật trạng thái ứng dụng về Unauthenticated.
+      developer.log('Successfully triggered deleteUserAccount cloud function.', name: 'UserProfileRepo');
+      return const Right(unit);
+
+    } on FirebaseFunctionsException catch (e) {
+      // Xử lý các lỗi trả về từ Cloud Function
+      developer.log('Cloud Function error on deleteAccount: ${e.code} - ${e.message}', name: 'UserProfileRepo');
+      // Trả về thông báo lỗi thân thiện cho người dùng
+      return Left(ServerFailure(e.message ?? 'Không thể xóa tài khoản. Vui lòng thử lại sau.'));
+    } catch (e) {
+      // Xử lý các lỗi khác (ví dụ: mất kết nối mạng)
+      developer.log('Unknown error on deleteAccount: $e', name: 'UserProfileRepo');
+      return Left(ServerFailure('Đã có lỗi không xác định xảy ra. Vui lòng kiểm tra kết nối mạng.'));
+    }
   }
 }

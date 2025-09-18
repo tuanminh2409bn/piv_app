@@ -1,3 +1,5 @@
+//lib/features/profile/domain/repositories/user_profile_repository.dart
+
 import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/user_model.dart';
@@ -50,4 +52,6 @@ abstract class UserProfileRepository {
   Future<Either<Failure, List<UserModel>>> getAllAgents();
 
   Stream<int> watchSpinCount(String userId);
+
+  Future<Either<Failure, Unit>> deleteAccount();
 }

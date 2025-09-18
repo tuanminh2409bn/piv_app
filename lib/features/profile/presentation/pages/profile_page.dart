@@ -12,6 +12,7 @@ import 'package:piv_app/features/wishlist/presentation/pages/wishlist_page.dart'
 import 'package:piv_app/features/profile/presentation/pages/qr_scanner_page.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/sales_commitment_page.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/pages/lucky_wheel_page.dart';
+import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
 
 
 class ProfilePage extends StatelessWidget {
@@ -50,6 +51,9 @@ class ProfileView extends StatelessWidget {
           return const Center(child: Text('Không thể tải thông tin người dùng.'));
         }
 
+        final user = state.user;
+        final bool isAgent = user.role == 'agent_1' || user.role == 'agent_2';
+
         return Scaffold(
           body: RefreshIndicator(
             onRefresh: () async {
@@ -63,24 +67,97 @@ class ProfileView extends StatelessWidget {
               child: Column(
                 children: [
                   const SizedBox(height: 16),
-                  _buildManagementOptions(context, state.user),
+                  _buildManagementOptions(context, user),
                   const Divider(thickness: 8, height: 24, color: Color(0xFFF2F2F7)),
-                  _buildReferralSection(context, state.user),
+                  _buildReferralSection(context, user),
                   const Divider(thickness: 8, height: 24, color: Color(0xFFF2F2F7)),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: _ProfileForm(user: state.user),
+                    child: _ProfileForm(user: user),
                   ),
                   const SizedBox(height: 24),
                   const Divider(thickness: 8, height: 24, color: Color(0xFFF2F2F7)),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 16.0),
-                    child: _AddressSection(addresses: state.user.addresses),
-                  )
+                    child: _AddressSection(addresses: user.addresses),
+                  ),
+
+                  // ========== THÊM MỤC XÓA TÀI KHOẢN ==========
+                  if (isAgent) ...[
+                    const Divider(thickness: 8, height: 24, color: Color(0xFFF2F2F7)),
+                    _buildDeleteAccountSection(context, state.status),
+                  ]
+                  // ===============================================
                 ],
               ),
             ),
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDeleteAccountSection(BuildContext context, ProfileStatus status) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Quản lý tài khoản',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          // Nếu đang trong quá trình xóa, hiển thị loading
+          if (status == ProfileStatus.updating)
+            const Center(child: CircularProgressIndicator())
+          else
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: const Text('Yêu cầu xóa tài khoản'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  side: const BorderSide(color: Colors.red),
+                ),
+                onPressed: () => _showDeleteConfirmationDialog(context),
+              ),
+            ),
+          const SizedBox(height: 8),
+          Text(
+            'Lưu ý: Hành động này sẽ xóa vĩnh viễn tài khoản và toàn bộ dữ liệu liên quan theo chính sách của PIV và App Store.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteConfirmationDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Bạn có chắc chắn?'),
+          content: const Text(
+            'Hành động này không thể hoàn tác. Toàn bộ dữ liệu của bạn, bao gồm lịch sử đơn hàng, sẽ bị xóa vĩnh viễn. \n\nBạn có chắc chắn muốn tiếp tục?',
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('HỦY BỎ'),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('XÓA TÀI KHOẢN'),
+              onPressed: () {
+                // Đóng dialog trước rồi mới gọi hàm xóa
+                Navigator.of(dialogContext).pop();
+                context.read<ProfileCubit>().deleteAccount();
+              },
+            ),
+          ],
         );
       },
     );
