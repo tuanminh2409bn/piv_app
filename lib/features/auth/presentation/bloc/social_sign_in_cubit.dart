@@ -12,42 +12,49 @@ class SocialSignInCubit extends Cubit<SocialSignInState> {
       : _authRepository = authRepository,
         super(const SocialSignInState());
 
+  // ========== CẬP NHẬT TẤT CẢ CÁC HÀM BÊN DƯỚI ==========
   Future<void> logInWithGoogle() async {
-    emit(state.copyWith(status: SocialSignInStatus.submitting));
+    emit(state.copyWith(status: SocialSignInStatus.submitting, submissionProvider: SocialSignInProvider.google));
     final result = await _authRepository.signInWithGoogle();
+    if (isClosed) return;
     result.fold(
-          (failure) => emit(state.copyWith(status: SocialSignInStatus.error, errorMessage: failure.message)),
-          (_) => emit(state.copyWith(status: SocialSignInStatus.success)),
+          (failure) => emit(state.copyWith(status: SocialSignInStatus.error, errorMessage: failure.message, submissionProvider: SocialSignInProvider.none)),
+          (_) => emit(state.copyWith(status: SocialSignInStatus.success, submissionProvider: SocialSignInProvider.none)),
     );
   }
 
   Future<void> logInWithFacebook() async {
-    emit(state.copyWith(status: SocialSignInStatus.submitting));
+    emit(state.copyWith(status: SocialSignInStatus.submitting, submissionProvider: SocialSignInProvider.facebook));
     final result = await _authRepository.signInWithFacebook();
+    if (isClosed) return;
     result.fold(
-          (failure) => emit(state.copyWith(status: SocialSignInStatus.error, errorMessage: failure.message)),
-          (_) => emit(state.copyWith(status: SocialSignInStatus.success)),
+          (failure) => emit(state.copyWith(status: SocialSignInStatus.error, errorMessage: failure.message, submissionProvider: SocialSignInProvider.none)),
+          (_) => emit(state.copyWith(status: SocialSignInStatus.success, submissionProvider: SocialSignInProvider.none)),
     );
   }
 
   Future<void> logInWithApple() async {
-    emit(state.copyWith(status: SocialSignInStatus.submitting));
+    emit(state.copyWith(status: SocialSignInStatus.submitting, submissionProvider: SocialSignInProvider.apple));
     final result = await _authRepository.signInWithApple();
+    if (isClosed) return;
     result.fold(
-          (failure) => emit(state.copyWith(status: SocialSignInStatus.error, errorMessage: failure.message)),
-          (_) => emit(state.copyWith(status: SocialSignInStatus.success)),
+          (failure) => emit(state.copyWith(status: SocialSignInStatus.error, errorMessage: failure.message, submissionProvider: SocialSignInProvider.none)),
+          (_) => emit(state.copyWith(status: SocialSignInStatus.success, submissionProvider: SocialSignInProvider.none)),
     );
   }
 
   Future<void> logInAsGuest() async {
-    emit(state.copyWith(status: SocialSignInStatus.submitting));
+    emit(state.copyWith(status: SocialSignInStatus.submitting, submissionProvider: SocialSignInProvider.guest));
     final result = await _authRepository.signInAnonymously();
+    if (isClosed) return;
     result.fold(
           (failure) => emit(state.copyWith(
         status: SocialSignInStatus.error,
         errorMessage: failure.message,
+        submissionProvider: SocialSignInProvider.none,
       )),
-          (_) => emit(state.copyWith(status: SocialSignInStatus.success)),
+          (_) => emit(state.copyWith(status: SocialSignInStatus.success, submissionProvider: SocialSignInProvider.none)),
     );
   }
+// ==============================================================
 }

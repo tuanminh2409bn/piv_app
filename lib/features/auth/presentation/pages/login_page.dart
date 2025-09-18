@@ -1,4 +1,4 @@
-//lib/features/auth/presentation/pages/login_page.dart
+// lib/features/auth/presentation/pages/login_page.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -23,8 +23,11 @@ class LoginPage extends StatelessWidget {
         title: const Text('Đăng Nhập PIV'),
         centerTitle: true,
       ),
-      body: BlocProvider(
-        create: (_) => sl<LoginCubit>(),
+      body: MultiBlocProvider(
+        providers: [
+          BlocProvider(create: (_) => sl<LoginCubit>()),
+          BlocProvider(create: (_) => sl<SocialSignInCubit>()),
+        ],
         child: const LoginForm(),
       ),
     );
@@ -85,15 +88,12 @@ class _LoginFormState extends State<LoginForm> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 48.0),
-
             _EmailInput(emailFocusNode: _emailFocusNode, passwordFocusNode: _passwordFocusNode),
             const SizedBox(height: 16.0),
             _PasswordInput(passwordFocusNode: _passwordFocusNode),
             const SizedBox(height: 24.0),
-
             const _LoginButton(),
             const SizedBox(height: 16.0),
-
             Row(
               children: [
                 const Expanded(child: Divider()),
@@ -105,38 +105,16 @@ class _LoginFormState extends State<LoginForm> {
               ],
             ),
             const SizedBox(height: 16),
-
-            // Nút đăng nhập Google
-            BlocProvider(
-              create: (_) => sl<SocialSignInCubit>(),
-              child: const _GoogleLoginButton(),
-            ),
-
+            const _GoogleLoginButton(),
             const SizedBox(height: 12),
-
-            // Nút đăng nhập Facebook
-            BlocProvider(
-              create: (_) => sl<SocialSignInCubit>(),
-              child: const _FacebookLoginButton(),
-            ),
-
+            const _FacebookLoginButton(),
             if (Platform.isIOS) ...[
               const SizedBox(height: 12),
-              BlocProvider(
-                create: (_) => sl<SocialSignInCubit>(),
-                child: const _AppleLoginButton(),
-              ),
+              const _AppleLoginButton(),
             ],
-
             const SizedBox(height: 16.0),
-
-            BlocProvider(
-              create: (_) => sl<SocialSignInCubit>(),
-              child: const _GuestLoginButton(),
-            ),
-
+            const _GuestLoginButton(),
             const SizedBox(height: 16.0),
-
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -156,6 +134,7 @@ class _LoginFormState extends State<LoginForm> {
   }
 }
 
+// ... (_EmailInput, _PasswordInput, _LoginButton giữ nguyên)
 class _EmailInput extends StatelessWidget {
   final FocusNode emailFocusNode;
   final FocusNode passwordFocusNode;
@@ -257,35 +236,35 @@ class _LoginButton extends StatelessWidget {
   }
 }
 
+// ========== CÁC WIDGET NÀY ĐÃ ĐƯỢC CẬP NHẬT LOGIC HIỂN THỊ LOADING ==========
 class _GoogleLoginButton extends StatelessWidget {
   const _GoogleLoginButton();
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<SocialSignInCubit, SocialSignInState>(
+    return BlocConsumer<SocialSignInCubit, SocialSignInState>(
       listener: (context, state) {
-        if (state.status == SocialSignInStatus.error) {
+        if (state.status == SocialSignInStatus.error && state.submissionProvider == SocialSignInProvider.google) {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(SnackBar(content: Text(state.errorMessage ?? 'Đăng nhập Google thất bại.')));
         }
       },
-      child: BlocBuilder<SocialSignInCubit, SocialSignInState>(
-        builder: (context, state) {
-          return state.status == SocialSignInStatus.submitting
-              ? const Center(child: CircularProgressIndicator())
-              : OutlinedButton.icon(
-            icon: Image.asset('assets/google_logo.png', height: 22.0),
-            label: const Text('Đăng nhập với Google', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w500)),
-            onPressed: () => context.read<SocialSignInCubit>().logInWithGoogle(),
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: Colors.grey.shade300),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-        },
-      ),
+      builder: (context, state) {
+        final isLoading = state.status == SocialSignInStatus.submitting && state.submissionProvider == SocialSignInProvider.google;
+        return isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : OutlinedButton.icon(
+          icon: Image.asset('assets/google_logo.png', height: 22.0),
+          label: const Text('Đăng nhập với Google', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w500)),
+          onPressed: () => context.read<SocialSignInCubit>().logInWithGoogle(),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: Colors.grey.shade300),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      },
     );
   }
 }
@@ -295,31 +274,30 @@ class _FacebookLoginButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<SocialSignInCubit, SocialSignInState>(
+    return BlocConsumer<SocialSignInCubit, SocialSignInState>(
       listener: (context, state) {
-        if (state.status == SocialSignInStatus.error) {
+        if (state.status == SocialSignInStatus.error && state.submissionProvider == SocialSignInProvider.facebook) {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(SnackBar(content: Text(state.errorMessage ?? 'Đăng nhập Facebook thất bại.')));
         }
       },
-      child: BlocBuilder<SocialSignInCubit, SocialSignInState>(
-        builder: (context, state) {
-          return state.status == SocialSignInStatus.submitting
-              ? const Center(child: CircularProgressIndicator())
-              : ElevatedButton.icon(
-            icon: const Icon(Icons.facebook, color: Colors.white),
-            label: const Text('Tiếp tục với Facebook'),
-            onPressed: () => context.read<SocialSignInCubit>().logInWithFacebook(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1877F2),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-        },
-      ),
+      builder: (context, state) {
+        final isLoading = state.status == SocialSignInStatus.submitting && state.submissionProvider == SocialSignInProvider.facebook;
+        return isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : ElevatedButton.icon(
+          icon: const Icon(Icons.facebook, color: Colors.white),
+          label: const Text('Tiếp tục với Facebook'),
+          onPressed: () => context.read<SocialSignInCubit>().logInWithFacebook(),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF1877F2),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      },
     );
   }
 }
@@ -329,27 +307,25 @@ class _AppleLoginButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<SocialSignInCubit, SocialSignInState>(
+    return BlocConsumer<SocialSignInCubit, SocialSignInState>(
       listener: (context, state) {
-        if (state.status == SocialSignInStatus.error) {
+        if (state.status == SocialSignInStatus.error && state.submissionProvider == SocialSignInProvider.apple) {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(SnackBar(content: Text(state.errorMessage ?? 'Đăng nhập Apple thất bại.')));
         }
       },
-      child: BlocBuilder<SocialSignInCubit, SocialSignInState>(
-        builder: (context, state) {
-          return state.status == SocialSignInStatus.submitting
-              ? const Center(child: CircularProgressIndicator())
-          // Sử dụng widget có sẵn từ package để đảm bảo đúng theo thiết kế của Apple
-              : SignInWithAppleButton(
-            onPressed: () => context.read<SocialSignInCubit>().logInWithApple(),
-            style: SignInWithAppleButtonStyle.black, // Có thể đổi thành .white hoặc .whiteOutline
-            borderRadius: const BorderRadius.all(Radius.circular(12.0)),
-            height: 48, // Đồng bộ chiều cao với các nút khác
-          );
-        },
-      ),
+      builder: (context, state) {
+        final isLoading = state.status == SocialSignInStatus.submitting && state.submissionProvider == SocialSignInProvider.apple;
+        return isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SignInWithAppleButton(
+          onPressed: () => context.read<SocialSignInCubit>().logInWithApple(),
+          style: SignInWithAppleButtonStyle.black,
+          borderRadius: const BorderRadius.all(Radius.circular(12.0)),
+          height: 48,
+        );
+      },
     );
   }
 }
@@ -359,9 +335,9 @@ class _GuestLoginButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<SocialSignInCubit, SocialSignInState>(
+    return BlocConsumer<SocialSignInCubit, SocialSignInState>(
       listener: (context, state) {
-        if (state.status == SocialSignInStatus.error) {
+        if (state.status == SocialSignInStatus.error && state.submissionProvider == SocialSignInProvider.guest) {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(SnackBar(
@@ -369,22 +345,20 @@ class _GuestLoginButton extends StatelessWidget {
               backgroundColor: Theme.of(context).colorScheme.error,
             ));
         }
-        // AuthBloc sẽ tự động xử lý điều hướng khi đăng nhập thành công
       },
-      child: BlocBuilder<SocialSignInCubit, SocialSignInState>(
-        builder: (context, state) {
-          return state.status == SocialSignInStatus.submitting
-              ? const Center(child: CircularProgressIndicator())
-              : OutlinedButton(
-            onPressed: () => context.read<SocialSignInCubit>().logInAsGuest(),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('Trải nghiệm ứng dụng (Không cần tài khoản)'),
-          );
-        },
-      ),
+      builder: (context, state) {
+        final isLoading = state.status == SocialSignInStatus.submitting && state.submissionProvider == SocialSignInProvider.guest;
+        return isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : OutlinedButton(
+          onPressed: () => context.read<SocialSignInCubit>().logInAsGuest(),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: const Text('Trải nghiệm ứng dụng (Không cần tài khoản)'),
+        );
+      },
     );
   }
 }
