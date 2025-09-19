@@ -108,12 +108,10 @@ class _CreateAgentOrderView extends StatelessWidget {
                         final price = option.getPriceForRole(agentRole);
                         return DropdownMenuItem(
                           value: option,
-                          child: Flexible(
                             child: Text(
                               '${option.name} - ${currencyFormatter.format(price)}',
                               overflow: TextOverflow.ellipsis,
                             ),
-                          ),
                         );
                       }).toList(),
                       onChanged: (value) {

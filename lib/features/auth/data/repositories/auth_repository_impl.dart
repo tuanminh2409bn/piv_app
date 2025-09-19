@@ -26,12 +26,11 @@ class AuthRepositoryImpl implements AuthRepository {
     firebase_auth.FirebaseAuth? firebaseAuth,
     FirebaseFirestore? firestore,
     GoogleSignIn? googleSignIn,
-  }) :
+  })
+      :
         _firebaseAuth = firebaseAuth ?? firebase_auth.FirebaseAuth.instance,
         _firestore = firestore ?? FirebaseFirestore.instance,
-        _googleSignIn = googleSignIn ?? GoogleSignIn() {
-
-    // ========== BẮT ĐẦU THAY ĐỔI LOGIC LẮNG NGHE ==========
+        _googleSignIn = googleSignIn ?? GoogleSignIn(scopes: ['email']) {
     _firebaseAuth.authStateChanges().listen((firebaseUser) async {
       if (firebaseUser == null) {
         // Người dùng đã đăng xuất, phát ra user rỗng
@@ -45,7 +44,8 @@ class AuthRepositoryImpl implements AuthRepository {
           // Document người dùng tồn tại, xử lý như bình thường
           final user = UserModel.fromJson(userDoc.data()!);
           if (user.status != 'active') {
-            developer.log('User ${user.id} logged in but status is ${user.status}. Forcing logout.', name: 'AuthRepository');
+            developer.log('User ${user.id} logged in but status is ${user
+                .status}. Forcing logout.', name: 'AuthRepository');
             await logOut(); // Đăng xuất sẽ tự kích hoạt lại stream này với user là null
           } else {
             _userStreamController.add(user);
@@ -54,7 +54,8 @@ class AuthRepositoryImpl implements AuthRepository {
           // Document người dùng CHƯA tồn tại
           // Kiểm tra xem đây có phải là người dùng ẩn danh (khách) không
           if (firebaseUser.isAnonymous) {
-            developer.log('New anonymous user detected (${firebaseUser.uid}). Creating guest document.', name: 'AuthRepository');
+            developer.log('New anonymous user detected (${firebaseUser
+                .uid}). Creating guest document.', name: 'AuthRepository');
             // Tạo một UserModel cho khách
             final guestUser = UserModel(
               id: firebaseUser.uid,
@@ -76,17 +77,18 @@ class AuthRepositoryImpl implements AuthRepository {
         }
       }
     });
-    // ========== KẾT THÚC THAY ĐỔI LOGIC LẮNG NGHE ==========
   }
 
   @override
   Stream<UserModel> get user => _userStreamController.stream;
+
   @override
   Future<Either<Failure, UserModel>> getCurrentUser() async {
     try {
       final firebaseUser = _firebaseAuth.currentUser;
       if (firebaseUser != null) {
-        final userDoc = await _firestore.collection('users').doc(firebaseUser.uid).get();
+        final userDoc = await _firestore.collection('users').doc(
+            firebaseUser.uid).get();
         if (userDoc.exists && userDoc.data() != null) {
           return Right(UserModel.fromJson(userDoc.data()!));
         } else {
@@ -101,7 +103,8 @@ class AuthRepositoryImpl implements AuthRepository {
         return Right(UserModel.empty);
       }
     } catch (e) {
-      return Left(ServerFailure('Lỗi không xác định khi lấy người dùng hiện tại: ${e.toString()}'));
+      return Left(ServerFailure(
+          'Lỗi không xác định khi lấy người dùng hiện tại: ${e.toString()}'));
     }
   }
 
@@ -122,14 +125,14 @@ class AuthRepositoryImpl implements AuthRepository {
         final firebaseUser = userCredential.user!;
         if (displayName != null && displayName.isNotEmpty) {
           await firebaseUser.updateDisplayName(displayName);
-
         }
 
         String? foundReferrerId;
         String? foundSalesRepId;
 
         if (referralCode != null && referralCode.isNotEmpty) {
-          final referrerDoc = await _firestore.collection('users').doc(referralCode).get();
+          final referrerDoc = await _firestore.collection('users').doc(
+              referralCode).get();
           if (referrerDoc.exists) {
             foundReferrerId = referrerDoc.id;
             final referrerData = UserModel.fromJson(referrerDoc.data()!);
@@ -147,13 +150,13 @@ class AuthRepositoryImpl implements AuthRepository {
           salesRepId: foundSalesRepId,
           referralPromptPending: (foundReferrerId == null),
         );
-        await _firestore.collection('users').doc(firebaseUser.uid).set(newUser.toJson());
+        await _firestore.collection('users').doc(firebaseUser.uid).set(
+            newUser.toJson());
         await _firebaseAuth.signOut();
         return const Right(unit);
       } else {
         return const Left(AuthFailure('Không thể tạo người dùng.'));
       }
-
     } on firebase_auth.FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
         return Left(AuthFailure('Địa chỉ email này đã được sử dụng.'));
@@ -176,13 +179,18 @@ class AuthRepositoryImpl implements AuthRepository {
       );
       final firebaseUser = userCredential.user;
       if (firebaseUser == null) {
-        return Left(AuthFailure('Đăng nhập thất bại, không có thông tin người dùng.'));
+        return Left(
+            AuthFailure('Đăng nhập thất bại, không có thông tin người dùng.'));
       }
 
-      final userDoc = await _firestore.collection('users').doc(firebaseUser.uid).get();
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(firebaseUser.uid)
+          .get();
       if (!userDoc.exists) {
         await _firebaseAuth.signOut();
-        return Left(AuthFailure('Tài khoản không tồn tại trong hệ thống. Vui lòng liên hệ quản trị viên.'));
+        return Left(AuthFailure(
+            'Tài khoản không tồn tại trong hệ thống. Vui lòng liên hệ quản trị viên.'));
       }
 
       final user = UserModel.fromJson(userDoc.data()!);
@@ -198,7 +206,8 @@ class AuthRepositoryImpl implements AuthRepository {
 
       return const Right(unit);
     } on firebase_auth.FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
+      if (e.code == 'user-not-found' || e.code == 'wrong-password' ||
+          e.code == 'invalid-credential') {
         return Left(AuthFailure('Email hoặc mật khẩu không chính xác.'));
       }
       return Left(AuthFailure(e.message ?? 'Lỗi đăng nhập.'));
@@ -206,7 +215,6 @@ class AuthRepositoryImpl implements AuthRepository {
       return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
     }
   }
-
 
 
   @override
@@ -219,7 +227,8 @@ class AuthRepositoryImpl implements AuthRepository {
       ]);
       return const Right(unit);
     } catch (e) {
-      return Left(ServerFailure('Lỗi không xác định khi đăng xuất: ${e.toString()}'));
+      return Left(
+          ServerFailure('Lỗi không xác định khi đăng xuất: ${e.toString()}'));
     }
   }
 
@@ -229,7 +238,8 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<Either<Failure, Unit>> sendPasswordResetEmail({required String email}) async {
+  Future<Either<Failure, Unit>> sendPasswordResetEmail(
+      {required String email}) async {
     throw UnimplementedError();
   }
 
@@ -241,13 +251,20 @@ class AuthRepositoryImpl implements AuthRepository {
         return Left(AuthFailure('Đã hủy đăng nhập bằng Google.'));
       }
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final firebase_auth.AuthCredential credential = firebase_auth.GoogleAuthProvider.credential(
+      final GoogleSignInAuthentication googleAuth = await googleUser
+          .authentication;
+      final firebase_auth.AuthCredential credential = firebase_auth
+          .GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      return _linkOrCreateUser(credential);
+      // <<< SỬA ĐỔI: Truyền thông tin tường minh >>>
+      return _linkOrCreateUser(
+        credential: credential,
+        email: googleUser.email,
+        displayName: googleUser.displayName,
+      );
     } on firebase_auth.FirebaseAuthException catch (e) {
       return Left(AuthFailure(e.message ?? 'Lỗi đăng nhập Google.'));
     } catch (e) {
@@ -255,11 +272,14 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
+// Thay thế hàm signInWithFacebook
   @override
   Future<Either<Failure, Unit>> signInWithFacebook() async {
     try {
-      final status = await AppTrackingTransparency.requestTrackingAuthorization();
-      developer.log('App Tracking Transparency status: $status', name: 'AuthRepository');
+      final status = await AppTrackingTransparency
+          .requestTrackingAuthorization();
+      developer.log(
+          'App Tracking Transparency status: $status', name: 'AuthRepository');
 
       final LoginResult result = await FacebookAuth.instance.login(
         permissions: ['public_profile', 'email'],
@@ -270,12 +290,22 @@ class AuthRepositoryImpl implements AuthRepository {
         final AccessToken accessToken = result.accessToken!;
         final firebase_auth.AuthCredential credential =
         firebase_auth.FacebookAuthProvider.credential(accessToken.tokenString);
-        return _linkOrCreateUser(credential);
 
+        // <<< SỬA ĐỔI: Lấy thêm thông tin và truyền vào >>>
+        final userData = await FacebookAuth.instance.getUserData();
+        final String? email = userData['email'];
+        final String? displayName = userData['name'];
+
+        return _linkOrCreateUser(
+          credential: credential,
+          email: email,
+          displayName: displayName,
+        );
       } else if (result.status == LoginStatus.cancelled) {
         return Left(AuthFailure('Đã hủy đăng nhập bằng Facebook.'));
       } else {
-        return Left(AuthFailure(result.message ?? 'Lỗi đăng nhập Facebook không xác định.'));
+        return Left(AuthFailure(
+            result.message ?? 'Lỗi đăng nhập Facebook không xác định.'));
       }
     } on firebase_auth.FirebaseAuthException catch (e) {
       return Left(AuthFailure(e.message ?? 'Lỗi đăng nhập Facebook.'));
@@ -284,6 +314,7 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
+// Thay thế hàm signInWithApple
   @override
   Future<Either<Failure, Unit>> signInWithApple() async {
     try {
@@ -298,27 +329,33 @@ class AuthRepositoryImpl implements AuthRepository {
         nonce: nonce,
       );
 
-      final oauthCredential = firebase_auth.OAuthProvider('apple.com').credential(
+      final oauthCredential = firebase_auth
+          .OAuthProvider('apple.com')
+          .credential(
         idToken: appleCredential.identityToken,
         rawNonce: rawNonce,
         accessToken: appleCredential.authorizationCode,
       );
 
-      // Cập nhật tên hiển thị nếu người dùng cung cấp lần đầu
-      if (appleCredential.givenName != null || appleCredential.familyName != null) {
-        String displayName = '${appleCredential.givenName ?? ''} ${appleCredential.familyName ?? ''}'.trim();
-        if (displayName.isNotEmpty && _firebaseAuth.currentUser?.displayName == null) {
-          await _firebaseAuth.currentUser?.updateDisplayName(displayName);
-        }
+      // <<< SỬA ĐỔI LOGIC: Truyền thông tin tường minh, bỏ đoạn updateDisplayName cũ >>>
+      String? displayName;
+      if (appleCredential.givenName != null ||
+          appleCredential.familyName != null) {
+        displayName =
+            '${appleCredential.givenName ?? ''} ${appleCredential.familyName ??
+                ''}'.trim();
       }
 
-      return _linkOrCreateUser(oauthCredential);
-
+      return _linkOrCreateUser(
+        credential: oauthCredential,
+        email: appleCredential.email,
+        displayName: displayName,
+      );
     } on firebase_auth.FirebaseAuthException catch (e) {
       return Left(AuthFailure(e.message ?? 'Lỗi đăng nhập Apple.'));
     } catch (e) {
-      // Bắt lỗi khi người dùng hủy bỏ
-      if (e is SignInWithAppleAuthorizationException && e.code == AuthorizationErrorCode.canceled) {
+      if (e is SignInWithAppleAuthorizationException &&
+          e.code == AuthorizationErrorCode.canceled) {
         return Left(AuthFailure('Đã hủy đăng nhập bằng Apple.'));
       }
       return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
@@ -353,19 +390,31 @@ class AuthRepositoryImpl implements AuthRepository {
     return digest.toString();
   }
 
-  Future<Either<Failure, Unit>> _linkOrCreateUser(firebase_auth.AuthCredential credential) async {
+  Future<Either<Failure, Unit>> _linkOrCreateUser({
+    required firebase_auth.AuthCredential credential,
+    String? email,
+    String? displayName,
+  }) async {
     try {
-      final userCredential = await _firebaseAuth.signInWithCredential(credential);
+      final userCredential = await _firebaseAuth.signInWithCredential(
+          credential);
       final firebaseUser = userCredential.user;
+
       if (firebaseUser != null) {
         final userDoc = _firestore.collection('users').doc(firebaseUser.uid);
         final docSnapshot = await userDoc.get();
+
         if (!docSnapshot.exists) {
-          developer.log('Creating new user in Firestore: ${firebaseUser.uid}', name: 'AuthRepository');
+          developer.log('Creating new user in Firestore: ${firebaseUser.uid}',
+              name: 'AuthRepository');
+
+          // <<< SỬA ĐỔI LOGIC: Ưu tiên thông tin được truyền vào >>>
           final newUser = UserModel(
             id: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
+            // Ưu tiên email từ provider, nếu không có thì lấy từ firebaseUser, cuối cùng là chuỗi rỗng
+            email: email ?? firebaseUser.email,
+            // Ưu tiên displayName từ provider, nếu không có thì lấy từ firebaseUser
+            displayName: displayName ?? firebaseUser.displayName,
             photoUrl: firebaseUser.photoURL,
             role: 'agent_2',
             status: 'pending_approval',
@@ -373,10 +422,13 @@ class AuthRepositoryImpl implements AuthRepository {
           );
           await userDoc.set(newUser.toJson());
         }
+
+        // Phần kiểm tra status giữ nguyên...
         final updatedUserSnapshot = await userDoc.get();
         if (!updatedUserSnapshot.exists) {
           await logOut();
-          return Left(AuthFailure('Không tìm thấy thông tin tài khoản sau khi đăng nhập.'));
+          return Left(AuthFailure(
+              'Không tìm thấy thông tin tài khoản sau khi đăng nhập.'));
         }
         final user = UserModel.fromJson(updatedUserSnapshot.data()!);
         if (user.status != 'active') {
@@ -390,6 +442,13 @@ class AuthRepositoryImpl implements AuthRepository {
       } else {
         return Left(AuthFailure('Không thể lấy thông tin người dùng.'));
       }
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      // Xử lý lỗi khi tài khoản mạng xã hội đã được liên kết với một tài khoản email/password khác
+      if (e.code == 'account-exists-with-different-credential') {
+        return Left(AuthFailure(
+            'Tài khoản đã tồn tại với một phương thức đăng nhập khác. Vui lòng sử dụng phương thức đăng nhập ban đầu.'));
+      }
+      return Left(ServerFailure(e.message ?? e.toString()));
     } catch (e) {
       return Left(ServerFailure(e.toString()));
     }
