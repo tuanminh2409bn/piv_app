@@ -1,3 +1,5 @@
+//lib/features/lucky_wheel/presentation/pages/lucky_wheel_page.dart
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -9,6 +11,7 @@ import 'package:piv_app/features/lucky_wheel/presentation/bloc/lucky_wheel_cubit
 import 'package:rxdart/rxdart.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/pages/spin_history_page.dart';
 import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
+import 'package:piv_app/features/lucky_wheel/presentation/pages/lucky_wheel_rules_page.dart';
 
 class LuckyWheelPage extends StatelessWidget {
   const LuckyWheelPage({super.key});
@@ -53,6 +56,15 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
       appBar: AppBar(
         title: const Text('Vòng Quay May Mắn'),
         actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).push(LuckyWheelRulesPage.route());
+            },
+            child: const Text(
+              'Thể lệ',
+              style: TextStyle(color: Colors.black), // Hoặc màu phù hợp với theme của bạn
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.history),
             tooltip: 'Lịch sử quay',
