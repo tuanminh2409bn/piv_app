@@ -250,6 +250,7 @@ export const onUserUpdate = onDocumentUpdated(
             });
             await saveNotificationToFirestore(updatedUserId, title1, body1, type1, { userId: updatedUserId });
 
+
             const adminsSnapshot = await db.collection("users").where("role", "==", "admin").get();
             const adminRecipients = adminsSnapshot.docs.map(doc => ({id: doc.id, token: doc.data().fcmToken as string})).filter(r => r.token);
             if (adminRecipients.length > 0) {
@@ -284,9 +285,13 @@ export const onUserUpdate = onDocumentUpdated(
         }
 
         // --- BẮT ĐẦU LOGIC XỬ LÝ THAY ĐỔI VAI TRÒ ---
-        // Chỉ thực hiện logic bên dưới nếu vai trò thực sự thay đổi
         if (before.role !== after.role) {
-            // Kịch bản 2: NVKD bị khóa hoặc thay đổi vai trò -> Giải phóng đại lý của họ
+            const wasAgent = before.role === "agent_1" || before.role === "agent_2";
+            const isNowStaff = ["admin", "sales_rep", "accountant"].includes(after.role);
+            const wasStaff = ["admin", "sales_rep", "accountant"].includes(before.role);
+            const isNowAgent = after.role === "agent_1" || after.role === "agent_2";
+
+            // Kịch bản 2: NVKD bị thay đổi vai trò -> Giải phóng đại lý của họ
             if (before.role === "sales_rep") {
                  logger.info(`Sales rep ${updatedUserId} role changed from sales_rep to ${after.role}. Un-assigning agents...`);
                  const agentsSnapshot = await db.collection("users").where("salesRepId", "==", updatedUserId).get();
@@ -303,10 +308,7 @@ export const onUserUpdate = onDocumentUpdated(
                  }
             }
 
-            // Kịch bản 3: Một đại lý được nâng cấp/thay đổi vai trò thành nhân viên -> Xóa trường cũ
-            const wasAgent = before.role === "agent_1" || before.role === "agent_2";
-            const isNowStaff = ["admin", "sales_rep", "accountant"].includes(after.role);
-
+            // Kịch bản 3: Đại lý được nâng cấp thành nhân viên -> Xóa trường cũ
             if (wasAgent && isNowStaff) {
                 logger.info(`Agent ${updatedUserId} was promoted to a staff role (${after.role}). Removing agent-specific fields.`);
                 await db.collection("users").doc(updatedUserId).update({
@@ -315,10 +317,19 @@ export const onUserUpdate = onDocumentUpdated(
                 });
                 logger.info(`Fields salesRepId and referrerId removed for user ${updatedUserId}.`);
             }
+
+            // [MỚI] Kịch bản 4: Nhân viên bị chuyển về làm đại lý -> Yêu cầu nhập lại mã giới thiệu
+            if (wasStaff && isNowAgent) {
+                logger.info(`Staff ${updatedUserId} was changed to an agent role (${after.role}). Setting referral prompt flag.`);
+                await db.collection("users").doc(updatedUserId).update({
+                    referralPromptPending: true
+                });
+                logger.info(`referralPromptPending flag set for user ${updatedUserId}.`);
+            }
         }
         // --- KẾT THÚC LOGIC XỬ LÝ THAY ĐỔI VAI TRÒ ---
 
-        // Logic cũ khác (ví dụ: NVKD bị khóa) vẫn có thể chạy độc lập
+        // Logic cũ khác: NVKD bị khóa (chạy độc lập với thay đổi vai trò)
         if (before.status !== "suspended" && after.status === "suspended" && before.role === "sales_rep") {
              logger.info(`Sales rep ${updatedUserId} was suspended. Un-assigning agents...`);
              const agentsSnapshot = await db.collection("users").where("salesRepId", "==", updatedUserId).get();
