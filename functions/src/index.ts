@@ -227,12 +227,16 @@ export const onUserUpdate = onDocumentUpdated(
     async (event) => {
         const before = event.data?.before.data();
         const after = event.data?.after.data();
-        if (!before || !after) return null;
+
+        // Thoát sớm nếu không có dữ liệu
+        if (!before || !after) {
+            return null;
+        }
 
         const updatedUserId = event.params.userId;
         const updatedUserName = after.displayName ?? "Người dùng";
 
-        // Kịch bản 1: Tài khoản được duyệt
+        // Kịch bản 1: Tài khoản được duyệt (logic không đổi)
         if (before.status === "pending_approval" && after.status === "active") {
             const title1 = "✅ Tài khoản đã được duyệt!";
             const body1 = `Chúc mừng ${updatedUserName}! Tài khoản của bạn đã được kích hoạt.`;
@@ -244,9 +248,7 @@ export const onUserUpdate = onDocumentUpdated(
                 userId: updatedUserId,
                 payload: JSON.stringify({ userId: updatedUserId, status: "active" }),
             });
-            // [MỚI] Lưu thông báo
             await saveNotificationToFirestore(updatedUserId, title1, body1, type1, { userId: updatedUserId });
-
 
             const adminsSnapshot = await db.collection("users").where("role", "==", "admin").get();
             const adminRecipients = adminsSnapshot.docs.map(doc => ({id: doc.id, token: doc.data().fcmToken as string})).filter(r => r.token);
@@ -260,7 +262,6 @@ export const onUserUpdate = onDocumentUpdated(
                     type: type2,
                     userId: updatedUserId,
                 });
-                // [MỚI] Lưu thông báo cho các admin
                 const savePromises = adminRecipients.map(r => saveNotificationToFirestore(r.id, title2, body2, type2, { userId: updatedUserId }));
                 await Promise.all(savePromises);
             }
@@ -277,35 +278,63 @@ export const onUserUpdate = onDocumentUpdated(
                         type: type3,
                         agentId: updatedUserId,
                     });
-                     // [MỚI] Lưu thông báo
                     await saveNotificationToFirestore(after.salesRepId, title3, body3, type3, { agentId: updatedUserId });
                 }
             }
         }
 
-        // ... Các kịch bản khác không gửi thông báo nên giữ nguyên
-        if (before.role === "sales_rep" && (after.status === "suspended" || after.role !== "sales_rep")) {
-             logger.info(`Sales rep ${updatedUserId} status changed. Un-assigning agents...`);
+        // --- BẮT ĐẦU LOGIC XỬ LÝ THAY ĐỔI VAI TRÒ ---
+        // Chỉ thực hiện logic bên dưới nếu vai trò thực sự thay đổi
+        if (before.role !== after.role) {
+            // Kịch bản 2: NVKD bị khóa hoặc thay đổi vai trò -> Giải phóng đại lý của họ
+            if (before.role === "sales_rep") {
+                 logger.info(`Sales rep ${updatedUserId} role changed from sales_rep to ${after.role}. Un-assigning agents...`);
+                 const agentsSnapshot = await db.collection("users").where("salesRepId", "==", updatedUserId).get();
+                 if (!agentsSnapshot.empty) {
+                    const batch = db.batch();
+                    agentsSnapshot.forEach((doc) => {
+                        batch.update(doc.ref, {
+                            salesRepId: admin.firestore.FieldValue.delete(),
+                            referrerId: admin.firestore.FieldValue.delete()
+                        });
+                    });
+                    await batch.commit();
+                    logger.info(`Un-assigned ${agentsSnapshot.size} agents from former Sales Rep ${updatedUserId}.`);
+                 }
+            }
+
+            // Kịch bản 3: Một đại lý được nâng cấp/thay đổi vai trò thành nhân viên -> Xóa trường cũ
+            const wasAgent = before.role === "agent_1" || before.role === "agent_2";
+            const isNowStaff = ["admin", "sales_rep", "accountant"].includes(after.role);
+
+            if (wasAgent && isNowStaff) {
+                logger.info(`Agent ${updatedUserId} was promoted to a staff role (${after.role}). Removing agent-specific fields.`);
+                await db.collection("users").doc(updatedUserId).update({
+                    salesRepId: admin.firestore.FieldValue.delete(),
+                    referrerId: admin.firestore.FieldValue.delete()
+                });
+                logger.info(`Fields salesRepId and referrerId removed for user ${updatedUserId}.`);
+            }
+        }
+        // --- KẾT THÚC LOGIC XỬ LÝ THAY ĐỔI VAI TRÒ ---
+
+        // Logic cũ khác (ví dụ: NVKD bị khóa) vẫn có thể chạy độc lập
+        if (before.status !== "suspended" && after.status === "suspended" && before.role === "sales_rep") {
+             logger.info(`Sales rep ${updatedUserId} was suspended. Un-assigning agents...`);
              const agentsSnapshot = await db.collection("users").where("salesRepId", "==", updatedUserId).get();
              if (!agentsSnapshot.empty) {
                 const batch = db.batch();
                 agentsSnapshot.forEach((doc) => {
-                    batch.update(doc.ref, {salesRepId: null});
+                    batch.update(doc.ref, {
+                        salesRepId: admin.firestore.FieldValue.delete(),
+                        referrerId: admin.firestore.FieldValue.delete()
+                    });
                 });
                 await batch.commit();
-                logger.info(`Un-assigned ${agentsSnapshot.size} agents from Sales Rep ${updatedUserId}.`);
+                logger.info(`Un-assigned ${agentsSnapshot.size} agents from suspended Sales Rep ${updatedUserId}.`);
              }
         }
 
-        const wasAgent = before.role === 'agent_1' || before.role === 'agent_2';
-        const isNowSalesRep = after.role === 'sales_rep';
-
-        if (wasAgent && isNowSalesRep && after.salesRepId) {
-            logger.info(`Agent ${updatedUserId} was promoted to Sales Rep. Un-assigning from old Sales Rep.`);
-            await db.collection("users").doc(updatedUserId).update({
-                salesRepId: null
-            });
-        }
         return null;
     });
 
