@@ -89,7 +89,6 @@ class AdminUsersView extends StatelessWidget {
                   context, state.unassignedAgents, currentUser?.id ?? ''),
               const SizedBox(height: 16),
 
-              // --- THAY ĐỔI: Chỉ hiển thị mục này cho Admin ---
               if (isAdmin) ...[
                 _buildSectionHeader(context, 'Quản trị viên',
                     Icons.admin_panel_settings_outlined,

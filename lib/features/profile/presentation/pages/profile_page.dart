@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
-import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/profile/presentation/bloc/profile_cubit.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/data/models/address_model.dart';
@@ -12,7 +11,6 @@ import 'package:piv_app/features/wishlist/presentation/pages/wishlist_page.dart'
 import 'package:piv_app/features/profile/presentation/pages/qr_scanner_page.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/sales_commitment_page.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/pages/lucky_wheel_page.dart';
-import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 Future<void> _launchURL(BuildContext context, String urlString) async {

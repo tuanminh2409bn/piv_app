@@ -6,6 +6,8 @@ import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/admin/domain/repositories/admin_repository.dart';
 import 'dart:developer' as developer;
+import 'package:piv_app/features/admin/data/models/quick_order_item_model.dart';
+import 'package:piv_app/features/home/data/models/product_model.dart';
 
 class AdminRepositoryImpl implements AdminRepository {
   final FirebaseFirestore _firestore;
@@ -118,6 +120,103 @@ class AdminRepositoryImpl implements AdminRepository {
       return Right(users);
     } catch (e) {
       return Left(ServerFailure('Lỗi khi tải danh sách đại lý chờ duyệt: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Stream<List<QuickOrderItemModel>> getQuickOrderItems(String agentId) {
+    return _firestore
+        .collection('quick_order_lists')
+        .doc(agentId)
+        .collection('items')
+        .orderBy('addedAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => QuickOrderItemModel.fromSnapshot(doc)).toList();
+    });
+  }
+
+  @override
+  Future<void> addProductToQuickList({
+    required String agentId,
+    required String productId,
+    required String addedBy,
+  }) async {
+    try {
+      // Kiểm tra xem sản phẩm đã tồn tại trong danh sách chưa để tránh trùng lặp
+      final existing = await _firestore
+          .collection('quick_order_lists')
+          .doc(agentId)
+          .collection('items')
+          .where('productId', isEqualTo: productId)
+          .limit(1)
+          .get();
+
+      if (existing.docs.isEmpty) {
+        await _firestore
+            .collection('quick_order_lists')
+            .doc(agentId)
+            .collection('items')
+            .add({
+          'productId': productId,
+          'addedAt': FieldValue.serverTimestamp(),
+          'addedBy': addedBy,
+        });
+      }
+    } catch (e) {
+      // Bạn có thể log lỗi hoặc rethrow một Failure ở đây
+      throw Exception('Lỗi khi thêm sản phẩm vào danh sách đặt nhanh: $e');
+    }
+  }
+
+  @override
+  Future<void> removeProductFromQuickList({
+    required String agentId,
+    required String itemId,
+  }) async {
+    try {
+      await _firestore
+          .collection('quick_order_lists')
+          .doc(agentId)
+          .collection('items')
+          .doc(itemId)
+          .delete();
+    } catch (e) {
+      throw Exception('Lỗi khi xoá sản phẩm khỏi danh sách đặt nhanh: $e');
+    }
+  }
+
+  @override
+  Future<List<ProductModel>> getProductsByIds(List<String> productIds) async {
+    if (productIds.isEmpty) {
+      return [];
+    }
+
+    try {
+      final querySnapshot = await _firestore
+          .collection('products')
+          .where(FieldPath.documentId, whereIn: productIds)
+          .get();
+
+      // Sử dụng fromSnapshot trực tiếp, vì nó đã bao gồm ID
+      final products = querySnapshot.docs
+          .map((doc) => ProductModel.fromSnapshot(doc))
+          .toList();
+
+      // Sắp xếp lại danh sách sản phẩm theo thứ tự ID ban đầu để đảm bảo
+      // thứ tự hiển thị không bị thay đổi sau mỗi lần tải lại.
+      final productMap = {for (var p in products) p.id: p};
+      final sortedProducts = productIds
+          .map((id) => productMap[id])
+          .where((p) => p != null)
+          .cast<ProductModel>()
+          .toList();
+
+      return sortedProducts;
+
+    } catch (e) {
+      developer.log('Lỗi khi lấy sản phẩm theo IDs: $e', name: 'AdminRepositoryImpl');
+      rethrow;
     }
   }
 }

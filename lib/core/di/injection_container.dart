@@ -2,6 +2,8 @@ import 'package:get_it/get_it.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:piv_app/features/quick_order/data/repositories/quick_order_repository_impl.dart';
+import 'package:piv_app/features/quick_order/domain/repositories/quick_order_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:piv_app/app/app_bloc_observer.dart';
 import 'package:piv_app/features/auth/data/repositories/auth_repository_impl.dart';
@@ -70,7 +72,6 @@ import 'package:piv_app/features/lucky_wheel/presentation/bloc/admin/campaign_fo
 import 'package:piv_app/features/notifications/data/repositories/notification_repository_impl.dart';
 import 'package:piv_app/features/notifications/domain/repositories/notification_repository.dart';
 import 'package:piv_app/features/notifications/presentation/bloc/notification_cubit.dart';
-
 
 final sl = GetIt.instance;
 
@@ -141,7 +142,6 @@ Future<void> initializeDependencies() async {
   // == Sales Rep ==
   sl.registerFactory<SalesRepCubit>(() => SalesRepCubit(adminRepository: sl(), authBloc: sl()));
   sl.registerFactory<SalesRepCommissionsCubit>(() => SalesRepCommissionsCubit(orderRepository: sl(), authBloc: sl()));
-  sl.registerFactory<QuickOrderCubit>(() => QuickOrderCubit(homeRepository: sl(), cartCubit: sl()));
   sl.registerFactory<AgentOrdersCubit>(() => AgentOrdersCubit(orderRepository: sl(), authBloc: sl(),));
 
   sl.registerLazySingleton<VoucherRepository>(() => VoucherRepositoryImpl(firestore: sl()));
@@ -164,4 +164,5 @@ Future<void> initializeDependencies() async {
 
   sl.registerLazySingleton<NotificationRepository>(() => NotificationRepositoryImpl(),);
   sl.registerFactory(() => NotificationCubit(notificationRepository: sl(), authBloc: sl(),),);
+  sl.registerLazySingleton<QuickOrderRepository>(() => QuickOrderRepositoryImpl(firestore: sl()));
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:piv_app/features/home/data/models/category_model.dart';
 import 'package:piv_app/features/home/presentation/bloc/home_cubit.dart';
 import 'package:piv_app/features/products/presentation/pages/category_products_page.dart';
 

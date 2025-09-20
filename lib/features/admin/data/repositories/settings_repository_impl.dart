@@ -18,7 +18,7 @@ class SettingsRepositoryImpl implements SettingsRepository {
         final rate = (snapshot.data()!['commissionRate'] as num?)?.toDouble() ?? 0.05;
         return Right(rate);
       }
-      return const Right(0.05); // Trả về giá trị mặc định nếu không có
+      return const Right(0.05);
     } catch (e) {
       return Left(ServerFailure(e.toString()));
     }

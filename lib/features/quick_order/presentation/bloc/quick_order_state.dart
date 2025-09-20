@@ -1,33 +1,30 @@
+// lib/features/quick_order/presentation/bloc/quick_order_state.dart
 part of 'quick_order_cubit.dart';
 
-enum QuickOrderStatus { initial, loading, success, error, submitting }
+enum QuickOrderStatus { initial, loading, success, error }
 
 class QuickOrderState extends Equatable {
   final QuickOrderStatus status;
-  final List<ProductModel> allProducts; // Danh sách tất cả sản phẩm để tìm kiếm
-  final List<OrderLine> orderLines;
+  final List<ProductModel> products;
   final String? errorMessage;
 
   const QuickOrderState({
     this.status = QuickOrderStatus.initial,
-    this.allProducts = const [],
-    this.orderLines = const [],
+    this.products = const [],
     this.errorMessage,
   });
 
   @override
-  List<Object?> get props => [status, allProducts, orderLines, errorMessage];
+  List<Object?> get props => [status, products, errorMessage];
 
   QuickOrderState copyWith({
     QuickOrderStatus? status,
-    List<ProductModel>? allProducts,
-    List<OrderLine>? orderLines,
+    List<ProductModel>? products,
     String? errorMessage,
   }) {
     return QuickOrderState(
       status: status ?? this.status,
-      allProducts: allProducts ?? this.allProducts,
-      orderLines: orderLines ?? this.orderLines,
+      products: products ?? this.products,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }

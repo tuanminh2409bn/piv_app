@@ -80,4 +80,30 @@ class ProductModel extends Equatable {
       'productType': productType,
     };
   }
+
+  ProductModel copyWith({
+    String? id,
+    String? name,
+    String? description,
+    String? imageUrl,
+    String? categoryId,
+    bool? isFeatured,
+    Timestamp? createdAt,
+    Map<String, dynamic>? attributes,
+    List<PackagingOptionModel>? packingOptions,
+    String? productType,
+  }) {
+    return ProductModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      imageUrl: imageUrl ?? this.imageUrl,
+      categoryId: categoryId ?? this.categoryId,
+      isFeatured: isFeatured ?? this.isFeatured,
+      createdAt: createdAt ?? this.createdAt,
+      attributes: attributes ?? this.attributes,
+      packingOptions: packingOptions ?? this.packingOptions,
+      productType: productType ?? this.productType,
+    );
+  }
 }

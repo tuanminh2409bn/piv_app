@@ -8,7 +8,6 @@ import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/products/presentation/bloc/category_products_cubit.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
 import 'package:intl/intl.dart';
 
 class CategoryProductsPage extends StatelessWidget {

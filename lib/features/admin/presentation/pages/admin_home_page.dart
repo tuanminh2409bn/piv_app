@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:piv_app/features/admin/presentation/pages/quick_order_agent_selection_page.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_orders_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_products_page.dart';
@@ -59,6 +60,11 @@ class AdminHomePage extends StatelessWidget {
               title: 'Người dùng',
               icon: Icons.people_outline,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminUsersPage())),
+            ),
+            _DashboardCard(
+              title: 'Cài đặt Đặt nhanh',
+              icon: Icons.playlist_add_check_rounded,
+              onTap: () => Navigator.of(context).push(QuickOrderAgentSelectionPage.route()),
             ),
             _DashboardCard(
               title: 'Soạn Thông Báo',

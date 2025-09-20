@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
-import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/accountant/presentation/bloc/accountant_agents_cubit.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_orders_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_users_page.dart';
@@ -11,6 +10,8 @@ import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/create_agent_order_page.dart';
 import 'package:piv_app/features/sales_commitment/presentation/bloc/admin/sales_commitment_admin_cubit.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/quick_order_agent_selection_page.dart';
+
 
 class AccountantHomePage extends StatelessWidget {
   const AccountantHomePage({super.key});
@@ -24,7 +25,7 @@ class AccountantHomePage extends StatelessWidget {
     final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
 
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: Text('Kế toán: ${user.displayName ?? ''}'),
@@ -43,6 +44,7 @@ class AccountantHomePage extends StatelessWidget {
               Tab(icon: Icon(Icons.receipt_long_outlined), text: 'Đơn hàng'),
               Tab(icon: Icon(Icons.workspace_premium_outlined), text: 'Cam kết'),
               Tab(icon: Icon(Icons.add_shopping_cart), text: 'Đặt hàng hộ'),
+              Tab(icon: Icon(Icons.playlist_add_check_rounded), text: 'Cài đặt Đặt nhanh'),
             ],
           ),
         ),
@@ -52,6 +54,7 @@ class AccountantHomePage extends StatelessWidget {
             AdminOrdersPage(),
             CommitmentManagementPageWrapper(),
             AllAgentsViewForAccountant(),
+            QuickOrderAgentSelectionPage(),
           ],
         ),
       ),

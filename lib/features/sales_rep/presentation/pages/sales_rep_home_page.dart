@@ -8,10 +8,8 @@ import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/data/models/commission_model.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
-// ====================== THÊM IMPORT MỚI ======================
 import 'package:piv_app/features/sales_commitment/presentation/bloc/admin/sales_commitment_admin_cubit.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
-// =============================================================
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_commissions_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/agent_order_history_page.dart';
@@ -20,6 +18,8 @@ import 'package:piv_app/features/vouchers/presentation/pages/voucher_management_
 import 'package:piv_app/features/sales_rep/agent_approval/bloc/agent_approval_cubit.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/create_agent_order_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/manage_quick_order_list_page.dart';
+
 
 class SalesRepHomePage extends StatelessWidget {
   const SalesRepHomePage({super.key});
@@ -72,9 +72,7 @@ class SalesRepView extends StatelessWidget {
               Tab(icon: Icon(Icons.people_outline), text: 'Đại lý'),
               Tab(icon: Icon(Icons.pending_actions_outlined), text: 'Chờ duyệt'),
               Tab(icon: Icon(Icons.attach_money_outlined), text: 'Hoa hồng'),
-              // ====================== THÊM TAB MỚI ======================
               Tab(icon: Icon(Icons.workspace_premium_outlined), text: 'Cam kết'),
-              // ========================================================
               Tab(icon: Icon(Icons.confirmation_number_outlined), text: 'Voucher'),
             ],
           ),
@@ -84,9 +82,7 @@ class SalesRepView extends StatelessWidget {
             MyAgentsView(),
             PendingAgentsView(),
             SalesRepCommissionsView(),
-            // ====================== THÊM VIEW MỚI ======================
             CommitmentManagementPageWrapper(),
-            // =========================================================
             VoucherManagementPageWrapper(),
           ],
         ),
@@ -227,7 +223,12 @@ class MyAgentsView extends StatelessWidget {
                       } else if (value == 'place_order') {
                         Navigator.of(context).push(CreateAgentOrderPage.route(agent));
                       }
+                      // <<< THÊM LOGIC MỚI >>>
+                      else if (value == 'manage_quick_order') {
+                        Navigator.of(context).push(ManageQuickOrderListPage.route(agent));
+                      }
                     },
+                    // <<< THÊM ITEM MỚI VÀO MENU >>>
                     itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
                       const PopupMenuItem<String>(
                         value: 'view_history',
@@ -236,6 +237,11 @@ class MyAgentsView extends StatelessWidget {
                       const PopupMenuItem<String>(
                         value: 'place_order',
                         child: ListTile(leading: Icon(Icons.add_shopping_cart), title: Text('Đặt hàng hộ')),
+                      ),
+                      const PopupMenuDivider(),
+                      const PopupMenuItem<String>(
+                        value: 'manage_quick_order',
+                        child: ListTile(leading: Icon(Icons.playlist_add_check), title: Text('Quản lý Đặt nhanh')),
                       ),
                     ],
                   ),

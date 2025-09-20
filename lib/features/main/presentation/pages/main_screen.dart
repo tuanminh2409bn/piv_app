@@ -1,4 +1,4 @@
-// Dán toàn bộ mã này để thay thế file cũ của bạn
+// lib/features/main/presentation/pages/main_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -8,7 +8,7 @@ import 'package:piv_app/features/cart/presentation/pages/cart_page.dart';
 import 'package:piv_app/features/cart/presentation/widgets/cart_icon_with_badge.dart';
 import 'package:piv_app/features/home/presentation/bloc/home_cubit.dart';
 import 'package:piv_app/features/home/presentation/pages/home_page.dart';
-import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart'; // Đảm bảo import này đúng
+import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
 import 'package:piv_app/features/profile/presentation/bloc/profile_cubit.dart';
 import 'package:piv_app/features/profile/presentation/pages/profile_page.dart';
 import 'package:piv_app/features/products/presentation/pages/all_categories_page.dart';
@@ -30,18 +30,22 @@ class _MainScreenState extends State<MainScreen> {
 
   late final List<Widget> _widgetOptions;
 
+  // <<< SỬA ĐỔI 1: Thêm tiêu đề cho trang "Đặt hàng nhanh" >>>
   static const List<String> _appBarTitles = <String>[
     'Phân Bón PIV',
     'Tất cả Danh mục',
+    'Đặt hàng nhanh', // Tiêu đề mới
     'Tài khoản'
   ];
 
   @override
   void initState() {
     super.initState();
+    // <<< SỬA ĐỔI 2: Thêm trang QuickOrderPage vào danh sách màn hình >>>
     _widgetOptions = <Widget>[
       const HomePage(),
       const AllCategoriesPage(),
+      const QuickOrderPage(), // Màn hình mới
       BlocProvider.value(
         value: _profileCubit,
         child: const ProfilePage(),
@@ -91,6 +95,8 @@ class _MainScreenState extends State<MainScreen> {
           ),
           actionsIconTheme: const IconThemeData(color: Colors.white),
           actions: [
+            // <<< SỬA ĐỔI 3: Xóa IconButton Đặt hàng nhanh khỏi đây >>>
+            /*
             IconButton(
               icon: const Icon(Icons.flash_on_outlined),
               tooltip: 'Đặt hàng nhanh',
@@ -98,6 +104,7 @@ class _MainScreenState extends State<MainScreen> {
                 Navigator.of(context).push(QuickOrderPage.route());
               },
             ),
+            */
             const NotificationIconWithBadge(iconColor: Colors.white),
             CartIconWithBadge(
               iconColor: Colors.white,
@@ -130,9 +137,11 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ),
         bottomNavigationBar: BottomNavigationBar(
+          // <<< SỬA ĐỔI 4: Thêm mục "Đặt nhanh" vào đây >>>
           items: const <BottomNavigationBarItem>[
             BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Trang chủ'),
             BottomNavigationBarItem(icon: Icon(Icons.category_outlined), activeIcon: Icon(Icons.category), label: 'Danh mục'),
+            BottomNavigationBarItem(icon: Icon(Icons.shop_2_outlined), activeIcon: Icon(Icons.shop_2), label: 'Đặt nhanh'),
             BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Tài khoản'),
           ],
           currentIndex: _selectedIndex,
