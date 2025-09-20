@@ -3,14 +3,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
-import 'package:piv_app/features/accountant/presentation/bloc/accountant_agents_cubit.dart';
+import 'package:piv_app/features/admin/domain/repositories/admin_repository.dart';
+import 'package:piv_app/features/admin/presentation/bloc/agent_selection_cubit.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_orders_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_users_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/quick_order_agent_selection_page.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/create_agent_order_page.dart';
 import 'package:piv_app/features/sales_commitment/presentation/bloc/admin/sales_commitment_admin_cubit.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
-import 'package:piv_app/features/admin/presentation/pages/quick_order_agent_selection_page.dart';
+import 'package:piv_app/features/accountant/presentation/bloc/accountant_agents_cubit.dart';
 
 
 class AccountantHomePage extends StatelessWidget {
@@ -54,7 +56,8 @@ class AccountantHomePage extends StatelessWidget {
             AdminOrdersPage(),
             CommitmentManagementPageWrapper(),
             AllAgentsViewForAccountant(),
-            QuickOrderAgentSelectionPage(),
+            // <<< SỬA ĐỔI: Sử dụng một Widget Wrapper để cung cấp Cubit >>>
+            _QuickOrderManagementTabWrapper(),
           ],
         ),
       ),
@@ -62,6 +65,25 @@ class AccountantHomePage extends StatelessWidget {
   }
 }
 
+// <<< THÊM WIDGET MỚI NÀY VÀO CUỐI FILE >>>
+// Widget này có nhiệm vụ tạo và cung cấp AgentSelectionCubit
+// cho QuickOrderAgentSelectionPage
+class _QuickOrderManagementTabWrapper extends StatelessWidget {
+  const _QuickOrderManagementTabWrapper();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => AgentSelectionCubit(
+        adminRepository: sl<AdminRepository>(),
+      )..fetchAllAgents(),
+      child: const QuickOrderAgentSelectionPage(),
+    );
+  }
+}
+
+
+// Các class Wrapper và View khác giữ nguyên không đổi
 class CommitmentManagementPageWrapper extends StatelessWidget {
   const CommitmentManagementPageWrapper({super.key});
 

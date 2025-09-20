@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
+import 'package:piv_app/data/models/cart_item_model.dart';
 import 'package:piv_app/data/models/packaging_option_model.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
+import 'package:piv_app/features/checkout/presentation/pages/checkout_page.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
 import 'package:piv_app/features/quick_order/domain/repositories/quick_order_repository.dart';
@@ -60,7 +62,7 @@ class QuickOrderView extends StatelessWidget {
               crossAxisCount: 2,
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
-              childAspectRatio: 0.75,
+              childAspectRatio: 0.7,
             ),
             itemCount: state.products.length,
             itemBuilder: (context, index) {
@@ -80,11 +82,11 @@ class ProductGridItem extends StatelessWidget {
 
   ProductGridItem({super.key, required this.product});
 
-  Future<void> _showPackagingOptionsDialog(BuildContext context) async {
+  Future<CartItemModel?> _showPackagingOptionsDialog(BuildContext context) async {
     final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
     final agentRole = user.role;
 
-    await showDialog<void>(
+    return showDialog<CartItemModel>(
       context: context,
       builder: (dialogContext) {
         if (product.packingOptions.isEmpty) {
@@ -102,6 +104,7 @@ class ProductGridItem extends StatelessWidget {
           builder: (stfContext, stfSetState) {
             return AlertDialog(
               title: Text('Chọn quy cách cho ${product.name}'),
+              contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -131,27 +134,27 @@ class ProductGridItem extends StatelessWidget {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('HỦY')),
+                TextButton(onPressed: () => Navigator.of(dialogContext).pop(null), child: const Text('HỦY')),
                 ElevatedButton(
                   onPressed: () {
                     final quantity = int.tryParse(quantityController.text) ?? 0;
                     if (quantity > 0) {
-                      // <<< SỬA LỖI DUY NHẤT TẠI ĐÂY >>>
-                      // Gọi đúng tên hàm là `addProduct` thay vì `addToCart`
-                      context.read<CartCubit>().addProduct(
-                        product: product,
-                        selectedOption: selectedOption,
+                      final price = selectedOption.getPriceForRole(agentRole);
+                      final cartItem = CartItemModel(
+                        productId: product.id,
+                        productName: product.name,
+                        imageUrl: product.imageUrl,
+                        price: price,
+                        itemUnitName: selectedOption.unit,
                         quantity: quantity,
+                        quantityPerPackage: selectedOption.quantityPerPackage,
+                        caseUnitName: selectedOption.name,
+                        categoryId: product.categoryId,
                       );
-
-                      ScaffoldMessenger.of(context)
-                        ..hideCurrentSnackBar()
-                        ..showSnackBar(SnackBar(content: Text('Đã thêm ${product.name} vào giỏ hàng')));
-
-                      Navigator.of(dialogContext).pop();
+                      Navigator.of(dialogContext).pop(cartItem);
                     }
                   },
-                  child: const Text('THÊM VÀO GIỎ'),
+                  child: const Text('XÁC NHẬN'),
                 ),
               ],
             );
@@ -205,19 +208,54 @@ class ProductGridItem extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.add_shopping_cart, size: 18),
-                label: const Text('Thêm vào giỏ'),
-                style: ElevatedButton.styleFrom(
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                  foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
-                ),
-                onPressed: () => _showPackagingOptionsDialog(context),
+              padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.add_shopping_cart, size: 18),
+                      label: const Text('Thêm vào giỏ'),
+                      style: ElevatedButton.styleFrom(
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                        foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
+                      onPressed: () async {
+                        final cartItem = await _showPackagingOptionsDialog(context);
+                        if (cartItem != null && context.mounted) {
+                          context.read<CartCubit>().addProduct(
+                            product: product,
+                            selectedOption: product.packingOptions.firstWhere((opt) => opt.name == cartItem.caseUnitName),
+                            quantity: cartItem.quantity,
+                          );
+                          ScaffoldMessenger.of(context)
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(SnackBar(content: Text('Đã thêm ${product.name} vào giỏ hàng')));
+                        }
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      child: const Text('Mua ngay'),
+                      style: OutlinedButton.styleFrom(
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () async {
+                        final cartItem = await _showPackagingOptionsDialog(context);
+                        if (cartItem != null && context.mounted) {
+                          // <<< SỬA LỖI DUY NHẤT TẠI ĐÂY >>>
+                          // Gọi đúng tên tham số là `buyNowItems`
+                          Navigator.of(context).push(CheckoutPage.route(buyNowItems: [cartItem]));
+                        }
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 4),
           ],
         ),
       ),
