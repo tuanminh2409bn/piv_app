@@ -13,6 +13,7 @@ import 'package:piv_app/features/sales_commitment/presentation/pages/sales_commi
 import 'package:piv_app/features/lucky_wheel/presentation/pages/lucky_wheel_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+// --- PHẦN NÀY KHÔNG THAY ĐỔI ---
 Future<void> _launchURL(BuildContext context, String urlString) async {
   final Uri url = Uri.parse(urlString);
   if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
@@ -105,7 +106,7 @@ class ProfileView extends StatelessWidget {
       },
     );
   }
-
+// --- CÁC HÀM BUILD KHÁC KHÔNG THAY ĐỔI ---
   Widget _buildLegalAndSupportSection(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -146,7 +147,6 @@ class ProfileView extends StatelessWidget {
             style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          // Nếu đang trong quá trình xóa, hiển thị loading
           if (status == ProfileStatus.updating)
             const Center(child: CircularProgressIndicator())
           else
@@ -190,7 +190,6 @@ class ProfileView extends StatelessWidget {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               child: const Text('XÓA TÀI KHOẢN'),
               onPressed: () {
-                // Đóng dialog trước rồi mới gọi hàm xóa
                 Navigator.of(dialogContext).pop();
                 context.read<ProfileCubit>().deleteAccount();
               },
@@ -236,7 +235,6 @@ class ProfileView extends StatelessWidget {
               );
             },
           ),
-          // ====================== THÊM MỤC VÒNG QUAY ======================
           const Divider(height: 1, indent: 16, endIndent: 16),
           ListTile(
             leading: const Icon(Icons.casino_outlined, color: Colors.teal),
@@ -249,14 +247,12 @@ class ProfileView extends StatelessWidget {
               );
             },
           ),
-          // =============================================================
         ]
       ],
     );
   }
 
   Widget _buildReferralSection(BuildContext context, UserModel user) {
-    // ... (Giữ nguyên không đổi)
     if (user.isAdmin || user.isSalesRep) {
       return const SizedBox.shrink();
     }
@@ -280,7 +276,6 @@ class ProfileView extends StatelessWidget {
   }
 
   void _showReferralInputDialog(BuildContext context) {
-    // ... (Giữ nguyên không đổi)
     final profileCubit = context.read<ProfileCubit>();
     final formKey = GlobalKey<FormState>();
     final codeController = TextEditingController();
@@ -337,7 +332,6 @@ class ProfileView extends StatelessWidget {
   }
 }
 
-// ... (Các class _ProfileForm, _AddressSection, _AddressCard, _AddressFormDialog giữ nguyên không đổi)
 class _ProfileForm extends StatefulWidget {
   final UserModel user;
   const _ProfileForm({required this.user});
@@ -556,7 +550,8 @@ class _AddressCard extends StatelessWidget {
                   ),
                   const Divider(),
                   Text(address.street),
-                  Text('${address.ward}, ${address.district}, ${address.city}'),
+                  // --- THAY ĐỔI ---: Xóa hiển thị district
+                  Text('${address.ward}, ${address.city}'),
                   const SizedBox(height: 8),
                   if (address.isDefault)
                     const Chip(
@@ -599,7 +594,8 @@ class _AddressFormDialogState extends State<_AddressFormDialog> {
   late TextEditingController _phoneController;
   late TextEditingController _streetController;
   late TextEditingController _wardController;
-  late TextEditingController _districtController;
+  // --- THAY ĐỔI ---: Xóa _districtController
+  // late TextEditingController _districtController;
   late TextEditingController _cityController;
   late bool _isDefault;
   bool get _isEditing => widget.address != null;
@@ -611,7 +607,8 @@ class _AddressFormDialogState extends State<_AddressFormDialog> {
     _phoneController = TextEditingController(text: widget.address?.phoneNumber ?? '');
     _streetController = TextEditingController(text: widget.address?.street ?? '');
     _wardController = TextEditingController(text: widget.address?.ward ?? '');
-    _districtController = TextEditingController(text: widget.address?.district ?? '');
+    // --- THAY ĐỔI ---: Xóa khởi tạo _districtController
+    // _districtController = TextEditingController(text: widget.address?.district ?? '');
     _cityController = TextEditingController(text: widget.address?.city ?? '');
     _isDefault = widget.address?.isDefault ?? false;
   }
@@ -622,7 +619,8 @@ class _AddressFormDialogState extends State<_AddressFormDialog> {
     _phoneController.dispose();
     _streetController.dispose();
     _wardController.dispose();
-    _districtController.dispose();
+    // --- THAY ĐỔI ---: Xóa dispose _districtController
+    // _districtController.dispose();
     _cityController.dispose();
     super.dispose();
   }
@@ -635,7 +633,8 @@ class _AddressFormDialogState extends State<_AddressFormDialog> {
           phoneNumber: _phoneController.text.trim(),
           street: _streetController.text.trim(),
           ward: _wardController.text.trim(),
-          district: _districtController.text.trim(),
+          // --- THAY ĐỔI ---: Xóa district khỏi newAddress
+          // district: _districtController.text.trim(),
           city: _cityController.text.trim(),
           isDefault: _isDefault
       );
@@ -662,7 +661,8 @@ class _AddressFormDialogState extends State<_AddressFormDialog> {
                       _buildTextField(controller: _phoneController, label: 'Số điện thoại', keyboardType: TextInputType.phone),
                       _buildTextField(controller: _streetController, label: 'Địa chỉ cụ thể (số nhà, tên đường)'),
                       _buildTextField(controller: _wardController, label: 'Phường/Xã'),
-                      _buildTextField(controller: _districtController, label: 'Quận/Huyện'),
+                      // --- THAY ĐỔI ---: Xóa TextFormField của Quận/Huyện
+                      // _buildTextField(controller: _districtController, label: 'Quận/Huyện'),
                       _buildTextField(controller: _cityController, label: 'Tỉnh/Thành phố'),
                       SwitchListTile(
                           title: const Text('Đặt làm mặc định'),

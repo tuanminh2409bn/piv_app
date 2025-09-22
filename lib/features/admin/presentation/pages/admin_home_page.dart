@@ -79,7 +79,8 @@ class AdminHomePage extends StatelessWidget {
             _DashboardCard(
               title: 'Quản lý Cam kết',
               icon: Icons.workspace_premium_outlined,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminCommitmentsPage())),
+              // <<< SỬA ĐỔI DÒNG NÀY >>>
+              onTap: () => Navigator.of(context).push(AdminCommitmentsPage.route()),
             ),
             _DashboardCard(
               title: 'Vòng Quay May Mắn',

@@ -1,5 +1,7 @@
+// lib/data/models/address_model.dart
+
 import 'package:equatable/equatable.dart';
-import 'package:uuid/uuid.dart'; // Thêm package uuid để tạo ID duy nhất
+import 'package:uuid/uuid.dart';
 
 class AddressModel extends Equatable {
   final String id; // ID duy nhất cho mỗi địa chỉ
@@ -7,7 +9,8 @@ class AddressModel extends Equatable {
   final String phoneNumber;
   final String street; // Số nhà, tên đường
   final String ward; // Phường/Xã
-  final String district; // Quận/Huyện
+  // --- THAY ĐỔI ---: Đã xóa trường district
+  // final String district;
   final String city; // Tỉnh/Thành phố
   final bool isDefault;
 
@@ -17,16 +20,19 @@ class AddressModel extends Equatable {
     required this.phoneNumber,
     required this.street,
     required this.ward,
-    required this.district,
+    // --- THAY ĐỔI ---: Đã xóa trường district khỏi hàm khởi tạo
+    // required this.district,
     required this.city,
     this.isDefault = false,
-  }) : id = id ?? const Uuid().v4(); // Tự động tạo ID nếu không được cung cấp
+  }) : id = id ?? const Uuid().v4();
 
   @override
-  List<Object?> get props => [id, recipientName, phoneNumber, street, ward, district, city, isDefault];
+  // --- THAY ĐỔI ---: Đã xóa district khỏi props
+  List<Object?> get props => [id, recipientName, phoneNumber, street, ward, city, isDefault];
 
   // Tiện ích để hiển thị địa chỉ đầy đủ
-  String get fullAddress => '$street, $ward, $district, $city';
+  // --- THAY ĐỔI ---: Đã xóa district khỏi chuỗi hiển thị
+  String get fullAddress => '$street, $ward, $city';
 
   // copyWith để dễ dàng cập nhật
   AddressModel copyWith({
@@ -35,7 +41,8 @@ class AddressModel extends Equatable {
     String? phoneNumber,
     String? street,
     String? ward,
-    String? district,
+    // --- THAY ĐỔI ---: Đã xóa trường district
+    // String? district,
     String? city,
     bool? isDefault,
   }) {
@@ -45,7 +52,8 @@ class AddressModel extends Equatable {
       phoneNumber: phoneNumber ?? this.phoneNumber,
       street: street ?? this.street,
       ward: ward ?? this.ward,
-      district: district ?? this.district,
+      // --- THAY ĐỔI ---: Đã xóa trường district
+      // district: district ?? this.district,
       city: city ?? this.city,
       isDefault: isDefault ?? this.isDefault,
     );
@@ -59,7 +67,8 @@ class AddressModel extends Equatable {
       phoneNumber: map['phoneNumber'] as String? ?? '',
       street: map['street'] as String? ?? '',
       ward: map['ward'] as String? ?? '',
-      district: map['district'] as String? ?? '',
+      // --- THAY ĐỔI ---: Đã xóa trường district. Ứng dụng sẽ bỏ qua trường này nếu có trong DB.
+      // district: map['district'] as String? ?? '',
       city: map['city'] as String? ?? '',
       isDefault: map['isDefault'] as bool? ?? false,
     );
@@ -73,10 +82,10 @@ class AddressModel extends Equatable {
       'phoneNumber': phoneNumber,
       'street': street,
       'ward': ward,
-      'district': district,
+      // --- THAY ĐỔI ---: Đã xóa trường district. Sẽ không ghi trường này vào DB nữa.
+      // 'district': district,
       'city': city,
       'isDefault': isDefault,
     };
   }
 }
-

@@ -16,10 +16,6 @@ const db = admin.firestore();
 // ===================================================================
 // SECTION: HELPER FUNCTIONS
 // ===================================================================
-
-/**
- * Gửi thông báo data-only đến các thiết bị.
- */
 const sendDataOnlyNotification = async (
   token: string | string[] | undefined,
   data: {[key: string]: string},
@@ -521,7 +517,9 @@ export const onOrderStatusUpdate = onDocumentUpdated(
 
         if (newStatus === "completed" && oldStatus !== "completed") {
             try {
-                const userDoc = await db.collection("users").doc(userId).get();
+                const userRef = db.collection("users").doc(userId); // <<< SỬA: Dùng userRef để cập nhật
+                const userDoc = await userRef.get();
+
                 if (userDoc.exists) {
                     const userData = userDoc.data()!;
 
@@ -547,6 +545,12 @@ export const onOrderStatusUpdate = onDocumentUpdated(
                             if (newAmount >= commitment.targetAmount) {
                                 await commitmentDoc.ref.update({ status: "completed" });
                                 logger.info(`Sales commitment ${commitmentDoc.id} for user ${userId} has been completed.`);
+
+                                // <<< THÊM LOGIC QUAN TRỌNG TẠI ĐÂY >>>
+                                // Chuyển trạng thái chương trình thưởng của user về lại mặc định
+                                await userRef.update({ activeRewardProgram: "instant_discount" });
+                                logger.info(`User ${userId}'s reward program has been reset to 'instant_discount'.`);
+
                                 if (userData.fcmToken) {
                                     const title = "🎉 Chúc mừng! Bạn đã đạt mục tiêu!";
                                     const body = `Bạn đã hoàn thành cam kết doanh thu của mình. Liên hệ với công ty để nhận thưởng!`;
@@ -557,7 +561,6 @@ export const onOrderStatusUpdate = onDocumentUpdated(
                                         type,
                                         commitmentId: commitmentDoc.id,
                                     });
-                                     // [MỚI] Lưu thông báo
                                     await saveNotificationToFirestore(userId, title, body, type, { commitmentId: commitmentDoc.id });
                                 }
                             }
@@ -569,7 +572,6 @@ export const onOrderStatusUpdate = onDocumentUpdated(
             } catch (error) {
                 logger.error(`Failed to update sales commitment for order ${orderId}. Error:`, error);
             }
-
              try {
                     const userDoc = await db.collection("users").doc(userId).get();
                     if (userDoc.exists) {
@@ -994,9 +996,8 @@ export const grantDailyLoginSpin = onCall({region: "asia-southeast1"}, async (re
     }
     const userId = request.auth.uid;
     const userRef = db.collection("users").doc(userId);
-
-    const today = new Date();
-    const todayStr = today.toISOString().split("T")[0];
+    const todayInVietnam = new Date();
+    const todayStr = format(todayInVietnam, "yyyy-MM-dd", { timeZone: "Asia/Ho_Chi_Minh" });
 
     try {
         const userDoc = await userRef.get();
@@ -1008,7 +1009,6 @@ export const grantDailyLoginSpin = onCall({region: "asia-southeast1"}, async (re
         if (userData.lastDailySpin === todayStr) {
             return { success: false, message: "Hôm nay bạn đã nhận lượt quay rồi." };
         }
-
         const campaignQuery = db.collection("lucky_wheel_campaigns")
             .where("isActive", "==", true)
             .where("startDate", "<=", admin.firestore.Timestamp.now())
@@ -1025,7 +1025,7 @@ export const grantDailyLoginSpin = onCall({region: "asia-southeast1"}, async (re
             lastDailySpin: todayStr,
         });
 
-        logger.info(`Granted daily spin for user ${userId}`);
+        logger.info(`Granted daily spin for user ${userId} for date ${todayStr}`);
         return { success: true, message: "Bạn nhận được 1 lượt quay miễn phí!" };
     } catch (error) {
         logger.error("Error in grantDailyLoginSpin:", error);
