@@ -16,6 +16,7 @@ import 'package:piv_app/features/admin/presentation/pages/notification_history_p
 import 'package:piv_app/features/admin/presentation/pages/admin_news_list_page.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/pages/lucky_wheel_admin_page.dart';
+import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
 
 
 class AdminHomePage extends StatelessWidget {
@@ -27,6 +28,7 @@ class AdminHomePage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Bảng điều khiển Admin'),
         actions: [
+          const NotificationIconWithBadge(),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Đăng xuất',

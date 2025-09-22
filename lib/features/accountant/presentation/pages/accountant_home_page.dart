@@ -13,7 +13,7 @@ import 'package:piv_app/features/sales_rep/presentation/pages/create_agent_order
 import 'package:piv_app/features/sales_commitment/presentation/bloc/admin/sales_commitment_admin_cubit.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
 import 'package:piv_app/features/accountant/presentation/bloc/accountant_agents_cubit.dart';
-
+import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
 
 class AccountantHomePage extends StatelessWidget {
   const AccountantHomePage({super.key});
@@ -32,6 +32,7 @@ class AccountantHomePage extends StatelessWidget {
         appBar: AppBar(
           title: Text('Kế toán: ${user.displayName ?? ''}'),
           actions: [
+            const NotificationIconWithBadge(),
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Đăng xuất',

@@ -274,8 +274,6 @@ class HomeView extends StatelessWidget {
     return Container(
       height: height,
       width: double.infinity,
-      // Bỏ margin ở đây nếu bạn muốn nó căn đều với các section khác
-      // margin: const EdgeInsets.symmetric(horizontal: 16.0),
       decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(12)),
       alignment: Alignment.center,
       child: Text(text, style: TextStyle(color: Colors.grey.shade600)),

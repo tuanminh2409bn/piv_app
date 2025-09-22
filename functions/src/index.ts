@@ -224,7 +224,6 @@ export const onUserUpdate = onDocumentUpdated(
         const before = event.data?.before.data();
         const after = event.data?.after.data();
 
-        // Thoát sớm nếu không có dữ liệu
         if (!before || !after) {
             return null;
         }
@@ -232,49 +231,58 @@ export const onUserUpdate = onDocumentUpdated(
         const updatedUserId = event.params.userId;
         const updatedUserName = after.displayName ?? "Người dùng";
 
-        // Kịch bản 1: Tài khoản được duyệt (logic không đổi)
+        // Kịch bản 1: Tài khoản được duyệt
         if (before.status === "pending_approval" && after.status === "active") {
+            // Gửi và lưu cho người dùng được duyệt (không đổi)
             const title1 = "✅ Tài khoản đã được duyệt!";
             const body1 = `Chúc mừng ${updatedUserName}! Tài khoản của bạn đã được kích hoạt.`;
             const type1 = "account_approved";
             await sendDataOnlyNotification(after.fcmToken, {
-                title: title1,
-                body: body1,
-                type: type1,
-                userId: updatedUserId,
+                title: title1, body: body1, type: type1, userId: updatedUserId,
                 payload: JSON.stringify({ userId: updatedUserId, status: "active" }),
             });
             await saveNotificationToFirestore(updatedUserId, title1, body1, type1, { userId: updatedUserId });
 
 
+            // --- THAY ĐỔI: Gửi và lưu cho TẤT CẢ Admin ---
             const adminsSnapshot = await db.collection("users").where("role", "==", "admin").get();
-            const adminRecipients = adminsSnapshot.docs.map(doc => ({id: doc.id, token: doc.data().fcmToken as string})).filter(r => r.token);
+            // Lấy tất cả admin, không quan trọng họ có token hay không, để lưu thông báo
+            const adminRecipients = adminsSnapshot.docs.map(doc => ({id: doc.id, token: doc.data().fcmToken as string | undefined}));
+
             if (adminRecipients.length > 0) {
                 const title2 = "👤 Tài khoản đã được duyệt";
                 const body2 = `Tài khoản của "${updatedUserName}" đã được kích hoạt.`;
                 const type2 = "account_management";
-                await sendDataOnlyNotification(adminRecipients.map(r => r.token), {
-                    title: title2,
-                    body: body2,
-                    type: type2,
-                    userId: updatedUserId,
-                });
+
+                // Chỉ gửi push notification cho những admin có token
+                const tokensToSend = adminRecipients.map(r => r.token).filter((t): t is string => !!t);
+                if (tokensToSend.length > 0) {
+                    await sendDataOnlyNotification(tokensToSend, {
+                        title: title2, body: body2, type: type2, userId: updatedUserId,
+                    });
+                }
+                // Luôn lưu vào DB cho TẤT CẢ admin
                 const savePromises = adminRecipients.map(r => saveNotificationToFirestore(r.id, title2, body2, type2, { userId: updatedUserId }));
                 await Promise.all(savePromises);
             }
+            // --- KẾT THÚC THAY ĐỔI ---
 
+
+            // --- THAY ĐỔI: Gửi và lưu cho NVKD phụ trách ---
             if (after.salesRepId) {
                 const salesRepDoc = await db.collection("users").doc(after.salesRepId).get();
-                if(salesRepDoc.exists && salesRepDoc.data()?.fcmToken) {
+                if(salesRepDoc.exists) {
+                    const salesRepData = salesRepDoc.data()!;
                     const title3 = "🎉 Đại lý mới được duyệt!";
                     const body3 = `Tài khoản của đại lý "${updatedUserName}" mà bạn quản lý đã được kích hoạt.`;
                     const type3 = "agent_approved";
-                    await sendDataOnlyNotification(salesRepDoc.data()?.fcmToken, {
-                        title: title3,
-                        body: body3,
-                        type: type3,
-                        agentId: updatedUserId,
-                    });
+                    // Gửi push notification nếu có token
+                    if (salesRepData.fcmToken) {
+                        await sendDataOnlyNotification(salesRepData.fcmToken, {
+                            title: title3, body: body3, type: type3, agentId: updatedUserId,
+                        });
+                    }
+                    // Luôn lưu vào DB
                     await saveNotificationToFirestore(after.salesRepId, title3, body3, type3, { agentId: updatedUserId });
                 }
             }
@@ -463,16 +471,17 @@ export const onOrderCreated = onDocumentCreated(
         }
 
         // Thông báo cho NVKD
-        if (salesRepId) {
+         if (salesRepId) {
             const salesRepDoc = await db.collection("users").doc(salesRepId).get();
-            if (salesRepDoc.exists && salesRepDoc.data()?.fcmToken) {
+            if (salesRepDoc.exists) {
+                const salesRepData = salesRepDoc.data()!;
                 const title = "📈 Có đơn hàng mới!";
                 const body = `Đại lý "${userName}" của bạn vừa đặt đơn hàng #${orderIdShort}.`;
                 const type = "new_order_for_rep";
-                await sendDataOnlyNotification(salesRepDoc.data()?.fcmToken, {
-                   title, body, type, orderId,
-                });
-                // [MỚI] Lưu thông báo
+                if(salesRepData.fcmToken) {
+                   await sendDataOnlyNotification(salesRepData.fcmToken, { title, body, type, orderId });
+                }
+                // Luôn lưu vào DB
                 await saveNotificationToFirestore(salesRepId, title, body, type, { orderId });
             }
         }

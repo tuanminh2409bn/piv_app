@@ -19,6 +19,7 @@ import 'package:piv_app/features/sales_rep/agent_approval/bloc/agent_approval_cu
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/create_agent_order_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/manage_quick_order_list_page.dart';
+import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
 
 
 class SalesRepHomePage extends StatelessWidget {
@@ -54,6 +55,7 @@ class SalesRepView extends StatelessWidget {
         appBar: AppBar(
           title: Text('Chào, ${user.displayName ?? user.email}'),
           actions: [
+            const NotificationIconWithBadge(),
             IconButton(
               icon: const Icon(Icons.qr_code_2_outlined),
               tooltip: 'Mã QR Giới thiệu',
