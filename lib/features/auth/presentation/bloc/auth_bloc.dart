@@ -1,4 +1,5 @@
 // lib/features/auth/presentation/bloc/auth_bloc.dart
+
 import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
@@ -33,7 +34,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthUserRefreshRequested>(_onUserRefreshRequested);
   }
 
-  // Giữ nguyên hàm này từ file gốc của bạn
   Future<void> _onAppStarted(AuthAppStarted event, Emitter<AuthState> emit) async {
     try {
       final result = await _authRepository.getCurrentUser();
@@ -51,11 +51,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  // Cập nhật hàm này để xử lý FCM Token
   void _onUserChanged(AuthUserChanged event, Emitter<AuthState> emit) async {
     developer.log('AuthBloc: User changed - ${event.user.email}, isEmpty: ${event.user.isEmpty}', name: 'AuthBloc');
     if (event.user.isNotEmpty) {
-      // ‼️ NÂNG CẤP: LƯU TOKEN KHI CÓ THAY ĐỔI NGƯỜI DÙNG (ĐĂNG NHẬP) ‼️
       try {
         await sl<NotificationService>().saveTokenForUser(event.user.id);
       } catch (e) {
@@ -67,12 +65,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  // Cập nhật hàm này để xử lý FCM Token
   Future<void> _onLogoutRequested(AuthLogoutRequested event, Emitter<AuthState> emit) async {
     final state = this.state;
-    // Chỉ xóa token nếu người dùng đang ở trạng thái đã đăng nhập
     if (state is AuthAuthenticated) {
-      // ‼️ NÂNG CẤP: XÓA TOKEN KHI ĐĂNG XUẤT ‼️
       try {
         await sl<NotificationService>().removeTokenForUser(state.user.id);
       } catch (e) {
@@ -80,10 +75,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       }
     }
     await _authRepository.logOut();
-    // Không cần emit nữa, listener _userSubscription sẽ tự động phát ra AuthUnauthenticated
   }
 
-  // Giữ nguyên hàm này từ file gốc của bạn
   Future<void> _onUserRefreshRequested(
       AuthUserRefreshRequested event, Emitter<AuthState> emit) async {
     final currentState = state;

@@ -1,9 +1,12 @@
 // lib/features/checkout/presentation/bloc/checkout_cubit.dart
+
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:bloc/bloc.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:equatable/equatable.dart';
+// --- THAY ĐỔI: Thêm import ---
+import 'package:collection/collection.dart';
 import 'package:piv_app/data/models/address_model.dart';
 import 'package:piv_app/data/models/cart_item_model.dart';
 import 'package:piv_app/data/models/order_item_model.dart';
@@ -42,8 +45,45 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         _authBloc = authBloc,
         _cartCubit = cartCubit,
         _functions = functions,
-        super(const CheckoutState());
+        super(const CheckoutState()) {
+    _authSubscription = _authBloc.stream.listen((authState) {
+      if (authState is AuthAuthenticated) {
+        _updateAddressesFromAuth(authState.user);
+      }
+    });
+  }
 
+  void _updateAddressesFromAuth(UserModel user) {
+    if (state.status != CheckoutStatus.initial && user.id != _currentUserId) return;
+
+    final newAddresses = user.addresses;
+    // --- THAY ĐỔI: Sửa tên class và đảm bảo import ---
+    if (const DeepCollectionEquality().equals(newAddresses, state.addresses)) {
+      return;
+    }
+
+    developer.log('CheckoutCubit: Detected address change from AuthBloc. Updating addresses.', name: 'CheckoutCubit');
+
+    AddressModel? newSelectedAddress = state.selectedAddress;
+    if (newSelectedAddress != null && !newAddresses.any((a) => a.id == newSelectedAddress!.id)) {
+      newSelectedAddress = null;
+    }
+
+    if (newSelectedAddress == null && newAddresses.isNotEmpty) {
+      try {
+        newSelectedAddress = newAddresses.firstWhere((a) => a.isDefault);
+      } catch (e) {
+        newSelectedAddress = newAddresses.first;
+      }
+    }
+
+    emit(state.copyWith(
+      addresses: newAddresses,
+      selectedAddress: newSelectedAddress,
+    ));
+  }
+
+  // ... (Phần còn lại của file giữ nguyên không thay đổi)
   Future<void> placeOrderOnBehalfOf() async {
     if (state.selectedAddress == null || state.checkoutItems.isEmpty || state.placeOrderForAgent == null) {
       emit(state.copyWith(status: CheckoutStatus.error, errorMessage: "Thiếu thông tin để đặt hàng hộ."));
@@ -141,8 +181,6 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     emit(state.copyWith(status: CheckoutStatus.loading));
     developer.log('CheckoutCubit: Loading checkout data...', name: 'CheckoutCubit');
 
-    // SỬA ĐỔI: Thay vì gọi repo, chúng ta có thể lấy user trực tiếp từ AuthBloc
-    // để có dữ liệu mới nhất, bao gồm cả `activeRewardProgram`.
     final user = authState.user;
 
     final addresses = user.addresses;
@@ -159,10 +197,8 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     final subtotal = itemsToCheckout.fold<double>(0.0, (sum, item) => sum + item.subtotal);
     const shippingFee = 0.0;
 
-    // Mặc định chiết khấu là 0
     double commissionDiscount = 0.0;
 
-    // Chỉ tính chiết khấu nếu user ở chương trình "instant_discount"
     final shouldCalculateDiscount = user.activeRewardProgram == 'instant_discount' && itemsToCheckout.isNotEmpty;
 
     emit(state.copyWith(
@@ -198,12 +234,10 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         'items': itemsPayload,
       };
 
-      // Nếu đây là đơn hàng đặt hộ, hãy thêm agentId
       if (state.placeOrderForAgent != null) {
         payload['agentId'] = state.placeOrderForAgent!.id;
       }
 
-      // Gửi payload đã được cập nhật
       final response = await callable.call(payload);
       final discount = (response.data['discount'] as num).toDouble();
 

@@ -1,9 +1,9 @@
-//lib/features/profile/presentation/bloc/profile_cubit.dart
+// lib/features/profile/presentation/bloc/profile_cubit.dart
 
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/user_model.dart';
-import 'package:piv_app/data/models/address_model.dart'; // Import AddressModel
+import 'package:piv_app/data/models/address_model.dart';
 import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'dart:async';
@@ -83,18 +83,23 @@ class ProfileCubit extends Cubit<ProfileState> {
       },
           (_) {
         developer.log('ProfileCubit: Profile saved successfully.', name: 'ProfileCubit');
-        fetchUserProfile(userToUpdate.id);
+        _successfulAddressUpdate(); // Sử dụng hàm chung để làm mới
       },
     );
   }
 
-  // --- CÁC PHƯƠNG THỨC ĐỊA CHỈ ---
+  /// Hàm chung để tải lại profile cục bộ và thông báo cho AuthBloc
+  Future<void> _successfulAddressUpdate() async {
+    await fetchUserProfile(state.user.id);
+    _authBloc.add(AuthUserRefreshRequested());
+  }
+
   Future<void> addAddress(AddressModel address) async {
     emit(state.copyWith(status: ProfileStatus.updating));
     final result = await _userProfileRepository.addAddress(state.user.id, address);
     result.fold(
           (failure) => emit(state.copyWith(status: ProfileStatus.error, errorMessage: failure.message)),
-          (_) => fetchUserProfile(state.user.id),
+          (_) => _successfulAddressUpdate(),
     );
   }
 
@@ -103,7 +108,7 @@ class ProfileCubit extends Cubit<ProfileState> {
     final result = await _userProfileRepository.updateAddress(state.user.id, address);
     result.fold(
           (failure) => emit(state.copyWith(status: ProfileStatus.error, errorMessage: failure.message)),
-          (_) => fetchUserProfile(state.user.id),
+          (_) => _successfulAddressUpdate(),
     );
   }
 
@@ -112,7 +117,7 @@ class ProfileCubit extends Cubit<ProfileState> {
     final result = await _userProfileRepository.deleteAddress(state.user.id, addressId);
     result.fold(
           (failure) => emit(state.copyWith(status: ProfileStatus.error, errorMessage: failure.message)),
-          (_) => fetchUserProfile(state.user.id),
+          (_) => _successfulAddressUpdate(),
     );
   }
 
@@ -121,57 +126,44 @@ class ProfileCubit extends Cubit<ProfileState> {
     final result = await _userProfileRepository.setDefaultAddress(state.user.id, addressId);
     result.fold(
           (failure) => emit(state.copyWith(status: ProfileStatus.error, errorMessage: failure.message)),
-          (_) => fetchUserProfile(state.user.id),
+          (_) => _successfulAddressUpdate(),
     );
   }
 
-  // --- CÁC PHƯƠNG THỨC MỚI CHO LỜI NHẮC GIỚI THIỆU ---
-
-  /// Gửi mã giới thiệu và cập nhật thông tin người dùng.
   Future<void> submitReferralCode(String referralCode) async {
     emit(state.copyWith(status: ProfileStatus.updating));
     final result = await _userProfileRepository.submitReferralCode(state.user.id, referralCode);
 
     result.fold(
           (failure) {
-        // Nếu có lỗi (ví dụ: mã không hợp lệ), phát ra lỗi để UI có thể hiển thị
         emit(state.copyWith(status: ProfileStatus.error, errorMessage: failure.message));
-        // Sau đó quay lại trạng thái success để người dùng có thể thử lại
         emit(state.copyWith(status: ProfileStatus.success));
       },
           (_) {
-        // Thành công, tải lại hồ sơ để nhận cờ referralPromptPending: false mới
-        fetchUserProfile(state.user.id);
+        _successfulAddressUpdate(); // Sử dụng hàm chung để làm mới
       },
     );
   }
 
-  /// Bỏ qua lời nhắc và cập nhật cờ trên Firestore.
   Future<void> dismissReferralPrompt() async {
     emit(state.copyWith(status: ProfileStatus.updating));
     final result = await _userProfileRepository.dismissReferralPrompt(state.user.id);
 
     result.fold(
           (failure) => emit(state.copyWith(status: ProfileStatus.error, errorMessage: failure.message)),
-          (_) => fetchUserProfile(state.user.id),
+          (_) => _successfulAddressUpdate(), // Sử dụng hàm chung để làm mới
     );
   }
 
   Future<void> deleteAccount() async {
-    // Phát ra trạng thái đang cập nhật để UI có thể hiển thị loading
     emit(state.copyWith(status: ProfileStatus.updating, clearErrorMessage: true));
-
     final result = await _userProfileRepository.deleteAccount();
-
     result.fold(
           (failure) {
-        // Nếu có lỗi, phát ra trạng thái lỗi với thông điệp
         developer.log('ProfileCubit: Failed to delete account - ${failure.message}', name: 'ProfileCubit');
         emit(state.copyWith(status: ProfileStatus.error, errorMessage: failure.message));
       },
           (_) {
-        // Nếu thành công, không cần làm gì ở đây.
-        // AuthBloc sẽ tự động xử lý việc đăng xuất và điều hướng người dùng.
         developer.log('ProfileCubit: Account deletion process initiated successfully.', name: 'ProfileCubit');
       },
     );
