@@ -572,36 +572,36 @@ export const onOrderStatusUpdate = onDocumentUpdated(
             } catch (error) {
                 logger.error(`Failed to update sales commitment for order ${orderId}. Error:`, error);
             }
-             try {
-                    const userDoc = await db.collection("users").doc(userId).get();
-                    if (userDoc.exists) {
-                        const campaignQuery = db.collection("lucky_wheel_campaigns")
-                            .where("isActive", "==", true)
-                            .where("startDate", "<=", admin.firestore.Timestamp.now())
-                            .where("endDate", ">=", admin.firestore.Timestamp.now());
+            try {
+                 const userDoc = await db.collection("users").doc(userId).get();
+                 if (userDoc.exists) {
+                     const campaignQuery = db.collection("lucky_wheel_campaigns")
+                         .where("isActive", "==", true)
+                         .where("startDate", "<=", admin.firestore.Timestamp.now())
+                         .where("endDate", ">=", admin.firestore.Timestamp.now());
 
-                        const campaignSnapshot = await campaignQuery.get();
-                        if (!campaignSnapshot.empty) {
-                            let spinsToGrant = 0;
-                            campaignSnapshot.forEach(doc => {
-                                const campaign = doc.data();
-                                const spendRule = campaign.rules.find((r: any) => r.type === "SPEND_THRESHOLD");
-                                if (spendRule && spendRule.amount > 0) {
-                                    spinsToGrant += Math.floor(total / spendRule.amount) * spendRule.spinsGranted;
-                                }
-                            });
+                     const campaignSnapshot = await campaignQuery.get();
+                     if (!campaignSnapshot.empty) {
+                         let spinsToGrant = 0;
+                         campaignSnapshot.forEach(doc => {
+                             const campaign = doc.data();
+                             const spendRule = campaign.rules.find((r: any) => r.type === "SPEND_THRESHOLD");
+                             if (spendRule && total >= spendRule.amount) {
+                                 spinsToGrant += spendRule.spinsGranted;
+                             }
+                         });
 
-                            if (spinsToGrant > 0) {
-                                await db.collection("users").doc(userId).update({
-                                    spinCount: admin.firestore.FieldValue.increment(spinsToGrant)
-                                });
-                                logger.info(`Granted ${spinsToGrant} spins to user ${userId} for order ${orderId}`);
-                            }
-                        }
-                    }
-                } catch (error) {
-                    logger.error(`Failed to grant spins for order ${orderId}. Error:`, error);
-                }
+                         if (spinsToGrant > 0) {
+                             await db.collection("users").doc(userId).update({
+                                 spinCount: admin.firestore.FieldValue.increment(spinsToGrant)
+                             });
+                             logger.info(`Granted ${spinsToGrant} spin(s) to user ${userId} for order ${orderId}`);
+                         }
+                     }
+                 }
+             } catch (error) {
+                 logger.error(`Failed to grant spins for order ${orderId}. Error:`, error);
+             }
         }
 
 
@@ -996,6 +996,7 @@ export const grantDailyLoginSpin = onCall({region: "asia-southeast1"}, async (re
     }
     const userId = request.auth.uid;
     const userRef = db.collection("users").doc(userId);
+
     const todayInVietnam = new Date();
     const todayStr = format(todayInVietnam, "yyyy-MM-dd", { timeZone: "Asia/Ho_Chi_Minh" });
 
@@ -1009,16 +1010,24 @@ export const grantDailyLoginSpin = onCall({region: "asia-southeast1"}, async (re
         if (userData.lastDailySpin === todayStr) {
             return { success: false, message: "Hôm nay bạn đã nhận lượt quay rồi." };
         }
+
+        // --- THAY ĐỔI: Lọc các chiến dịch trong code thay vì dùng array-contains ---
         const campaignQuery = db.collection("lucky_wheel_campaigns")
             .where("isActive", "==", true)
             .where("startDate", "<=", admin.firestore.Timestamp.now())
-            .where("endDate", ">=", admin.firestore.Timestamp.now())
-            .where("rules", "array-contains", { type: "DAILY_LOGIN", spinsGranted: 1 });
+            .where("endDate", ">=", admin.firestore.Timestamp.now());
 
-        const campaignSnapshot = await campaignQuery.get();
-        if (campaignSnapshot.empty) {
+        const activeCampaignsSnapshot = await campaignQuery.get();
+
+        const dailyLoginCampaignDoc = activeCampaignsSnapshot.docs.find(doc => {
+            const campaign = doc.data();
+            return Array.isArray(campaign.rules) && campaign.rules.some(rule => rule.type === "DAILY_LOGIN");
+        });
+
+        if (!dailyLoginCampaignDoc) {
             return { success: false, message: "Hiện không có chương trình tặng lượt quay hàng ngày." };
         }
+        // --- KẾT THÚC THAY ĐỔI ---
 
         await userRef.update({
             spinCount: admin.firestore.FieldValue.increment(1),
@@ -1052,11 +1061,14 @@ export const spinTheWheel = onCall({region: "asia-southeast1"}, async (request: 
             }
             const userData = userDoc.data()!;
 
+            // --- ĐÂY LÀ TRUY VẤN CẦN INDEX MỚI ---
             const campaignQuery = db.collection("lucky_wheel_campaigns")
                 .where("isActive", "==", true)
                 .where("wheelConfig.appliesToRole", "array-contains", userData.role)
                 .where("startDate", "<=", admin.firestore.Timestamp.now())
                 .limit(1);
+            // ------------------------------------
+
             const campaignSnapshot = await transaction.get(campaignQuery);
 
             logger.info(`[spinTheWheel] Fetched user data, current spin count: ${userData.spinCount || 0}.`);
@@ -1065,6 +1077,16 @@ export const spinTheWheel = onCall({region: "asia-southeast1"}, async (request: 
             }
 
             if (campaignSnapshot.empty) {
+                // Thêm một kiểm tra endDate để có thông báo rõ ràng hơn
+                const expiredCampaignQuery = db.collection("lucky_wheel_campaigns")
+                    .where("isActive", "==", true)
+                    .where("wheelConfig.appliesToRole", "array-contains", userData.role)
+                    .where("endDate", "<", admin.firestore.Timestamp.now())
+                    .limit(1);
+                const expiredSnapshot = await transaction.get(expiredCampaignQuery);
+                if (!expiredSnapshot.empty) {
+                     throw new HttpsError("not-found", "Chương trình vòng quay đã kết thúc.");
+                }
                 throw new HttpsError("not-found", "Không có chương trình vòng quay nào dành cho bạn lúc này.");
             }
             const campaignDoc = campaignSnapshot.docs[0];

@@ -15,6 +15,7 @@ class LuckyWheelCubit extends Cubit<LuckyWheelState> {
   StreamSubscription? _authSubscription;
   StreamSubscription? _campaignSubscription;
   String _currentUserRole = '';
+  bool _dailySpinGranted = false; // --- THAY ĐỔI: Thêm cờ để chỉ gọi 1 lần ---
 
   LuckyWheelCubit({
     required LuckyWheelRepository repository,
@@ -25,8 +26,6 @@ class LuckyWheelCubit extends Cubit<LuckyWheelState> {
     _authSubscription = _authBloc.stream.listen((authState) {
       if (authState is AuthAuthenticated) {
         _setUserRoleAndListen(authState.user.role);
-        // Tự động gọi để nhận lượt quay hàng ngày khi user đăng nhập
-        grantDailySpin();
       } else {
         _setUserRoleAndListen('');
       }
@@ -35,19 +34,31 @@ class LuckyWheelCubit extends Cubit<LuckyWheelState> {
     final initialState = _authBloc.state;
     if (initialState is AuthAuthenticated) {
       _setUserRoleAndListen(initialState.user.role);
-      // Tự động gọi để nhận lượt quay hàng ngày khi cubit được tạo
-      grantDailySpin();
     }
   }
 
   void _setUserRoleAndListen(String role) {
-    if (_currentUserRole == role || role.isEmpty) return;
+    if (_currentUserRole == role) return;
+
     _currentUserRole = role;
+    _dailySpinGranted = false; // Reset cờ khi user thay đổi
     _campaignSubscription?.cancel();
 
+    if (role.isEmpty) {
+      emit(state.copyWith(status: LuckyWheelStatus.initial, forceCampaignToNull: true));
+      return;
+    }
+
     emit(state.copyWith(status: LuckyWheelStatus.loading));
+
     _campaignSubscription = _repository.watchActiveCampaign(role).listen(
           (campaign) {
+        // --- THAY ĐỔI: Chỉ gọi grantDailySpin một lần sau khi có campaign ---
+        if (!_dailySpinGranted) {
+          _dailySpinGranted = true;
+          grantDailySpin();
+        }
+        // -----------------------------------------------------------------
         emit(state.copyWith(
           status: LuckyWheelStatus.success,
           activeCampaign: campaign,
@@ -64,7 +75,9 @@ class LuckyWheelCubit extends Cubit<LuckyWheelState> {
     final result = await _repository.grantDailyLoginSpin();
     result.fold(
           (failure) {
-        // Không cần hiển thị lỗi này, vì nó thường xuyên xảy ra khi user đã nhận rồi
+        // Có thể emit một thông báo nhẹ nhàng nếu muốn, ví dụ: 'Hôm nay bạn đã nhận lượt rồi'
+        // Hoặc không làm gì cả để tránh làm phiền người dùng.
+        emit(state.copyWith(status: LuckyWheelStatus.success, successMessage: failure.message));
       },
           (message) {
         // Hiển thị thông báo nhận lượt quay thành công
@@ -91,9 +104,8 @@ class LuckyWheelCubit extends Cubit<LuckyWheelState> {
     );
   }
 
-  // Hàm để reset lại trạng thái sau khi hiển thị popup trúng thưởng
   void acknowledgeReward() {
-    emit(state.copyWith(status: LuckyWheelStatus.success, winningReward: null));
+    emit(state.copyWith(status: LuckyWheelStatus.success, winningReward: null, successMessage: null));
   }
 
   @override
