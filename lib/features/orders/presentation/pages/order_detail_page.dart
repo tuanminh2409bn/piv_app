@@ -12,6 +12,8 @@ import 'package:piv_app/data/models/payment_info_model.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/orders/presentation/bloc/order_detail_cubit.dart';
+import 'package:piv_app/features/returns/presentation/pages/create_return_request_page.dart';
+
 
 class OrderDetailPage extends StatelessWidget {
   final String orderId;
@@ -186,7 +188,7 @@ class _OrderItemsList extends StatelessWidget {
                     style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                   ),
                   Text(
-                    'Số lượng: ${item.quantity} thùng', // Sửa theo yêu cầu
+                    'Số lượng: ${item.quantity} thùng',
                     style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                   ),
                 ],
@@ -194,7 +196,7 @@ class _OrderItemsList extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              formatter.format(item.subtotal), // Sẽ gọi getter subtotal đã được sửa
+              formatter.format(item.subtotal),
               style: const TextStyle(fontWeight: FontWeight.bold),
               textAlign: TextAlign.end,
             ),
@@ -274,6 +276,12 @@ class _BottomBar extends StatelessWidget {
         if (isOrderOwner && order.paymentStatus == 'unpaid') {
           return _PaymentConfirmationButton(isLoading: state.status == OrderDetailStatus.updatingPaymentStatus);
         }
+
+        // --- THAY ĐỔI: Thêm nút Yêu cầu Đổi/Trả ---
+        if (isOrderOwner && order.status == 'completed') {
+          return _ReturnExchangeButton(order: order);
+        }
+        // --- KẾT THÚC THAY ĐỔI ---
 
         return const SizedBox.shrink();
       },
@@ -386,6 +394,35 @@ class _PaymentConfirmationButton extends StatelessWidget {
           ),
           onPressed: isLoading ? null : () {
             context.read<OrderDetailCubit>().notifyPaymentMade();
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ReturnExchangeButton extends StatelessWidget {
+  final OrderModel order;
+  const _ReturnExchangeButton({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0).copyWith(bottom: 16.0 + MediaQuery.of(context).padding.bottom),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          icon: const Icon(Icons.sync_problem_outlined),
+          label: const Text('YÊU CẦU ĐỔI/TRẢ HÀNG'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.red.shade700,
+            side: BorderSide(color: Colors.red.shade700),
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          onPressed: () {
+            Navigator.of(context).push(CreateReturnRequestPage.route(order));
           },
         ),
       ),
@@ -527,7 +564,7 @@ class _AddressInfo extends StatelessWidget {
   }
 }
 
-// --- HÀM HELPER: Được đưa ra ngoài để tất cả các widget có thể dùng ---
+// --- HÀM HELPER ---
 (Color, String) _getStatusInfo(String status, BuildContext context) {
   switch (status) {
     case 'pending_approval': return (Colors.blue.shade700, 'Chờ phê duyệt');

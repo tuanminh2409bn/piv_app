@@ -1253,6 +1253,124 @@ export const deleteUserAccount = onCall(
 );
 
 // ===================================================================
+// --- THAY ĐỔI: FUNCTION 14: KHI YÊU CẦU ĐỔI TRẢ MỚI ĐƯỢC TẠO ---
+// ===================================================================
+export const onReturnRequestCreated = onDocumentCreated(
+    {document: "returnRequests/{requestId}", region: "asia-southeast1"},
+    async (event) => {
+        const requestData = event.data?.data();
+        const requestId = event.params.requestId;
+        if (!requestData) {
+            logger.info(`No data for new return request ${requestId}.`);
+            return null;
+        }
+
+        const { userDisplayName, orderId } = requestData;
+        const shortOrderId = orderId.substring(0, 8).toUpperCase();
+
+        // Tìm tất cả Admin và Kế toán để thông báo
+        const staffSnapshot = await db.collection("users")
+            .where("role", "in", ["admin", "accountant"])
+            .get();
+
+        if (staffSnapshot.empty) {
+            logger.warn("No admin or accountant found to notify for new return request.");
+            return null;
+        }
+
+        const staffRecipients = staffSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            token: doc.data().fcmToken as string | undefined,
+        }));
+
+        const title = "📬 Có yêu cầu đổi/trả mới";
+        const body = `Đại lý "${userDisplayName}" vừa gửi một yêu cầu đổi/trả cho đơn hàng #${shortOrderId}.`;
+        const type = "new_return_request";
+        const payload = { returnRequestId: requestId, orderId: orderId };
+
+        // Gửi thông báo đẩy đến những người có token
+        const tokensToSend = staffRecipients.map((r) => r.token).filter((t): t is string => !!t);
+        if (tokensToSend.length > 0) {
+            await sendDataOnlyNotification(tokensToSend, {
+                title, body, type,
+                payload: JSON.stringify(payload),
+            });
+        }
+
+        // Lưu thông báo vào DB cho tất cả Admin và Kế toán
+        const savePromises = staffRecipients.map((recipient) =>
+            saveNotificationToFirestore(recipient.id, title, body, type, payload)
+        );
+
+        await Promise.all(savePromises);
+        logger.info(`Sent and saved notifications for new return request ${requestId} to ${staffRecipients.length} staff members.`);
+        return null;
+    }
+);
+
+
+// ===================================================================
+// --- THAY ĐỔI: FUNCTION 15: KHI YÊU CẦU ĐỔI TRẢ ĐƯỢC CẬP NHẬT ---
+// ===================================================================
+export const onReturnRequestUpdated = onDocumentUpdated(
+    {document: "returnRequests/{requestId}", region: "asia-southeast1"},
+    async (event) => {
+        const beforeData = event.data?.before.data();
+        const afterData = event.data?.after.data();
+
+        if (!beforeData || !afterData || beforeData.status === afterData.status) {
+            return null; // Không có sự thay đổi về trạng thái
+        }
+
+        const requestId = event.params.requestId;
+        const { userId, orderId, status: newStatus, adminNotes } = afterData;
+        const shortOrderId = orderId.substring(0, 8).toUpperCase();
+
+        const userDoc = await db.collection("users").doc(userId).get();
+        if (!userDoc.exists) {
+            logger.warn(`User ${userId} not found for return request update ${requestId}.`);
+            return null;
+        }
+
+        let title = "";
+        let body = "";
+        const type = "return_request_status_update";
+        const payload = { returnRequestId: requestId, orderId: orderId };
+
+        switch (newStatus) {
+            case "approved":
+                title = "✅ Yêu cầu đổi/trả đã được duyệt";
+                body = `Yêu cầu đổi/trả cho đơn hàng #${shortOrderId} của bạn đã được duyệt. Công ty sẽ liên hệ để xử lý.`;
+                break;
+            case "rejected":
+                title = "❌ Yêu cầu đổi/trả bị từ chối";
+                body = `Yêu cầu đổi/trả cho đơn hàng #${shortOrderId} của bạn đã bị từ chối. Lý do: ${adminNotes ?? "Không có"}`;
+                break;
+            case "completed":
+                title = "✨ Yêu cầu đổi/trả đã hoàn thành";
+                body = `Quá trình đổi/trả cho đơn hàng #${shortOrderId} của bạn đã được xử lý xong.`;
+                break;
+            default:
+                // Bỏ qua các trạng thái khác như 'pending_approval'
+                return null;
+        }
+
+        // Gửi và lưu thông báo cho người dùng
+        const userFcmToken = userDoc.data()?.fcmToken;
+        if (userFcmToken) {
+            await sendDataOnlyNotification(userFcmToken, {
+                title, body, type,
+                payload: JSON.stringify(payload),
+            });
+        }
+        await saveNotificationToFirestore(userId, title, body, type, payload);
+
+        logger.info(`Sent and saved notification for return request ${requestId} update to user ${userId}.`);
+        return null;
+    }
+);
+
+// ===================================================================
 // SECTION: PRIVATE HELPER FUNCTIONS (Không thay đổi)
 // ===================================================================
 

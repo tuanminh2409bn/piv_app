@@ -50,7 +50,6 @@ import 'package:piv_app/features/admin/presentation/bloc/admin_settings_cubit.da
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_commissions_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/agent_orders_cubit.dart';
-import 'package:piv_app/features/quick_order/presentation/bloc/quick_order_cubit.dart';
 import 'package:piv_app/features/vouchers/domain/repositories/voucher_repository.dart';
 import 'package:piv_app/features/vouchers/data/repositories/voucher_repository_impl.dart';
 import 'package:piv_app/features/vouchers/presentation/bloc/voucher_management_cubit.dart';
@@ -72,6 +71,13 @@ import 'package:piv_app/features/lucky_wheel/presentation/bloc/admin/campaign_fo
 import 'package:piv_app/features/notifications/data/repositories/notification_repository_impl.dart';
 import 'package:piv_app/features/notifications/domain/repositories/notification_repository.dart';
 import 'package:piv_app/features/notifications/presentation/bloc/notification_cubit.dart';
+import 'package:piv_app/features/returns/data/repositories/return_repository_impl.dart';
+import 'package:piv_app/features/returns/domain/repositories/return_repository.dart';
+import 'package:piv_app/features/returns/presentation/bloc/create_return_request_cubit.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+
+
+
 
 final sl = GetIt.instance;
 
@@ -165,4 +171,8 @@ Future<void> initializeDependencies() async {
   sl.registerLazySingleton<NotificationRepository>(() => NotificationRepositoryImpl(),);
   sl.registerFactory(() => NotificationCubit(notificationRepository: sl(), authBloc: sl(),),);
   sl.registerLazySingleton<QuickOrderRepository>(() => QuickOrderRepositoryImpl(firestore: sl()));
+
+  sl.registerFactory(() => CreateReturnRequestCubit(returnRepository: sl()));
+  sl.registerLazySingleton<ReturnRepository>(() => ReturnRepositoryImpl(firestore: sl(), storage: sl(), auth: sl()));
+  sl.registerLazySingleton(() => FirebaseStorage.instance);
 }
