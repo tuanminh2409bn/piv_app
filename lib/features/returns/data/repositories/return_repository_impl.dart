@@ -9,6 +9,7 @@ import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/features/returns/domain/entities/return_request_item.dart';
 import 'package:piv_app/features/returns/domain/repositories/return_repository.dart';
+import 'package:piv_app/features/returns/data/models/return_request_model.dart';
 import 'package:uuid/uuid.dart';
 
 class ReturnRepositoryImpl implements ReturnRepository {
@@ -78,5 +79,38 @@ class ReturnRepositoryImpl implements ReturnRepository {
       downloadUrls.add(downloadUrl);
     }
     return downloadUrls;
+  }
+
+  @override
+  Stream<List<ReturnRequestModel>> watchAllReturnRequests() {
+    return _firestore
+        .collection('returnRequests')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => ReturnRequestModel.fromSnapshot(doc)).toList();
+    });
+  }
+
+  @override
+  Future<Either<Failure, void>> updateReturnRequestStatus({
+    required String requestId,
+    required String newStatus,
+    String? adminNotes,
+  }) async {
+    try {
+      final dataToUpdate = {
+        'status': newStatus,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      if (adminNotes != null) {
+        dataToUpdate['adminNotes'] = adminNotes;
+      }
+
+      await _firestore.collection('returnRequests').doc(requestId).update(dataToUpdate);
+      return const Right(null);
+    } catch (e) {
+      return Left(ServerFailure('Cập nhật trạng thái thất bại: ${e.toString()}'));
+    }
   }
 }

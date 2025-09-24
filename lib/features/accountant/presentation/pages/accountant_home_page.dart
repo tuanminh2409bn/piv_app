@@ -14,6 +14,10 @@ import 'package:piv_app/features/sales_commitment/presentation/bloc/admin/sales_
 import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
 import 'package:piv_app/features/accountant/presentation/bloc/accountant_agents_cubit.dart';
 import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
+// --- THAY ĐỔI: Thêm các import cần thiết ---
+import 'package:piv_app/features/returns/presentation/bloc/admin_returns_cubit.dart';
+import 'package:piv_app/features/returns/presentation/pages/admin_return_requests_page.dart';
+
 
 class AccountantHomePage extends StatelessWidget {
   const AccountantHomePage({super.key});
@@ -26,8 +30,9 @@ class AccountantHomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
 
+    // --- THAY ĐỔI: Tăng length của TabController lên 6 ---
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Scaffold(
         appBar: AppBar(
           title: Text('Kế toán: ${user.displayName ?? ''}'),
@@ -45,6 +50,8 @@ class AccountantHomePage extends StatelessWidget {
             tabs: [
               Tab(icon: Icon(Icons.people_outline), text: 'Người dùng'),
               Tab(icon: Icon(Icons.receipt_long_outlined), text: 'Đơn hàng'),
+              // --- THAY ĐỔI: Thêm Tab mới ---
+              Tab(icon: Icon(Icons.sync_problem_outlined), text: 'Đổi/Trả'),
               Tab(icon: Icon(Icons.workspace_premium_outlined), text: 'Cam kết'),
               Tab(icon: Icon(Icons.add_shopping_cart), text: 'Đặt hàng hộ'),
               Tab(icon: Icon(Icons.playlist_add_check_rounded), text: 'Cài đặt Đặt nhanh'),
@@ -55,9 +62,10 @@ class AccountantHomePage extends StatelessWidget {
           children: [
             AdminUsersPage(),
             AdminOrdersPage(),
+            // --- THAY ĐỔI: Sử dụng Wrapper thay vì gọi trực tiếp ---
+            _ReturnRequestManagementTabWrapper(),
             CommitmentManagementPageWrapper(),
             AllAgentsViewForAccountant(),
-            // <<< SỬA ĐỔI: Sử dụng một Widget Wrapper để cung cấp Cubit >>>
             _QuickOrderManagementTabWrapper(),
           ],
         ),
@@ -66,9 +74,21 @@ class AccountantHomePage extends StatelessWidget {
   }
 }
 
-// <<< THÊM WIDGET MỚI NÀY VÀO CUỐI FILE >>>
-// Widget này có nhiệm vụ tạo và cung cấp AgentSelectionCubit
-// cho QuickOrderAgentSelectionPage
+// --- THAY ĐỔI: Thêm Widget Wrapper mới cho chức năng Đổi/Trả ---
+class _ReturnRequestManagementTabWrapper extends StatelessWidget {
+  const _ReturnRequestManagementTabWrapper();
+
+  @override
+  Widget build(BuildContext context) {
+    // Wrapper này sẽ tạo và cung cấp AdminReturnsCubit cho cây widget bên dưới nó.
+    return BlocProvider(
+      create: (context) => sl<AdminReturnsCubit>()..watchAllRequests(),
+      child: const AdminReturnRequestsPage(),
+    );
+  }
+}
+// --- KẾT THÚC THAY ĐỔI ---
+
 class _QuickOrderManagementTabWrapper extends StatelessWidget {
   const _QuickOrderManagementTabWrapper();
 

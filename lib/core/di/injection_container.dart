@@ -74,6 +74,7 @@ import 'package:piv_app/features/notifications/presentation/bloc/notification_cu
 import 'package:piv_app/features/returns/data/repositories/return_repository_impl.dart';
 import 'package:piv_app/features/returns/domain/repositories/return_repository.dart';
 import 'package:piv_app/features/returns/presentation/bloc/create_return_request_cubit.dart';
+import 'package:piv_app/features/returns/presentation/bloc/admin_returns_cubit.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
 
@@ -175,4 +176,5 @@ Future<void> initializeDependencies() async {
   sl.registerFactory(() => CreateReturnRequestCubit(returnRepository: sl()));
   sl.registerLazySingleton<ReturnRepository>(() => ReturnRepositoryImpl(firestore: sl(), storage: sl(), auth: sl()));
   sl.registerLazySingleton(() => FirebaseStorage.instance);
+  sl.registerFactory(() => AdminReturnsCubit(returnRepository: sl()));
 }

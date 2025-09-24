@@ -17,7 +17,7 @@ import 'package:piv_app/features/admin/presentation/pages/admin_news_list_page.d
 import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/pages/lucky_wheel_admin_page.dart';
 import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
-
+import 'package:piv_app/features/returns/presentation/pages/admin_return_requests_page.dart';
 
 class AdminHomePage extends StatelessWidget {
   const AdminHomePage({super.key});
@@ -47,6 +47,11 @@ class AdminHomePage extends StatelessWidget {
               title: 'Đơn hàng',
               icon: Icons.shopping_cart_outlined,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminOrdersPage())),
+            ),
+            _DashboardCard(
+              title: 'Quản lý Đổi/Trả',
+              icon: Icons.sync_problem_outlined,
+              onTap: () => Navigator.of(context).push(AdminReturnRequestsPage.route()),
             ),
             _DashboardCard(
               title: 'Sản phẩm',
