@@ -11,12 +11,10 @@ class AdminReturnRequestDetailPage extends StatelessWidget {
 
   const AdminReturnRequestDetailPage({super.key, required this.request});
 
-  // --- THAY ĐỔI: Cập nhật phương thức route ---
   static PageRoute<void> route({
     required ReturnRequestModel request,
     required AdminReturnsCubit cubit,
   }) {
-    // Sử dụng BlocProvider.value để cung cấp instance cubit đã có sẵn
     return MaterialPageRoute<void>(
       builder: (_) => BlocProvider.value(
         value: cubit,
@@ -24,7 +22,6 @@ class AdminReturnRequestDetailPage extends StatelessWidget {
       ),
     );
   }
-  // --- KẾT THÚC THAY ĐỔI ---
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +35,6 @@ class AdminReturnRequestDetailPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Thông tin chung
             _buildSectionTitle(context, 'Thông tin chung'),
             _buildInfoRow('Mã yêu cầu:', request.id),
             _buildInfoRow('Mã đơn hàng:', '#${request.orderId.substring(0, 8).toUpperCase()}'),
@@ -47,29 +43,40 @@ class AdminReturnRequestDetailPage extends StatelessWidget {
             _buildInfoRow('Trạng thái:', statusInfo.$2, color: statusInfo.$1),
             const Divider(height: 32),
 
-            // Sản phẩm yêu cầu
             _buildSectionTitle(context, 'Sản phẩm yêu cầu'),
             ...request.items.map((item) => _buildProductItem(item)).toList(),
             const Divider(height: 32),
 
-            // Lý do và ghi chú
             _buildSectionTitle(context, 'Lý do & Ghi chú'),
             _buildInfoRow('Lý do:', (request.items.first['reason'] ?? 'Không rõ')),
-            if(request.userNotes.isNotEmpty)
+            if (request.userNotes.isNotEmpty)
               _buildInfoRow('Ghi chú của đại lý:', request.userNotes),
+            if (request.adminNotes != null && request.adminNotes!.isNotEmpty)
+              _buildInfoRow('Ghi chú của Admin:', request.adminNotes!),
             const Divider(height: 32),
 
-            // Hình ảnh bằng chứng
             _buildSectionTitle(context, 'Hình ảnh bằng chứng'),
             _buildEvidenceImages(context, request.imageUrls),
           ],
         ),
       ),
-      bottomNavigationBar: request.status == 'pending_approval' ? _ActionButtons(request: request) : null,
+      // --- THAY ĐỔI: Cập nhật logic hiển thị cho bottomNavigationBar ---
+      bottomNavigationBar: Builder(
+        builder: (context) {
+          if (request.status == 'pending_approval') {
+            return _ActionButtons(request: request);
+          }
+          if (request.status == 'approved') {
+            return _MarkAsCompletedButton(request: request);
+          }
+          return const SizedBox.shrink();
+        },
+      ),
+      // --- KẾT THÚC THAY ĐỔI ---
     );
   }
 
-  // ... (Các hàm build khác giữ nguyên không đổi)
+  // ... (các hàm build khác giữ nguyên)
   Widget _buildSectionTitle(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
@@ -122,6 +129,41 @@ class AdminReturnRequestDetailPage extends StatelessWidget {
       builder: (_) => Dialog(
         child: InteractiveViewer(
           child: Image.network(imageUrl, fit: BoxFit.contain),
+        ),
+      ),
+    );
+  }
+}
+
+class _MarkAsCompletedButton extends StatelessWidget {
+  final ReturnRequestModel request;
+  const _MarkAsCompletedButton({required this.request});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16).copyWith(bottom: 16 + MediaQuery.of(context).padding.bottom),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          icon: const Icon(Icons.check_circle_outline),
+          label: const Text('ĐÁNH DẤU HOÀN THÀNH'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Theme.of(context).colorScheme.onPrimary,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          onPressed: () {
+            context.read<AdminReturnsCubit>().updateRequestStatus(
+              requestId: request.id,
+              newStatus: 'completed',
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Đã cập nhật trạng thái thành "Hoàn thành"'), backgroundColor: Colors.green),
+            );
+            Navigator.of(context).pop();
+          },
         ),
       ),
     );
