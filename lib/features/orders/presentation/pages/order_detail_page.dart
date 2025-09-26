@@ -604,7 +604,7 @@ class _AddressInfo extends StatelessWidget {
     case 'shipped': return (Colors.teal.shade700, 'Đang giao', null);
     case 'completed': return (Theme.of(context).colorScheme.primary, 'Hoàn thành', null);
     case 'cancelled': return (Colors.grey.shade700, 'Đã hủy', null);
-    case 'rejected': return (Colors.red.shade700, 'Đã từ chối', null);
+    case 'rejected': return (Colors.red.shade700, 'Đã từ chối', order.rejectionReason);
     default: return (Colors.grey.shade700, 'Không xác định', null);
   }
 }
