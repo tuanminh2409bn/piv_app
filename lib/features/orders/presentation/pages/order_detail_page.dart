@@ -111,7 +111,7 @@ class _OrderHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusInfo = _getStatusInfo(order.status, context);
+    final statusInfo = _getStatusInfo(order, context);
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -126,11 +126,22 @@ class _OrderHeader extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(color: statusInfo.$1.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-              child: Text(statusInfo.$2, style: TextStyle(color: statusInfo.$1, fontWeight: FontWeight.bold, fontSize: 13)),
+            // --- THAY ĐỔI: Sử dụng tuple để hiển thị status ---
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(color: statusInfo.$1.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                  child: Text(statusInfo.$2, style: TextStyle(color: statusInfo.$1, fontWeight: FontWeight.bold, fontSize: 13)),
+                ),
+                if (statusInfo.$3 != null) ...[
+                  const SizedBox(height: 4),
+                  Text(statusInfo.$3!, style: TextStyle(color: statusInfo.$1, fontSize: 11)),
+                ]
+              ],
             )
+            // --- KẾT THÚC THAY ĐỔI ---
           ],
         ),
         const SizedBox(height: 8),
@@ -273,12 +284,16 @@ class _BottomBar extends StatelessWidget {
           return const _ApprovalActionButtons();
         }
 
-        if (isOrderOwner && order.paymentStatus == 'unpaid') {
+        if (isOrderOwner && order.paymentStatus == 'unpaid' && order.status != 'cancelled' && order.status != 'rejected') {
           return _PaymentConfirmationButton(isLoading: state.status == OrderDetailStatus.updatingPaymentStatus);
         }
 
-        // --- THAY ĐỔI: Thêm nút Yêu cầu Đổi/Trả ---
-        if (isOrderOwner && order.status == 'completed') {
+        // --- THAY ĐỔI: Cập nhật logic hiển thị nút Đổi/Trả ---
+        final isReturnable = order.returnInfo == null ||
+            order.returnInfo!.returnStatus == 'completed' ||
+            order.returnInfo!.returnStatus == 'rejected';
+
+        if (isOrderOwner && order.status == 'completed' && isReturnable) {
           return _ReturnExchangeButton(order: order);
         }
         // --- KẾT THÚC THAY ĐỔI ---
@@ -288,6 +303,7 @@ class _BottomBar extends StatelessWidget {
     );
   }
 }
+
 
 class _ApprovalActionButtons extends StatelessWidget {
   const _ApprovalActionButtons();
@@ -565,16 +581,31 @@ class _AddressInfo extends StatelessWidget {
 }
 
 // --- HÀM HELPER ---
-(Color, String) _getStatusInfo(String status, BuildContext context) {
-  switch (status) {
-    case 'pending_approval': return (Colors.blue.shade700, 'Chờ phê duyệt');
-    case 'pending': return (Colors.orange.shade700, 'Chờ xử lý');
-    case 'processing': return (Colors.cyan.shade700, 'Đang xử lý');
-    case 'shipped': return (Colors.teal.shade700, 'Đang giao');
-    case 'completed': return (Theme.of(context).colorScheme.primary, 'Hoàn thành');
-    case 'cancelled': return (Colors.grey.shade700, 'Đã hủy');
-    case 'rejected': return (Colors.red.shade700, 'Đã từ chối');
-    default: return (Colors.grey.shade700, 'Không xác định');
+(Color, String, String?) _getStatusInfo(OrderModel order, BuildContext context) {
+  // Ưu tiên hiển thị trạng thái đổi trả
+  if (order.returnInfo != null) {
+    switch (order.returnInfo!.returnStatus) {
+      case 'pending_approval':
+        return (Colors.purple.shade700, 'Đang chờ duyệt đổi/trả', null);
+      case 'approved':
+        return (Colors.blue.shade700, 'Đã duyệt đổi/trả', 'Công ty sẽ liên hệ để xử lý');
+      case 'rejected':
+        return (Colors.red.shade700, 'Từ chối đổi/trả', 'Xem chi tiết để biết lý do');
+      case 'completed':
+        return (Theme.of(context).colorScheme.primary, 'Đã đổi/trả thành công', null);
+    }
+  }
+
+  // Nếu không có, hiển thị trạng thái đơn hàng như cũ
+  switch (order.status) {
+    case 'pending_approval': return (Colors.blue.shade700, 'Chờ phê duyệt', null);
+    case 'pending': return (Colors.orange.shade700, 'Chờ xử lý', null);
+    case 'processing': return (Colors.cyan.shade700, 'Đang xử lý', null);
+    case 'shipped': return (Colors.teal.shade700, 'Đang giao', null);
+    case 'completed': return (Theme.of(context).colorScheme.primary, 'Hoàn thành', null);
+    case 'cancelled': return (Colors.grey.shade700, 'Đã hủy', null);
+    case 'rejected': return (Colors.red.shade700, 'Đã từ chối', null);
+    default: return (Colors.grey.shade700, 'Không xác định', null);
   }
 }
 
