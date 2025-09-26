@@ -1266,9 +1266,20 @@ export const onReturnRequestCreated = onDocumentCreated(
         }
 
         const { userDisplayName, orderId } = requestData;
-        const shortOrderId = orderId.substring(0, 8).toUpperCase();
+        try {
+            const orderRef = db.collection("orders").doc(orderId);
+            await orderRef.update({
+                returnInfo: {
+                    returnRequestId: requestId,
+                    returnStatus: "pending_approval",
+                },
+            });
+            logger.info(`Updated order ${orderId} with new return info.`);
+        } catch (error) {
+            logger.error(`Failed to update order ${orderId} for return request ${requestId}:`, error);
+        }
 
-        // Tìm tất cả Admin và Kế toán để thông báo
+        const shortOrderId = orderId.substring(0, 8).toUpperCase();
         const staffSnapshot = await db.collection("users")
             .where("role", "in", ["admin", "accountant"])
             .get();
@@ -1288,16 +1299,13 @@ export const onReturnRequestCreated = onDocumentCreated(
         const type = "new_return_request";
         const payload = { returnRequestId: requestId, orderId: orderId };
 
-        // Gửi thông báo đẩy đến những người có token
         const tokensToSend = staffRecipients.map((r) => r.token).filter((t): t is string => !!t);
         if (tokensToSend.length > 0) {
             await sendDataOnlyNotification(tokensToSend, {
-                title, body, type,
-                payload: JSON.stringify(payload),
+                title, body, type, payload: JSON.stringify(payload),
             });
         }
 
-        // Lưu thông báo vào DB cho tất cả Admin và Kế toán
         const savePromises = staffRecipients.map((recipient) =>
             saveNotificationToFirestore(recipient.id, title, body, type, payload)
         );
@@ -1307,7 +1315,6 @@ export const onReturnRequestCreated = onDocumentCreated(
         return null;
     }
 );
-
 
 // ===================================================================
 // --- THAY ĐỔI: FUNCTION 15: KHI YÊU CẦU ĐỔI TRẢ ĐƯỢC CẬP NHẬT ---
@@ -1319,13 +1326,25 @@ export const onReturnRequestUpdated = onDocumentUpdated(
         const afterData = event.data?.after.data();
 
         if (!beforeData || !afterData || beforeData.status === afterData.status) {
-            return null; // Không có sự thay đổi về trạng thái
+            return null;
         }
 
         const requestId = event.params.requestId;
         const { userId, orderId, status: newStatus, adminNotes } = afterData;
-        const shortOrderId = orderId.substring(0, 8).toUpperCase();
+        try {
+            const orderRef = db.collection("orders").doc(orderId);
+            await orderRef.update({
+                returnInfo: {
+                    returnRequestId: requestId,
+                    returnStatus: newStatus,
+                },
+            });
+            logger.info(`Updated order ${orderId} with updated return info status: ${newStatus}.`);
+        } catch (error) {
+            logger.error(`Failed to update order ${orderId} for return request update ${requestId}:`, error);
+        }
 
+        const shortOrderId = orderId.substring(0, 8).toUpperCase();
         const userDoc = await db.collection("users").doc(userId).get();
         if (!userDoc.exists) {
             logger.warn(`User ${userId} not found for return request update ${requestId}.`);
@@ -1351,20 +1370,16 @@ export const onReturnRequestUpdated = onDocumentUpdated(
                 body = `Quá trình đổi/trả cho đơn hàng #${shortOrderId} của bạn đã được xử lý xong.`;
                 break;
             default:
-                // Bỏ qua các trạng thái khác như 'pending_approval'
                 return null;
         }
 
-        // Gửi và lưu thông báo cho người dùng
         const userFcmToken = userDoc.data()?.fcmToken;
         if (userFcmToken) {
             await sendDataOnlyNotification(userFcmToken, {
-                title, body, type,
-                payload: JSON.stringify(payload),
+                title, body, type, payload: JSON.stringify(payload),
             });
         }
         await saveNotificationToFirestore(userId, title, body, type, payload);
-
         logger.info(`Sent and saved notification for return request ${requestId} update to user ${userId}.`);
         return null;
     }

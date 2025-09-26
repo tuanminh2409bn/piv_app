@@ -17,8 +17,6 @@ class MyOrdersPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Sử dụng BlocProvider.value vì MyOrdersCubit đã được đăng ký là singleton
-    // và được khởi tạo từ trước (ví dụ trong main_screen)
     return BlocProvider.value(
       value: sl<MyOrdersCubit>(),
       child: const MyOrdersView(),
@@ -140,33 +138,66 @@ class _OrderListView extends StatelessWidget {
 
 class _OrderCard extends StatelessWidget {
   final OrderModel order;
+
   const _OrderCard({required this.order});
 
-  (Color, String) _getStatusInfo(String status, BuildContext context) {
-    switch (status) {
-      case 'pending_approval': return (Colors.blue.shade700, 'Chờ phê duyệt');
-      case 'pending': return (Colors.orange.shade700, 'Chờ xử lý');
-      case 'processing': return (Colors.cyan.shade700, 'Đang xử lý');
-      case 'shipped': return (Colors.teal.shade700, 'Đang giao');
-      case 'completed': return (Theme.of(context).colorScheme.primary, 'Hoàn thành');
-      case 'cancelled': return (Colors.grey.shade700, 'Đã hủy');
-      case 'rejected': return (Colors.red.shade700, 'Đã từ chối');
-      default: return (Colors.grey.shade700, 'Không xác định');
+  (Color, String, String?) _getStatusInfo(OrderModel order,
+      BuildContext context) {
+    if (order.returnInfo != null) {
+      switch (order.returnInfo!.returnStatus) {
+        case 'pending_approval':
+          return (Colors.purple.shade700, 'Đang chờ duyệt đổi/trả', null);
+        case 'approved':
+          return (Colors.blue
+              .shade700, 'Đã duyệt đổi/trả', 'Công ty sẽ liên hệ để xử lý');
+        case 'rejected':
+          return (Colors.red
+              .shade700, 'Từ chối đổi/trả', 'Xem chi tiết để biết lý do');
+        case 'completed':
+          return (Theme
+              .of(context)
+              .colorScheme
+              .primary, 'Đã đổi/trả thành công', null);
+      }
+    }
+
+    // Nếu không có, hiển thị trạng thái đơn hàng như cũ
+    switch (order.status) {
+      case 'pending_approval':
+        return (Colors.blue.shade700, 'Chờ phê duyệt', null);
+      case 'pending':
+        return (Colors.orange.shade700, 'Chờ xử lý', null);
+      case 'processing':
+        return (Colors.cyan.shade700, 'Đang xử lý', null);
+      case 'shipped':
+        return (Colors.teal.shade700, 'Đang giao', null);
+      case 'completed':
+        return (Theme
+            .of(context)
+            .colorScheme
+            .primary, 'Hoàn thành', null);
+      case 'cancelled':
+        return (Colors.grey.shade700, 'Đã hủy', null);
+      case 'rejected':
+        return (Colors.red.shade700, 'Đã từ chối', null);
+      default:
+        return (Colors.grey.shade700, 'Không xác định', null);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final statusInfo = _getStatusInfo(order.status, context);
+    final statusInfo = _getStatusInfo(order, context);
     final statusColor = statusInfo.$1;
     final statusText = statusInfo.$2;
+    final statusSubtext = statusInfo.$3;
     final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
 
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      clipBehavior: Clip.antiAlias, // Giúp InkWell có bo tròn
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
           if (order.id != null) {
@@ -180,23 +211,39 @@ class _OrderCard extends StatelessWidget {
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: Text(
-                      'Đơn hàng #${order.id?.substring(0, 6).toUpperCase() ?? 'N/A'}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      'Đơn hàng #${order.id?.substring(0, 6).toUpperCase() ??
+                          'N/A'}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      statusText,
-                      style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12),
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: statusColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          statusText,
+                          style: TextStyle(color: statusColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12),
+                        ),
+                      ),
+                      if (statusSubtext != null) ...[
+                        const SizedBox(height: 4),
+                        Text(statusSubtext,
+                            style: TextStyle(color: statusColor, fontSize: 11)),
+                      ]
+                    ],
                   )
                 ],
               ),
@@ -205,23 +252,29 @@ class _OrderCard extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 4.0),
                   child: Text(
                     'Được tạo bởi NVKD/Kế toán',
-                    style: TextStyle(color: Colors.blueGrey.shade700, fontSize: 13),
+                    style: TextStyle(
+                        color: Colors.blueGrey.shade700, fontSize: 13),
                   ),
                 ),
               const Divider(height: 20),
               Row(
                 children: [
-                  Icon(Icons.calendar_today, size: 14, color: Colors.grey.shade600),
+                  Icon(Icons.calendar_today, size: 14,
+                      color: Colors.grey.shade600),
                   const SizedBox(width: 8),
-                  Text('Ngày đặt: ${order.createdAt != null ? dateFormat.format(order.createdAt!.toDate()) : 'N/A'}', style: TextStyle(color: Colors.grey.shade700)),
+                  Text('Ngày đặt: ${order.createdAt != null ? dateFormat.format(
+                      order.createdAt!.toDate()) : 'N/A'}',
+                      style: TextStyle(color: Colors.grey.shade700)),
                 ],
               ),
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Icon(Icons.receipt_long, size: 14, color: Colors.grey.shade600),
+                  Icon(Icons.receipt_long, size: 14,
+                      color: Colors.grey.shade600),
                   const SizedBox(width: 8),
-                  Text('${order.items.length} sản phẩm', style: TextStyle(color: Colors.grey.shade700)),
+                  Text('${order.items.length} sản phẩm',
+                      style: TextStyle(color: Colors.grey.shade700)),
                 ],
               ),
               const SizedBox(height: 12),
@@ -229,7 +282,8 @@ class _OrderCard extends StatelessWidget {
                 alignment: Alignment.centerRight,
                 child: Text(
                   'Tổng cộng: ${formatter.format(order.finalTotal)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               )
             ],

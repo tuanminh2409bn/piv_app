@@ -5,6 +5,28 @@ import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/address_model.dart';
 import 'package:piv_app/data/models/order_item_model.dart';
 
+class ReturnInfo extends Equatable {
+  final String returnRequestId;
+  final String returnStatus;
+
+  const ReturnInfo({required this.returnRequestId, required this.returnStatus});
+
+  @override
+  List<Object?> get props => [returnRequestId, returnStatus];
+
+  factory ReturnInfo.fromMap(Map<String, dynamic> map) {
+    return ReturnInfo(
+      returnRequestId: map['returnRequestId'] ?? '',
+      returnStatus: map['returnStatus'] ?? 'unknown',
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'returnRequestId': returnRequestId,
+    'returnStatus': returnStatus,
+  };
+}
+
 class PlacedByInfo extends Equatable {
   final String userId;
   final String role;
@@ -52,6 +74,7 @@ class OrderModel extends Equatable {
   final Timestamp? rejectedAt;
   final String? rejectionReason;
   final Timestamp? shippingDate;
+  final ReturnInfo? returnInfo;
 
 
   const OrderModel({
@@ -75,6 +98,7 @@ class OrderModel extends Equatable {
     this.rejectedAt,
     this.rejectionReason,
     this.shippingDate,
+    this.returnInfo,
   });
 
   OrderModel copyWith({
@@ -97,6 +121,7 @@ class OrderModel extends Equatable {
     Timestamp? approvedAt,
     Timestamp? rejectedAt,
     String? rejectionReason,
+    ReturnInfo? returnInfo,
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -118,6 +143,7 @@ class OrderModel extends Equatable {
       approvedAt: approvedAt ?? this.approvedAt,
       rejectedAt: rejectedAt ?? this.rejectedAt,
       rejectionReason: rejectionReason ?? this.rejectionReason,
+      returnInfo: returnInfo ?? this.returnInfo,
     );
   }
 
@@ -125,7 +151,7 @@ class OrderModel extends Equatable {
   List<Object?> get props => [
     id, userId, items, shippingAddress, subtotal, shippingFee, discount, total,
     paymentMethod, paymentStatus, status, createdAt, salesRepId, commissionDiscount, finalTotal,
-    placedBy, approvedAt, rejectedAt, rejectionReason, shippingDate,
+    placedBy, approvedAt, rejectedAt, rejectionReason, shippingDate, returnInfo,
   ];
 
   Map<String, dynamic> toMap() {
@@ -149,6 +175,7 @@ class OrderModel extends Equatable {
       'rejectedAt': rejectedAt,
       'rejectionReason': rejectionReason,
       'shippingDate': shippingDate,
+      'returnInfo': returnInfo?.toMap(),
     };
   }
 
@@ -182,6 +209,9 @@ class OrderModel extends Equatable {
       rejectedAt: data['rejectedAt'] as Timestamp?,
       rejectionReason: data['rejectionReason'] as String?,
       shippingDate: data['shippingDate'] as Timestamp?,
+      returnInfo: data['returnInfo'] != null
+          ? ReturnInfo.fromMap(data['returnInfo'] as Map<String, dynamic>)
+          : null,
     );
   }
 }
