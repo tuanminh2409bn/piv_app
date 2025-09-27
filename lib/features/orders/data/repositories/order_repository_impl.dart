@@ -336,4 +336,14 @@ class OrderRepositoryImpl implements OrderRepository {
       return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
     }
   }
+
+  @override
+  Stream<List<OrderModel>> watchUserOrders(String userId) {
+    return _firestore
+        .collection('orders')
+        .where('userId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => OrderModel.fromSnapshot(doc)).toList());
+  }
 }

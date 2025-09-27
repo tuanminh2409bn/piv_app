@@ -1,10 +1,11 @@
+// lib/features/orders/presentation/bloc/my_orders_cubit.dart
+
+import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/order_model.dart';
-import 'package:piv_app/features/orders/domain/repositories/order_repository.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
-import 'dart:async';
-import 'dart:developer' as developer;
+import 'package:piv_app/features/orders/domain/repositories/order_repository.dart';
 
 part 'my_orders_state.dart';
 
@@ -12,6 +13,7 @@ class MyOrdersCubit extends Cubit<MyOrdersState> {
   final OrderRepository _orderRepository;
   final AuthBloc _authBloc;
   StreamSubscription? _authSubscription;
+  StreamSubscription<List<OrderModel>>? _ordersSubscription; // <<< THAY ĐỔI
   String _currentUserId = '';
 
   MyOrdersCubit({
@@ -20,45 +22,116 @@ class MyOrdersCubit extends Cubit<MyOrdersState> {
   })  : _orderRepository = orderRepository,
         _authBloc = authBloc,
         super(const MyOrdersState()) {
-
-    // Lắng nghe trạng thái AuthBloc để biết userId và tải đơn hàng tương ứng
     _authSubscription = _authBloc.stream.listen((authState) {
       if (authState is AuthAuthenticated) {
-        _currentUserId = authState.user.id;
-        fetchMyOrders(); // Tải đơn hàng khi người dùng đăng nhập
+        // Nếu user thay đổi, bắt đầu lắng nghe đơn hàng của user mới
+        if (_currentUserId != authState.user.id) {
+          _currentUserId = authState.user.id;
+          watchMyOrders();
+        }
       } else if (authState is AuthUnauthenticated) {
         _currentUserId = '';
-        emit(const MyOrdersState()); // Xóa danh sách đơn hàng khi đăng xuất
+        _ordersSubscription?.cancel(); // Hủy lắng nghe khi đăng xuất
+        emit(const MyOrdersState());
       }
     });
 
-    // Tải dữ liệu lần đầu nếu người dùng đã đăng nhập sẵn khi app khởi động
     final initialAuthState = _authBloc.state;
     if (initialAuthState is AuthAuthenticated) {
       _currentUserId = initialAuthState.user.id;
-      fetchMyOrders();
+      watchMyOrders();
     }
   }
 
-  /// Tải lịch sử đơn hàng của người dùng hiện tại
-  Future<void> fetchMyOrders() async {
+  /// Lắng nghe stream đơn hàng của người dùng hiện tại
+  void watchMyOrders() {
     if (_currentUserId.isEmpty) {
-      emit(state.copyWith(status: MyOrdersStatus.error, errorMessage: 'Vui lòng đăng nhập để xem đơn hàng.'));
+      emit(state.copyWith(
+          status: MyOrdersStatus.error,
+          errorMessage: 'Vui lòng đăng nhập để xem đơn hàng.'));
       return;
     }
 
     emit(state.copyWith(status: MyOrdersStatus.loading));
-    final result = await _orderRepository.getUserOrders(_currentUserId);
+    _ordersSubscription?.cancel(); // Hủy subscription cũ trước khi tạo mới
+    _ordersSubscription =
+        _orderRepository.watchUserOrders(_currentUserId).listen(
+              (orders) {
+            // --- LOGIC PHÂN LOẠI ĐƠN HÀNG GIỮ NGUYÊN ---
+            // THAY ĐỔI QUAN TRỌNG: Thêm các trạng thái đổi/trả vào tab "Đang xử lý"
+            final pendingApproval =
+            orders.where((o) => o.status == 'pending_approval').toList();
 
+            final ongoing = orders
+                .where((o) => [
+              'pending',
+              'processing',
+              'shipped'
+            ].contains(o.status) || o.returnInfo != null && [
+              'pending_approval',
+              'approved',
+            ].contains(o.returnInfo!.returnStatus))
+                .toList();
+
+            final completed = orders
+                .where((o) => [
+              'completed',
+              'cancelled',
+              'rejected'
+            ].contains(o.status) && (o.returnInfo == null || ![
+              'pending_approval',
+              'approved',
+            ].contains(o.returnInfo!.returnStatus)))
+                .toList();
+
+            emit(state.copyWith(
+              status: MyOrdersStatus.success,
+              pendingApprovalOrders: pendingApproval,
+              ongoingOrders: ongoing,
+              completedOrders: completed,
+            ));
+          },
+          onError: (error) {
+            emit(state.copyWith(
+                status: MyOrdersStatus.error,
+                errorMessage: 'Không thể tải danh sách đơn hàng.'));
+          },
+        );
+  }
+
+  // Tạm thời giữ lại hàm fetch để dùng cho RefreshIndicator nếu cần
+  Future<void> fetchMyOrders() async {
+    // Logic của hàm này sẽ không được dùng để cập nhật tự động nữa
+    // nhưng có thể được gọi thủ công
+    if (_currentUserId.isEmpty) return;
+    final result = await _orderRepository.getUserOrders(_currentUserId);
     result.fold(
-          (failure) {
-        emit(state.copyWith(status: MyOrdersStatus.error, errorMessage: failure.message));
-      },
+          (failure) => null, // Không làm gì khi lỗi
           (orders) {
-        // --- LOGIC MỚI: Phân loại đơn hàng ---
-        final pendingApproval = orders.where((o) => o.status == 'pending_approval').toList();
-        final ongoing = orders.where((o) => ['pending', 'processing', 'shipped'].contains(o.status)).toList();
-        final completed = orders.where((o) => ['completed', 'cancelled', 'rejected'].contains(o.status)).toList();
+        final pendingApproval =
+        orders.where((o) => o.status == 'pending_approval').toList();
+
+        final ongoing = orders
+            .where((o) => [
+          'pending',
+          'processing',
+          'shipped'
+        ].contains(o.status) || o.returnInfo != null && [
+          'pending_approval',
+          'approved',
+        ].contains(o.returnInfo!.returnStatus))
+            .toList();
+
+        final completed = orders
+            .where((o) => [
+          'completed',
+          'cancelled',
+          'rejected'
+        ].contains(o.status) && (o.returnInfo == null || ![
+          'pending_approval',
+          'approved',
+        ].contains(o.returnInfo!.returnStatus)))
+            .toList();
 
         emit(state.copyWith(
           status: MyOrdersStatus.success,
@@ -73,6 +146,7 @@ class MyOrdersCubit extends Cubit<MyOrdersState> {
   @override
   Future<void> close() {
     _authSubscription?.cancel();
+    _ordersSubscription?.cancel(); // <<< THAY ĐỔI
     return super.close();
   }
 }
