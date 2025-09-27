@@ -33,11 +33,13 @@ class AdminReturnsCubit extends Cubit<AdminReturnsState> {
     required String requestId,
     required String newStatus,
     String? adminNotes,
+    String? rejectionReason, // <<< THÊM MỚI
   }) async {
     final result = await _returnRepository.updateReturnRequestStatus(
       requestId: requestId,
       newStatus: newStatus,
       adminNotes: adminNotes,
+      rejectionReason: rejectionReason, // <<< THÊM MỚI
     );
     // UI sẽ tự cập nhật nhờ stream, không cần emit state ở đây
   }

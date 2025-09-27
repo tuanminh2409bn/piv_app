@@ -18,10 +18,13 @@ abstract class ReturnRepository {
   // --- THAY ĐỔI: Thêm các hàm mới ---
   Stream<List<ReturnRequestModel>> watchAllReturnRequests();
 
+  Stream<ReturnRequestModel> watchReturnRequestById(String requestId);
+
   Future<Either<Failure, void>> updateReturnRequestStatus({
     required String requestId,
     required String newStatus,
     String? adminNotes,
+    String? rejectionReason,
   });
 // --- KẾT THÚC THAY ĐỔI ---
 }

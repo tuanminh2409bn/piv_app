@@ -199,7 +199,7 @@ class _ActionButtons extends StatelessWidget {
                 context.read<AdminReturnsCubit>().updateRequestStatus(
                   requestId: request.id,
                   newStatus: 'rejected',
-                  adminNotes: reason,
+                  rejectionReason: reason,
                 );
                 Navigator.of(dialogContext).pop();
                 Navigator.of(context).pop();

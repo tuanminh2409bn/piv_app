@@ -12,6 +12,7 @@ import 'package:piv_app/data/models/payment_info_model.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/orders/presentation/bloc/order_detail_cubit.dart';
+import 'package:piv_app/features/returns/data/models/return_request_model.dart';
 import 'package:piv_app/features/returns/presentation/pages/create_return_request_page.dart';
 
 
@@ -582,7 +583,7 @@ class _AddressInfo extends StatelessWidget {
 
 // --- HÀM HELPER ---
 (Color, String, String?) _getStatusInfo(OrderModel order, BuildContext context) {
-  // Ưu tiên hiển thị trạng thái đổi trả
+  final returnRequest = context.read<OrderDetailCubit>().state.returnRequest;
   if (order.returnInfo != null) {
     switch (order.returnInfo!.returnStatus) {
       case 'pending_approval':
@@ -590,7 +591,7 @@ class _AddressInfo extends StatelessWidget {
       case 'approved':
         return (Colors.blue.shade700, 'Đã duyệt đổi/trả', 'Công ty sẽ liên hệ để xử lý');
       case 'rejected':
-        return (Colors.red.shade700, 'Từ chối đổi/trả', 'Xem chi tiết để biết lý do');
+        return (Colors.red.shade700, 'Từ chối đổi/trả', returnRequest?.rejectionReason ?? 'Không có lý do.');
       case 'completed':
         return (Theme.of(context).colorScheme.primary, 'Đã đổi/trả thành công', null);
     }

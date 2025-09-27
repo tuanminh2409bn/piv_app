@@ -16,18 +16,20 @@ class OrderDetailState extends Equatable {
   final OrderModel? order;
   final String? errorMessage;
   final PaymentInfoModel? paymentInfo;
-  final UserModel? placedByUser; // <<< THÊM TRƯỜNG MỚI
+  final UserModel? placedByUser;
+  final ReturnRequestModel? returnRequest;
 
   const OrderDetailState({
     this.status = OrderDetailStatus.initial,
     this.order,
     this.errorMessage,
     this.paymentInfo,
-    this.placedByUser, // <<< THÊM VÀO CONSTRUCTOR
+    this.placedByUser,
+    this.returnRequest,
   });
 
   @override
-  List<Object?> get props => [status, order, errorMessage, paymentInfo, placedByUser];
+  List<Object?> get props => [status, order, errorMessage, paymentInfo, placedByUser, returnRequest];
 
   OrderDetailState copyWith({
     OrderDetailStatus? status,
@@ -35,6 +37,7 @@ class OrderDetailState extends Equatable {
     String? errorMessage,
     PaymentInfoModel? paymentInfo,
     UserModel? placedByUser,
+    ReturnRequestModel? returnRequest,
     bool clearError = false,
   }) {
     return OrderDetailState(
@@ -43,6 +46,7 @@ class OrderDetailState extends Equatable {
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
       paymentInfo: paymentInfo ?? this.paymentInfo,
       placedByUser: placedByUser ?? this.placedByUser,
+      returnRequest: returnRequest ?? this.returnRequest,
     );
   }
 }

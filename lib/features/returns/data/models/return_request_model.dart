@@ -13,6 +13,7 @@ class ReturnRequestModel extends Equatable {
   final String userNotes;
   final String status;
   final String? adminNotes;
+  final String? rejectionReason; // <<< THÊM MỚI
   final Timestamp createdAt;
 
   const ReturnRequestModel({
@@ -25,6 +26,7 @@ class ReturnRequestModel extends Equatable {
     required this.userNotes,
     required this.status,
     this.adminNotes,
+    this.rejectionReason, // <<< THÊM MỚI
     required this.createdAt,
   });
 
@@ -40,10 +42,11 @@ class ReturnRequestModel extends Equatable {
       userNotes: data['userNotes'] ?? '',
       status: data['status'] ?? 'unknown',
       adminNotes: data['adminNotes'],
+      rejectionReason: data['rejectionReason'], // <<< THÊM MỚI
       createdAt: data['createdAt'] ?? Timestamp.now(),
     );
   }
 
   @override
-  List<Object?> get props => [id, userId, orderId, status, createdAt];
+  List<Object?> get props => [id, userId, orderId, status, createdAt, rejectionReason]; // <<< THÊM MỚI
 }

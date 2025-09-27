@@ -97,6 +97,7 @@ class ReturnRepositoryImpl implements ReturnRepository {
     required String requestId,
     required String newStatus,
     String? adminNotes,
+    String? rejectionReason, // <<< THÊM MỚI
   }) async {
     try {
       final dataToUpdate = {
@@ -106,11 +107,25 @@ class ReturnRepositoryImpl implements ReturnRepository {
       if (adminNotes != null) {
         dataToUpdate['adminNotes'] = adminNotes;
       }
+      // --- THAY ĐỔI Ở ĐÂY ---
+      if (rejectionReason != null) {
+        dataToUpdate['rejectionReason'] = rejectionReason;
+      }
+      // --- KẾT THÚC THAY ĐỔI ---
 
       await _firestore.collection('returnRequests').doc(requestId).update(dataToUpdate);
       return const Right(null);
     } catch (e) {
       return Left(ServerFailure('Cập nhật trạng thái thất bại: ${e.toString()}'));
     }
+  }
+
+  @override
+  Stream<ReturnRequestModel> watchReturnRequestById(String requestId) {
+    return _firestore
+        .collection('returnRequests')
+        .doc(requestId)
+        .snapshots()
+        .map((doc) => ReturnRequestModel.fromSnapshot(doc));
   }
 }

@@ -6,22 +6,29 @@ import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/data/models/payment_info_model.dart';
-import 'package:piv_app/data/models/user_model.dart'; // <<< THÊM IMPORT
+import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/orders/domain/repositories/order_repository.dart';
-import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart'; // <<< THÊM IMPORT
+import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
+import 'package:piv_app/features/returns/data/models/return_request_model.dart';
+import 'package:piv_app/features/returns/domain/repositories/return_repository.dart';
+
 
 part 'order_detail_state.dart';
 
 class OrderDetailCubit extends Cubit<OrderDetailState> {
   final OrderRepository _orderRepository;
-  final UserProfileRepository _userProfileRepository; // <<< THÊM REPO
+  final UserProfileRepository _userProfileRepository;
+  final ReturnRepository _returnRepository;
   StreamSubscription<OrderModel>? _orderSubscription;
+  StreamSubscription<ReturnRequestModel>? _returnRequestSubscription;
 
   OrderDetailCubit({
     required OrderRepository orderRepository,
-    required UserProfileRepository userProfileRepository, // <<< THÊM VÀO CONSTRUCTOR
+    required UserProfileRepository userProfileRepository,
+    required ReturnRepository returnRepository,
   })  : _orderRepository = orderRepository,
         _userProfileRepository = userProfileRepository,
+        _returnRepository = returnRepository,
         super(const OrderDetailState());
 
   void listenToOrderDetail(String orderId) {
@@ -37,14 +44,21 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
         developer.log("Received update for order ${order.id}", name: "OrderDetailCubit");
 
         UserModel? placedByUser;
-        // Lấy thông tin chi tiết của người đặt hộ nếu có
         if (order.placedBy != null && order.placedBy!.userId.isNotEmpty) {
           final userResult = await _userProfileRepository.getUserProfile(order.placedBy!.userId);
-          // Dùng fold để xử lý cả trường hợp thành công và thất bại
           userResult.fold(
-                (failure) => placedByUser = null, // Nếu lỗi thì không có thông tin user
-                (user) => placedByUser = user,     // Gán user nếu thành công
+                (failure) => placedByUser = null,
+                (user) => placedByUser = user,
           );
+        }
+
+        _returnRequestSubscription?.cancel();
+        if (order.returnInfo?.returnRequestId != null && order.returnInfo!.returnRequestId.isNotEmpty) {
+          _returnRequestSubscription = _returnRepository
+              .watchReturnRequestById(order.returnInfo!.returnRequestId)
+              .listen((returnRequest) {
+            emit(state.copyWith(returnRequest: returnRequest));
+          });
         }
 
         emit(state.copyWith(
@@ -108,6 +122,7 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
   @override
   Future<void> close() {
     _orderSubscription?.cancel();
+    _returnRequestSubscription?.cancel();
     return super.close();
   }
 }
