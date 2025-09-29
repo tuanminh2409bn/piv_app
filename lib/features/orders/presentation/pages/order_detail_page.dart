@@ -12,7 +12,6 @@ import 'package:piv_app/data/models/payment_info_model.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/orders/presentation/bloc/order_detail_cubit.dart';
-import 'package:piv_app/features/returns/data/models/return_request_model.dart';
 import 'package:piv_app/features/returns/presentation/pages/create_return_request_page.dart';
 
 
@@ -42,61 +41,71 @@ class OrderDetailView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Chi tiết Đơn hàng')),
-      body: BlocConsumer<OrderDetailCubit, OrderDetailState>(
-        listener: (context, state) {
-          if (state.status == OrderDetailStatus.error && state.errorMessage != null) {
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.red));
-            context.read<OrderDetailCubit>().emit(state.copyWith(status: OrderDetailStatus.success, clearError: true));
-          }
-        },
-        builder: (context, state) {
-          if (state.status == OrderDetailStatus.loading || state.status == OrderDetailStatus.initial) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: SafeArea( // <--- THÊM SAFEA TẠI ĐÂY
+        child: BlocConsumer<OrderDetailCubit, OrderDetailState>(
+          listener: (context, state) {
+            if (state.status == OrderDetailStatus.error &&
+                state.errorMessage != null) {
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(SnackBar(content: Text(state.errorMessage!),
+                    backgroundColor: Colors.red));
+              context.read<OrderDetailCubit>().emit(state.copyWith(
+                  status: OrderDetailStatus.success, clearError: true));
+            }
+          },
+          builder: (context, state) {
+            if (state.status == OrderDetailStatus.loading ||
+                state.status == OrderDetailStatus.initial) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (state.order == null) {
-            return Center(child: Text(state.errorMessage ?? 'Không thể tải chi tiết đơn hàng.'));
-          }
+            if (state.order == null) {
+              return Center(child: Text(
+                  state.errorMessage ?? 'Không thể tải chi tiết đơn hàng.'));
+            }
 
-          final order = state.order!;
-          return SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 150.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _OrderHeader(order: order, placedByUser: state.placedByUser),
-                const Divider(height: 32),
-                if (order.paymentStatus == 'unpaid' && order.status != 'pending_approval' && state.paymentInfo != null) ...[
+            final order = state.order!;
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 150.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _OrderHeader(order: order, placedByUser: state.placedByUser),
+                  const Divider(height: 32),
+                  if (order.paymentStatus == 'unpaid' &&
+                      order.status != 'pending_approval' &&
+                      state.paymentInfo != null) ...[
+                    _Section(
+                      title: 'Thông tin thanh toán',
+                      icon: Icons.qr_code_scanner,
+                      child: _PaymentQrInfo(
+                          paymentInfo: state.paymentInfo!, order: order),
+                    ),
+                    const Divider(height: 32),
+                  ],
                   _Section(
-                    title: 'Thông tin thanh toán',
-                    icon: Icons.qr_code_scanner,
-                    child: _PaymentQrInfo(paymentInfo: state.paymentInfo!, order: order),
+                    title: 'Địa chỉ giao hàng',
+                    icon: Icons.location_on_outlined,
+                    child: _AddressInfo(address: order.shippingAddress),
                   ),
                   const Divider(height: 32),
+                  _Section(
+                    title: 'Danh sách sản phẩm',
+                    icon: Icons.shopping_bag_outlined,
+                    child: _OrderItemsList(items: order.items),
+                  ),
+                  const Divider(height: 32),
+                  _Section(
+                    title: 'Tóm tắt đơn hàng',
+                    icon: Icons.receipt_long_outlined,
+                    child: _PaymentSummary(order: order),
+                  ),
                 ],
-                _Section(
-                  title: 'Địa chỉ giao hàng',
-                  icon: Icons.location_on_outlined,
-                  child: _AddressInfo(address: order.shippingAddress),
-                ),
-                const Divider(height: 32),
-                _Section(
-                  title: 'Danh sách sản phẩm',
-                  icon: Icons.shopping_bag_outlined,
-                  child: _OrderItemsList(items: order.items),
-                ),
-                const Divider(height: 32),
-                _Section(
-                  title: 'Tóm tắt đơn hàng',
-                  icon: Icons.receipt_long_outlined,
-                  child: _PaymentSummary(order: order),
-                ),
-              ],
-            ),
-          );
-        },
+              ),
+            );
+          },
+        ),
       ),
       bottomNavigationBar: const _BottomBar(),
     );

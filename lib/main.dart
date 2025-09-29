@@ -22,6 +22,7 @@ import 'package:piv_app/features/notifications/presentation/bloc/notification_cu
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'dart:developer' as developer;
+import 'package:flutter/services.dart';
 
 // 1. Thêm GlobalKey để điều hướng từ bên ngoài widget
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -35,17 +36,25 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // THÊM CÁC DÒNG SAU ĐỂ KÍCH HOẠT CHẾ ĐỘ TRÀN VIỀN
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent, // Thanh trạng thái trong suốt
+    systemNavigationBarColor: Colors.transparent, // Thanh điều hướng trong suốt
+    statusBarIconBrightness: Brightness.dark, // Icon thanh trạng thái màu tối
+    systemNavigationBarIconBrightness: Brightness.dark, // Icon thanh điều hướng màu tối
+  ));
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  // KẾT THÚC PHẦN THÊM VÀO
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // 3. Đăng ký hàm xử lý nền
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   await di.initializeDependencies();
   await initializeDateFormatting('vi_VN', null);
-
-  // 4. Xóa dòng init() service ở đây, chúng ta sẽ chuyển nó vào trong MyApp
 
   Bloc.observer = di.sl<AppBlocObserver>();
   timeago.setLocaleMessages('vi', timeago.ViMessages());

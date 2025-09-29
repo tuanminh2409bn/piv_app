@@ -27,40 +27,40 @@ class AdminReturnRequestDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
     final statusInfo = _getStatusInfo(request.status, context);
-
     return Scaffold(
       appBar: AppBar(title: const Text('Chi tiết Yêu cầu Đổi/Trả')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle(context, 'Thông tin chung'),
-            _buildInfoRow('Mã yêu cầu:', request.id),
-            _buildInfoRow('Mã đơn hàng:', '#${request.orderId.substring(0, 8).toUpperCase()}'),
-            _buildInfoRow('Người yêu cầu:', request.userDisplayName),
-            _buildInfoRow('Ngày tạo:', dateFormat.format(request.createdAt.toDate())),
-            _buildInfoRow('Trạng thái:', statusInfo.$2, color: statusInfo.$1),
-            const Divider(height: 32),
+      body: SafeArea( // <--- THÊM SAFEA TẠI ĐÂY
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionTitle(context, 'Thông tin chung'),
+              _buildInfoRow('Mã yêu cầu:', request.id),
+              _buildInfoRow('Mã đơn hàng:', '#${request.orderId.substring(0, 8).toUpperCase()}'),
+              _buildInfoRow('Người yêu cầu:', request.userDisplayName),
+              _buildInfoRow('Ngày tạo:', dateFormat.format(request.createdAt.toDate())),
+              _buildInfoRow('Trạng thái:', statusInfo.$2, color: statusInfo.$1),
+              const Divider(height: 32),
 
-            _buildSectionTitle(context, 'Sản phẩm yêu cầu'),
-            ...request.items.map((item) => _buildProductItem(item)).toList(),
-            const Divider(height: 32),
+              _buildSectionTitle(context, 'Sản phẩm yêu cầu'),
+              ...request.items.map((item) => _buildProductItem(item)).toList(),
+              const Divider(height: 32),
 
-            _buildSectionTitle(context, 'Lý do & Ghi chú'),
-            _buildInfoRow('Lý do:', (request.items.first['reason'] ?? 'Không rõ')),
-            if (request.userNotes.isNotEmpty)
-              _buildInfoRow('Ghi chú của đại lý:', request.userNotes),
-            if (request.adminNotes != null && request.adminNotes!.isNotEmpty)
-              _buildInfoRow('Ghi chú của Admin:', request.adminNotes!),
-            const Divider(height: 32),
+              _buildSectionTitle(context, 'Lý do & Ghi chú'),
+              _buildInfoRow('Lý do:', (request.items.first['reason'] ?? 'Không rõ')),
+              if (request.userNotes.isNotEmpty)
+                _buildInfoRow('Ghi chú của đại lý:', request.userNotes),
+              if (request.adminNotes != null && request.adminNotes!.isNotEmpty)
+                _buildInfoRow('Ghi chú của Admin:', request.adminNotes!),
+              const Divider(height: 32),
 
-            _buildSectionTitle(context, 'Hình ảnh bằng chứng'),
-            _buildEvidenceImages(context, request.imageUrls),
-          ],
+              _buildSectionTitle(context, 'Hình ảnh bằng chứng'),
+              _buildEvidenceImages(context, request.imageUrls),
+            ],
+          ),
         ),
       ),
-      // --- THAY ĐỔI: Cập nhật logic hiển thị cho bottomNavigationBar ---
       bottomNavigationBar: Builder(
         builder: (context) {
           if (request.status == 'pending_approval') {
@@ -72,7 +72,6 @@ class AdminReturnRequestDetailPage extends StatelessWidget {
           return const SizedBox.shrink();
         },
       ),
-      // --- KẾT THÚC THAY ĐỔI ---
     );
   }
 
