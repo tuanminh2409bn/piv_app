@@ -8,6 +8,7 @@ import 'package:piv_app/features/admin/domain/repositories/admin_repository.dart
 import 'dart:developer' as developer;
 import 'package:piv_app/features/admin/data/models/quick_order_item_model.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
+import 'package:piv_app/data/models/debt_transaction_model.dart';
 
 class AdminRepositoryImpl implements AdminRepository {
   final FirebaseFirestore _firestore;
@@ -217,6 +218,52 @@ class AdminRepositoryImpl implements AdminRepository {
     } catch (e) {
       developer.log('Lỗi khi lấy sản phẩm theo IDs: $e', name: 'AdminRepositoryImpl');
       rethrow;
+    }
+  }
+
+  @override
+  Future<Either<Failure, Unit>> updateUserDebt({
+    required String userId,
+    required double newDebtAmount,
+    required String updatedBy, // Thêm tham số mới
+  }) async {
+    try {
+      final userRef = _firestore.collection('users').doc(userId);
+
+      await _firestore.runTransaction((transaction) async {
+        // 1. Đọc thông tin người dùng hiện tại để lấy công nợ cũ
+        final userSnapshot = await transaction.get(userRef);
+        if (!userSnapshot.exists) {
+          throw Exception('Người dùng không tồn tại.');
+        }
+        final user = UserModel.fromSnap(userSnapshot);
+        final previousDebt = user.debtAmount;
+
+        // 2. Tạo một bản ghi giao dịch công nợ mới
+        final transactionRef = userRef.collection('debt_transactions').doc();
+        final newTransaction = DebtTransactionModel(
+          id: transactionRef.id,
+          amount: newDebtAmount - previousDebt, // Số tiền thay đổi
+          previousDebt: previousDebt,
+          newDebt: newDebtAmount,
+          type: 'manual_update', // Loại giao dịch là cập nhật thủ công
+          updatedById: updatedBy, // ID của người thực hiện
+          createdAt: Timestamp.now(),
+        );
+
+        // 3. Ghi log giao dịch vào sub-collection
+        transaction.set(transactionRef, newTransaction.toMap());
+
+        // 4. Cập nhật công nợ trên tài liệu người dùng chính
+        transaction.update(userRef, {'debtAmount': newDebtAmount});
+      });
+
+      developer.log('Updated debt for user $userId to $newDebtAmount by $updatedBy', name: 'AdminRepository');
+      return const Right(unit);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase khi cập nhật công nợ: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định khi cập nhật công nợ: ${e.toString()}'));
     }
   }
 }

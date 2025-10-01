@@ -75,6 +75,9 @@ class OrderModel extends Equatable {
   final String? rejectionReason;
   final Timestamp? shippingDate;
   final ReturnInfo? returnInfo;
+  final double debtAmount;
+  final double paidAmount;
+  final double remainingDebt;
 
 
   const OrderModel({
@@ -99,6 +102,9 @@ class OrderModel extends Equatable {
     this.rejectionReason,
     this.shippingDate,
     this.returnInfo,
+    this.debtAmount = 0.0,
+    this.paidAmount = 0.0,
+    this.remainingDebt = 0.0,
   });
 
   OrderModel copyWith({
@@ -122,6 +128,9 @@ class OrderModel extends Equatable {
     Timestamp? rejectedAt,
     String? rejectionReason,
     ReturnInfo? returnInfo,
+    double? debtAmount,
+    double? paidAmount,
+    double? remainingDebt,
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -144,6 +153,9 @@ class OrderModel extends Equatable {
       rejectedAt: rejectedAt ?? this.rejectedAt,
       rejectionReason: rejectionReason ?? this.rejectionReason,
       returnInfo: returnInfo ?? this.returnInfo,
+      debtAmount: debtAmount ?? this.debtAmount,
+      paidAmount: paidAmount ?? this.paidAmount,
+      remainingDebt: remainingDebt ?? this.remainingDebt,
     );
   }
 
@@ -151,7 +163,7 @@ class OrderModel extends Equatable {
   List<Object?> get props => [
     id, userId, items, shippingAddress, subtotal, shippingFee, discount, total,
     paymentMethod, paymentStatus, status, createdAt, salesRepId, commissionDiscount, finalTotal,
-    placedBy, approvedAt, rejectedAt, rejectionReason, shippingDate, returnInfo,
+    placedBy, approvedAt, rejectedAt, rejectionReason, shippingDate, returnInfo, debtAmount, paidAmount, remainingDebt
   ];
 
   Map<String, dynamic> toMap() {
@@ -176,6 +188,9 @@ class OrderModel extends Equatable {
       'rejectionReason': rejectionReason,
       'shippingDate': shippingDate,
       'returnInfo': returnInfo?.toMap(),
+      'debtAmount': debtAmount,
+      'paidAmount': paidAmount,
+      'remainingDebt': remainingDebt,
     };
   }
 
@@ -212,6 +227,9 @@ class OrderModel extends Equatable {
       returnInfo: data['returnInfo'] != null
           ? ReturnInfo.fromMap(data['returnInfo'] as Map<String, dynamic>)
           : null,
+      debtAmount: (data['debtAmount'] as num?)?.toDouble() ?? 0.0,
+      paidAmount: (data['paidAmount'] as num?)?.toDouble() ?? 0.0,
+      remainingDebt: (data['remainingDebt'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }

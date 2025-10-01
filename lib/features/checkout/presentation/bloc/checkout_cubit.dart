@@ -5,7 +5,6 @@ import 'dart:developer' as developer;
 import 'package:bloc/bloc.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:equatable/equatable.dart';
-// --- THAY ĐỔI: Thêm import ---
 import 'package:collection/collection.dart';
 import 'package:piv_app/data/models/address_model.dart';
 import 'package:piv_app/data/models/cart_item_model.dart';
@@ -83,12 +82,18 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     ));
   }
 
-  // ... (Phần còn lại của file giữ nguyên không thay đổi)
   Future<void> placeOrderOnBehalfOf() async {
     if (state.selectedAddress == null || state.checkoutItems.isEmpty || state.placeOrderForAgent == null) {
       emit(state.copyWith(status: CheckoutStatus.error, errorMessage: "Thiếu thông tin để đặt hàng hộ."));
       return;
     }
+
+    // --- KIỂM TRA SỐ TIỀN THANH TOÁN HỢP LỆ ---
+    if (state.amountToPay < 0) {
+      emit(state.copyWith(status: CheckoutStatus.error, errorMessage: "Số tiền thanh toán không thể là số âm."));
+      return;
+    }
+    // -----------------------------------------
 
     emit(state.copyWith(status: CheckoutStatus.placingOrder));
 
@@ -99,6 +104,10 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     }
 
     final agent = state.placeOrderForAgent!;
+
+    // --- TÍNH TOÁN CÔNG NỢ CÒN LẠI ---
+    final remainingDebt = state.totalWithDebt - state.amountToPay;
+    // ----------------------------------
 
     final order = OrderModel(
       userId: agent.id,
@@ -113,14 +122,24 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       subtotal: state.subtotal,
       shippingFee: state.shippingFee,
       discount: state.discount,
-      total: state.total,
+      total: state.finalTotal, // SỬA LỖI: Dùng state.finalTotal
       paymentMethod: 'bank_transfer',
       paymentStatus: 'unpaid',
       commissionDiscount: state.commissionDiscount,
-      finalTotal: state.finalTotal,
+      finalTotal: state.totalWithDebt, // SỬA LỖI: Dùng state.totalWithDebt
+      // --- THÊM DỮ LIỆU CÔNG NỢ VÀO ĐƠN HÀNG ---
+      debtAmount: state.currentDebt,
+      paidAmount: state.amountToPay,
+      remainingDebt: remainingDebt,
+      // -----------------------------------------
     );
 
-    final result = await _orderRepository.createOrder(order, clearCart: false);
+    final result = await _orderRepository.createOrder(
+      order,
+      clearCart: false,
+      // TẠM THỜI VÔ HIỆU HÓA DÒNG NÀY
+      // newDebtAmount: remainingDebt,
+    );
 
     result.fold(
           (failure) => emit(state.copyWith(status: CheckoutStatus.error, errorMessage: failure.message)),
@@ -131,8 +150,13 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   }
 
   Future<void> placeOrder() async {
-    if (state.selectedAddress == null || state.checkoutItems.isEmpty || _currentUserId.isEmpty) {
-      emit(state.copyWith(status: CheckoutStatus.error, errorMessage: "Vui lòng chọn địa chỉ và sản phẩm."));
+    if (state.selectedAddress == null || (state.checkoutItems.isEmpty && state.currentDebt <= 0)) {
+      emit(state.copyWith(status: CheckoutStatus.error, errorMessage: "Vui lòng chọn địa chỉ và sản phẩm, hoặc có công nợ để thanh toán."));
+      return;
+    }
+
+    if (state.amountToPay < 0) {
+      emit(state.copyWith(status: CheckoutStatus.error, errorMessage: "Số tiền thanh toán không thể là số âm."));
       return;
     }
 
@@ -144,6 +168,8 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       return;
     }
 
+    final remainingDebt = state.totalWithDebt - state.amountToPay;
+
     final order = OrderModel(
       userId: _currentUserId,
       items: state.checkoutItems.map((cartItem) => OrderItemModel.fromCartItem(cartItem)).toList(),
@@ -151,15 +177,22 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       subtotal: state.subtotal,
       shippingFee: state.shippingFee,
       discount: state.discount,
-      total: state.total,
+      total: state.finalTotal,
       paymentMethod: state.paymentMethod,
       status: 'pending',
       commissionDiscount: state.commissionDiscount,
-      finalTotal: state.finalTotal,
+      finalTotal: state.totalWithDebt,
       salesRepId: authState.user.salesRepId,
+      debtAmount: state.currentDebt,
+      paidAmount: state.amountToPay,
+      remainingDebt: remainingDebt,
     );
 
-    final result = await _orderRepository.createOrder(order, clearCart: true);
+    final result = await _orderRepository.createOrder(
+      order,
+      clearCart: true,
+      newDebtAmount: remainingDebt
+    );
 
     result.fold(
           (failure) => emit(state.copyWith(status: CheckoutStatus.error, errorMessage: failure.message)),
@@ -197,9 +230,13 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     final subtotal = itemsToCheckout.fold<double>(0.0, (sum, item) => sum + item.subtotal);
     const shippingFee = 0.0;
 
-    double commissionDiscount = 0.0;
+    // LẤY CÔNG NỢ TỪ USER MODEL
+    final currentDebt = user.debtAmount;
 
     final shouldCalculateDiscount = user.activeRewardProgram == 'instant_discount' && itemsToCheckout.isNotEmpty;
+
+    // Tính toán tổng tiền ban đầu (sẽ được cập nhật sau khi có chiết khấu)
+    final initialTotal = subtotal + shippingFee + currentDebt;
 
     emit(state.copyWith(
       status: shouldCalculateDiscount ? CheckoutStatus.calculatingDiscount : CheckoutStatus.success,
@@ -210,11 +247,18 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       shippingFee: shippingFee,
       forceVoucherToNull: true,
       discount: 0.0,
-      commissionDiscount: commissionDiscount,
+      commissionDiscount: 0.0,
+      currentDebt: currentDebt,      // <-- Gán công nợ
+      amountToPay: initialTotal,     // <-- Mặc định cho người dùng trả hết
     ));
 
     if (shouldCalculateDiscount) {
       await calculateCommissionDiscount();
+    } else {
+      // Cập nhật lại amountToPay sau khi đã có finalTotal chính xác
+      final finalTotal = state.subtotal - state.discount - state.commissionDiscount;
+      final totalWithDebt = finalTotal + state.currentDebt;
+      emit(state.copyWith(amountToPay: totalWithDebt.clamp(0, double.infinity)));
     }
   }
 
@@ -386,6 +430,10 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     } else {
       emit(state.copyWith(commissionDiscount: 0.0));
     }
+  }
+
+  void updateAmountToPay(double amount) {
+    emit(state.copyWith(amountToPay: amount));
   }
 
   @override

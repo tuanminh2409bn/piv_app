@@ -9,6 +9,7 @@ import 'package:piv_app/features/home/data/models/product_model.dart';
 abstract class AdminRepository {
   Future<Either<Failure, List<UserModel>>> getAllUsers();
   Future<Either<Failure, Unit>> updateUser(String userId, String newRole, String newStatus,);
+  Future<Either<Failure, Unit>> updateUserDebt({required String userId, required double newDebtAmount, required String updatedBy,});
   Future<Either<Failure, List<UserModel>>> getAgentsBySalesRepId(String salesRepId);
   Future<Either<Failure, List<UserModel>>> getUsersByIds(List<String> userIds);
   Future<Either<Failure, List<UserModel>>> getPendingAgentsBySalesRepId(String salesRepId);

@@ -27,6 +27,11 @@ class CheckoutState extends Equatable {
   final String? placeOrderForUserId;
   final UserModel? placeOrderForAgent;
 
+  // --- THÊM CÁC TRƯỜNG MỚI CHO CÔNG NỢ ---
+  final double currentDebt;
+  final double amountToPay;
+  // ------------------------------------
+
   const CheckoutState({
     this.status = CheckoutStatus.initial,
     this.addresses = const [],
@@ -42,16 +47,28 @@ class CheckoutState extends Equatable {
     this.newOrderId,
     this.placeOrderForUserId,
     this.placeOrderForAgent,
+    // --- KHỞI TẠO GIÁ TRỊ MẶC ĐỊNH ---
+    this.currentDebt = 0.0,
+    this.amountToPay = 0.0,
+    // ----------------------------------
   });
 
-  double get total => (subtotal + shippingFee - discount).clamp(0, double.infinity);
-  double get finalTotal => (total - commissionDiscount).clamp(0, double.infinity);
+  // --- SỬA ĐỔI GETTERS ĐỂ TÍNH TOÁN CÔNG NỢ ---
+  // Tổng tiền hàng (sau chiết khấu, voucher)
+  double get finalTotal => (subtotal + shippingFee - discount - commissionDiscount).clamp(0, double.infinity);
+
+  // Tổng tiền cần thanh toán (bao gồm cả công nợ)
+  double get totalWithDebt => (finalTotal + currentDebt).clamp(0, double.infinity);
+  // ------------------------------------------
 
   @override
   List<Object?> get props => [
     status, addresses, selectedAddress, errorMessage,
     checkoutItems, subtotal, shippingFee, discount, appliedVoucher,
     commissionDiscount, paymentMethod, newOrderId, placeOrderForUserId, placeOrderForAgent,
+    // --- THÊM PROPS MỚI ---
+    currentDebt, amountToPay,
+    // --------------------
   ];
 
   CheckoutState copyWith({
@@ -73,6 +90,10 @@ class CheckoutState extends Equatable {
     String? placeOrderForUserId,
     UserModel? placeOrderForAgent,
     bool clearPlaceOrderForAgent = false,
+    // --- THÊM CÁC THAM SỐ MỚI ---
+    double? currentDebt,
+    double? amountToPay,
+    // ----------------------------
   }) {
     return CheckoutState(
       status: status ?? this.status,
@@ -89,6 +110,10 @@ class CheckoutState extends Equatable {
       newOrderId: newOrderId ?? this.newOrderId,
       placeOrderForUserId: placeOrderForUserId ?? this.placeOrderForUserId,
       placeOrderForAgent: clearPlaceOrderForAgent ? null : placeOrderForAgent ?? this.placeOrderForAgent,
+      // --- CẬP NHẬT CÁC TRƯỜNG MỚI ---
+      currentDebt: currentDebt ?? this.currentDebt,
+      amountToPay: amountToPay ?? this.amountToPay,
+      // -------------------------------
     );
   }
 }

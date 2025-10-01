@@ -1,6 +1,5 @@
-//lib/features/checkout/presentation/pages/checkout_page.dart
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
@@ -27,54 +26,93 @@ class CheckoutPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // --- THAY ĐỔI: Chuyển sang StatefulWidget để quản lý TextEditingController ---
     return const CheckoutView();
   }
 }
 
-class CheckoutView extends StatelessWidget {
+class CheckoutView extends StatefulWidget {
   const CheckoutView({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final state = context.read<CheckoutCubit>().state;
-      if (state.status == CheckoutStatus.error && state.errorMessage != null) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(
-            content: Text(state.errorMessage!),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ));
-      }
-    });
+  State<CheckoutView> createState() => _CheckoutViewState();
+}
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Xác nhận đơn hàng')),
-      body: BlocListener<CheckoutCubit, CheckoutState>(
-        listener: (context, state) {
-          if (state.status == CheckoutStatus.orderSuccess && state.newOrderId != null) {
-            Navigator.of(context).pushAndRemoveUntil(
-                OrderSuccessPage.route(orderId: state.newOrderId!),
-                    (route) => route.isFirst);
-          }
-        },
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(vertical: 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildAddressSection(context),
-              const Divider(thickness: 8, height: 32),
-              _buildOrderItems(context),
-              const Divider(thickness: 8, height: 32),
-              _buildVoucherSection(context),
-              const Divider(thickness: 8, height: 32),
-              _buildOrderSummary(context),
-            ],
+class _CheckoutViewState extends State<CheckoutView> {
+  final TextEditingController _amountController = TextEditingController();
+  final NumberFormat _currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+
+  @override
+  void initState() {
+    super.initState();
+    _amountController.addListener(_onAmountChanged);
+  }
+
+  void _onAmountChanged() {
+    final text = _amountController.text;
+    final amount = double.tryParse(text.replaceAll(RegExp(r'[^0-9]'), ''));
+    if (amount != null) {
+      context.read<CheckoutCubit>().updateAmountToPay(amount);
+    }
+  }
+
+  @override
+  void dispose() {
+    _amountController.removeListener(_onAmountChanged);
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<CheckoutCubit, CheckoutState>(
+      listener: (context, state) {
+        if (state.status == CheckoutStatus.orderSuccess && state.newOrderId != null) {
+          Navigator.of(context).pushAndRemoveUntil(
+            OrderSuccessPage.route(orderId: state.newOrderId!),
+                (route) => route.isFirst,
+          );
+        }
+
+        if (state.status == CheckoutStatus.error && state.errorMessage != null) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(
+              content: Text(state.errorMessage!),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ));
+        }
+
+        // Cập nhật text field khi state thay đổi từ cubit
+        final formattedAmount = state.amountToPay.toStringAsFixed(0);
+        if (_amountController.text != formattedAmount) {
+          _amountController.text = formattedAmount;
+          _amountController.selection = TextSelection.fromPosition(TextPosition(offset: _amountController.text.length));
+        }
+      },
+      builder: (context, state) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('Xác nhận đơn hàng')),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildAddressSection(context),
+                const Divider(thickness: 8, height: 32),
+                _buildOrderItems(context),
+                const Divider(thickness: 8, height: 32),
+                _buildVoucherSection(context),
+                const Divider(thickness: 8, height: 32),
+                _buildOrderSummary(context, state, _currencyFormatter),
+                const Divider(thickness: 8, height: 32),
+                _buildPaymentInputSection(context, state, _currencyFormatter),
+              ],
+            ),
           ),
-        ),
-      ),
-      bottomNavigationBar: _buildPlaceOrderButton(context),
+          bottomNavigationBar: _buildPlaceOrderButton(context),
+        );
+      },
     );
   }
 
@@ -292,8 +330,45 @@ class CheckoutView extends StatelessWidget {
     );
   }
 
-  Widget _buildOrderSummary(BuildContext context) {
-    final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+  Widget _buildPaymentInputSection(BuildContext context, CheckoutState state, NumberFormat formatter) {
+    if (state.currentDebt <= 0) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Thanh toán công nợ', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _amountController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: false),
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(
+              labelText: 'Số tiền thanh toán',
+              suffixText: 'đ',
+              hintText: 'Nhập số tiền bạn muốn trả',
+              border: const OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () {
+                  context.read<CheckoutCubit>().updateAmountToPay(state.totalWithDebt);
+                },
+                child: const Text('TRẢ HẾT'),
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderSummary(BuildContext context, CheckoutState state, NumberFormat currencyFormatter) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
@@ -301,47 +376,52 @@ class CheckoutView extends StatelessWidget {
         children: [
           Text('Tóm tắt đơn hàng', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          BlocBuilder<CheckoutCubit, CheckoutState>(
-            builder: (context, state) {
-              return Column(
+          _buildSummaryRow('Tạm tính:', currencyFormatter.format(state.subtotal)),
+          _buildSummaryRow('Phí vận chuyển:', currencyFormatter.format(state.shippingFee)),
+          if (state.discount > 0)
+            _buildSummaryRow(
+              'Giảm giá voucher:',
+              '- ${currencyFormatter.format(state.discount)}',
+              color: Colors.green.shade700,
+            ),
+          if (state.status == CheckoutStatus.calculatingDiscount)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 4.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildSummaryRow('Tạm tính:', currencyFormatter.format(state.subtotal)),
-                  _buildSummaryRow('Phí vận chuyển:', currencyFormatter.format(state.shippingFee)),
-                  if (state.discount > 0)
-                    _buildSummaryRow(
-                      'Giảm giá voucher:',
-                      '- ${currencyFormatter.format(state.discount)}',
-                      color: Colors.green.shade700,
-                    ),
-
-                  if (state.status == CheckoutStatus.calculatingDiscount)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 4.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text("Chiết khấu đại lý:", style: TextStyle(fontSize: 16)),
-                          SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                        ],
-                      ),
-                    )
-                  else if (state.commissionDiscount > 0)
-                    _buildSummaryRow(
-                      'Chiết khấu đại lý:',
-                      '- ${currencyFormatter.format(state.commissionDiscount)}',
-                      color: Colors.green.shade700,
-                    ),
-
-                  const Divider(),
-                  _buildSummaryRow(
-                    'Tổng cộng:',
-                    currencyFormatter.format(state.finalTotal),
-                    isTotal: true,
-                  ),
+                  Text("Chiết khấu đại lý:", style: TextStyle(fontSize: 16)),
+                  SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                 ],
-              );
-            },
+              ),
+            )
+          else if (state.commissionDiscount > 0)
+            _buildSummaryRow(
+              'Chiết khấu đại lý:',
+              '- ${currencyFormatter.format(state.commissionDiscount)}',
+              color: Colors.green.shade700,
+            ),
+
+          // --- THAY ĐỔI: Thêm dòng công nợ và sửa tổng cộng ---
+          const Divider(),
+          _buildSummaryRow(
+            'Tiền hàng:',
+            currencyFormatter.format(state.finalTotal),
+            isTotal: true,
           ),
+          if (state.currentDebt > 0)
+            _buildSummaryRow(
+              'Công nợ hiện tại:',
+              '+ ${currencyFormatter.format(state.currentDebt)}',
+              color: Colors.red.shade700,
+            ),
+          const Divider(),
+          _buildSummaryRow(
+            'Tổng thanh toán:',
+            currencyFormatter.format(state.totalWithDebt),
+            isTotal: true,
+          ),
+          // ----------------------------------------------------
         ],
       ),
     );

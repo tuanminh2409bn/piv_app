@@ -5,7 +5,6 @@ import 'package:piv_app/data/models/address_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserModel extends Equatable {
-  // ... (giữ nguyên các trường hiện tại)
   final String id;
   final String? email;
   final String? displayName;
@@ -20,6 +19,7 @@ class UserModel extends Equatable {
   final List<String>? assignedAgentIds;
   final String activeRewardProgram;
   final int spinCount;
+  final double debtAmount;
 
   String get referralCode => id;
 
@@ -38,21 +38,17 @@ class UserModel extends Equatable {
     this.assignedAgentIds,
     this.activeRewardProgram = 'instant_discount',
     this.spinCount = 0,
+    this.debtAmount = 0.0,
   });
 
-  // ========== THÊM GETTER NÀY ==========
   bool get isGuest => role == 'guest';
-  // =====================================
-
   bool get isAdmin => role == 'admin';
   bool get isSalesRep => role == 'sales_rep';
   bool get isAccountant => role == 'accountant';
-
   static const empty = UserModel(id: '');
   bool get isEmpty => this == UserModel.empty;
   bool get isNotEmpty => this != UserModel.empty;
 
-  // ... (giữ nguyên hàm copyWith, toJson, fromSnap, fromJson và props)
   UserModel copyWith({
     String? id,
     String? email,
@@ -68,6 +64,7 @@ class UserModel extends Equatable {
     List<String>? assignedAgentIds,
     String? activeRewardProgram,
     int? spinCount,
+    double? debtAmount,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -84,6 +81,7 @@ class UserModel extends Equatable {
       assignedAgentIds: assignedAgentIds ?? this.assignedAgentIds,
       activeRewardProgram: activeRewardProgram ?? this.activeRewardProgram,
       spinCount: spinCount ?? this.spinCount,
+      debtAmount: debtAmount ?? this.debtAmount,
     );
   }
 
@@ -103,6 +101,7 @@ class UserModel extends Equatable {
       'assignedAgentIds': assignedAgentIds,
       'activeRewardProgram': activeRewardProgram,
       'spinCount': spinCount,
+      'debtAmount': debtAmount,
     };
   }
 
@@ -127,6 +126,7 @@ class UserModel extends Equatable {
       assignedAgentIds: List<String>.from(data['assignedAgentIds'] ?? []),
       activeRewardProgram: data['activeRewardProgram'] as String? ?? 'instant_discount',
       spinCount: data['spinCount'] as int? ?? 0,
+      debtAmount: (data['debtAmount'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -148,14 +148,26 @@ class UserModel extends Equatable {
       assignedAgentIds: List<String>.from(json['assignedAgentIds'] ?? []),
       activeRewardProgram: json['activeRewardProgram'] as String? ?? 'instant_discount',
       spinCount: json['spinCount'] as int? ?? 0,
+      debtAmount: (json['debtAmount'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
   @override
   List<Object?> get props => [
-    id, email, displayName, photoUrl, addresses, role, status,
-    referrerId, referralPromptPending, wishlist, salesRepId, assignedAgentIds,
+    id,
+    email,
+    displayName,
+    photoUrl,
+    addresses,
+    role,
+    status,
+    referrerId,
+    referralPromptPending,
+    wishlist,
+    salesRepId,
+    assignedAgentIds,
     activeRewardProgram,
-    spinCount
+    spinCount,
+    debtAmount
   ];
 }

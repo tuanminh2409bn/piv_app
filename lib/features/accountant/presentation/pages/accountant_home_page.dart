@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/admin/domain/repositories/admin_repository.dart';
+import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/agent_selection_cubit.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_debt_management_page.dart'; // <--- THÊM IMPORT MỚI
 import 'package:piv_app/features/admin/presentation/pages/admin_orders_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_users_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/quick_order_agent_selection_page.dart';
@@ -14,7 +16,6 @@ import 'package:piv_app/features/sales_commitment/presentation/bloc/admin/sales_
 import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
 import 'package:piv_app/features/accountant/presentation/bloc/accountant_agents_cubit.dart';
 import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
-// --- THAY ĐỔI: Thêm các import cần thiết ---
 import 'package:piv_app/features/returns/presentation/bloc/admin_returns_cubit.dart';
 import 'package:piv_app/features/returns/presentation/pages/admin_return_requests_page.dart';
 
@@ -30,9 +31,9 @@ class AccountantHomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
 
-    // --- THAY ĐỔI: Tăng length của TabController lên 6 ---
+    // --- THAY ĐỔI: Tăng length lên 7 ---
     return DefaultTabController(
-      length: 6,
+      length: 7,
       child: Scaffold(
         appBar: AppBar(
           title: Text('Kế toán: ${user.displayName ?? ''}'),
@@ -50,7 +51,9 @@ class AccountantHomePage extends StatelessWidget {
             tabs: [
               Tab(icon: Icon(Icons.people_outline), text: 'Người dùng'),
               Tab(icon: Icon(Icons.receipt_long_outlined), text: 'Đơn hàng'),
-              // --- THAY ĐỔI: Thêm Tab mới ---
+              // --- THÊM TAB CÔNG NỢ ---
+              Tab(icon: Icon(Icons.account_balance_wallet_outlined), text: 'Công nợ'),
+              // ------------------------
               Tab(icon: Icon(Icons.sync_problem_outlined), text: 'Đổi/Trả'),
               Tab(icon: Icon(Icons.workspace_premium_outlined), text: 'Cam kết'),
               Tab(icon: Icon(Icons.add_shopping_cart), text: 'Đặt hàng hộ'),
@@ -62,7 +65,10 @@ class AccountantHomePage extends StatelessWidget {
           children: [
             AdminUsersPage(),
             AdminOrdersPage(),
-            // --- THAY ĐỔI: Sử dụng Wrapper thay vì gọi trực tiếp ---
+            // --- THÊM TRANG CÔNG NỢ ---
+            // Tái sử dụng page của Admin vì chức năng tương tự
+            AdminDebtManagementPageWrapper(),
+            // --------------------------
             _ReturnRequestManagementTabWrapper(),
             CommitmentManagementPageWrapper(),
             AllAgentsViewForAccountant(),
@@ -74,20 +80,33 @@ class AccountantHomePage extends StatelessWidget {
   }
 }
 
-// --- THAY ĐỔI: Thêm Widget Wrapper mới cho chức năng Đổi/Trả ---
+// --- THÊM WIDGET WRAPPER MỚI CHO TRANG CÔNG NỢ ---
+class AdminDebtManagementPageWrapper extends StatelessWidget {
+  const AdminDebtManagementPageWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Wrapper này cung cấp AdminUsersCubit cho trang quản lý công nợ
+    return BlocProvider(
+      create: (context) => sl<AdminUsersCubit>()..fetchAndGroupUsers(),
+      child: const AdminDebtManagementPage(),
+    );
+  }
+}
+// ------------------------------------------------
+
+// ... (Các widget wrapper và view còn lại giữ nguyên không đổi)
 class _ReturnRequestManagementTabWrapper extends StatelessWidget {
   const _ReturnRequestManagementTabWrapper();
 
   @override
   Widget build(BuildContext context) {
-    // Wrapper này sẽ tạo và cung cấp AdminReturnsCubit cho cây widget bên dưới nó.
     return BlocProvider(
       create: (context) => sl<AdminReturnsCubit>()..watchAllRequests(),
       child: const AdminReturnRequestsPage(),
     );
   }
 }
-// --- KẾT THÚC THAY ĐỔI ---
 
 class _QuickOrderManagementTabWrapper extends StatelessWidget {
   const _QuickOrderManagementTabWrapper();
@@ -103,8 +122,6 @@ class _QuickOrderManagementTabWrapper extends StatelessWidget {
   }
 }
 
-
-// Các class Wrapper và View khác giữ nguyên không đổi
 class CommitmentManagementPageWrapper extends StatelessWidget {
   const CommitmentManagementPageWrapper({super.key});
 

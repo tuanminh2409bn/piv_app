@@ -1,3 +1,5 @@
+//lib/features/admin/presentation/bloc/admin_users_state.dart
+
 part of 'admin_users_cubit.dart';
 
 enum AdminUsersStatus { initial, loading, success, error, updating }
@@ -45,11 +47,12 @@ class AdminUsersState extends Equatable {
     AdminUsersStatus? status,
     List<UserModel>? allUsers,
     String? errorMessage,
+    bool clearErrorMessage = false,
   }) {
     return AdminUsersState(
       status: status ?? this.status,
       allUsers: allUsers ?? this.allUsers,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: clearErrorMessage ? null : errorMessage ?? this.errorMessage,
     );
   }
 

@@ -76,7 +76,7 @@ import 'package:piv_app/features/returns/domain/repositories/return_repository.d
 import 'package:piv_app/features/returns/presentation/bloc/create_return_request_cubit.dart';
 import 'package:piv_app/features/returns/presentation/bloc/admin_returns_cubit.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-
+import 'package:piv_app/features/profile/presentation/bloc/debt_payment_cubit.dart';
 
 
 
@@ -118,6 +118,8 @@ Future<void> initializeDependencies() async {
   // == Profile ==
   sl.registerLazySingleton<UserProfileRepository>(() => UserProfileRepositoryImpl(firestore: sl()));
   sl.registerLazySingleton<ProfileCubit>(() => ProfileCubit(userProfileRepository: sl(), authBloc: sl()));
+  sl.registerFactory(() => DebtPaymentCubit(authBloc: sl(), orderRepository: sl()));
+
 
   // == Wishlist ==
   sl.registerLazySingleton<WishlistCubit>(() => WishlistCubit(userProfileRepository: sl(), authBloc: sl()));
@@ -138,7 +140,7 @@ Future<void> initializeDependencies() async {
   sl.registerLazySingleton<AdminRepository>(() => AdminRepositoryImpl(firestore: sl()));
   sl.registerFactory<AdminOrdersCubit>(() => AdminOrdersCubit(orderRepository: sl(), userProfileRepository: sl()));
   sl.registerFactory<AdminProductsCubit>(() => AdminProductsCubit(homeRepository: sl()));
-  sl.registerFactory<AdminUsersCubit>(() => AdminUsersCubit(adminRepository: sl()));
+  sl.registerFactory(() => AdminUsersCubit(adminRepository: sl(), authBloc: sl()));
   sl.registerFactory<ProductFormCubit>(() => ProductFormCubit(homeRepository: sl(), storageRepository: sl()));
   sl.registerFactory<AdminCategoriesCubit>(() => AdminCategoriesCubit(homeRepository: sl<HomeRepository>()));
   sl.registerFactory<AdminCommissionsCubit>(() => AdminCommissionsCubit(orderRepository: sl(), adminRepository: sl(), authBloc: sl()));

@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -507,6 +507,7 @@
 				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = 87T9YDCVGH;
 				ENABLE_BITCODE = NO;
+				FLUTTER_BUILD_NUMBER = 7;
 				INFOPLIST_FILE = Runner/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = PIV;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
@@ -698,6 +699,7 @@
 				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = 87T9YDCVGH;
 				ENABLE_BITCODE = NO;
+				FLUTTER_BUILD_NUMBER = 7;
 				INFOPLIST_FILE = Runner/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = PIV;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
@@ -729,6 +731,7 @@
 				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_TEAM = 87T9YDCVGH;
 				ENABLE_BITCODE = NO;
+				FLUTTER_BUILD_NUMBER = 7;
 				INFOPLIST_FILE = Runner/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = PIV;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";

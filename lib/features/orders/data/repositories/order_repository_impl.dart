@@ -1,4 +1,4 @@
-//lib/features/orders/data/repositories/order_repository_impl.dart
+// lib/features/orders/data/repositories/order_repository_impl.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
@@ -21,27 +21,38 @@ class OrderRepositoryImpl implements OrderRepository {
   })  : _firestore = firestore,
         _settingsRepository = settingsRepository;
 
+  // --- BẮT ĐẦU THAY ĐỔI LỚN TẠI ĐÂY ---
   @override
-  Future<Either<Failure, String>> createOrder(OrderModel order, {bool clearCart = true}) async {
+  Future<Either<Failure, String>> createOrder(
+      OrderModel order, {
+        bool clearCart = true,
+        double? newDebtAmount,
+      }) async {
     try {
-      final newOrderId = await _firestore.runTransaction((transaction) async {
-        final newOrderRef = _firestore.collection('orders').doc();
+      final userRef = _firestore.collection('users').doc(order.userId);
 
-        final agentDoc = await _firestore.collection('users').doc(order.userId).get();
+      // Sử dụng một transaction để đảm bảo tính toàn vẹn dữ liệu
+      final newOrderId = await _firestore.runTransaction((transaction) async {
+        // 1. Lấy thông tin người dùng (để kiểm tra NVKD)
+        final agentDoc = await transaction.get(userRef);
         String? salesRepId;
         if (agentDoc.exists) {
-          final agent = UserModel.fromJson(agentDoc.data()!);
+          final agent = UserModel.fromSnap(agentDoc);
           salesRepId = agent.salesRepId;
         }
 
-        var orderMap = order.toMap();
-        if (salesRepId != null) {
-          orderMap['salesRepId'] = salesRepId;
-        }
-
+        // 2. Tạo một tham chiếu cho đơn hàng mới
+        final newOrderRef = _firestore.collection('orders').doc();
+        var orderMap = order.copyWith(salesRepId: salesRepId).toMap();
         transaction.set(newOrderRef, orderMap);
 
-        // Chỉ xóa giỏ hàng nếu được yêu cầu
+        // 3. Cập nhật công nợ mới cho người dùng (nếu có)
+        if (newDebtAmount != null) {
+          transaction.update(userRef, {'debtAmount': newDebtAmount});
+          developer.log('Updating debt for user ${order.userId} to $newDebtAmount', name: 'OrderRepository');
+        }
+
+        // 4. Xóa giỏ hàng nếu được yêu cầu
         if (clearCart) {
           final cartRef = _firestore.collection('carts').doc(order.userId);
           transaction.delete(cartRef);
@@ -49,12 +60,16 @@ class OrderRepositoryImpl implements OrderRepository {
 
         return newOrderRef.id;
       });
+
       return Right(newOrderId);
     } catch (e) {
+      developer.log('Error creating order: $e', name: 'OrderRepository', error: e);
       return Left(ServerFailure('Lỗi không xác định khi tạo đơn hàng: ${e.toString()}'));
     }
   }
+  // --- KẾT THÚC THAY ĐỔI LỚN ---
 
+  // ... (Tất cả các hàm khác từ updateOrderStatus trở xuống giữ nguyên không thay đổi)
   @override
   Future<Either<Failure, Unit>> updateOrderStatus(String orderId, String newStatus) async {
     try {

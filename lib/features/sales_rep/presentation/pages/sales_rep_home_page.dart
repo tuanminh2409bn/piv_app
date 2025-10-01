@@ -13,6 +13,7 @@ import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commi
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_commissions_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/agent_order_history_page.dart';
+import 'package:piv_app/features/sales_rep/presentation/pages/sales_rep_debt_management_page.dart';
 import 'package:piv_app/features/vouchers/presentation/bloc/voucher_management_cubit.dart';
 import 'package:piv_app/features/vouchers/presentation/pages/voucher_management_page.dart';
 import 'package:piv_app/features/sales_rep/agent_approval/bloc/agent_approval_cubit.dart';
@@ -48,9 +49,8 @@ class SalesRepView extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
 
-    // SỬA: Tăng length của TabController lên 5
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Scaffold(
         appBar: AppBar(
           title: Text('Chào, ${user.displayName ?? user.email}'),
@@ -72,6 +72,7 @@ class SalesRepView extends StatelessWidget {
             tabAlignment: TabAlignment.start,
             tabs: [
               Tab(icon: Icon(Icons.people_outline), text: 'Đại lý'),
+              Tab(icon: Icon(Icons.account_balance_wallet_outlined), text: 'Công nợ'),
               Tab(icon: Icon(Icons.pending_actions_outlined), text: 'Chờ duyệt'),
               Tab(icon: Icon(Icons.attach_money_outlined), text: 'Hoa hồng'),
               Tab(icon: Icon(Icons.workspace_premium_outlined), text: 'Cam kết'),
@@ -82,6 +83,7 @@ class SalesRepView extends StatelessWidget {
         body: const TabBarView(
           children: [
             MyAgentsView(),
+            SalesRepDebtManagementPage(),
             PendingAgentsView(),
             SalesRepCommissionsView(),
             CommitmentManagementPageWrapper(),
@@ -92,7 +94,6 @@ class SalesRepView extends StatelessWidget {
     );
   }
 
-  // ... (phần còn lại của hàm _showReferralQrDialog giữ nguyên)
   void _showReferralQrDialog(BuildContext context, UserModel user) {
     showDialog(
       context: context,
@@ -134,7 +135,6 @@ class SalesRepView extends StatelessWidget {
   }
 }
 
-// ====================== THÊM WIDGET WRAPPER MỚI ======================
 class CommitmentManagementPageWrapper extends StatelessWidget {
   const CommitmentManagementPageWrapper({super.key});
 
@@ -146,9 +146,7 @@ class CommitmentManagementPageWrapper extends StatelessWidget {
     );
   }
 }
-// ====================================================================
 
-// ... (Các class còn lại giữ nguyên không đổi)
 class VoucherManagementPageWrapper extends StatelessWidget {
   const VoucherManagementPageWrapper({super.key});
 

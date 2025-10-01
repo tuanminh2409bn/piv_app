@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart'; // <--- THÊM IMPORT NÀY
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/profile/presentation/bloc/profile_cubit.dart';
 import 'package:piv_app/data/models/user_model.dart';
@@ -11,6 +12,7 @@ import 'package:piv_app/features/wishlist/presentation/pages/wishlist_page.dart'
 import 'package:piv_app/features/profile/presentation/pages/qr_scanner_page.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/sales_commitment_page.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/pages/lucky_wheel_page.dart';
+import 'package:piv_app/features/profile/presentation/pages/debt_payment_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // --- PHẦN NÀY KHÔNG THAY ĐỔI ---
@@ -68,7 +70,7 @@ class ProfileView extends StatelessWidget {
           body: RefreshIndicator(
             onRefresh: () async {
               final userId = context.read<ProfileCubit>().state.user.id;
-              if(userId.isNotEmpty) {
+              if (userId.isNotEmpty) {
                 context.read<ProfileCubit>().fetchUserProfile(userId);
               }
             },
@@ -77,7 +79,13 @@ class ProfileView extends StatelessWidget {
               child: Column(
                 children: [
                   const SizedBox(height: 16),
+                  // --- BẮT ĐẦU THAY ĐỔI ---
+                  if (isAgent) ...[
+                    _buildFinancialSection(context, user),
+                    const Divider(thickness: 8, height: 24, color: Color(0xFFF2F2F7)),
+                  ],
                   _buildManagementOptions(context, user),
+                  // --- KẾT THÚC THAY ĐỔI ---
                   const Divider(thickness: 8, height: 24, color: Color(0xFFF2F2F7)),
                   _buildReferralSection(context, user),
                   const Divider(thickness: 8, height: 24, color: Color(0xFFF2F2F7)),
@@ -104,6 +112,68 @@ class ProfileView extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  // --- BẮT ĐẦU WIDGET MỚI ---
+  Widget _buildFinancialSection(BuildContext context, UserModel user) {
+    final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    final debtAmount = user.debtAmount;
+    final hasDebt = debtAmount > 0;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Thông tin tài chính',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade300),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Công nợ hiện tại', style: TextStyle(fontSize: 16)),
+                      Text(
+                        currencyFormat.format(debtAmount),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: hasDebt ? Colors.red.shade700 : Colors.green.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, indent: 16, endIndent: 16, thickness: 0.5),
+        ListTile(
+          leading: Icon(Icons.payment_outlined, color: Colors.purple.shade400),
+          title: const Text('Thanh toán Công nợ'),
+          subtitle: const Text('Thanh toán toàn bộ hoặc một phần công nợ'),
+          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+          onTap: () {
+            Navigator.of(context).push(DebtPaymentPage.route());
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Chức năng này sẽ sớm được cập nhật!')),
+            );
+          },
+        ),
+      ],
     );
   }
 // --- CÁC HÀM BUILD KHÁC KHÔNG THAY ĐỔI ---

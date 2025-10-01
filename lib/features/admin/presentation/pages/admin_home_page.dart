@@ -1,7 +1,6 @@
-// lib/features/admin/presentation/pages/admin_home_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_debt_management_page.dart'; // <--- THÊM IMPORT MỚI
 import 'package:piv_app/features/admin/presentation/pages/quick_order_agent_selection_page.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_orders_page.dart';
@@ -48,6 +47,13 @@ class AdminHomePage extends StatelessWidget {
               icon: Icons.shopping_cart_outlined,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminOrdersPage())),
             ),
+            // --- THÊM THẺ QUẢN LÝ CÔNG NỢ TẠI ĐÂY ---
+            _DashboardCard(
+              title: 'Quản lý Công nợ',
+              icon: Icons.receipt_long_outlined, // Icon mới
+              onTap: () => Navigator.of(context).push(AdminDebtManagementPage.route()),
+            ),
+            // ------------------------------------------
             _DashboardCard(
               title: 'Quản lý Đổi/Trả',
               icon: Icons.sync_problem_outlined,
@@ -86,7 +92,6 @@ class AdminHomePage extends StatelessWidget {
             _DashboardCard(
               title: 'Quản lý Cam kết',
               icon: Icons.workspace_premium_outlined,
-              // <<< SỬA ĐỔI DÒNG NÀY >>>
               onTap: () => Navigator.of(context).push(AdminCommitmentsPage.route()),
             ),
             _DashboardCard(
