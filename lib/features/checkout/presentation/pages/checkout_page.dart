@@ -1,3 +1,5 @@
+//lib/features/checkout/presentation/pages/checkout_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -9,6 +11,38 @@ import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 import 'package:piv_app/features/checkout/presentation/bloc/checkout_cubit.dart';
 import 'package:piv_app/features/checkout/presentation/pages/address_selection_page.dart';
 import 'package:piv_app/features/orders/presentation/pages/order_success_page.dart';
+
+// --- TIỆN ÍCH ĐỊNH DẠNG SỐ (TÁI SỬ DỤNG) ---
+class CurrencyInputFormatter extends TextInputFormatter {
+  final NumberFormat _formatter = NumberFormat.decimalPattern('vi_VN');
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue,
+      TextEditingValue newValue,
+      ) {
+    if (newValue.text.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+    final cleanText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanText.isEmpty) {
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    }
+
+    final number = int.parse(cleanText);
+    final formattedText = _formatter.format(number);
+
+    return newValue.copyWith(
+      text: formattedText,
+      selection: TextSelection.collapsed(offset: formattedText.length),
+    );
+  }
+}
+// ------------------------------------------
 
 class CheckoutPage extends StatelessWidget {
   final List<CartItemModel>? buyNowItems;
@@ -26,7 +60,6 @@ class CheckoutPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // --- THAY ĐỔI: Chuyển sang StatefulWidget để quản lý TextEditingController ---
     return const CheckoutView();
   }
 }
@@ -41,6 +74,7 @@ class CheckoutView extends StatefulWidget {
 class _CheckoutViewState extends State<CheckoutView> {
   final TextEditingController _amountController = TextEditingController();
   final NumberFormat _currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+  final NumberFormat _numberFormatter = NumberFormat.decimalPattern('vi_VN');
 
   @override
   void initState() {
@@ -49,11 +83,18 @@ class _CheckoutViewState extends State<CheckoutView> {
   }
 
   void _onAmountChanged() {
-    final text = _amountController.text;
-    final amount = double.tryParse(text.replaceAll(RegExp(r'[^0-9]'), ''));
-    if (amount != null) {
-      context.read<CheckoutCubit>().updateAmountToPay(amount);
+    final cubit = context.read<CheckoutCubit>();
+    final cleanText = _amountController.text.replaceAll('.', '');
+    double amount = double.tryParse(cleanText) ?? 0.0;
+
+    // --- BẮT ĐẦU SỬA LỖI: Giới hạn giá trị nhập ---
+    final maxAmount = cubit.state.totalWithDebt;
+    if (amount > maxAmount) {
+      amount = maxAmount;
     }
+    // ------------------------------------------
+
+    cubit.updateAmountToPay(amount);
   }
 
   @override
@@ -84,17 +125,19 @@ class _CheckoutViewState extends State<CheckoutView> {
         }
 
         // Cập nhật text field khi state thay đổi từ cubit
-        final formattedAmount = state.amountToPay.toStringAsFixed(0);
+        final formattedAmount = _numberFormatter.format(state.amountToPay);
         if (_amountController.text != formattedAmount) {
-          _amountController.text = formattedAmount;
-          _amountController.selection = TextSelection.fromPosition(TextPosition(offset: _amountController.text.length));
+          _amountController.value = TextEditingValue(
+            text: formattedAmount,
+            selection: TextSelection.collapsed(offset: formattedAmount.length),
+          );
         }
       },
       builder: (context, state) {
         return Scaffold(
           appBar: AppBar(title: const Text('Xác nhận đơn hàng')),
           body: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            padding: const EdgeInsets.only(bottom: 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -224,47 +267,6 @@ class _CheckoutViewState extends State<CheckoutView> {
     );
   }
 
-  Widget _buildPaymentMethod(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Phương thức thanh toán', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          BlocBuilder<CheckoutCubit, CheckoutState>(
-            builder: (context, state) {
-              return Column(
-                children: [
-                  RadioListTile<String>(
-                    title: const Text('Thanh toán khi nhận hàng (COD)'),
-                    value: 'COD',
-                    groupValue: state.paymentMethod,
-                    onChanged: (value) {
-                      if (value != null) {
-                        context.read<CheckoutCubit>().selectPaymentMethod(value);
-                      }
-                    },
-                  ),
-                  RadioListTile<String>(
-                    title: const Text('Thanh toán Online (VNPAY, MoMo,...)'),
-                    value: 'ONLINE',
-                    groupValue: state.paymentMethod,
-                    onChanged: (value) {
-                      if (value != null) {
-                        context.read<CheckoutCubit>().selectPaymentMethod(value);
-                      }
-                    },
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildVoucherSection(BuildContext context) {
     return BlocBuilder<CheckoutCubit, CheckoutState>(
       builder: (context, state) {
@@ -331,25 +333,40 @@ class _CheckoutViewState extends State<CheckoutView> {
   }
 
   Widget _buildPaymentInputSection(BuildContext context, CheckoutState state, NumberFormat formatter) {
-    if (state.currentDebt <= 0) return const SizedBox.shrink();
+    // Chỉ hiển thị khi có công nợ hoặc có đơn hàng (để có thể trả trước)
+    if (state.totalWithDebt <= 0) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Thanh toán công nợ', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+          Text('Thanh toán', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           TextFormField(
             controller: _amountController,
             keyboardType: const TextInputType.numberWithOptions(decimal: false),
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              CurrencyInputFormatter(), // Áp dụng formatter
+            ],
             decoration: InputDecoration(
               labelText: 'Số tiền thanh toán',
               suffixText: 'đ',
               hintText: 'Nhập số tiền bạn muốn trả',
               border: const OutlineInputBorder(),
             ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Vui lòng nhập số tiền';
+              }
+              final cleanValue = value.replaceAll('.', '');
+              final amount = double.tryParse(cleanValue) ?? -1;
+              if (amount > state.totalWithDebt) {
+                return 'Không được lớn hơn tổng thanh toán';
+              }
+              return null;
+            },
           ),
           const SizedBox(height: 8),
           Row(

@@ -6,6 +6,38 @@ import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/orders/presentation/pages/order_success_page.dart';
 import 'package:piv_app/features/profile/presentation/bloc/debt_payment_cubit.dart';
 
+// --- TIỆN ÍCH ĐỊNH DẠNG SỐ ---
+class CurrencyInputFormatter extends TextInputFormatter {
+  final NumberFormat _formatter = NumberFormat.decimalPattern('vi_VN');
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue,
+      TextEditingValue newValue,
+      ) {
+    if (newValue.text.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+    final cleanText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanText.isEmpty) {
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    }
+
+    final number = int.parse(cleanText);
+    final formattedText = _formatter.format(number);
+
+    return newValue.copyWith(
+      text: formattedText,
+      selection: TextSelection.collapsed(offset: formattedText.length),
+    );
+  }
+}
+// --------------------------------
+
 class DebtPaymentPage extends StatelessWidget {
   const DebtPaymentPage({super.key});
 
@@ -33,13 +65,16 @@ class DebtPaymentView extends StatefulWidget {
 
 class _DebtPaymentViewState extends State<DebtPaymentView> {
   final _amountController = TextEditingController();
-  final _currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+  // Chuyển formatter này thành decimal để xử lý cả hiển thị và nhập liệu
+  final _numberFormat = NumberFormat.decimalPattern('vi_VN');
 
   @override
   void initState() {
     super.initState();
+    // Lắng nghe thay đổi từ ô nhập liệu
     _amountController.addListener(() {
-      final amount = double.tryParse(_amountController.text);
+      final cleanText = _amountController.text.replaceAll('.', '');
+      final amount = double.tryParse(cleanText);
       if (amount != null) {
         context.read<DebtPaymentCubit>().updateAmountToPay(amount);
       }
@@ -71,16 +106,18 @@ class _DebtPaymentViewState extends State<DebtPaymentView> {
             ));
         }
 
-        final formattedAmount = state.amountToPay.toStringAsFixed(0);
+        // Cập nhật ô nhập liệu từ state, đảm bảo đồng bộ
+        final formattedAmount = _numberFormat.format(state.amountToPay);
         if (_amountController.text != formattedAmount) {
-          _amountController.text = formattedAmount;
-          _amountController.selection = TextSelection.fromPosition(TextPosition(offset: _amountController.text.length));
+          _amountController.value = TextEditingValue(
+            text: formattedAmount,
+            selection: TextSelection.collapsed(offset: formattedAmount.length),
+          );
         }
       },
       builder: (context, state) {
         return Scaffold(
           appBar: AppBar(title: const Text('Thanh toán Công nợ')),
-          // --- BỌC BODY BẰNG SAFEA ---
           body: SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -94,7 +131,10 @@ class _DebtPaymentViewState extends State<DebtPaymentView> {
                   TextFormField(
                     controller: _amountController,
                     keyboardType: const TextInputType.numberWithOptions(decimal: false),
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      CurrencyInputFormatter(), // Áp dụng formatter
+                    ],
                     decoration: const InputDecoration(
                       suffixText: 'đ',
                       border: OutlineInputBorder(),
@@ -116,7 +156,10 @@ class _DebtPaymentViewState extends State<DebtPaymentView> {
                     child: ElevatedButton(
                       onPressed: state.status == DebtPaymentStatus.loading
                           ? null
-                          : () => context.read<DebtPaymentCubit>().createDebtPaymentOrder(),
+                          : () {
+                        // Khi nhấn nút, lấy giá trị đã được làm sạch từ cubit state
+                        context.read<DebtPaymentCubit>().createDebtPaymentOrder();
+                      },
                       child: state.status == DebtPaymentStatus.loading
                           ? const CircularProgressIndicator(color: Colors.white)
                           : const Text('TẠO LỆNH THANH TOÁN'),
@@ -126,13 +169,13 @@ class _DebtPaymentViewState extends State<DebtPaymentView> {
               ),
             ),
           ),
-          // --------------------------
         );
       },
     );
   }
 
   Widget _buildSummaryCard(BuildContext context, double debtAmount) {
+    final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     return Card(
       elevation: 0,
       color: Colors.red.withOpacity(0.05),
@@ -146,12 +189,18 @@ class _DebtPaymentViewState extends State<DebtPaymentView> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text('Công nợ hiện tại', style: TextStyle(fontSize: 16)),
-            Text(
-              _currencyFormat.format(debtAmount),
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.red.shade700,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                currencyFormat.format(debtAmount),
+                textAlign: TextAlign.end,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red.shade700,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ),
           ],

@@ -145,12 +145,18 @@ class ProfileView extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Công nợ hiện tại', style: TextStyle(fontSize: 16)),
-                      Text(
-                        currencyFormat.format(debtAmount),
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: hasDebt ? Colors.red.shade700 : Colors.green.shade800,
+                      // SỬA LỖI TRÀN: Bọc Text bằng Expanded
+                      Expanded(
+                        child: Text(
+                          currencyFormat.format(debtAmount),
+                          textAlign: TextAlign.end,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: hasDebt ? Colors.red.shade700 : Colors.green.shade800,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                       ),
                     ],
@@ -167,16 +173,16 @@ class ProfileView extends StatelessWidget {
           subtitle: const Text('Thanh toán toàn bộ hoặc một phần công nợ'),
           trailing: const Icon(Icons.arrow_forward_ios, size: 16),
           onTap: () {
+            // SỬA LỖI: Xóa SnackBar không cần thiết
             Navigator.of(context).push(DebtPaymentPage.route());
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Chức năng này sẽ sớm được cập nhật!')),
-            );
           },
         ),
       ],
     );
   }
-// --- CÁC HÀM BUILD KHÁC KHÔNG THAY ĐỔI ---
+
+
+  // --- CÁC HÀM BUILD KHÁC KHÔNG THAY ĐỔI ---
   Widget _buildLegalAndSupportSection(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),

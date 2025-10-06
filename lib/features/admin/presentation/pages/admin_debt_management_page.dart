@@ -1,3 +1,5 @@
+//lib/features/admin/presentation/pages/admin_debt_management_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -5,6 +7,39 @@ import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
 import 'package:intl/intl.dart';
+
+// --- BẮT ĐẦU PHẦN MỚI: Currency Formatter ---
+class CurrencyInputFormatter extends TextInputFormatter {
+  final NumberFormat _formatter = NumberFormat.decimalPattern('vi_VN');
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue,
+      TextEditingValue newValue,
+      ) {
+    if (newValue.text.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+    final cleanText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanText.isEmpty) {
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    }
+
+    final number = int.parse(cleanText);
+    final formattedText = _formatter.format(number);
+
+    return newValue.copyWith(
+      text: formattedText,
+      selection: TextSelection.collapsed(offset: formattedText.length),
+    );
+  }
+}
+// --- KẾT THÚC PHẦN MỚI ---
+
 
 class AdminDebtManagementPage extends StatelessWidget {
   const AdminDebtManagementPage({super.key});
@@ -18,9 +53,10 @@ class AdminDebtManagementPage extends StatelessWidget {
     );
   }
 
-  // --- BẮT ĐẦU PHẦN MỚI ---
+  // --- BẮT ĐẦU SỬA ĐỔI DIALOG ---
   void _showUpdateDebtDialog(BuildContext context, UserModel user) {
-    final debtController = TextEditingController(text: user.debtAmount.toStringAsFixed(0));
+    final numberFormat = NumberFormat.decimalPattern('vi_VN');
+    final debtController = TextEditingController(text: numberFormat.format(user.debtAmount));
     final formKey = GlobalKey<FormState>();
     final cubit = context.read<AdminUsersCubit>();
 
@@ -28,7 +64,7 @@ class AdminDebtManagementPage extends StatelessWidget {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text('Cập nhật công nợ'),
+          title: const Text('Cập nhật công nợ'),
           content: Form(
             key: formKey,
             child: Column(
@@ -43,7 +79,11 @@ class AdminDebtManagementPage extends StatelessWidget {
                 TextFormField(
                   controller: debtController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: false),
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  // SỬ DỤNG FORMATTER MỚI
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    CurrencyInputFormatter(),
+                  ],
                   decoration: const InputDecoration(
                     labelText: 'Số tiền công nợ mới',
                     suffixText: 'đ',
@@ -51,9 +91,6 @@ class AdminDebtManagementPage extends StatelessWidget {
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Vui lòng nhập số tiền';
-                    }
-                    if (double.tryParse(value) == null) {
-                      return 'Số tiền không hợp lệ';
                     }
                     return null;
                   },
@@ -69,7 +106,10 @@ class AdminDebtManagementPage extends StatelessWidget {
             ElevatedButton(
               onPressed: () {
                 if (formKey.currentState!.validate()) {
-                  final newDebtAmount = double.parse(debtController.text);
+                  // Chuyển đổi chuỗi đã định dạng về số
+                  final cleanValue = debtController.text.replaceAll('.', '');
+                  final newDebtAmount = double.tryParse(cleanValue) ?? 0.0;
+
                   cubit.updateUserDebt(
                     userId: user.id,
                     newDebtAmount: newDebtAmount,
@@ -84,7 +124,6 @@ class AdminDebtManagementPage extends StatelessWidget {
       },
     );
   }
-  // --- KẾT THÚC PHẦN MỚI ---
 
   @override
   Widget build(BuildContext context) {

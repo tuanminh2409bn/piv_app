@@ -5,6 +5,39 @@ import 'package:intl/intl.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_cubit.dart';
 
+// --- BẮT ĐẦU PHẦN MỚI: Currency Formatter ---
+// (Đây là class tái sử dụng từ trang admin)
+class CurrencyInputFormatter extends TextInputFormatter {
+  final NumberFormat _formatter = NumberFormat.decimalPattern('vi_VN');
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue,
+      TextEditingValue newValue,
+      ) {
+    if (newValue.text.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+    final cleanText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanText.isEmpty) {
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    }
+
+    final number = int.parse(cleanText);
+    final formattedText = _formatter.format(number);
+
+    return newValue.copyWith(
+      text: formattedText,
+      selection: TextSelection.collapsed(offset: formattedText.length),
+    );
+  }
+}
+// --- KẾT THÚC PHẦN MỚI ---
+
 class SalesRepDebtManagementPage extends StatelessWidget {
   const SalesRepDebtManagementPage({super.key});
 
@@ -62,8 +95,10 @@ class SalesRepDebtManagementPage extends StatelessWidget {
     );
   }
 
+  // --- BẮT ĐẦU SỬA ĐỔI DIALOG ---
   void _showUpdateDebtDialog(BuildContext context, UserModel user) {
-    final debtController = TextEditingController(text: user.debtAmount.toStringAsFixed(0));
+    final numberFormat = NumberFormat.decimalPattern('vi_VN');
+    final debtController = TextEditingController(text: numberFormat.format(user.debtAmount));
     final formKey = GlobalKey<FormState>();
     final cubit = context.read<SalesRepCubit>();
 
@@ -86,7 +121,11 @@ class SalesRepDebtManagementPage extends StatelessWidget {
                 TextFormField(
                   controller: debtController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: false),
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  // SỬ DỤNG FORMATTER MỚI
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    CurrencyInputFormatter(),
+                  ],
                   decoration: const InputDecoration(
                     labelText: 'Số tiền công nợ mới',
                     suffixText: 'đ',
@@ -94,9 +133,6 @@ class SalesRepDebtManagementPage extends StatelessWidget {
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Vui lòng nhập số tiền';
-                    }
-                    if (double.tryParse(value) == null) {
-                      return 'Số tiền không hợp lệ';
                     }
                     return null;
                   },
@@ -112,7 +148,10 @@ class SalesRepDebtManagementPage extends StatelessWidget {
             ElevatedButton(
               onPressed: () {
                 if (formKey.currentState!.validate()) {
-                  final newDebtAmount = double.parse(debtController.text);
+                  // Chuyển đổi chuỗi đã định dạng về số
+                  final cleanValue = debtController.text.replaceAll('.', '');
+                  final newDebtAmount = double.tryParse(cleanValue) ?? 0.0;
+
                   cubit.updateAgentDebt(
                     agentId: user.id,
                     newDebtAmount: newDebtAmount,
@@ -127,4 +166,5 @@ class SalesRepDebtManagementPage extends StatelessWidget {
       },
     );
   }
+// --- KẾT THÚC SỬA ĐỔI DIALOG ---
 }

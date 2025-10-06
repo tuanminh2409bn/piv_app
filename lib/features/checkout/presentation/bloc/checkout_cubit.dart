@@ -47,7 +47,10 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         super(const CheckoutState()) {
     _authSubscription = _authBloc.stream.listen((authState) {
       if (authState is AuthAuthenticated) {
-        _updateAddressesFromAuth(authState.user);
+        // Chỉ cập nhật địa chỉ nếu là lần đầu hoặc người dùng thay đổi
+        if (state.status == CheckoutStatus.initial || _currentUserId != authState.user.id) {
+          _updateAddressesFromAuth(authState.user);
+        }
       }
     });
   }
@@ -137,8 +140,6 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     final result = await _orderRepository.createOrder(
       order,
       clearCart: false,
-      // TẠM THỜI VÔ HIỆU HÓA DÒNG NÀY
-      // newDebtAmount: remainingDebt,
     );
 
     result.fold(
@@ -191,7 +192,6 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     final result = await _orderRepository.createOrder(
       order,
       clearCart: true,
-      newDebtAmount: remainingDebt
     );
 
     result.fold(
@@ -268,16 +268,11 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     emit(state.copyWith(status: CheckoutStatus.calculatingDiscount));
     try {
       final HttpsCallable callable = _functions.httpsCallable('calculateOrderDiscount');
-
       final itemsPayload = state.checkoutItems.map((item) => {
         'productId': item.productId,
         'subtotal': item.subtotal,
       }).toList();
-
-      final Map<String, dynamic> payload = {
-        'items': itemsPayload,
-      };
-
+      final Map<String, dynamic> payload = {'items': itemsPayload};
       if (state.placeOrderForAgent != null) {
         payload['agentId'] = state.placeOrderForAgent!.id;
       }
@@ -285,11 +280,15 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       final response = await callable.call(payload);
       final discount = (response.data['discount'] as num).toDouble();
 
+      // TÍNH TOÁN LẠI TỔNG TIỀN VÀ SỐ TIỀN CẦN TRẢ
+      final newFinalTotal = state.subtotal - state.discount - discount;
+      final newTotalWithDebt = newFinalTotal + state.currentDebt;
+
       emit(state.copyWith(
         status: CheckoutStatus.success,
         commissionDiscount: discount,
+        amountToPay: newTotalWithDebt.clamp(0, double.infinity), // CẬP NHẬT LẠI SỐ TIỀN CẦN TRẢ
       ));
-
     } catch (e) {
       developer.log("Error calculating discount: $e", name: "CheckoutCubit");
       emit(state.copyWith(
@@ -330,26 +329,37 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     );
 
     result.fold(
-            (failure) {
-          emit(state.copyWith(status: CheckoutStatus.error, errorMessage: failure.message, clearErrorMessage: false));
-          emit(state.copyWith(status: CheckoutStatus.success, clearErrorMessage: true));
-        },
-            (voucher) {
-          final discountAmount = voucher.calculateDiscount(state.subtotal);
-          emit(state.copyWith(
-            status: CheckoutStatus.success,
-            appliedVoucher: voucher,
-            discount: discountAmount,
-          ));
-        }
+          (failure) {
+        emit(state.copyWith(status: CheckoutStatus.error, errorMessage: failure.message, clearErrorMessage: false));
+        emit(state.copyWith(status: CheckoutStatus.success, clearErrorMessage: true));
+      },
+          (voucher) {
+        final discountAmount = voucher.calculateDiscount(state.subtotal);
+
+        // TÍNH TOÁN LẠI TỔNG TIỀN VÀ SỐ TIỀN CẦN TRẢ
+        final newFinalTotal = state.subtotal - discountAmount - state.commissionDiscount;
+        final newTotalWithDebt = newFinalTotal + state.currentDebt;
+
+        emit(state.copyWith(
+          status: CheckoutStatus.success,
+          appliedVoucher: voucher,
+          discount: discountAmount,
+          amountToPay: newTotalWithDebt.clamp(0, double.infinity), // CẬP NHẬT LẠI SỐ TIỀN CẦN TRẢ
+        ));
+      },
     );
   }
 
   void removeVoucher() {
+    // TÍNH TOÁN LẠI TỔNG TIỀN VÀ SỐ TIỀN CẦN TRẢ
+    final newFinalTotal = state.subtotal - 0 - state.commissionDiscount; // Bỏ voucher
+    final newTotalWithDebt = newFinalTotal + state.currentDebt;
+
     emit(state.copyWith(
       status: CheckoutStatus.success,
       forceVoucherToNull: true,
       discount: 0.0,
+      amountToPay: newTotalWithDebt.clamp(0, double.infinity), // CẬP NHẬT LẠI SỐ TIỀN CẦN TRẢ
     ));
   }
 
@@ -433,7 +443,10 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   }
 
   void updateAmountToPay(double amount) {
-    emit(state.copyWith(amountToPay: amount));
+    // Chỉ emit khi giá trị thực sự thay đổi để tránh vòng lặp vô tận với listener
+    if (state.amountToPay != amount) {
+      emit(state.copyWith(amountToPay: amount));
+    }
   }
 
   @override

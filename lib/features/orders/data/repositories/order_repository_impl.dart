@@ -21,60 +21,41 @@ class OrderRepositoryImpl implements OrderRepository {
   })  : _firestore = firestore,
         _settingsRepository = settingsRepository;
 
-  // --- BẮT ĐẦU THAY ĐỔI LỚN TẠI ĐÂY ---
   @override
-  Future<Either<Failure, String>> createOrder(
-      OrderModel order, {
-        bool clearCart = true,
-        double? newDebtAmount,
-      }) async {
+  Future<Either<Failure, String>> createOrder(OrderModel order, {bool clearCart = true}) async {
     try {
-      final userRef = _firestore.collection('users').doc(order.userId);
-
-      // Sử dụng một transaction để đảm bảo tính toàn vẹn dữ liệu
       final newOrderId = await _firestore.runTransaction((transaction) async {
-        // 1. Lấy thông tin người dùng (để kiểm tra NVKD)
-        final agentDoc = await transaction.get(userRef);
+        final newOrderRef = _firestore.collection('orders').doc();
+        final agentDoc = await _firestore.collection('users').doc(order.userId).get();
         String? salesRepId;
         if (agentDoc.exists) {
-          final agent = UserModel.fromSnap(agentDoc);
+          final agent = UserModel.fromJson(agentDoc.data()!);
           salesRepId = agent.salesRepId;
         }
 
-        // 2. Tạo một tham chiếu cho đơn hàng mới
-        final newOrderRef = _firestore.collection('orders').doc();
-        var orderMap = order.copyWith(salesRepId: salesRepId).toMap();
+        var orderMap = order.toMap();
+        if (salesRepId != null) {
+          orderMap['salesRepId'] = salesRepId;
+        }
         transaction.set(newOrderRef, orderMap);
 
-        // 3. Cập nhật công nợ mới cho người dùng (nếu có)
-        if (newDebtAmount != null) {
-          transaction.update(userRef, {'debtAmount': newDebtAmount});
-          developer.log('Updating debt for user ${order.userId} to $newDebtAmount', name: 'OrderRepository');
-        }
-
-        // 4. Xóa giỏ hàng nếu được yêu cầu
         if (clearCart) {
           final cartRef = _firestore.collection('carts').doc(order.userId);
           transaction.delete(cartRef);
         }
-
         return newOrderRef.id;
       });
-
       return Right(newOrderId);
     } catch (e) {
-      developer.log('Error creating order: $e', name: 'OrderRepository', error: e);
       return Left(ServerFailure('Lỗi không xác định khi tạo đơn hàng: ${e.toString()}'));
     }
   }
-  // --- KẾT THÚC THAY ĐỔI LỚN ---
 
-  // ... (Tất cả các hàm khác từ updateOrderStatus trở xuống giữ nguyên không thay đổi)
+
   @override
   Future<Either<Failure, Unit>> updateOrderStatus(String orderId, String newStatus) async {
     try {
       final orderRef = _firestore.collection('orders').doc(orderId);
-
       final commissionRateResult = await _settingsRepository.getCommissionRate();
       final commissionRate = commissionRateResult.getOrElse(() => 0.05);
 
@@ -83,15 +64,28 @@ class OrderRepositoryImpl implements OrderRepository {
         if (!orderSnapshot.exists) {
           throw Exception("Đơn hàng không tồn tại!");
         }
+        final orderData = orderSnapshot.data()!;
+        final order = OrderModel.fromSnapshot(orderSnapshot); // Chuyển đổi sang OrderModel để dễ truy cập
 
+        // 1. Cập nhật trạng thái đơn hàng
         transaction.update(orderRef, {'status': newStatus});
         developer.log('Updated status for order $orderId to $newStatus', name: 'OrderRepository');
 
+        // --- BẮT ĐẦU LOGIC MỚI: CẬP NHẬT CÔNG NỢ KHI HOÀN THÀNH ---
         if (newStatus == 'completed') {
-          final orderData = orderSnapshot.data()!;
-          final salesRepId = orderData['salesRepId'] as String?;
-          final agentId = orderData['userId'] as String;
+          // 2. Cập nhật công nợ của người dùng
+          final userRef = _firestore.collection('users').doc(order.userId);
+          // `remainingDebt` đã được tính toán và lưu sẵn trong đơn hàng
+          transaction.update(userRef, {'debtAmount': order.remainingDebt});
+          developer.log(
+              'Order completed. Updating debt for user ${order.userId} to ${order.remainingDebt}',
+              name: 'OrderRepository'
+          );
+          // (Tùy chọn: Ở đây bạn cũng có thể thêm một bản ghi vào debt_transactions)
+          // --- KẾT THÚC LOGIC MỚI ---
 
+          // 3. Tạo hoa hồng (logic cũ giữ nguyên)
+          final salesRepId = orderData['salesRepId'] as String?;
           if (salesRepId != null && salesRepId.isNotEmpty) {
             final commissionAmount = (orderData['total'] as num) * commissionRate;
             final newCommissionRef = _firestore.collection('commissions').doc();
@@ -104,11 +98,10 @@ class OrderRepositoryImpl implements OrderRepository {
               commissionRate: commissionRate,
               commissionAmount: commissionAmount,
               salesRepId: salesRepId,
-              agentId: agentId,
+              agentId: order.userId,
               agentName: agentName,
               createdAt: Timestamp.now(),
             );
-
             transaction.set(newCommissionRef, commission.toMap());
             developer.log('Created commission for order $orderId for Sales Rep $salesRepId', name: 'OrderRepository');
           }

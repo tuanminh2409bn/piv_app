@@ -35,8 +35,10 @@ class MyOrdersView extends StatelessWidget {
         appBar: AppBar(
           title: const Text('Đơn hàng của tôi'),
           bottom: TabBar(
+            // --- SỬA LỖI GIAO DIỆN TẠI ĐÂY ---
             isScrollable: true,
             tabAlignment: TabAlignment.start,
+            // ------------------------------------
             tabs: [
               _buildTabWithBadge(context, 'Chờ duyệt', context.select((MyOrdersCubit cubit) => cubit.state.pendingApprovalOrders.length)),
               _buildTabWithBadge(context, 'Đang xử lý', context.select((MyOrdersCubit cubit) => cubit.state.ongoingOrders.length)),
@@ -44,26 +46,24 @@ class MyOrdersView extends StatelessWidget {
             ],
           ),
         ),
-        body: SafeArea( // <--- THÊM SAFEA TẠI ĐÂY
-          child: BlocBuilder<MyOrdersCubit, MyOrdersState>(
-            builder: (context, state) {
-              if (state.status == MyOrdersStatus.loading && state.ongoingOrders.isEmpty && state.pendingApprovalOrders.isEmpty) {
-                return const Center(child: CircularProgressIndicator());
-              }
+        body: BlocBuilder<MyOrdersCubit, MyOrdersState>(
+          builder: (context, state) {
+            if (state.status == MyOrdersStatus.loading && state.ongoingOrders.isEmpty && state.pendingApprovalOrders.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-              if (state.status == MyOrdersStatus.error) {
-                return Center(child: Text(state.errorMessage ?? 'Không thể tải đơn hàng.'));
-              }
+            if (state.status == MyOrdersStatus.error) {
+              return Center(child: Text(state.errorMessage ?? 'Không thể tải đơn hàng.'));
+            }
 
-              return TabBarView(
-                children: [
-                  _OrderListView(orders: state.pendingApprovalOrders, emptyMessage: 'Không có đơn hàng nào cần bạn phê duyệt.'),
-                  _OrderListView(orders: state.ongoingOrders, emptyMessage: 'Không có đơn hàng nào đang được xử lý.'),
-                  _OrderListView(orders: state.completedOrders, emptyMessage: 'Chưa có đơn hàng nào trong lịch sử.'),
-                ],
-              );
-            },
-          ),
+            return TabBarView(
+              children: [
+                _OrderListView(orders: state.pendingApprovalOrders, emptyMessage: 'Không có đơn hàng nào cần bạn phê duyệt.'),
+                _OrderListView(orders: state.ongoingOrders, emptyMessage: 'Không có đơn hàng nào đang được xử lý.'),
+                _OrderListView(orders: state.completedOrders, emptyMessage: 'Chưa có đơn hàng nào trong lịch sử.'),
+              ],
+            );
+          },
         ),
       ),
     );

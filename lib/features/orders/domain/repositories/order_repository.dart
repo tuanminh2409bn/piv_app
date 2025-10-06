@@ -24,6 +24,6 @@ abstract class OrderRepository {
   Future<Either<Failure, PaymentInfoModel>> getPaymentInfo();
   Future<Either<Failure, Unit>> notifyPaymentMade(String orderId);
   Future<Either<Failure, Unit>> updateOrderStatusToShipped(String orderId, DateTime shippingDate);
-  Future<Either<Failure, String>> createOrder(OrderModel order, {bool clearCart = true, double? newDebtAmount});
+  Future<Either<Failure, String>> createOrder(OrderModel order, {bool clearCart = true});
   Stream<List<OrderModel>> watchUserOrders(String userId);
 }

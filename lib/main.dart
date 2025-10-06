@@ -37,16 +37,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // THÊM CÁC DÒNG SAU ĐỂ KÍCH HOẠT CHẾ ĐỘ TRÀN VIỀN
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent, // Thanh trạng thái trong suốt
-    systemNavigationBarColor: Colors.transparent, // Thanh điều hướng trong suốt
-    statusBarIconBrightness: Brightness.dark, // Icon thanh trạng thái màu tối
-    systemNavigationBarIconBrightness: Brightness.dark, // Icon thanh điều hướng màu tối
-  ));
-  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  // KẾT THÚC PHẦN THÊM VÀO
-
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );

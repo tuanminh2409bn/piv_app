@@ -50,32 +50,30 @@ class DebtPaymentCubit extends Cubit<DebtPaymentState> {
 
     final remainingDebt = state.currentUser.debtAmount - state.amountToPay;
 
-    // Tạo một "đơn hàng trả nợ" đặc biệt không có sản phẩm
     final debtOrder = OrderModel(
       userId: state.currentUser.id,
       items: const [],
-      // Lấy địa chỉ mặc định hoặc địa chỉ đầu tiên của người dùng
       shippingAddress: state.currentUser.addresses.firstWhere((a) => a.isDefault, orElse: () => state.currentUser.addresses.first),
       subtotal: 0,
       shippingFee: 0,
       discount: 0,
-      total: 0, // Tiền hàng là 0
-      paymentMethod: 'bank_transfer', // Mặc định là chuyển khoản
-      status: 'pending', // Trạng thái chờ xử lý như đơn hàng bình thường
-      finalTotal: state.amountToPay, // Tổng thanh toán chính là số tiền trả nợ
+      total: 0,
+      paymentMethod: 'bank_transfer',
+      status: 'pending',
+      finalTotal: state.amountToPay,
       salesRepId: state.currentUser.salesRepId,
-      // Ghi lại lịch sử công nợ
       debtAmount: state.currentUser.debtAmount,
       paidAmount: state.amountToPay,
       remainingDebt: remainingDebt,
     );
 
-    // Gọi hàm repository để tạo đơn hàng và cập nhật công nợ
+    // --- BẮT ĐẦU SỬA LỖI ---
+    // Gọi hàm createOrder mà không có tham số newDebtAmount
     final result = await _orderRepository.createOrder(
       debtOrder,
-      clearCart: false, // Không xóa giỏ hàng
-      newDebtAmount: remainingDebt,
+      clearCart: false,
     );
+    // --- KẾT THÚC SỬA LỖI ---
 
     result.fold(
           (failure) {

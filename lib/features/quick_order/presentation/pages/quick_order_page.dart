@@ -1,4 +1,5 @@
 // lib/features/quick_order/presentation/pages/quick_order_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -62,9 +63,8 @@ class QuickOrderView extends StatelessWidget {
               crossAxisCount: 2,
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
-              // <<< SỬA ĐỔI DUY NHẤT TẠI ĐÂY >>>
-              // Giảm tỉ lệ để làm card cao hơn
-              childAspectRatio: 0.6,
+              // --- THAY ĐỔI 1: Tăng tỉ lệ để card có thêm không gian chiều cao ---
+              childAspectRatio: 0.45,
             ),
             itemCount: state.products.length,
             itemBuilder: (context, index) {
@@ -181,86 +181,99 @@ class ProductGridItem extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              flex: 3, // Dành nhiều không gian hơn cho ảnh
+              flex: 3,
               child: Image.network(
                 product.imageUrl,
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => const Icon(Icons.image, size: 50, color: Colors.grey),
               ),
             ),
+            // --- THAY ĐỔI 2: Làm cho phần nội dung có thể cuộn khi cần ---
             Expanded(
-              flex: 4, // Dành không gian còn lại cho thông tin và nút
+              flex: 4,
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          product.name,
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          currencyFormatter.format(displayPrice),
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
-                            fontWeight: FontWeight.bold,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      physics: const ClampingScrollPhysics(), // Giúp cuộn mượt hơn
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                        child: IntrinsicHeight(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    product.name,
+                                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    currencyFormatter.format(displayPrice),
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.primary,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Column(
+                                children: [
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      icon: const Icon(Icons.add_shopping_cart, size: 18),
+                                      label: const Text('Thêm vào giỏ'),
+                                      style: ElevatedButton.styleFrom(
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                                        foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+                                      ),
+                                      onPressed: () async {
+                                        final cartItem = await _showPackagingOptionsDialog(context);
+                                        if (cartItem != null && context.mounted) {
+                                          context.read<CartCubit>().addProduct(
+                                            product: product,
+                                            selectedOption: product.packingOptions.firstWhere((opt) => opt.name == cartItem.caseUnitName),
+                                            quantity: cartItem.quantity,
+                                          );
+                                          ScaffoldMessenger.of(context)
+                                            ..hideCurrentSnackBar()
+                                            ..showSnackBar(SnackBar(content: Text('Đã thêm ${product.name} vào giỏ hàng')));
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton(
+                                      child: const Text('Mua ngay'),
+                                      style: OutlinedButton.styleFrom(
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      onPressed: () async {
+                                        final cartItem = await _showPackagingOptionsDialog(context);
+                                        if (cartItem != null && context.mounted) {
+                                          Navigator.of(context).push(CheckoutPage.route(buyNowItems: [cartItem]));
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                    Column(
-                      children: [
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            icon: const Icon(Icons.add_shopping_cart, size: 18),
-                            label: const Text('Thêm vào giỏ'),
-                            style: ElevatedButton.styleFrom(
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                              foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
-                            ),
-                            onPressed: () async {
-                              final cartItem = await _showPackagingOptionsDialog(context);
-                              if (cartItem != null && context.mounted) {
-                                context.read<CartCubit>().addProduct(
-                                  product: product,
-                                  selectedOption: product.packingOptions.firstWhere((opt) => opt.name == cartItem.caseUnitName),
-                                  quantity: cartItem.quantity,
-                                );
-                                ScaffoldMessenger.of(context)
-                                  ..hideCurrentSnackBar()
-                                  ..showSnackBar(SnackBar(content: Text('Đã thêm ${product.name} vào giỏ hàng')));
-                              }
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton(
-                            child: const Text('Mua ngay'),
-                            style: OutlinedButton.styleFrom(
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            onPressed: () async {
-                              final cartItem = await _showPackagingOptionsDialog(context);
-                              if (cartItem != null && context.mounted) {
-                                Navigator.of(context).push(CheckoutPage.route(buyNowItems: [cartItem]));
-                              }
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
