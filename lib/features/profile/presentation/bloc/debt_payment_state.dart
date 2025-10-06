@@ -1,3 +1,5 @@
+// lib/features/profile/presentation/bloc/debt_payment_state.dart
+
 part of 'debt_payment_cubit.dart';
 
 enum DebtPaymentStatus { initial, loading, success, error }
@@ -26,7 +28,7 @@ class DebtPaymentState extends Equatable {
     double? amountToPay,
     String? newOrderId,
     String? errorMessage,
-    bool clearError = false,
+    bool clearError = false, // Tham số này sẽ được sử dụng
   }) {
     return DebtPaymentState(
       status: status ?? this.status,

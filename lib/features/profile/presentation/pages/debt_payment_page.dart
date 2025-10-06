@@ -1,3 +1,5 @@
+// lib/features/profile/presentation/pages/debt_payment_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -6,7 +8,6 @@ import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/orders/presentation/pages/order_success_page.dart';
 import 'package:piv_app/features/profile/presentation/bloc/debt_payment_cubit.dart';
 
-// --- TIỆN ÍCH ĐỊNH DẠNG SỐ ---
 class CurrencyInputFormatter extends TextInputFormatter {
   final NumberFormat _formatter = NumberFormat.decimalPattern('vi_VN');
 
@@ -36,7 +37,6 @@ class CurrencyInputFormatter extends TextInputFormatter {
     );
   }
 }
-// --------------------------------
 
 class DebtPaymentPage extends StatelessWidget {
   const DebtPaymentPage({super.key});
@@ -65,113 +65,139 @@ class DebtPaymentView extends StatefulWidget {
 
 class _DebtPaymentViewState extends State<DebtPaymentView> {
   final _amountController = TextEditingController();
-  // Chuyển formatter này thành decimal để xử lý cả hiển thị và nhập liệu
   final _numberFormat = NumberFormat.decimalPattern('vi_VN');
 
   @override
   void initState() {
     super.initState();
-    // Lắng nghe thay đổi từ ô nhập liệu
-    _amountController.addListener(() {
-      final cleanText = _amountController.text.replaceAll('.', '');
-      final amount = double.tryParse(cleanText);
-      if (amount != null) {
-        context.read<DebtPaymentCubit>().updateAmountToPay(amount);
-      }
-    });
+    _amountController.addListener(_onAmountChanged);
   }
+
+  // --- BẮT ĐẦU SỬA LỖI ---
+  void _onAmountChanged() {
+    final cleanText = _amountController.text.replaceAll('.', '');
+    final amount = double.tryParse(cleanText) ?? 0.0;
+    // Chỉ gọi update nếu giá trị trong state khác với giá trị đang nhập
+    // để tránh vòng lặp không cần thiết.
+    if (amount != context.read<DebtPaymentCubit>().state.amountToPay) {
+      context.read<DebtPaymentCubit>().updateAmountToPay(amount);
+    }
+  }
+  // --- KẾT THÚC SỬA LỖI ---
 
   @override
   void dispose() {
+    _amountController.removeListener(_onAmountChanged);
     _amountController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<DebtPaymentCubit, DebtPaymentState>(
-      listener: (context, state) {
-        if (state.status == DebtPaymentStatus.success && state.newOrderId != null) {
-          Navigator.of(context).pushAndRemoveUntil(
-            OrderSuccessPage.route(orderId: state.newOrderId!),
-                (route) => route.isFirst,
-          );
-        }
-        if (state.status == DebtPaymentStatus.error && state.errorMessage != null) {
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(SnackBar(
-              content: Text(state.errorMessage!),
-              backgroundColor: Colors.red,
-            ));
-        }
-
-        // Cập nhật ô nhập liệu từ state, đảm bảo đồng bộ
-        final formattedAmount = _numberFormat.format(state.amountToPay);
-        if (_amountController.text != formattedAmount) {
-          _amountController.value = TextEditingValue(
-            text: formattedAmount,
-            selection: TextSelection.collapsed(offset: formattedAmount.length),
-          );
-        }
-      },
-      builder: (context, state) {
-        return Scaffold(
-          appBar: AppBar(title: const Text('Thanh toán Công nợ')),
-          body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSummaryCard(context, state.currentUser.debtAmount),
-                  const SizedBox(height: 24),
-                  Text('Số tiền thanh toán', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _amountController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: false),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      CurrencyInputFormatter(), // Áp dụng formatter
-                    ],
-                    decoration: const InputDecoration(
-                      suffixText: 'đ',
-                      border: OutlineInputBorder(),
+    // --- BẮT ĐẦU SỬA LỖI ---
+    // Tách riêng Listener và Builder để quản lý các tác vụ phụ và việc build UI
+    return MultiBlocListener(
+      listeners: [
+        // Listener này xử lý các tác vụ như điều hướng, hiển thị SnackBar
+        BlocListener<DebtPaymentCubit, DebtPaymentState>(
+          listenWhen: (previous, current) => previous.status != current.status,
+          listener: (context, state) {
+            if (state.status == DebtPaymentStatus.success && state.newOrderId != null) {
+              Navigator.of(context).pushAndRemoveUntil(
+                OrderSuccessPage.route(orderId: state.newOrderId!),
+                    (route) => route.isFirst,
+              );
+            }
+            if (state.status == DebtPaymentStatus.error && state.errorMessage != null) {
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(SnackBar(
+                  content: Text(state.errorMessage!),
+                  backgroundColor: Colors.red,
+                ));
+              context.read<DebtPaymentCubit>().clearError();
+            }
+          },
+        ),
+        // Listener này đồng bộ state từ Cubit vào TextEditingController
+        BlocListener<DebtPaymentCubit, DebtPaymentState>(
+          listenWhen: (previous, current) => previous.amountToPay != current.amountToPay,
+          listener: (context, state) {
+            final formattedAmount = _numberFormat.format(state.amountToPay);
+            if (_amountController.text != formattedAmount) {
+              // Tạm thời gỡ listener để tránh vòng lặp khi cập nhật controller
+              _amountController.removeListener(_onAmountChanged);
+              _amountController.value = TextEditingValue(
+                text: formattedAmount,
+                selection: TextSelection.collapsed(offset: formattedAmount.length),
+              );
+              // Thêm lại listener sau khi cập nhật xong
+              _amountController.addListener(_onAmountChanged);
+            }
+          },
+        ),
+      ],
+      child: BlocBuilder<DebtPaymentCubit, DebtPaymentState>(
+        builder: (context, state) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Thanh toán Công nợ')),
+            body: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSummaryCard(context, state.currentUser.debtAmount),
+                    const SizedBox(height: 24),
+                    Text('Số tiền thanh toán', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _amountController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        CurrencyInputFormatter(),
+                      ],
+                      decoration: const InputDecoration(
+                        suffixText: 'đ',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => context.read<DebtPaymentCubit>().updateAmountToPay(state.currentUser.debtAmount),
-                        child: const Text('TRẢ HẾT'),
-                      )
-                    ],
-                  ),
-                  const Spacer(),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: state.status == DebtPaymentStatus.loading
-                          ? null
-                          : () {
-                        // Khi nhấn nút, lấy giá trị đã được làm sạch từ cubit state
-                        context.read<DebtPaymentCubit>().createDebtPaymentOrder();
-                      },
-                      child: state.status == DebtPaymentStatus.loading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('TẠO LỆNH THANH TOÁN'),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            context.read<DebtPaymentCubit>().updateAmountToPay(state.currentUser.debtAmount);
+                          },
+                          child: const Text('TRẢ HẾT'),
+                        )
+                      ],
                     ),
-                  ),
-                ],
+                    const Spacer(),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: state.status == DebtPaymentStatus.loading
+                            ? null
+                            : () {
+                          context.read<DebtPaymentCubit>().createDebtPaymentOrder();
+                        },
+                        child: state.status == DebtPaymentStatus.loading
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : const Text('TẠO LỆNH THANH TOÁN'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
+    // --- KẾT THÚC SỬA LỖI ---
   }
 
   Widget _buildSummaryCard(BuildContext context, double debtAmount) {
