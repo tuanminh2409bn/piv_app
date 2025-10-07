@@ -1,3 +1,5 @@
+// android/app/build.gradle.kts
+
 import java.util.Properties
 import java.io.FileInputStream
 import org.gradle.api.Project
@@ -9,9 +11,7 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Đọc file key.properties ngay tại thư mục app
 val keyProperties = Properties()
-// Dùng file() thay vì rootProject.file() để nó hiểu là đọc từ thư mục hiện tại (android/app)
 val keyPropertiesFile = file("key.properties")
 if (keyPropertiesFile.exists()) {
     keyProperties.load(FileInputStream(keyPropertiesFile))
@@ -48,8 +48,8 @@ android {
 
     defaultConfig {
         applicationId = "com.piv.app"
-        minSdkVersion(23)
-        targetSdk = 35
+        minSdkVersion(24)
+        targetSdk = 36
         versionCode = getLocalProperty("flutter.versionCode", project).toIntOrNull() ?: 1
         versionName = getLocalProperty("flutter.versionName", project)
     }

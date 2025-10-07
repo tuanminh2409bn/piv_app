@@ -279,14 +279,19 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
     final DateTime? pickedDate = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 1)), // Cho phép chọn ngày hôm qua
       lastDate: DateTime.now().add(const Duration(days: 30)),
       locale: const Locale('vi', 'VN'),
       helpText: 'CHỌN NGÀY GIAO DỰ KIẾN',
     );
 
     if (pickedDate != null && context.mounted) {
-      context.read<AdminOrdersCubit>().updateOrderStatusToShipped(orderId, pickedDate);
+      // --- BẮT ĐẦU SỬA LỖI ---
+      // Chuẩn hóa ngày về UTC để tránh lỗi múi giờ.
+      // Thao tác này tạo một đối tượng DateTime mới với cùng ngày/tháng/năm nhưng múi giờ là UTC.
+      final utcDate = DateTime.utc(pickedDate.year, pickedDate.month, pickedDate.day);
+      context.read<AdminOrdersCubit>().updateOrderStatusToShipped(orderId, utcDate);
+      // --- KẾT THÚC SỬA LỖI ---
     }
   }
 

@@ -67,6 +67,14 @@ class OrderDetailView extends StatelessWidget {
               children: [
                 _OrderHeader(order: order, placedByUser: state.placedByUser),
                 const Divider(height: 32),
+                if (order.shippingDate != null) ...[
+                  _Section(
+                    title: 'Thông tin giao hàng',
+                    icon: Icons.local_shipping_outlined,
+                    child: _ShippingInfo(shippingDate: order.shippingDate!.toDate()),
+                  ),
+                  const Divider(height: 32),
+                ],
                 if (order.paymentStatus == 'unpaid' && order.status != 'pending_approval' && state.paymentInfo != null) ...[
                   _Section(
                     title: 'Thông tin thanh toán',
@@ -163,6 +171,33 @@ class _OrderHeader extends StatelessWidget {
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+class _ShippingInfo extends StatelessWidget {
+  final DateTime shippingDate;
+  const _ShippingInfo({required this.shippingDate});
+
+  @override
+  Widget build(BuildContext context) {
+    final dateFormat = DateFormat('EEEE, dd/MM/yyyy', 'vi_VN');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Giao hàng dự kiến: ',
+              style: TextStyle(color: Colors.grey.shade700),
+            ),
+            Text(
+              dateFormat.format(shippingDate),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
       ],
     );
   }

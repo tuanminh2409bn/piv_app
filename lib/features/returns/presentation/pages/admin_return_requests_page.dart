@@ -30,6 +30,7 @@ class AdminReturnRequestsPage extends StatelessWidget {
           title: const Text('Quản lý Đổi/Trả'),
           bottom: const TabBar(
             isScrollable: true,
+            tabAlignment: TabAlignment.start,
             tabs: [
               Tab(text: 'CHỜ DUYỆT'),
               Tab(text: 'ĐÃ DUYỆT'),
