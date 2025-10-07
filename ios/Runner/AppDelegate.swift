@@ -12,16 +12,17 @@ import FBSDKCoreKit
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
 
-        // Firebase init
         FirebaseApp.configure()
         GeneratedPluginRegistrant.register(with: self)
 
-        // Notification delegate
+        // --- BẮT ĐẦU SỬA LỖI ---
+        // Yêu cầu hệ điều hành cho phép nhận thông báo
         if #available(iOS 10.0, *) {
             UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate
         }
+        application.registerForRemoteNotifications()
+        // --- KẾT THÚC SỬA LỖI ---
 
-        // Facebook SDK init
         ApplicationDelegate.shared.application(
             application,
             didFinishLaunchingWithOptions: launchOptions
@@ -30,6 +31,7 @@ import FBSDKCoreKit
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }
 
+    // --- PHẦN NÀY ĐÃ CÓ VÀ ĐÚNG, GIỮ NGUYÊN ---
     override func application(
     _ application: UIApplication,
     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
@@ -38,6 +40,7 @@ import FBSDKCoreKit
         super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
     }
 
+    // --- PHẦN NÀY ĐÃ CÓ VÀ ĐÚNG, GIỮ NGUYÊN ---
     override func application(
     _ application: UIApplication,
     didFailToRegisterForRemoteNotificationsWithError error: Error

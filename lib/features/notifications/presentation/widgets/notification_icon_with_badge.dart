@@ -6,11 +6,11 @@ import 'package:piv_app/features/notifications/presentation/bloc/notification_st
 import 'package:piv_app/features/notifications/presentation/pages/notification_list_page.dart';
 
 class NotificationIconWithBadge extends StatelessWidget {
-  final Color iconColor; // <--- THÊM DÒNG NÀY
+  final Color iconColor;
 
   const NotificationIconWithBadge({
     super.key,
-    this.iconColor = Colors.grey, // <--- THÊM DÒNG NÀY (màu mặc định)
+    this.iconColor = Colors.black,
   });
 
   @override
@@ -30,7 +30,6 @@ class NotificationIconWithBadge extends StatelessWidget {
           ),
           showBadge: unreadCount > 0,
           child: IconButton(
-            // SỬ DỤNG iconColor TẠI ĐÂY
             icon: Icon(Icons.notifications_outlined, color: iconColor),
             onPressed: () {
               Navigator.of(context).push(NotificationListPage.route());

@@ -6,7 +6,7 @@ import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/admin/domain/repositories/admin_repository.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/agent_selection_cubit.dart';
-import 'package:piv_app/features/admin/presentation/pages/admin_debt_management_page.dart'; // <--- THÊM IMPORT MỚI
+import 'package:piv_app/features/admin/presentation/pages/admin_debt_management_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_orders_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_users_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/quick_order_agent_selection_page.dart';
@@ -31,7 +31,6 @@ class AccountantHomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
 
-    // --- THAY ĐỔI: Tăng length lên 7 ---
     return DefaultTabController(
       length: 7,
       child: Scaffold(
@@ -51,9 +50,7 @@ class AccountantHomePage extends StatelessWidget {
             tabs: [
               Tab(icon: Icon(Icons.people_outline), text: 'Người dùng'),
               Tab(icon: Icon(Icons.receipt_long_outlined), text: 'Đơn hàng'),
-              // --- THÊM TAB CÔNG NỢ ---
               Tab(icon: Icon(Icons.account_balance_wallet_outlined), text: 'Công nợ'),
-              // ------------------------
               Tab(icon: Icon(Icons.sync_problem_outlined), text: 'Đổi/Trả'),
               Tab(icon: Icon(Icons.workspace_premium_outlined), text: 'Cam kết'),
               Tab(icon: Icon(Icons.add_shopping_cart), text: 'Đặt hàng hộ'),
@@ -65,10 +62,7 @@ class AccountantHomePage extends StatelessWidget {
           children: [
             AdminUsersPage(),
             AdminOrdersPage(),
-            // --- THÊM TRANG CÔNG NỢ ---
-            // Tái sử dụng page của Admin vì chức năng tương tự
             AdminDebtManagementPageWrapper(),
-            // --------------------------
             _ReturnRequestManagementTabWrapper(),
             CommitmentManagementPageWrapper(),
             AllAgentsViewForAccountant(),

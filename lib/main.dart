@@ -22,12 +22,9 @@ import 'package:piv_app/features/notifications/presentation/bloc/notification_cu
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'dart:developer' as developer;
-import 'package:flutter/services.dart';
 
-// 1. Thêm GlobalKey để điều hướng từ bên ngoài widget
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-// 2. Thêm hàm xử lý thông báo nền (phải nằm ở ngoài cùng)
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -44,6 +41,7 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   await di.initializeDependencies();
+  await di.sl<NotificationService>().init();
   await initializeDateFormatting('vi_VN', null);
 
   Bloc.observer = di.sl<AppBlocObserver>();
@@ -52,20 +50,9 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
-// 5. Chuyển MyApp thành StatefulWidget để khởi tạo service trong initState
-class MyApp extends StatefulWidget {
+// Chuyển MyApp về lại StatelessWidget cho đơn giản
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-  @override
-  void initState() {
-    super.initState();
-    di.sl<NotificationService>().init();
-  }
 
   @override
   Widget build(BuildContext context) {
