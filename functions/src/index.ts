@@ -635,6 +635,8 @@ export const sendManualNotification = onCall(
             throw new HttpsError("permission-denied", "Bạn không có quyền thực hiện hành động này.");
         }
         const {title, body, salesRepId} = request.data;
+        let salesRepName: string | null = null; // Khai báo biến để lưu tên
+
         if (!title || !body) {
             throw new HttpsError("invalid-argument", "Vui lòng nhập đầy đủ tiêu đề và nội dung.");
         }
@@ -642,6 +644,10 @@ export const sendManualNotification = onCall(
         let userQuery = db.collection("users").where("status", "==", "active").where("role", "in", ["agent_1", "agent_2", "sales_rep"]);
         if (salesRepId && typeof salesRepId === "string") {
             userQuery = userQuery.where("salesRepId", "==", salesRepId);
+            const salesRepDoc = await db.collection("users").doc(salesRepId).get();
+        if (salesRepDoc.exists) {
+            salesRepName = salesRepDoc.data()?.displayName ?? null;
+            }
         }
         const usersSnapshot = await userQuery.get();
         const recipients = usersSnapshot.docs.map((doc) => ({id: doc.id, token: doc.data().fcmToken as string | undefined}));
@@ -661,11 +667,14 @@ export const sendManualNotification = onCall(
 
         await db.collection("manualNotifications").add({
             title, body, sentBy: adminId,
-            target: {type: salesRepId ? "sales_rep_group" : "all", id: salesRepId ?? null},
+            target: {
+                type: salesRepId ? "sales_rep_group" : "all",
+                id: salesRepId ?? null,
+                salesRepName: salesRepName,
+                },
             recipientCount: recipients.length,
             sentAt: new Date(),
-        });
-
+         });
         return {success: true, message: `Đã gửi thông báo thành công đến ${recipients.length} người dùng.`};
     }
 );

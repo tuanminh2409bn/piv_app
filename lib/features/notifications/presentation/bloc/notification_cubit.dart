@@ -63,8 +63,14 @@ class NotificationCubit extends Cubit<NotificationState> {
 
   /// Đánh dấu một thông báo là đã đọc.
   Future<void> markAsRead(String notificationId) async {
+    // Kiểm tra xem userId có tồn tại không trước khi thực hiện
+    if (_currentUserId == null) {
+      print('Lỗi: Không tìm thấy userId để đánh dấu đã đọc.');
+      return;
+    }
     try {
-      await _notificationRepository.markAsRead(notificationId);
+      // Tự động sử dụng _currentUserId đã được lưu
+      await _notificationRepository.markAsRead(_currentUserId!, notificationId);
       // Giao diện sẽ tự động cập nhật nhờ Stream, không cần emit state ở đây.
     } catch (e) {
       // Có thể log lỗi hoặc hiển thị một thông báo nhỏ nếu cần

@@ -1,3 +1,5 @@
+//lib/core/services/notification_service.dart
+
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:math';
@@ -5,7 +7,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/news/presentation/pages/news_detail_page.dart';
@@ -109,15 +110,21 @@ class NotificationService {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       developer.log('🟢 [FOREGROUND] Nhận được thông báo: ${message.notification?.title}', name: "NotificationService");
       final RemoteNotification? notification = message.notification;
-      if (notification != null && !kIsWeb) {
+
+      // --- BẮT ĐẦU SỬA LỖI ---
+      // Chỉ hiển thị thông báo local trên Android.
+      // Trên iOS, chúng ta để hệ điều hành tự xử lý để tránh lặp.
+      if (notification != null && !kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
         _showLocalNotification(
           notification.title ?? 'Thông báo',
           notification.body ?? '',
           message.data,
         );
       }
+      // --- KẾT THÚC SỬA LỖI ---
     });
 
+    // Giữ nguyên các listener còn lại
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       developer.log('🔵 [BACKGROUND TAP] Mở app từ thông báo: ${message.data}', name: "NotificationService");
       _handleNotificationNavigation(message.data);
