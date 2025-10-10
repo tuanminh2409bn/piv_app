@@ -12,6 +12,7 @@ import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/user_model.dart';
+import 'package:piv_app/features/auth/domain/entities/social_sign_in_result.dart';
 import 'package:piv_app/features/auth/domain/repositories/auth_repository.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:app_tracking_transparency/app_tracking_transparency.dart';
@@ -244,22 +245,19 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<Either<Failure, Unit>> signInWithGoogle() async {
+  Future<Either<Failure, SocialSignInResult>> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
         return Left(AuthFailure('Đã hủy đăng nhập bằng Google.'));
       }
 
-      final GoogleSignInAuthentication googleAuth = await googleUser
-          .authentication;
-      final firebase_auth.AuthCredential credential = firebase_auth
-          .GoogleAuthProvider.credential(
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final firebase_auth.AuthCredential credential = firebase_auth.GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      // <<< SỬA ĐỔI: Truyền thông tin tường minh >>>
       return _linkOrCreateUser(
         credential: credential,
         email: googleUser.email,
@@ -272,14 +270,11 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
-// Thay thế hàm signInWithFacebook
   @override
-  Future<Either<Failure, Unit>> signInWithFacebook() async {
+  Future<Either<Failure, SocialSignInResult>> signInWithFacebook() async {
     try {
-      final status = await AppTrackingTransparency
-          .requestTrackingAuthorization();
-      developer.log(
-          'App Tracking Transparency status: $status', name: 'AuthRepository');
+      final status = await AppTrackingTransparency.requestTrackingAuthorization();
+      developer.log('App Tracking Transparency status: $status', name: 'AuthRepository');
 
       final LoginResult result = await FacebookAuth.instance.login(
         permissions: ['public_profile', 'email'],
@@ -288,10 +283,8 @@ class AuthRepositoryImpl implements AuthRepository {
 
       if (result.status == LoginStatus.success) {
         final AccessToken accessToken = result.accessToken!;
-        final firebase_auth.AuthCredential credential =
-        firebase_auth.FacebookAuthProvider.credential(accessToken.tokenString);
+        final firebase_auth.AuthCredential credential = firebase_auth.FacebookAuthProvider.credential(accessToken.tokenString);
 
-        // <<< SỬA ĐỔI: Lấy thêm thông tin và truyền vào >>>
         final userData = await FacebookAuth.instance.getUserData();
         final String? email = userData['email'];
         final String? displayName = userData['name'];
@@ -304,8 +297,7 @@ class AuthRepositoryImpl implements AuthRepository {
       } else if (result.status == LoginStatus.cancelled) {
         return Left(AuthFailure('Đã hủy đăng nhập bằng Facebook.'));
       } else {
-        return Left(AuthFailure(
-            result.message ?? 'Lỗi đăng nhập Facebook không xác định.'));
+        return Left(AuthFailure(result.message ?? 'Lỗi đăng nhập Facebook không xác định.'));
       }
     } on firebase_auth.FirebaseAuthException catch (e) {
       return Left(AuthFailure(e.message ?? 'Lỗi đăng nhập Facebook.'));
@@ -314,36 +306,26 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 
-// Thay thế hàm signInWithApple
   @override
-  Future<Either<Failure, Unit>> signInWithApple() async {
+  Future<Either<Failure, SocialSignInResult>> signInWithApple() async {
     try {
       final rawNonce = _generateNonce();
       final nonce = _sha256ofString(rawNonce);
 
       final appleCredential = await SignInWithApple.getAppleIDCredential(
-        scopes: [
-          AppleIDAuthorizationScopes.email,
-          AppleIDAuthorizationScopes.fullName,
-        ],
+        scopes: [AppleIDAuthorizationScopes.email, AppleIDAuthorizationScopes.fullName],
         nonce: nonce,
       );
 
-      final oauthCredential = firebase_auth
-          .OAuthProvider('apple.com')
-          .credential(
+      final oauthCredential = firebase_auth.OAuthProvider('apple.com').credential(
         idToken: appleCredential.identityToken,
         rawNonce: rawNonce,
         accessToken: appleCredential.authorizationCode,
       );
 
-      // <<< SỬA ĐỔI LOGIC: Truyền thông tin tường minh, bỏ đoạn updateDisplayName cũ >>>
       String? displayName;
-      if (appleCredential.givenName != null ||
-          appleCredential.familyName != null) {
-        displayName =
-            '${appleCredential.givenName ?? ''} ${appleCredential.familyName ??
-                ''}'.trim();
+      if (appleCredential.givenName != null || appleCredential.familyName != null) {
+        displayName = '${appleCredential.givenName ?? ''} ${appleCredential.familyName ?? ''}'.trim();
       }
 
       return _linkOrCreateUser(
@@ -354,11 +336,70 @@ class AuthRepositoryImpl implements AuthRepository {
     } on firebase_auth.FirebaseAuthException catch (e) {
       return Left(AuthFailure(e.message ?? 'Lỗi đăng nhập Apple.'));
     } catch (e) {
-      if (e is SignInWithAppleAuthorizationException &&
-          e.code == AuthorizationErrorCode.canceled) {
+      if (e is SignInWithAppleAuthorizationException && e.code == AuthorizationErrorCode.canceled) {
         return Left(AuthFailure('Đã hủy đăng nhập bằng Apple.'));
       }
       return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+    }
+  }
+
+  Future<Either<Failure, SocialSignInResult>> _linkOrCreateUser({
+    required firebase_auth.AuthCredential credential,
+    String? email,
+    String? displayName,
+  }) async {
+    try {
+      final userCredential = await _firebaseAuth.signInWithCredential(credential);
+      final firebaseUser = userCredential.user;
+
+      if (firebaseUser != null) {
+        final userDoc = _firestore.collection('users').doc(firebaseUser.uid);
+        final docSnapshot = await userDoc.get();
+
+        final bool isNewUser = userCredential.additionalUserInfo?.isNewUser ?? !docSnapshot.exists;
+
+        if (isNewUser) {
+          developer.log('Creating new user in Firestore: ${firebaseUser.uid}', name: 'AuthRepository');
+          final newUser = UserModel(
+            id: firebaseUser.uid,
+            email: email ?? firebaseUser.email,
+            displayName: displayName ?? firebaseUser.displayName,
+            photoUrl: firebaseUser.photoURL,
+            role: 'agent_2', // Hoặc vai trò mặc định khác
+            status: 'pending_approval',
+            referralPromptPending: true,
+          );
+          await userDoc.set(newUser.toJson());
+        }
+
+        // Đọc lại document để lấy thông tin status mới nhất
+        final updatedUserSnapshot = await userDoc.get();
+        if (!updatedUserSnapshot.exists) {
+          await logOut();
+          return Left(AuthFailure('Không tìm thấy thông tin tài khoản sau khi đăng nhập.'));
+        }
+
+        final user = UserModel.fromJson(updatedUserSnapshot.data()!);
+        if (user.status != 'active') {
+          await logOut();
+          // Nếu user đang chờ duyệt (hoặc bị khóa), ta vẫn coi đây là một
+          // kết quả "thành công" về mặt đăng ký và trả về isNewUser.
+          // UI sẽ dựa vào isNewUser để hiển thị thông báo phù hợp.
+          return Right(SocialSignInResult(isNewUser: isNewUser));
+        }
+
+        // Nếu user active, trả về kết quả thành công và isNewUser (sẽ là false cho user cũ).
+        return Right(SocialSignInResult(isNewUser: isNewUser));
+      } else {
+        return Left(AuthFailure('Không thể lấy thông tin người dùng.'));
+      }
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      if (e.code == 'account-exists-with-different-credential') {
+        return Left(AuthFailure('Tài khoản đã tồn tại với một phương thức đăng nhập khác.'));
+      }
+      return Left(ServerFailure(e.message ?? e.toString()));
+    } catch (e) {
+      return Left(ServerFailure(e.toString()));
     }
   }
 
@@ -366,8 +407,6 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<Either<Failure, Unit>> signInAnonymously() async {
     try {
       await _firebaseAuth.signInAnonymously();
-      // Logic tạo document đã được chuyển vào stream authStateChanges,
-      // vì vậy hàm này chỉ cần gọi đăng nhập là đủ.
       return const Right(unit);
     } on firebase_auth.FirebaseAuthException catch (e) {
       return Left(AuthFailure(e.message ?? 'Lỗi đăng nhập khách.'));
@@ -388,70 +427,6 @@ class AuthRepositoryImpl implements AuthRepository {
     final bytes = utf8.encode(input);
     final digest = sha256.convert(bytes);
     return digest.toString();
-  }
-
-  Future<Either<Failure, Unit>> _linkOrCreateUser({
-    required firebase_auth.AuthCredential credential,
-    String? email,
-    String? displayName,
-  }) async {
-    try {
-      final userCredential = await _firebaseAuth.signInWithCredential(
-          credential);
-      final firebaseUser = userCredential.user;
-
-      if (firebaseUser != null) {
-        final userDoc = _firestore.collection('users').doc(firebaseUser.uid);
-        final docSnapshot = await userDoc.get();
-
-        if (!docSnapshot.exists) {
-          developer.log('Creating new user in Firestore: ${firebaseUser.uid}',
-              name: 'AuthRepository');
-
-          // <<< SỬA ĐỔI LOGIC: Ưu tiên thông tin được truyền vào >>>
-          final newUser = UserModel(
-            id: firebaseUser.uid,
-            // Ưu tiên email từ provider, nếu không có thì lấy từ firebaseUser, cuối cùng là chuỗi rỗng
-            email: email ?? firebaseUser.email,
-            // Ưu tiên displayName từ provider, nếu không có thì lấy từ firebaseUser
-            displayName: displayName ?? firebaseUser.displayName,
-            photoUrl: firebaseUser.photoURL,
-            role: 'agent_2',
-            status: 'pending_approval',
-            referralPromptPending: true,
-          );
-          await userDoc.set(newUser.toJson());
-        }
-
-        // Phần kiểm tra status giữ nguyên...
-        final updatedUserSnapshot = await userDoc.get();
-        if (!updatedUserSnapshot.exists) {
-          await logOut();
-          return Left(AuthFailure(
-              'Không tìm thấy thông tin tài khoản sau khi đăng nhập.'));
-        }
-        final user = UserModel.fromJson(updatedUserSnapshot.data()!);
-        if (user.status != 'active') {
-          await logOut();
-          if (user.status == 'pending_approval') {
-            return Left(AuthFailure('Tài khoản của bạn đang chờ phê duyệt.'));
-          }
-          return Left(AuthFailure('Tài khoản của bạn không hoạt động.'));
-        }
-        return const Right(unit);
-      } else {
-        return Left(AuthFailure('Không thể lấy thông tin người dùng.'));
-      }
-    } on firebase_auth.FirebaseAuthException catch (e) {
-      // Xử lý lỗi khi tài khoản mạng xã hội đã được liên kết với một tài khoản email/password khác
-      if (e.code == 'account-exists-with-different-credential') {
-        return Left(AuthFailure(
-            'Tài khoản đã tồn tại với một phương thức đăng nhập khác. Vui lòng sử dụng phương thức đăng nhập ban đầu.'));
-      }
-      return Left(ServerFailure(e.message ?? e.toString()));
-    } catch (e) {
-      return Left(ServerFailure(e.toString()));
-    }
   }
 }
 

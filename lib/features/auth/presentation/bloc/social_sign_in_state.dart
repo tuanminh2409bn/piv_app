@@ -2,45 +2,36 @@
 
 part of 'social_sign_in_cubit.dart';
 
-// ========== THÊM ENUM NÀY ĐỂ ĐỊNH DANH CÁC NÚT ==========
+enum SocialSignInStatus { initial, submitting, success, error }
 enum SocialSignInProvider { none, google, facebook, apple, guest }
-// =========================================================
 
 class SocialSignInState extends Equatable {
   final SocialSignInStatus status;
   final String? errorMessage;
-  // ========== THÊM THUỘC TÍNH MỚI NÀY ==========
   final SocialSignInProvider submissionProvider;
-  // ===========================================
+  final bool isNewUser; // THÊM DÒNG NÀY
 
   const SocialSignInState({
     this.status = SocialSignInStatus.initial,
     this.errorMessage,
-    // ========== THÊM VÀO CONSTRUCTOR ==========
     this.submissionProvider = SocialSignInProvider.none,
-    // ========================================
+    this.isNewUser = false, // THÊM DÒNG NÀY
   });
 
   SocialSignInState copyWith({
     SocialSignInStatus? status,
     String? errorMessage,
-    // ========== THÊM VÀO COPYWITH ==========
     SocialSignInProvider? submissionProvider,
-    // ======================================
+    bool? isNewUser, // THÊM DÒNG NÀY
   }) {
     return SocialSignInState(
       status: status ?? this.status,
       errorMessage: errorMessage ?? this.errorMessage,
-      // ========== THÊM VÀO COPYWITH ==========
       submissionProvider: submissionProvider ?? this.submissionProvider,
-      // ======================================
+      isNewUser: isNewUser ?? this.isNewUser, // THÊM DÒNG NÀY
     );
   }
 
   @override
-  // ========== CẬP NHẬT PROPS ==========
-  List<Object?> get props => [status, errorMessage, submissionProvider];
-// ===================================
+  List<Object?> get props => [status, errorMessage, submissionProvider, isNewUser]; // CẬP NHẬT DÒNG NÀY
 }
-
-enum SocialSignInStatus { initial, submitting, success, error }

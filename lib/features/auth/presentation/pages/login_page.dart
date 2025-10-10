@@ -236,7 +236,6 @@ class _LoginButton extends StatelessWidget {
   }
 }
 
-// ========== CÁC WIDGET NÀY ĐÃ ĐƯỢC CẬP NHẬT LOGIC HIỂN THỊ LOADING ==========
 class _GoogleLoginButton extends StatelessWidget {
   const _GoogleLoginButton();
 
@@ -248,6 +247,15 @@ class _GoogleLoginButton extends StatelessWidget {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(SnackBar(content: Text(state.errorMessage ?? 'Đăng nhập Google thất bại.')));
+        } else if (state.status == SocialSignInStatus.success && state.isNewUser) {
+          // CHỈ HIỂN THỊ KHI ĐĂNG KÝ MỚI THÀNH CÔNG
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(const SnackBar(
+              content: Text('Đăng ký thành công! Tài khoản của bạn đang chờ phê duyệt.'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 5),
+            ));
         }
       },
       builder: (context, state) {
@@ -280,6 +288,15 @@ class _FacebookLoginButton extends StatelessWidget {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(SnackBar(content: Text(state.errorMessage ?? 'Đăng nhập Facebook thất bại.')));
+        } else if (state.status == SocialSignInStatus.success && state.isNewUser) {
+          // CHỈ HIỂN THỊ KHI ĐĂNG KÝ MỚI THÀNH CÔNG
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(const SnackBar(
+              content: Text('Đăng ký thành công! Tài khoản của bạn đang chờ phê duyệt.'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 5),
+            ));
         }
       },
       builder: (context, state) {
@@ -313,6 +330,15 @@ class _AppleLoginButton extends StatelessWidget {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(SnackBar(content: Text(state.errorMessage ?? 'Đăng nhập Apple thất bại.')));
+        } else if (state.status == SocialSignInStatus.success && state.isNewUser) {
+          // CHỈ HIỂN THỊ KHI ĐĂNG KÝ MỚI THÀNH CÔNG
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(const SnackBar(
+              content: Text('Đăng ký thành công! Tài khoản của bạn đang chờ phê duyệt.'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 5),
+            ));
         }
       },
       builder: (context, state) {

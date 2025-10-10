@@ -1,6 +1,6 @@
-// Có thể đặt part of 'login_cubit.dart'; nếu login_cubit.dart ở cùng cấp
-// Hoặc import 'login_cubit.dart' nếu ở file riêng
-part of 'login_cubit.dart'; // Giả sử login_cubit.dart sẽ được tạo cùng cấp
+// lib/features/auth/presentation/bloc/login_state.dart
+
+part of 'login_cubit.dart';
 
 // Enum để biểu diễn trạng thái của việc submit form
 enum LoginStatus {

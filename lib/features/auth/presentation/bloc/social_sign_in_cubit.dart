@@ -12,14 +12,14 @@ class SocialSignInCubit extends Cubit<SocialSignInState> {
       : _authRepository = authRepository,
         super(const SocialSignInState());
 
-  // ========== CẬP NHẬT TẤT CẢ CÁC HÀM BÊN DƯỚI ==========
+  // ***** THAY ĐỔI TOÀN BỘ LOGIC CÁC HÀM DƯỚI ĐÂY *****
   Future<void> logInWithGoogle() async {
     emit(state.copyWith(status: SocialSignInStatus.submitting, submissionProvider: SocialSignInProvider.google));
     final result = await _authRepository.signInWithGoogle();
     if (isClosed) return;
     result.fold(
           (failure) => emit(state.copyWith(status: SocialSignInStatus.error, errorMessage: failure.message, submissionProvider: SocialSignInProvider.none)),
-          (_) => emit(state.copyWith(status: SocialSignInStatus.success, submissionProvider: SocialSignInProvider.none)),
+          (signInResult) => emit(state.copyWith(status: SocialSignInStatus.success, isNewUser: signInResult.isNewUser, submissionProvider: SocialSignInProvider.none)),
     );
   }
 
@@ -29,7 +29,7 @@ class SocialSignInCubit extends Cubit<SocialSignInState> {
     if (isClosed) return;
     result.fold(
           (failure) => emit(state.copyWith(status: SocialSignInStatus.error, errorMessage: failure.message, submissionProvider: SocialSignInProvider.none)),
-          (_) => emit(state.copyWith(status: SocialSignInStatus.success, submissionProvider: SocialSignInProvider.none)),
+          (signInResult) => emit(state.copyWith(status: SocialSignInStatus.success, isNewUser: signInResult.isNewUser, submissionProvider: SocialSignInProvider.none)),
     );
   }
 
@@ -39,7 +39,7 @@ class SocialSignInCubit extends Cubit<SocialSignInState> {
     if (isClosed) return;
     result.fold(
           (failure) => emit(state.copyWith(status: SocialSignInStatus.error, errorMessage: failure.message, submissionProvider: SocialSignInProvider.none)),
-          (_) => emit(state.copyWith(status: SocialSignInStatus.success, submissionProvider: SocialSignInProvider.none)),
+          (signInResult) => emit(state.copyWith(status: SocialSignInStatus.success, isNewUser: signInResult.isNewUser, submissionProvider: SocialSignInProvider.none)),
     );
   }
 
@@ -48,13 +48,8 @@ class SocialSignInCubit extends Cubit<SocialSignInState> {
     final result = await _authRepository.signInAnonymously();
     if (isClosed) return;
     result.fold(
-          (failure) => emit(state.copyWith(
-        status: SocialSignInStatus.error,
-        errorMessage: failure.message,
-        submissionProvider: SocialSignInProvider.none,
-      )),
-          (_) => emit(state.copyWith(status: SocialSignInStatus.success, submissionProvider: SocialSignInProvider.none)),
+          (failure) => emit(state.copyWith(status: SocialSignInStatus.error, errorMessage: failure.message, submissionProvider: SocialSignInProvider.none)),
+          (_) => emit(state.copyWith(status: SocialSignInStatus.success, isNewUser: false, submissionProvider: SocialSignInProvider.none)), // Khách không bao giờ là user mới cần chờ duyệt
     );
   }
-// ==============================================================
 }

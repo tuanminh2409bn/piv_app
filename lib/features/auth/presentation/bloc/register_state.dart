@@ -1,3 +1,5 @@
+//lib/features/auth/presentation/bloc/register_state.dart
+
 part of 'register_cubit.dart';
 
 enum RegisterStatus { initial, submitting, success, error }

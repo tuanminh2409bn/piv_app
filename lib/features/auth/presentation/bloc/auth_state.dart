@@ -1,3 +1,5 @@
+//lib/features/auth/presentation/bloc/auth_state.dart
+
 part of 'auth_bloc.dart'; // Sẽ tạo file auth_bloc.dart sau
 
 // Lớp cơ sở cho tất cả các trạng thái xác thực
