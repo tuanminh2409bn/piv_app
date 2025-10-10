@@ -1,3 +1,5 @@
+// lib/features/auth/presentation/pages/login_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
@@ -65,92 +67,74 @@ class _LoginFormState extends State<LoginForm> {
             );
         }
       },
-      // ***** BẮT ĐẦU PHẦN THÊM MỚI *****
-      child: BlocListener<SocialSignInCubit, SocialSignInState>(
-        listener: (context, state) {
-          // KHI ĐĂNG NHẬP/ĐĂNG KÝ BẰNG MXH THÀNH CÔNG, HIỂN THỊ THÔNG BÁO NÀY
-          if (state.status == SocialSignInStatus.success) {
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                const SnackBar(
-                  content: Text('Thực hiện thành công! Tài khoản của bạn đang chờ phê duyệt.'),
-                  backgroundColor: Colors.green,
-                  duration: Duration(seconds: 5),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(
+              'Chào mừng!',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Đăng nhập để tiếp tục',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 48.0),
+            _EmailInput(emailFocusNode: _emailFocusNode, passwordFocusNode: _passwordFocusNode),
+            const SizedBox(height: 16.0),
+            _PasswordInput(passwordFocusNode: _passwordFocusNode),
+            const SizedBox(height: 24.0),
+            const _LoginButton(),
+            const SizedBox(height: 16.0),
+            Row(
+              children: [
+                const Expanded(child: Divider()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: Text('HOẶC', style: TextStyle(color: Colors.grey.shade600)),
                 ),
-              );
-          }
-        },
-        // ***** KẾT THÚC PHẦN THÊM MỚI *****
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Text(
-                'Chào mừng!',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Đăng nhập để tiếp tục',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 48.0),
-              _EmailInput(emailFocusNode: _emailFocusNode, passwordFocusNode: _passwordFocusNode),
-              const SizedBox(height: 16.0),
-              _PasswordInput(passwordFocusNode: _passwordFocusNode),
-              const SizedBox(height: 24.0),
-              const _LoginButton(),
-              const SizedBox(height: 16.0),
-              Row(
-                children: [
-                  const Expanded(child: Divider()),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                    child: Text('HOẶC', style: TextStyle(color: Colors.grey.shade600)),
-                  ),
-                  const Expanded(child: Divider()),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const _GoogleLoginButton(),
-              const SizedBox(height: 12),
-              const _FacebookLoginButton(),
-              if (Platform.isIOS) ...[
-                const SizedBox(height: 12),
-                const _AppleLoginButton(),
+                const Expanded(child: Divider()),
               ],
-              const SizedBox(height: 16.0),
-              const _GuestLoginButton(),
-              const SizedBox(height: 16.0),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text("Chưa có tài khoản?"),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).push(RegisterPage.route());
-                    },
-                    child: const Text('Đăng ký ngay'),
-                  ),
-                ],
-              ),
+            ),
+            const SizedBox(height: 16),
+            const _GoogleLoginButton(),
+            const SizedBox(height: 12),
+            const _FacebookLoginButton(),
+            if (Platform.isIOS) ...[
+              const SizedBox(height: 12),
+              const _AppleLoginButton(),
             ],
-          ),
+            const SizedBox(height: 16.0),
+            const _GuestLoginButton(),
+            const SizedBox(height: 16.0),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text("Chưa có tài khoản?"),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).push(RegisterPage.route());
+                  },
+                  child: const Text('Đăng ký ngay'),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-// ... (Các widget còn lại không thay đổi)
+// ... (_EmailInput, _PasswordInput, _LoginButton giữ nguyên)
 class _EmailInput extends StatelessWidget {
   final FocusNode emailFocusNode;
   final FocusNode passwordFocusNode;
@@ -252,6 +236,7 @@ class _LoginButton extends StatelessWidget {
   }
 }
 
+// ========== CÁC WIDGET NÀY ĐÃ ĐƯỢC CẬP NHẬT LOGIC HIỂN THỊ LOADING ==========
 class _GoogleLoginButton extends StatelessWidget {
   const _GoogleLoginButton();
 
@@ -355,11 +340,10 @@ class _GuestLoginButton extends StatelessWidget {
         if (state.status == SocialSignInStatus.error && state.submissionProvider == SocialSignInProvider.guest) {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
-            ..showSnackBar(
-                SnackBar(
-                  content: Text(state.errorMessage ?? 'Không thể vào với tư cách khách.'),
-                  backgroundColor: Theme.of(context).colorScheme.error,
-                ));
+            ..showSnackBar(SnackBar(
+              content: Text(state.errorMessage ?? 'Không thể vào với tư cách khách.'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ));
         }
       },
       builder: (context, state) {
