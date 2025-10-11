@@ -158,13 +158,21 @@ class ProfileCubit extends Cubit<ProfileState> {
   Future<void> deleteAccount() async {
     emit(state.copyWith(status: ProfileStatus.updating, clearErrorMessage: true));
     final result = await _userProfileRepository.deleteAccount();
+
+    if (isClosed) return; // Kiểm tra nếu cubit đã bị hủy
+
     result.fold(
           (failure) {
         developer.log('ProfileCubit: Failed to delete account - ${failure.message}', name: 'ProfileCubit');
+        // Nếu thất bại, dừng loading và hiển thị lỗi
         emit(state.copyWith(status: ProfileStatus.error, errorMessage: failure.message));
       },
           (_) {
-        developer.log('ProfileCubit: Account deletion process initiated successfully.', name: 'ProfileCubit');
+        developer.log('ProfileCubit: Account deletion confirmed by backend. Requesting client logout.', name: 'ProfileCubit');
+        // Nếu backend thành công, ra lệnh cho AuthBloc thực hiện đăng xuất.
+        // AuthBloc sẽ xử lý việc dọn dẹp và điều hướng người dùng ra ngoài.
+        // Chúng ta không cần thay đổi state của ProfileCubit nữa vì trang này sắp bị hủy.
+        _authBloc.add(AuthLogoutRequested());
       },
     );
   }

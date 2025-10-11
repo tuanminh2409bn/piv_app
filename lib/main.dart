@@ -22,6 +22,7 @@ import 'package:piv_app/features/notifications/presentation/bloc/notification_cu
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'dart:developer' as developer;
+import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -50,7 +51,6 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
-// Chuyển MyApp về lại StatelessWidget cho đơn giản
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -79,7 +79,8 @@ class MyApp extends StatelessWidget {
           Locale('en', 'US'),
         ],
         locale: const Locale('vi', 'VN'),
-        home: const InitialScreenController(),
+        // BƯỚC 2.4: THAY THẾ HOME BẰNG WIDGET MỚI
+        home: const AppTrackingTransparencyWrapper(),
       ),
     );
   }
@@ -121,6 +122,40 @@ class MyApp extends StatelessWidget {
             )
         )
     );
+  }
+}
+
+// BƯỚC 2.2: TẠO WIDGET MỚI ĐỂ YÊU CẦU QUYỀN
+class AppTrackingTransparencyWrapper extends StatefulWidget {
+  const AppTrackingTransparencyWrapper({super.key});
+
+  @override
+  State<AppTrackingTransparencyWrapper> createState() => _AppTrackingTransparencyWrapperState();
+}
+
+class _AppTrackingTransparencyWrapperState extends State<AppTrackingTransparencyWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    // Đảm bảo rằng việc yêu cầu quyền được gọi sau khi frame đầu tiên được render
+    // để tránh các vấn đề liên quan đến context.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _requestTrackingAuthorization());
+  }
+
+  Future<void> _requestTrackingAuthorization() async {
+    // Yêu cầu quyền theo dõi. Hộp thoại sẽ chỉ hiển thị
+    // trên iOS 14+ và nếu người dùng chưa quyết định trước đó.
+    final status = await AppTrackingTransparency.requestTrackingAuthorization();
+
+    // Bạn có thể xử lý kết quả `status` ở đây nếu cần.
+    // Ví dụ: log lại hoặc gửi sự kiện phân tích.
+    developer.log('App Tracking Transparency status: $status', name: 'ATT');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // BƯỚC 2.3: TRẢ VỀ WIDGET ĐIỀU KHIỂN BAN ĐẦU CỦA BẠN
+    return const InitialScreenController();
   }
 }
 
