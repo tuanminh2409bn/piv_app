@@ -1,0 +1,70 @@
+{
+  "project_info": {
+    "project_number": "435533952242",
+    "project_id": "piv-fertilizer-app",
+    "storage_bucket": "piv-fertilizer-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:435533952242:android:4b2d0f67ad239bd9004c6b",
+        "android_client_info": {
+          "package_name": "com.piv.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "435533952242-2am4np65t8ceg86mlabfd3hailc4ln1d.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.piv.app",
+            "certificate_hash": "6f94031f9a6ecc9d69fdd527c1e7e29f759d39b2"
+          }
+        },
+        {
+          "client_id": "435533952242-a2egah5qi3esmj3dotbbikot49rg3l4a.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.piv.app",
+            "certificate_hash": "2930d4e91bee68b191366f262d93b1e7e8b75d24"
+          }
+        },
+        {
+          "client_id": "435533952242-blu045qbl4u1opeqj0oca4gcdsr5u4nr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.piv.app",
+            "certificate_hash": "ee266fdd7f6c4d4b8182a5526c610a7862bc11f4"
+          }
+        },
+        {
+          "client_id": "435533952242-8n673mvm4t37l3i82f5j48hdv4h8uv8m.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAcn3v0PcMwc1jQe7S427oteWsq1q_F2_s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "435533952242-8n673mvm4t37l3i82f5j48hdv4h8uv8m.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "435533952242-16p9q7bah0iv22m3p75urrabuc0p7v9e.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.piv.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

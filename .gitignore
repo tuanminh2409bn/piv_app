@@ -1,0 +1,30 @@
+# Built application files
+/build/
+DerivedData/
+
+# Flutter/Dart IDE specific files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.dart_tool/
+.packages
+/node_modules/
+
+# Hidden files
+.DS_Store
+
+# Sensitive files (bạn có thể thêm các file cấu hình riêng tư vào đây)
+# Ví dụ:
+# /android/local.properties # Chứa đường dẫn SDK, không nên commit
+# /ios/Flutter/Generated.xcconfig # File tạo tự động
+# firebase_options.dart # Nếu chứa API key nhạy cảm và bạn không muốn public (thường thì file này được tạo bởi flutterfire configure và an toàn)
+
+# Log files
+*.log
+
+# Các file do hệ điều hành tạo ra
+Thumbs.db
+ehthumbs.db
+Desktop.ini

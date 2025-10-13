@@ -1,0 +1,75 @@
+name: piv_app
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.1+3
+
+environment:
+  sdk: '>=3.2.6 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Core & UI
+  cupertino_icons:
+  intl:
+  equatable:
+
+  # Firebase
+  firebase_core:
+  firebase_auth:
+  cloud_firestore:
+  firebase_storage:
+
+  # State Management & DI
+  flutter_bloc:
+  get_it:
+  dartz:
+
+  # Auth
+  google_sign_in: 6.3.0
+  flutter_facebook_auth:
+  app_tracking_transparency:
+
+  # Helpers & Utilities
+  shared_preferences:
+  uuid:
+  url_launcher:
+  permission_handler:
+  carousel_slider:
+
+  # Image & QR Code
+  image_picker:
+  qr_flutter:
+  mobile_scanner:
+  image_cropper:
+  dotted_border: 2.1.0
+
+  cloud_functions:
+  flutter_inappwebview:
+  rxdart:
+
+  firebase_messaging:
+  flutter_local_notifications:
+  flutter_fortune_wheel:
+  timeago:
+  badges:
+  sign_in_with_apple:
+  crypto:
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  bloc_test:
+  mocktail:
+  flutter_lints:
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+
+dependency_overrides:
+  facebook_auth_desktop:
