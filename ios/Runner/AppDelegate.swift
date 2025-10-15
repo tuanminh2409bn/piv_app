@@ -1,5 +1,3 @@
-// ios/Runner/AppDelegate.swift
-
 import UIKit
 import Flutter
 import Firebase
@@ -16,7 +14,6 @@ import FBSDKCoreKit
     FirebaseApp.configure()
     GeneratedPluginRegistrant.register(with: self)
 
-    // Facebook SDK setup
     ApplicationDelegate.shared.application(
         application,
         didFinishLaunchingWithOptions: launchOptions
@@ -25,7 +22,6 @@ import FBSDKCoreKit
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  // --- CÁC HÀM NÀY LÀ CẦN THIẾT CHO FIREBASE VÀ GIỮ NGUYÊN ---
   override func application(
     _ application: UIApplication,
     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data

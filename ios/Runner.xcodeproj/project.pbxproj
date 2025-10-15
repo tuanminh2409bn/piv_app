@@ -65,6 +65,7 @@
 		A176B65654111131AA795635 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
 		BC3267EE2E76610000111ADA /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		BCC0504D2E73FBE80013B213 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
+		BCC433B32E9E1ACA00BFCC03 /* Runner-Release.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Runner-Release.entitlements"; sourceTree = "<group>"; };
 		BCE646642E74FF9E00325D68 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		BCEE5EA92E79467E00C45E2E /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		E0442BAE3CD51762273AF2A6 /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
@@ -161,6 +162,7 @@
 		97C146F01CF9000F007C117D /* Runner */ = {
 			isa = PBXGroup;
 			children = (
+				BCC433B32E9E1ACA00BFCC03 /* Runner-Release.entitlements */,
 				BC3267EE2E76610000111ADA /* GoogleService-Info.plist */,
 				BCE646642E74FF9E00325D68 /* SceneDelegate.swift */,
 				BCC0504D2E73FBE80013B213 /* Runner.entitlements */,
@@ -504,11 +506,11 @@
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 87T9YDCVGH;
 				ENABLE_BITCODE = NO;
 				FLUTTER_BUILD_NAME = 1.0.1;
-				FLUTTER_BUILD_NUMBER = 3;
+				FLUTTER_BUILD_NUMBER = 4;
 				INFOPLIST_FILE = Runner/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = PIV;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
@@ -697,11 +699,11 @@
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 87T9YDCVGH;
 				ENABLE_BITCODE = NO;
 				FLUTTER_BUILD_NAME = 1.0.1;
-				FLUTTER_BUILD_NUMBER = 3;
+				FLUTTER_BUILD_NUMBER = 4;
 				INFOPLIST_FILE = Runner/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = PIV;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
@@ -727,14 +729,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "Runner/Runner-Release.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 87T9YDCVGH;
 				ENABLE_BITCODE = NO;
 				FLUTTER_BUILD_NAME = 1.0.1;
-				FLUTTER_BUILD_NUMBER = 3;
+				FLUTTER_BUILD_NUMBER = 4;
 				INFOPLIST_FILE = Runner/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = PIV;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";

@@ -23,6 +23,7 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'dart:developer' as developer;
 import 'package:app_tracking_transparency/app_tracking_transparency.dart';
+import 'dart:io';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -32,9 +33,23 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   developer.log("Handling a background message: ${message.messageId}", name: "BackgroundNotification");
 }
 
+// BƯỚC 3.2: TẠO HÀM YÊU CẦU QUYỀN RIÊNG
+Future<void> _requestTrackingPermission() async {
+  // Chỉ thực hiện trên iOS
+  if (Platform.isIOS) {
+    final status = await AppTrackingTransparency.requestTrackingAuthorization();
+    developer.log('App Tracking Transparency status: $status', name: 'ATT');
+  }
+}
+
 Future<void> main() async {
+  // Đảm bảo Flutter sẵn sàng
   WidgetsFlutterBinding.ensureInitialized();
 
+  // BƯỚC 3.3: YÊU CẦU QUYỀN TRACKING NGAY LẬP TỨC VÀ ĐẦU TIÊN
+  await _requestTrackingPermission();
+
+  // Sau đó mới khởi tạo các dịch vụ khác
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -42,7 +57,7 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   await di.initializeDependencies();
-  await di.sl<NotificationService>().init();
+  await di.sl<NotificationService>().init(); // Dịch vụ thông báo sẽ chạy sau
   await initializeDateFormatting('vi_VN', null);
 
   Bloc.observer = di.sl<AppBlocObserver>();
@@ -79,8 +94,8 @@ class MyApp extends StatelessWidget {
           Locale('en', 'US'),
         ],
         locale: const Locale('vi', 'VN'),
-        // BƯỚC 2.4: THAY THẾ HOME BẰNG WIDGET MỚI
-        home: const AppTrackingTransparencyWrapper(),
+        // BƯỚC 3.4: TRẢ LẠI WIDGET GỐC, KHÔNG CẦN WRAPPER
+        home: const InitialScreenController(),
       ),
     );
   }
@@ -122,40 +137,6 @@ class MyApp extends StatelessWidget {
             )
         )
     );
-  }
-}
-
-// BƯỚC 2.2: TẠO WIDGET MỚI ĐỂ YÊU CẦU QUYỀN
-class AppTrackingTransparencyWrapper extends StatefulWidget {
-  const AppTrackingTransparencyWrapper({super.key});
-
-  @override
-  State<AppTrackingTransparencyWrapper> createState() => _AppTrackingTransparencyWrapperState();
-}
-
-class _AppTrackingTransparencyWrapperState extends State<AppTrackingTransparencyWrapper> {
-  @override
-  void initState() {
-    super.initState();
-    // Đảm bảo rằng việc yêu cầu quyền được gọi sau khi frame đầu tiên được render
-    // để tránh các vấn đề liên quan đến context.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _requestTrackingAuthorization());
-  }
-
-  Future<void> _requestTrackingAuthorization() async {
-    // Yêu cầu quyền theo dõi. Hộp thoại sẽ chỉ hiển thị
-    // trên iOS 14+ và nếu người dùng chưa quyết định trước đó.
-    final status = await AppTrackingTransparency.requestTrackingAuthorization();
-
-    // Bạn có thể xử lý kết quả `status` ở đây nếu cần.
-    // Ví dụ: log lại hoặc gửi sự kiện phân tích.
-    developer.log('App Tracking Transparency status: $status', name: 'ATT');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // BƯỚC 2.3: TRẢ VỀ WIDGET ĐIỀU KHIỂN BAN ĐẦU CỦA BẠN
-    return const InitialScreenController();
   }
 }
 
