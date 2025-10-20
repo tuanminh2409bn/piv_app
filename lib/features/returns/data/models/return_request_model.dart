@@ -13,7 +13,8 @@ class ReturnRequestModel extends Equatable {
   final String userNotes;
   final String status;
   final String? adminNotes;
-  final String? rejectionReason; // <<< THÊM MỚI
+  final String? rejectionReason;
+  final double penaltyFee; // <<< THÊM MỚI
   final Timestamp createdAt;
 
   const ReturnRequestModel({
@@ -26,27 +27,51 @@ class ReturnRequestModel extends Equatable {
     required this.userNotes,
     required this.status,
     this.adminNotes,
-    this.rejectionReason, // <<< THÊM MỚI
+    this.rejectionReason,
+    this.penaltyFee = 0.0, // <<< THÊM MỚI
     required this.createdAt,
   });
 
   factory ReturnRequestModel.fromSnapshot(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+
+    // --- SỬA LỖI TỪ LẦN TRƯỚC VÀ CẬP NHẬT ---
+    final itemsList = (data['items'] as List<dynamic>?)?.map((itemMap) {
+      final map = itemMap as Map<String, dynamic>;
+      return {
+        'productId': map['productId'],
+        'productName': map['productName'],
+        'quantity': map['returnedQuantity'] ?? 0, // Đọc 'returnedQuantity'
+        'itemUnit': map['itemUnit'] ?? 'sản phẩm', // Đọc 'itemUnit'
+        'reason': map['reason'],
+      };
+    }).toList() ?? [];
+    // --- KẾT THÚC SỬA LỖI ---
+
     return ReturnRequestModel(
       id: doc.id,
       userId: data['userId'] ?? '',
       userDisplayName: data['userDisplayName'] ?? 'Không rõ',
       orderId: data['orderId'] ?? '',
-      items: List<Map<String, dynamic>>.from(data['items'] ?? []),
+      items: itemsList, // Sử dụng danh sách đã được xử lý
       imageUrls: List<String>.from(data['imageUrls'] ?? []),
       userNotes: data['userNotes'] ?? '',
       status: data['status'] ?? 'unknown',
       adminNotes: data['adminNotes'],
-      rejectionReason: data['rejectionReason'], // <<< THÊM MỚI
+      rejectionReason: data['rejectionReason'],
+      penaltyFee: (data['penaltyFee'] as num? ?? 0).toDouble(), // <<< THÊM MỚI
       createdAt: data['createdAt'] ?? Timestamp.now(),
     );
   }
 
   @override
-  List<Object?> get props => [id, userId, orderId, status, createdAt, rejectionReason]; // <<< THÊM MỚI
+  List<Object?> get props => [
+    id,
+    userId,
+    orderId,
+    status,
+    createdAt,
+    rejectionReason,
+    penaltyFee // <<< THÊM MỚI
+  ];
 }

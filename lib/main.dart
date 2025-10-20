@@ -33,9 +33,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   developer.log("Handling a background message: ${message.messageId}", name: "BackgroundNotification");
 }
 
-// BƯỚC 3.2: TẠO HÀM YÊU CẦU QUYỀN RIÊNG
 Future<void> _requestTrackingPermission() async {
-  // Chỉ thực hiện trên iOS
   if (Platform.isIOS) {
     final status = await AppTrackingTransparency.requestTrackingAuthorization();
     developer.log('App Tracking Transparency status: $status', name: 'ATT');

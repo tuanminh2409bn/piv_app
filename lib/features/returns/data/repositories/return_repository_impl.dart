@@ -31,6 +31,7 @@ class ReturnRepositoryImpl implements ReturnRepository {
     required List<ReturnRequestItem> items,
     required List<File> images,
     required String userNotes,
+    required double penaltyFee,
   }) async {
     try {
       final user = _auth.currentUser;
@@ -51,6 +52,7 @@ class ReturnRepositoryImpl implements ReturnRepository {
         'orderId': order.id,
         'items': items.map((item) => item.toMap()).toList(),
         'imageUrls': imageUrls,
+        'penaltyFee': penaltyFee,
         'userNotes': userNotes,
         'status': 'pending_approval',
         'adminNotes': null,

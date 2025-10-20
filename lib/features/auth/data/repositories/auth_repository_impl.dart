@@ -15,7 +15,6 @@ import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/auth/domain/entities/social_sign_in_result.dart';
 import 'package:piv_app/features/auth/domain/repositories/auth_repository.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
-import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final firebase_auth.FirebaseAuth _firebaseAuth;
@@ -273,9 +272,6 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<Either<Failure, SocialSignInResult>> signInWithFacebook() async {
     try {
-      final status = await AppTrackingTransparency.requestTrackingAuthorization();
-      developer.log('App Tracking Transparency status: $status', name: 'AuthRepository');
-
       final LoginResult result = await FacebookAuth.instance.login(
         permissions: ['public_profile', 'email'],
         loginTracking: LoginTracking.enabled,

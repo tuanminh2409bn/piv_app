@@ -1,13 +1,12 @@
 // functions/src/index.ts
 
-import {onCall, HttpsError, CallableRequest} from "firebase-functions/v2/https";
-import {
-  onDocumentCreated,
-  onDocumentUpdated,
-} from "firebase-functions/v2/firestore";
+import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https";
+import { onDocumentCreated, onDocumentUpdated, FirestoreEvent } from "firebase-functions/v2/firestore";
+import { Change } from "firebase-functions";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
-import {format} from "date-fns-tz";
+import { QueryDocumentSnapshot } from "firebase-admin/firestore";
+import { format } from "date-fns-tz";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -1118,6 +1117,91 @@ export const onReturnRequestUpdated = onDocumentUpdated(
         await saveNotificationToFirestore(userId, title, body, type, dataPayload);
     }
 );
+
+// ===================================================================
+// --- FUNCTION 16: TỰ ĐỘNG TRỪ CÔNG NỢ KHI ĐƠN ĐỔI TRẢ HOÀN THÀNH ---
+// ===================================================================
+export const onReturnRequestCompleted = onDocumentUpdated(
+  {document: "returnRequests/{requestId}", region: "asia-southeast1"},
+  async (event: FirestoreEvent<Change<QueryDocumentSnapshot> | undefined>) => {
+    // Kiểm tra xem event.data có tồn tại không
+    if (!event.data) {
+      logger.warn("Event data is missing for onReturnRequestCompleted.");
+      return;
+    }
+
+    const change: Change<QueryDocumentSnapshot> | undefined = event.data;
+        if (!change) {
+          logger.warn("Event data (change object) is missing for onReturnRequestCompleted.");
+          return;
+        }
+    const beforeData = change.before.data();
+    const afterData = change.after.data();
+
+    // Kiểm tra xem beforeData và afterData có tồn tại không
+    if (!beforeData || !afterData) {
+      logger.warn("Before or after data is missing in the change object.");
+      return;
+    }
+
+    // Chỉ thực thi khi trạng thái chuyển thành 'completed'
+    if (beforeData.status !== "completed" && afterData.status === "completed") {
+      const penaltyFee = afterData.penaltyFee as number;
+      const userId = afterData.userId as string;
+      const orderId = afterData.orderId as string;
+      const requestId = event.params.requestId; // Lấy requestId từ event.params
+
+      // Nếu không có phí phạt, không làm gì cả
+      if (!userId || penaltyFee <= 0) {
+        logger.log( // Sử dụng logger đã import
+          `No penalty fee for return request ${requestId}. Skipping.`
+        );
+        return; // Dùng return thay vì return null
+      }
+
+      // const db = admin.firestore(); // db đã được khởi tạo ở đầu file
+      const userRef = db.collection("users").doc(userId);
+
+      try {
+        // Sử dụng transaction để đảm bảo tính toàn vẹn dữ liệu
+        await db.runTransaction(async (transaction) => {
+          const userDoc = await transaction.get(userRef);
+          if (!userDoc.exists) {
+            throw new Error(`User ${userId} not found!`);
+          }
+
+          const currentDebt = (userDoc.data()?.debtAmount as number) || 0;
+          const newDebt = currentDebt + penaltyFee;
+
+          // 1. Cập nhật công nợ của user
+          transaction.update(userRef, {debtAmount: newDebt});
+
+          // 2. Ghi lại một giao dịch công nợ để đối soát
+          const debtTransactionRef = db.collection("debtTransactions").doc();
+          transaction.set(debtTransactionRef, {
+            userId: userId,
+            amount: penaltyFee,
+            type: "return_penalty",
+            description: `Phí phạt đổi trả cho đơn hàng #${orderId.substring(0, 8).toUpperCase()}`,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            orderId: orderId,
+            returnRequestId: requestId,
+          });
+        });
+
+        logger.log( // Sử dụng logger đã import
+          `Successfully applied penalty of ${penaltyFee} to user ${userId} for return request ${requestId}.`
+        );
+      } catch (error) {
+        logger.error( // Sử dụng logger đã import
+          `Failed to apply penalty for return request ${requestId}:`,
+          error
+        );
+        // Có thể thêm throw error ở đây nếu muốn Cloud Functions báo lỗi
+      }
+    }
+    return; // Dùng return thay vì return null
+  });
 
 // ===================================================================
 // SECTION: PRIVATE HELPER FUNCTIONS (Không thay đổi)

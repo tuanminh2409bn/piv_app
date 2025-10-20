@@ -1,3 +1,5 @@
+//lib/features/returns/domain/entities/create_return_request_cubit.dart
+
 import 'dart:io';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
@@ -16,14 +18,19 @@ class CreateReturnRequestCubit extends Cubit<CreateReturnRequestState> {
       : _returnRepository = returnRepository,
         super(const CreateReturnRequestState());
 
-  void toggleItemSelection(OrderItemModel item) {
-    final currentSelection = List<OrderItemModel>.from(state.selectedItems);
-    if (currentSelection.contains(item)) {
-      currentSelection.remove(item);
+  void updateReturnQuantity(OrderItemModel item, int newQuantity) {
+    final currentItems = Map<String, int>.from(state.returnedItems);
+    final maxQuantity = item.quantity * item.quantityPerPackage;
+
+    if (newQuantity < 0) newQuantity = 0;
+    if (newQuantity > maxQuantity) newQuantity = maxQuantity;
+
+    if (newQuantity == 0) {
+      currentItems.remove(item.productId);
     } else {
-      currentSelection.add(item);
+      currentItems[item.productId] = newQuantity;
     }
-    emit(state.copyWith(selectedItems: currentSelection));
+    emit(state.copyWith(returnedItems: currentItems));
   }
 
   Future<void> pickImages() async {
@@ -43,34 +50,45 @@ class CreateReturnRequestCubit extends Cubit<CreateReturnRequestState> {
 
   Future<void> submitRequest({
     required OrderModel order,
-    required String reason, // Giả sử lý do chung cho tất cả sản phẩm
+    required String reason,
     required String userNotes,
+    required double penaltyFee,
   }) async {
-    if (state.selectedItems.isEmpty) {
-      emit(state.copyWith(status: CreateReturnRequestStatus.error, errorMessage: 'Vui lòng chọn ít nhất một sản phẩm.'));
+    if (state.returnedItems.isEmpty || state.returnedItems.values.every((qty) => qty == 0)) {
+      emit(state.copyWith(status: CreateReturnRequestStatus.error, errorMessage: 'Vui lòng chọn số lượng cần trả cho ít nhất một sản phẩm.'));
+      emit(state.copyWith(status: CreateReturnRequestStatus.initial, clearError: true));
       return;
     }
     if (state.images.isEmpty) {
       emit(state.copyWith(status: CreateReturnRequestStatus.error, errorMessage: 'Vui lòng cung cấp ít nhất một hình ảnh làm bằng chứng.'));
+      emit(state.copyWith(status: CreateReturnRequestStatus.initial, clearError: true));
       return;
     }
 
     emit(state.copyWith(status: CreateReturnRequestStatus.submitting));
 
-    final returnItems = state.selectedItems
-        .map((item) => ReturnRequestItem(
-      productId: item.productId,
-      productName: item.productName,
-      quantity: item.quantity,
-      reason: reason,
-    ))
-        .toList();
+    final List<ReturnRequestItem> returnItems = [];
+    state.returnedItems.forEach((productId, returnedQuantity) {
+      if (returnedQuantity > 0) {
+        final originalItem = order.items.firstWhere((item) => item.productId == productId);
+        returnItems.add(
+          ReturnRequestItem(
+            productId: productId,
+            productName: originalItem.productName,
+            returnedQuantity: returnedQuantity,
+            itemUnit: originalItem.unit,
+            reason: reason,
+          ),
+        );
+      }
+    });
 
     final result = await _returnRepository.createReturnRequest(
       order: order,
       items: returnItems,
       images: state.images,
       userNotes: userNotes,
+      penaltyFee: penaltyFee,
     );
 
     result.fold(

@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/features/returns/data/models/return_request_model.dart';
 import 'package:piv_app/features/returns/presentation/bloc/admin_returns_cubit.dart';
+import 'package:intl/intl.dart';
 
 class AdminReturnRequestDetailPage extends StatelessWidget {
   final ReturnRequestModel request;
@@ -27,6 +28,7 @@ class AdminReturnRequestDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
     final statusInfo = _getStatusInfo(request.status, context);
+    final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
 
     return Scaffold(
       appBar: AppBar(title: const Text('Chi tiết Yêu cầu Đổi/Trả')),
@@ -40,6 +42,7 @@ class AdminReturnRequestDetailPage extends StatelessWidget {
             _buildInfoRow('Mã đơn hàng:', '#${request.orderId.substring(0, 8).toUpperCase()}'),
             _buildInfoRow('Người yêu cầu:', request.userDisplayName),
             _buildInfoRow('Ngày tạo:', dateFormat.format(request.createdAt.toDate())),
+            _buildInfoRow('Phí phạt:', formatter.format(request.penaltyFee), color: request.penaltyFee > 0 ? Colors.red : Colors.green.shade700),
             _buildInfoRow('Trạng thái:', statusInfo.$2, color: statusInfo.$1),
             const Divider(height: 32),
 
@@ -98,11 +101,14 @@ class AdminReturnRequestDetailPage extends StatelessWidget {
   }
 
   Widget _buildProductItem(Map<String, dynamic> item) {
+    final quantity = item['quantity'] ?? 0; // Đọc số lượng từ map đã xử lý ở model
+    final unit = item['itemUnit'] ?? 'sản phẩm'; // Đọc đơn vị
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
         title: Text(item['productName'] ?? 'Sản phẩm không tên'),
-        subtitle: Text('Số lượng: ${item['quantity'] ?? 0}'),
+        subtitle: Text('Số lượng trả: $quantity $unit'), // Hiển thị cả số lượng và đơn vị
       ),
     );
   }

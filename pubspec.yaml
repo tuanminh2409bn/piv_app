@@ -1,7 +1,7 @@
 name: piv_app
 description: "A new Flutter project."
 publish_to: 'none'
-version: 1.0.1+4
+version: 1.0.1+5
 
 environment:
   sdk: '>=3.2.6 <4.0.0'
@@ -58,6 +58,7 @@ dependencies:
   badges:
   sign_in_with_apple:
   crypto:
+  facebook_auth_desktop:
 
 dev_dependencies:
   flutter_test:
@@ -71,5 +72,3 @@ flutter:
   assets:
     - assets/
 
-dependency_overrides:
-  facebook_auth_desktop:

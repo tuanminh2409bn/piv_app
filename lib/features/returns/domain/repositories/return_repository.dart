@@ -13,9 +13,9 @@ abstract class ReturnRepository {
     required List<ReturnRequestItem> items,
     required List<File> images,
     required String userNotes,
+    required double penaltyFee,
   });
 
-  // --- THAY ĐỔI: Thêm các hàm mới ---
   Stream<List<ReturnRequestModel>> watchAllReturnRequests();
 
   Stream<ReturnRequestModel> watchReturnRequestById(String requestId);
@@ -26,5 +26,4 @@ abstract class ReturnRepository {
     String? adminNotes,
     String? rejectionReason,
   });
-// --- KẾT THÚC THAY ĐỔI ---
 }
