@@ -1,3 +1,5 @@
+//lib/features/admin/presentation/bloc/admin_vouchers_cubit.dart
+
 import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
@@ -93,11 +95,34 @@ class AdminVouchersCubit extends Cubit<AdminVouchersState> {
         historyAction = decision == 'approve' ? 'approved' : 'rejected';
       } else if (currentStatus == VoucherStatus.pendingDeletion) {
         if (decision == 'approve') {
-          await voucherRef.delete();
+          // *** THAY ĐỔI Ở ĐÂY ***
+          // Bước 1: Ghi lại hành động duyệt xóa vào history
+          final approveDeleteHistory = VoucherHistoryEntry(
+            action: 'approved_deletion', // Hành động mới, khớp với backend check
+            actorId: adminId,
+            timestamp: Timestamp.now(),
+            notes: notes, // Có thể thêm ghi chú nếu cần
+          );
+          try {
+            await voucherRef.update({
+              // Chỉ cần thêm history, không cần đổi status vì sắp xóa rồi
+              'history': FieldValue.arrayUnion([approveDeleteHistory.toMap()]),
+              'approvedBy': adminId, // Ghi lại ai duyệt xóa
+            });
+            // Bước 2: Xóa document sau khi đã ghi history thành công
+            await voucherRef.delete();
+            developer.log("Voucher ${voucher.id} deletion approved and deleted by admin $adminId.", name: "AdminVouchersCubit");
+          } catch(e) {
+            developer.log("Error during voucher deletion approval step: $e", name: "AdminVouchersCubit");
+            // Có thể emit lỗi ở đây nếu muốn thông báo cho Admin biết update/delete thất bại
+            emit(state.copyWith(status: AdminVoucherStatus.error, errorMessage: "Lỗi khi duyệt xóa voucher."));
+          }
+          // *** KẾT THÚC THAY ĐỔI ***
           return;
         } else {
-          newStatus = VoucherStatus.active;
+          newStatus = voucher.statusBeforeDeletion ?? VoucherStatus.inactive;
           historyAction = 'deletion_rejected';
+          developer.log("Rejecting deletion. Reverting status to '$newStatus' (from statusBeforeDeletion).", name: "AdminVouchersCubit");
         }
       } else {
         return;
@@ -114,6 +139,7 @@ class AdminVouchersCubit extends Cubit<AdminVouchersState> {
         'status': newStatus,
         'approvedBy': adminId,
         'history': FieldValue.arrayUnion([newHistoryEntry.toMap()]),
+        'statusBeforeDeletion': FieldValue.delete(),
       });
     } catch (e) {
       developer.log("Error reviewing voucher: $e", name: "AdminVouchersCubit");

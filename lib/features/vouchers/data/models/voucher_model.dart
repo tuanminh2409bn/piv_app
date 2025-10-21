@@ -1,3 +1,5 @@
+// lib/features/vouchers/data/models/voucher_model.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 
@@ -61,12 +63,12 @@ class VoucherModel extends Equatable {
   final int usedCount;
   final Timestamp createdAt;
   final Timestamp expiresAt;
-
-  // <<< CÁC TRƯỜNG MỚI CHO QUY TRÌNH DUYỆT >>>
   final String status;
   final String createdBy; // User ID của NVKD
   final String? approvedBy; // User ID của Admin
   final List<VoucherHistoryEntry> history;
+  final String? statusBeforeDeletion; // Lưu trạng thái trước khi yêu cầu xóa
+
 
   const VoucherModel({
     required this.id,
@@ -83,6 +85,7 @@ class VoucherModel extends Equatable {
     required this.createdBy,
     this.approvedBy,
     this.history = const [],
+    this.statusBeforeDeletion,
   });
 
   String get discountTypeString =>
@@ -117,7 +120,7 @@ class VoucherModel extends Equatable {
   List<Object?> get props => [
     id, description, discountType, discountValue, maxDiscountAmount,
     minOrderValue, maxUses, usedCount, createdAt, expiresAt,
-    status, createdBy, approvedBy, history
+    status, createdBy, approvedBy, history, statusBeforeDeletion
   ];
 
   Map<String, dynamic> toMap() {
@@ -131,11 +134,11 @@ class VoucherModel extends Equatable {
       'usedCount': usedCount,
       'createdAt': createdAt,
       'expiresAt': expiresAt,
-      // --- Các trường mới
       'status': status,
       'createdBy': createdBy,
       'approvedBy': approvedBy,
       'history': history.map((e) => e.toMap()).toList(),
+      'statusBeforeDeletion': statusBeforeDeletion,
     };
   }
 
@@ -159,6 +162,46 @@ class VoucherModel extends Equatable {
       history: (data['history'] as List<dynamic>?)
           ?.map((e) => VoucherHistoryEntry.fromMap(e as Map<String, dynamic>))
           .toList() ?? [],
+      statusBeforeDeletion: data['statusBeforeDeletion'],
+    );
+  }
+
+  VoucherModel copyWith({
+    String? id,
+    String? description,
+    DiscountType? discountType,
+    double? discountValue,
+    bool setMaxDiscountAmountNull = false,
+    double? maxDiscountAmount,
+    double? minOrderValue,
+    int? maxUses,
+    int? usedCount,
+    Timestamp? createdAt,
+    Timestamp? expiresAt,
+    String? status,
+    String? createdBy,
+    bool setApprovedByNull = false,
+    String? approvedBy,
+    List<VoucherHistoryEntry>? history,
+    bool setStatusBeforeDeletionNull = false,
+    String? statusBeforeDeletion,
+  }) {
+    return VoucherModel(
+      id: id ?? this.id,
+      description: description ?? this.description,
+      discountType: discountType ?? this.discountType,
+      discountValue: discountValue ?? this.discountValue,
+      maxDiscountAmount: setMaxDiscountAmountNull ? null : (maxDiscountAmount ?? this.maxDiscountAmount),
+      minOrderValue: minOrderValue ?? this.minOrderValue,
+      maxUses: maxUses ?? this.maxUses,
+      usedCount: usedCount ?? this.usedCount,
+      createdAt: createdAt ?? this.createdAt,
+      expiresAt: expiresAt ?? this.expiresAt,
+      status: status ?? this.status,
+      createdBy: createdBy ?? this.createdBy,
+      approvedBy: setApprovedByNull ? null : (approvedBy ?? this.approvedBy),
+      history: history ?? this.history,
+      statusBeforeDeletion: setStatusBeforeDeletionNull ? null : (statusBeforeDeletion ?? this.statusBeforeDeletion),
     );
   }
 }

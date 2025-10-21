@@ -1,3 +1,5 @@
+//lib/features/vouchers/presentation/pages/voucher_management_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
@@ -50,8 +52,34 @@ class VoucherManagementView extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ListTile(
                   title: Text(voucher.id, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(voucher.description),
-                  trailing: _buildStatusChip(voucher.status),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(voucher.description), // Giữ lại mô tả
+                      // Thêm phần hiển thị lý do nếu có
+                      Builder( // Dùng Builder để gọi hàm helper dễ dàng
+                        builder: (context) {
+                          // Luôn gọi _getRejectionReason để kiểm tra
+                          final reason = _getRejectionReason(voucher);
+                          // Chỉ hiển thị nếu tìm thấy lý do (cho cả reject tạo/sửa VÀ reject xóa)
+                          if (reason != null) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 4.0),
+                              child: Text(
+                                'Lý do từ chối: $reason',
+                                style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                                maxLines: 2, // Giới hạn 2 dòng nếu lý do quá dài
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink(); // Không hiển thị gì nếu không có lý do
+                        },
+                      ),
+                    ],
+                  ),
+                  isThreeLine: _getRejectionReason(voucher) != null, // Cho phép ListTile hiển thị 3 dòng nếu có lý do
+                  trailing: _buildTrailingActions(context, voucher),
                   onTap: () {
                     // Bọc VoucherFormPage trong BlocProvider.value để nó có thể truy cập cubit
                     Navigator.of(context).push(
@@ -115,5 +143,66 @@ class VoucherManagementView extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       labelPadding: EdgeInsets.zero,
     );
+  }
+
+  Widget _buildTrailingActions(BuildContext context, VoucherModel voucher) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildStatusChip(voucher.status), // Giữ lại chip trạng thái
+        const SizedBox(width: 8),
+        // Thêm nút Xóa (biểu tượng thùng rác)
+        IconButton(
+          icon: Icon(
+            Icons.delete_outline,
+            // Làm mờ nút nếu đang chờ xóa
+            color: voucher.status == VoucherStatus.pendingDeletion ? Colors.grey : Colors.red,
+          ),
+          tooltip: 'Yêu cầu xóa voucher',
+          // Vô hiệu hóa nút nếu đang chờ xóa để tránh nhấn nhiều lần
+          onPressed: voucher.status == VoucherStatus.pendingDeletion
+              ? null // Vô hiệu hóa
+              : () => _confirmDelete(context, voucher), // Mở hộp thoại xác nhận
+        ),
+      ],
+    );
+  }
+
+  void _confirmDelete(BuildContext context, VoucherModel voucher) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Yêu cầu Xóa Voucher'),
+        content: Text('Bạn có chắc chắn muốn gửi yêu cầu xóa voucher "${voucher.id}"?\n\nAdmin sẽ cần phê duyệt yêu cầu này.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('HỦY'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () {
+              // Gọi hàm requestDeleteVoucher từ Cubit
+              context.read<VoucherManagementCubit>().requestDeleteVoucher(voucher);
+              Navigator.of(dialogContext).pop(); // Đóng hộp thoại
+            },
+            child: const Text('YÊU CẦU XÓA'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String? _getRejectionReason(VoucherModel voucher) {
+    if (voucher.status != VoucherStatus.rejected && voucher.status != VoucherStatus.inactive) { // Có thể inactive sau khi bị từ chối xóa
+      return null;
+    }
+    // Tìm mục lịch sử từ chối gần nhất
+    final rejectionEntry = voucher.history.lastWhere(
+          (entry) => entry.action == 'rejected' || entry.action == 'deletion_rejected',
+      orElse: () => VoucherHistoryEntry(action: '', actorId: '', timestamp: null!), // Trả về entry rỗng nếu không tìm thấy
+    );
+    // Trả về ghi chú, đảm bảo không rỗng
+    return rejectionEntry.notes?.isNotEmpty == true ? rejectionEntry.notes : null;
   }
 }

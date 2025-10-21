@@ -1,7 +1,7 @@
 // functions/src/index.ts
 
 import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https";
-import { onDocumentCreated, onDocumentUpdated, FirestoreEvent } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentUpdated, onDocumentDeleted, FirestoreEvent } from "firebase-functions/v2/firestore";
 import { Change } from "firebase-functions";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
@@ -10,6 +10,13 @@ import { format } from "date-fns-tz";
 
 admin.initializeApp();
 const db = admin.firestore();
+const VoucherStatus = {
+  pendingApproval: 'pending_approval',
+  active: 'active',
+  rejected: 'rejected',
+  pendingDeletion: 'pending_deletion',
+  inactive: 'inactive',
+};
 
 // ===================================================================
 // HÀM HỖ TRỢ (ĐÃ TỐI ƯU HÓA)
@@ -1202,6 +1209,233 @@ export const onReturnRequestCompleted = onDocumentUpdated(
     }
     return; // Dùng return thay vì return null
   });
+
+// ===================================================================
+// --- FUNCTION 17: KHI VOUCHER ĐƯỢC TẠO ---
+// ===================================================================
+export const onVoucherCreated = onDocumentCreated(
+    { document: "vouchers/{voucherId}", region: "asia-southeast1" },
+    async (event) => {
+        const voucherData = event.data?.data();
+        const voucherId = event.params.voucherId;
+        // Chỉ thông báo nếu voucher mới tạo cần duyệt
+        if (!voucherData || voucherData.status !== VoucherStatus.pendingApproval) {
+            logger.info(`Voucher ${voucherId} created with status ${voucherData?.status}, no notification needed.`);
+            return;
+        }
+
+        const { createdBy } = voucherData;
+        if (!createdBy) {
+            logger.warn(`Voucher ${voucherId} is missing 'createdBy' field.`);
+            return;
+        }
+
+        try {
+            // Lấy tên NVKD
+            const creatorDoc = await db.collection("users").doc(createdBy).get();
+            const creatorName = creatorDoc.data()?.displayName ?? createdBy;
+
+            // Lấy danh sách Admin
+            const admins = await getRecipientsByRoles(["admin"]);
+            if (admins.length === 0) {
+                logger.info("No admins found to notify about new voucher.");
+                return;
+            }
+
+            // Chuẩn bị thông báo
+            const title = "🔔 Yêu cầu duyệt voucher mới";
+            const body = `NVKD "${creatorName}" vừa tạo voucher "${voucherId}" và đang chờ bạn duyệt.`;
+            const type = "voucher_approval_request"; // Loại thông báo mới
+            const dataPayload = { type, voucherId };
+
+            // Gửi và lưu thông báo cho từng Admin
+            const tokens = admins.map((r) => r.token);
+            await sendPushNotification(tokens, title, body, dataPayload);
+
+            const savePromises = admins.map((admin) =>
+                saveNotificationToFirestore(admin.id, title, body, type, dataPayload)
+            );
+            await Promise.all(savePromises);
+
+            logger.info(`Sent voucher creation notification for ${voucherId} to ${admins.length} admins.`);
+
+        } catch (error) {
+            logger.error(`Error processing voucher creation notification for ${voucherId}:`, error);
+        }
+    }
+);
+
+// ===================================================================
+// --- FUNCTION 18: KHI VOUCHER ĐƯỢC CẬP NHẬT ---
+// ===================================================================
+export const onVoucherUpdated = onDocumentUpdated(
+    { document: "vouchers/{voucherId}", region: "asia-southeast1" },
+    async (event) => {
+        // Kiểm tra xem event.data có tồn tại không
+        if (!event.data) {
+          logger.warn(`Event data is missing for onVoucherUpdated, voucherId: ${event.params.voucherId}.`);
+          return;
+        }
+        const beforeData = event.data?.before.data();
+        const afterData = event.data?.after.data();
+        const voucherId = event.params.voucherId;
+
+        // Bỏ qua nếu không có dữ liệu hoặc status không đổi
+        if (!beforeData || !afterData || beforeData.status === afterData.status) {
+            logger.info(`Voucher ${voucherId} status unchanged (${afterData?.status}), skipping notification.`);
+            return;
+        }
+
+        const oldStatus = beforeData.status;
+        const newStatus = afterData.status;
+        const createdBy = afterData.createdBy; // ID của NVKD
+
+        // Lấy lý do từ chối từ history entry gần nhất có action phù hợp
+        const rejectionEntry = (afterData.history as any[])
+                                 ?.slice().reverse() // Đảo ngược để tìm từ cuối lên
+                                 .find(h => h.action === 'rejected' || h.action === 'deletion_rejected');
+        const rejectionNotes = rejectionEntry?.notes ?? ""; // Lấy trường 'notes' (ĐÃ SỬA)
+
+        if (!createdBy) {
+            logger.warn(`Voucher ${voucherId} is missing 'createdBy' field during update.`);
+            return;
+        }
+
+        try {
+            // --- Trường hợp 1: NVKD gửi yêu cầu (Sửa hoặc Yêu cầu Xóa) -> Thông báo Admin ---
+            if ( (newStatus === VoucherStatus.pendingApproval && oldStatus !== VoucherStatus.pendingApproval) ||
+                 (newStatus === VoucherStatus.pendingDeletion && oldStatus !== VoucherStatus.pendingDeletion) )
+            {
+                const creatorDoc = await db.collection("users").doc(createdBy).get();
+                const creatorName = creatorDoc.data()?.displayName ?? createdBy;
+                const admins = await getRecipientsByRoles(["admin"]);
+                if (admins.length === 0) {
+                     logger.info(`No admins found to notify about voucher update request for ${voucherId}.`);
+                     return;
+                }
+
+                const actionText = newStatus === VoucherStatus.pendingApproval ? "sửa" : "xóa";
+                const title = `🔔 Yêu cầu duyệt ${actionText} voucher`;
+                const body = `NVKD "${creatorName}" vừa yêu cầu ${actionText} voucher "${voucherId}" và đang chờ bạn duyệt.`;
+                const type = "voucher_approval_request"; // Dùng chung type cho dễ
+                const dataPayload = { type, voucherId };
+
+                const tokens = admins.map((r) => r.token);
+                await sendPushNotification(tokens, title, body, dataPayload);
+
+                const savePromises = admins.map((admin) =>
+                    saveNotificationToFirestore(admin.id, title, body, type, dataPayload)
+                );
+                await Promise.all(savePromises);
+                logger.info(`Sent voucher ${actionText} request notification for ${voucherId} to ${admins.length} admins.`);
+                return; // Kết thúc xử lý cho trường hợp này
+            }
+
+            // --- Trường hợp 2: Admin phản hồi (Duyệt/Từ chối Tạo/Sửa, Từ chối Xóa) -> Thông báo NVKD ---
+            let title = "";
+            let body = "";
+            let type = "voucher_status_update"; // Loại thông báo chung
+
+            // Admin duyệt tạo/sửa
+            if (oldStatus === VoucherStatus.pendingApproval && newStatus === VoucherStatus.active) {
+                title = `✅ Voucher "${voucherId}" đã được duyệt`;
+                body = `Voucher "${voucherId}" bạn tạo/sửa đã được phê duyệt và đang hoạt động.`;
+            }
+            // Admin từ chối tạo/sửa
+            else if (oldStatus === VoucherStatus.pendingApproval && newStatus === VoucherStatus.rejected) {
+                title = `❌ Voucher "${voucherId}" bị từ chối`;
+                body = `Yêu cầu tạo/sửa voucher "${voucherId}" đã bị từ chối.` + (rejectionNotes ? ` Lý do: ${rejectionNotes}` : "");
+                type = "voucher_rejected";
+            }
+            // Admin từ chối xóa (voucher quay lại trạng thái cũ)
+            else if (oldStatus === VoucherStatus.pendingDeletion && newStatus !== VoucherStatus.pendingDeletion) { // newStatus có thể là active, pending_approval, rejected...
+                 title = `↩️ Yêu cầu xóa voucher "${voucherId}" bị từ chối`;
+                 body = `Admin đã từ chối yêu cầu xóa voucher "${voucherId}".` + (rejectionNotes ? ` Lý do: ${rejectionNotes}` : "");
+                 type = "voucher_deletion_rejected";
+            }
+
+            // Gửi thông báo nếu có nội dung
+            if (title && body) {
+                const creatorDoc = await db.collection("users").doc(createdBy).get();
+                 if (!creatorDoc.exists) {
+                     logger.warn(`Creator NVKD ${createdBy} not found for voucher ${voucherId}. Cannot send notification.`);
+                     return;
+                 }
+                const creatorToken = creatorDoc.data()?.fcmToken as string | undefined;
+                const dataPayload = { type, voucherId };
+
+                if (creatorToken) {
+                    await sendPushNotification([creatorToken], title, body, dataPayload);
+                }
+                await saveNotificationToFirestore(createdBy, title, body, type, dataPayload);
+                logger.info(`Sent voucher status update notification ('${type}') for ${voucherId} to NVKD ${createdBy}.`);
+            } else {
+                 logger.info(`No specific Admin->NVKD notification triggered for voucher ${voucherId} status change from ${oldStatus} to ${newStatus}.`);
+            }
+
+        } catch (error) {
+            logger.error(`Error processing voucher update notification for ${voucherId}:`, error);
+        }
+    }
+);
+
+
+// ===================================================================
+// --- FUNCTION 19: KHI VOUCHER BỊ XÓA (THÔNG BÁO CHO NVKD) ---
+// ===================================================================
+export const onVoucherDeleted = onDocumentDeleted(
+    { document: "vouchers/{voucherId}", region: "asia-southeast1" },
+    async (event: FirestoreEvent<QueryDocumentSnapshot | undefined>) => {
+        const deletedData = event.data?.data(); // Dữ liệu của voucher *trước khi* bị xóa
+        const voucherId = event.params.voucherId;
+
+        // Bỏ qua nếu không lấy được dữ liệu cũ (hiếm khi xảy ra)
+        if (!deletedData) {
+             logger.warn(`Could not get data for deleted voucher ${voucherId}. Skipping notification.`);
+             return;
+        }
+
+        const createdBy = deletedData.createdBy; // ID của NVKD đã tạo voucher
+        const lastHistoryEntry = (deletedData.history as any[])?.slice(-1)[0]; // Lấy entry cuối cùng trong lịch sử
+
+        // Kiểm tra xem voucher có đang ở trạng thái chờ xóa không
+        // VÀ hành động cuối cùng có phải là 'approved_deletion' không (hành động ta sẽ thêm ở client)
+        if ( createdBy &&
+             deletedData.status === VoucherStatus.pendingDeletion && // Phải đang chờ xóa
+             lastHistoryEntry?.action === 'approved_deletion' // Hành động cuối phải là admin duyệt xóa
+            )
+        {
+             try {
+                // Lấy thông tin NVKD để gửi thông báo
+                const creatorDoc = await db.collection("users").doc(createdBy).get();
+                 if (!creatorDoc.exists) {
+                     logger.warn(`Creator NVKD ${createdBy} not found for deleted voucher ${voucherId}. Cannot send notification.`);
+                     return;
+                 }
+                const creatorToken = creatorDoc.data()?.fcmToken as string | undefined;
+
+                // Chuẩn bị thông báo
+                const title = `🗑️ Voucher "${voucherId}" đã được xóa`;
+                const body = `Yêu cầu xóa voucher "${voucherId}" của bạn đã được Admin phê duyệt thành công.`;
+                const type = "voucher_deleted"; // Type mới
+                const dataPayload = { type, voucherId };
+
+                // Gửi thông báo đẩy nếu có token
+                if (creatorToken) {
+                    await sendPushNotification([creatorToken], title, body, dataPayload);
+                }
+                // Luôn lưu thông báo vào Firestore
+                await saveNotificationToFirestore(createdBy, title, body, type, dataPayload);
+                logger.info(`Sent voucher deletion notification for ${voucherId} to NVKD ${createdBy}.`);
+
+             } catch (error) {
+                 logger.error(`Error sending voucher deletion notification for ${voucherId}:`, error);
+             }
+        } else {
+             logger.info(`Voucher ${voucherId} deleted, but conditions for notification not met (status: ${deletedData.status}, last action: ${lastHistoryEntry?.action}).`);
+        }
+    }
+);
 
 // ===================================================================
 // SECTION: PRIVATE HELPER FUNCTIONS (Không thay đổi)
