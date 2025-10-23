@@ -264,15 +264,54 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
-  Future<Either<Failure, Unit>> approveOrder(String orderId) async {
+  Future<Either<Failure, Unit>> approveOrder(
+      String orderId, {
+        required double paidAmount,
+        required double voucherDiscount, // Thêm vào
+        String? appliedVoucherCode,     // Thêm vào
+      }) async {
     try {
-      await _firestore.collection('orders').doc(orderId).update({
-        'status': 'pending',
-        'approvedAt': FieldValue.serverTimestamp(),
+      final orderRef = _firestore.collection('orders').doc(orderId);
+
+      await _firestore.runTransaction((transaction) async {
+        final orderSnapshot = await transaction.get(orderRef);
+        if (!orderSnapshot.exists) {
+          throw Exception("Đơn hàng không tồn tại!");
+        }
+
+        final orderData = orderSnapshot.data() as Map<String, dynamic>;
+        // Lấy các giá trị cần thiết từ đơn hàng hiện tại
+        final double orderFinalTotal = (orderData['finalTotal'] as num?)?.toDouble() ?? 0.0;
+        final double orderDebtAmount = (orderData['debtAmount'] as num?)?.toDouble() ?? 0.0;
+
+        // --- SỬA ĐỔI: Tính toán công nợ còn lại bao gồm cả voucher ---
+        // Công nợ mới = Tiền hàng + Nợ cũ - Tiền trả - Giảm giá voucher
+        final double newRemainingDebt = orderFinalTotal + orderDebtAmount - paidAmount - voucherDiscount;
+
+        // Dữ liệu cần cập nhật
+        final Map<String, dynamic> dataToUpdate = {
+          'status': 'pending',
+          'approvedAt': FieldValue.serverTimestamp(),
+          'paidAmount': paidAmount,
+          'remainingDebt': newRemainingDebt.clamp(0, double.infinity), // Đảm bảo không âm
+          'discount': voucherDiscount, // <-- Lưu giá trị voucher discount
+          // Cân nhắc thêm trường 'appliedVoucherCode' vào OrderModel nếu bạn muốn lưu mã voucher đã áp dụng
+          // 'appliedVoucherCode': appliedVoucherCode,
+        };
+        // --- KẾT THÚC SỬA ĐỔI ---
+
+        transaction.update(orderRef, dataToUpdate);
+
+        developer.log('Approved order $orderId. Set paid: $paidAmount, discount: $voucherDiscount, newRemainingDebt: $newRemainingDebt', name: 'OrderRepository');
       });
+
       return const Right(unit);
     } on FirebaseException catch (e) {
-      return Left(ServerFailure(e.message ?? 'Lỗi khi duyệt đơn hàng.'));
+      developer.log('Firebase Error approving order: ${e.code} - ${e.message}', name: 'OrderRepositoryError');
+      return Left(ServerFailure(e.message ?? 'Lỗi Firebase khi duyệt đơn hàng.'));
+    } catch (e) {
+      developer.log('Unknown Error approving order: $e', name: 'OrderRepositoryError');
+      return Left(ServerFailure('Lỗi không xác định khi duyệt đơn hàng: ${e.toString()}'));
     }
   }
 

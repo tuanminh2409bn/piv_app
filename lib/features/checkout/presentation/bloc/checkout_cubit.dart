@@ -86,31 +86,35 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   }
 
   Future<void> placeOrderOnBehalfOf() async {
-    if (state.selectedAddress == null || state.checkoutItems.isEmpty || state.placeOrderForAgent == null) {
-      emit(state.copyWith(status: CheckoutStatus.error, errorMessage: "Thiếu thông tin để đặt hàng hộ."));
+    if (state.selectedAddress == null ||
+        state.checkoutItems.isEmpty ||
+        state.placeOrderForAgent == null) {
+      emit(state.copyWith(
+          status: CheckoutStatus.error,
+          errorMessage: "Vui lòng chọn địa chỉ và thêm sản phẩm."));
       return;
     }
-
-    // --- KIỂM TRA SỐ TIỀN THANH TOÁN HỢP LỆ ---
-    if (state.amountToPay < 0) {
-      emit(state.copyWith(status: CheckoutStatus.error, errorMessage: "Số tiền thanh toán không thể là số âm."));
-      return;
-    }
-    // -----------------------------------------
 
     emit(state.copyWith(status: CheckoutStatus.placingOrder));
 
     final authState = _authBloc.state;
     if (authState is! AuthAuthenticated) {
-      emit(state.copyWith(status: CheckoutStatus.error, errorMessage: "Lỗi xác thực người dùng."));
+      emit(state.copyWith(
+          status: CheckoutStatus.error, errorMessage: "Lỗi xác thực người dùng đặt hộ."));
       return;
     }
 
     final agent = state.placeOrderForAgent!;
+    final currentAgentDebt = state.currentDebt;
+    // --- SỬA LỖI: Tính toán giá trị cho OrderModel.total ---
+    final double orderTotalBeforeCommission = (state.subtotal + state.shippingFee - state.discount).clamp(0, double.infinity);
+    // Giá trị tiền hàng thực tế (sau cả commission)
+    final double orderFinalTotal = state.finalTotal;
+    // --------------------------------------------------
 
-    // --- TÍNH TOÁN CÔNG NỢ CÒN LẠI ---
-    final remainingDebt = state.totalWithDebt - state.amountToPay;
-    // ----------------------------------
+    const double paidAmountForThisOrder = 0.0; // Mặc định là 0 khi chờ duyệt
+    // Công nợ còn lại dự kiến = Tiền hàng (finalTotal) + Nợ cũ - Tiền trả (là 0)
+    final double remainingDebtAfterOrder = orderFinalTotal + currentAgentDebt - paidAmountForThisOrder;
 
     final order = OrderModel(
       userId: agent.id,
@@ -120,21 +124,26 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         role: authState.user.role,
       ),
       salesRepId: agent.salesRepId,
-      items: state.checkoutItems.map((cartItem) => OrderItemModel.fromCartItem(cartItem)).toList(),
+      items: state.checkoutItems
+          .map((cartItem) => OrderItemModel.fromCartItem(cartItem))
+          .toList(),
       shippingAddress: state.selectedAddress!,
       subtotal: state.subtotal,
       shippingFee: state.shippingFee,
-      discount: state.discount,
-      total: state.finalTotal, // SỬA LỖI: Dùng state.finalTotal
+      discount: state.discount, // Voucher discount
+      // --- SỬA LỖI: Gán đúng giá trị cho total và finalTotal ---
+      total: orderTotalBeforeCommission,    // subtotal + ship - voucher
+      finalTotal: orderFinalTotal,          // total - commissionDiscount
+      // -------------------------------------------------------
       paymentMethod: 'bank_transfer',
       paymentStatus: 'unpaid',
       commissionDiscount: state.commissionDiscount,
-      finalTotal: state.totalWithDebt, // SỬA LỖI: Dùng state.totalWithDebt
-      // --- THÊM DỮ LIỆU CÔNG NỢ VÀO ĐƠN HÀNG ---
-      debtAmount: state.currentDebt,
-      paidAmount: state.amountToPay,
-      remainingDebt: remainingDebt,
-      // -----------------------------------------
+
+      // --- LƯU THÔNG TIN CÔNG NỢ ĐÚNG ---
+      debtAmount: currentAgentDebt,
+      paidAmount: paidAmountForThisOrder, // = 0.0
+      remainingDebt: remainingDebtAfterOrder,
+      // ------------------------------------
     );
 
     final result = await _orderRepository.createOrder(
@@ -143,9 +152,11 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     );
 
     result.fold(
-          (failure) => emit(state.copyWith(status: CheckoutStatus.error, errorMessage: failure.message)),
+          (failure) => emit(state.copyWith(
+          status: CheckoutStatus.error, errorMessage: failure.message)),
           (orderId) {
-        emit(state.copyWith(status: CheckoutStatus.orderSuccess, newOrderId: orderId));
+        emit(state.copyWith(
+            status: CheckoutStatus.orderSuccess, newOrderId: orderId));
       },
     );
   }
@@ -363,27 +374,41 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     ));
   }
 
-  void loadCheckoutDataForAgent(UserModel agent) {
+  Future<void> loadCheckoutDataForAgent(UserModel agent) async {
     emit(state.copyWith(status: CheckoutStatus.loading));
+    final agentProfileResult = await _userProfileRepository.getUserProfile(agent.id);
+    if (agentProfileResult.isLeft()) {
+      emit(state.copyWith(status: CheckoutStatus.error, errorMessage: 'Không thể tải thông tin chi tiết của đại lý.'));
+      return;
+    }
+    final UserModel agentWithDetails = agentProfileResult.getOrElse(() => agent);
 
     AddressModel? defaultAddress;
-    if (agent.addresses.isNotEmpty) {
+    if (agentWithDetails.addresses.isNotEmpty) {
       try {
-        defaultAddress = agent.addresses.firstWhere((a) => a.isDefault);
+        defaultAddress = agentWithDetails.addresses.firstWhere((a) => a.isDefault);
       } catch (e) {
-        defaultAddress = agent.addresses.first;
+        defaultAddress = agentWithDetails.addresses.first;
       }
     }
 
+    final currentDebt = agentWithDetails.debtAmount;
+    final initialTotal = currentDebt; // Chỉ có công nợ ban đầu
+
     emit(state.copyWith(
       status: CheckoutStatus.success,
-      addresses: agent.addresses,
+      addresses: agentWithDetails.addresses,
       selectedAddress: defaultAddress,
-      placeOrderForAgent: agent,
-      placeOrderForUserId: agent.id,
+      placeOrderForAgent: agentWithDetails,
+      placeOrderForUserId: agentWithDetails.id,
       checkoutItems: [],
+      subtotal: 0.0,
+      shippingFee: 0.0,
       discount: 0.0,
       commissionDiscount: 0.0,
+      currentDebt: currentDebt, // <-- Đã lấy đúng công nợ
+      amountToPay: initialTotal.clamp(0, double.infinity),
+      forceVoucherToNull: true,
     ));
   }
 

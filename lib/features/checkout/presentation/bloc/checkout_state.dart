@@ -1,3 +1,5 @@
+//lib/features/checkout/cubit/checkout_state.dart
+
 part of 'checkout_cubit.dart';
 
 enum CheckoutStatus {

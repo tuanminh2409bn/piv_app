@@ -1379,7 +1379,6 @@ export const onVoucherUpdated = onDocumentUpdated(
     }
 );
 
-
 // ===================================================================
 // --- FUNCTION 19: KHI VOUCHER BỊ XÓA (THÔNG BÁO CHO NVKD) ---
 // ===================================================================
