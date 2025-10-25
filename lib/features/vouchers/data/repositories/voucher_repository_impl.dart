@@ -2,6 +2,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
+import 'package:intl/intl.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 import 'package:piv_app/features/vouchers/domain/repositories/voucher_repository.dart';
@@ -58,6 +59,7 @@ class VoucherRepositoryImpl implements VoucherRepository {
     required String code,
     required String userId,
     required String userRole,
+    required double subtotal,
   }) async {
     try {
       final doc = await _firestore.collection('vouchers').doc(code).get();
@@ -75,7 +77,10 @@ class VoucherRepositoryImpl implements VoucherRepository {
       if (voucher.maxUses != 0 && voucher.usedCount >= voucher.maxUses) {
         return Left(ServerFailure('Mã voucher đã hết lượt sử dụng.'));
       }
-
+      if (subtotal < voucher.minOrderValue) {
+        final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+        return Left(ServerFailure('Đơn hàng chưa đủ ${formatter.format(voucher.minOrderValue)} để áp dụng mã này.'));
+      }
       return Right(voucher);
     } on FirebaseException catch (e) {
       return Left(ServerFailure('Lỗi Firebase: ${e.message}'));

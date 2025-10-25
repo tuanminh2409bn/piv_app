@@ -78,6 +78,7 @@ class OrderModel extends Equatable {
   final double debtAmount;
   final double paidAmount;
   final double remainingDebt;
+  final String? appliedVoucherCode;
 
 
   const OrderModel({
@@ -105,6 +106,7 @@ class OrderModel extends Equatable {
     this.debtAmount = 0.0,
     this.paidAmount = 0.0,
     this.remainingDebt = 0.0,
+    this.appliedVoucherCode,
   });
 
   OrderModel copyWith({
@@ -131,6 +133,8 @@ class OrderModel extends Equatable {
     double? debtAmount,
     double? paidAmount,
     double? remainingDebt,
+    String? appliedVoucherCode,
+    bool forceAppliedVoucherCodeToNull = false,
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -156,6 +160,7 @@ class OrderModel extends Equatable {
       debtAmount: debtAmount ?? this.debtAmount,
       paidAmount: paidAmount ?? this.paidAmount,
       remainingDebt: remainingDebt ?? this.remainingDebt,
+      appliedVoucherCode: forceAppliedVoucherCodeToNull ? null : (appliedVoucherCode ?? this.appliedVoucherCode),
     );
   }
 
@@ -163,7 +168,7 @@ class OrderModel extends Equatable {
   List<Object?> get props => [
     id, userId, items, shippingAddress, subtotal, shippingFee, discount, total,
     paymentMethod, paymentStatus, status, createdAt, salesRepId, commissionDiscount, finalTotal,
-    placedBy, approvedAt, rejectedAt, rejectionReason, shippingDate, returnInfo, debtAmount, paidAmount, remainingDebt
+    placedBy, approvedAt, rejectedAt, rejectionReason, shippingDate, returnInfo, debtAmount, paidAmount, remainingDebt, appliedVoucherCode
   ];
 
   Map<String, dynamic> toMap() {
@@ -191,6 +196,7 @@ class OrderModel extends Equatable {
       'debtAmount': debtAmount,
       'paidAmount': paidAmount,
       'remainingDebt': remainingDebt,
+      'appliedVoucherCode': appliedVoucherCode,
     };
   }
 
@@ -230,6 +236,7 @@ class OrderModel extends Equatable {
       debtAmount: (data['debtAmount'] as num?)?.toDouble() ?? 0.0,
       paidAmount: (data['paidAmount'] as num?)?.toDouble() ?? 0.0,
       remainingDebt: (data['remainingDebt'] as num?)?.toDouble() ?? 0.0,
+      appliedVoucherCode: data['appliedVoucherCode'] as String?,
     );
   }
 }

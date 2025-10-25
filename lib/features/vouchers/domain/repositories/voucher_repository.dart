@@ -18,5 +18,6 @@ abstract class VoucherRepository {
     required String code,
     required String userId,
     required String userRole,
+    required double subtotal,
   });
 }

@@ -47,6 +47,7 @@ class OrderRepositoryImpl implements OrderRepository {
       });
       return Right(newOrderId);
     } catch (e) {
+      developer.log('Error creating order: $e', name: 'OrderRepositoryError');
       return Left(ServerFailure('Lỗi không xác định khi tạo đơn hàng: ${e.toString()}'));
     }
   }
@@ -267,8 +268,8 @@ class OrderRepositoryImpl implements OrderRepository {
   Future<Either<Failure, Unit>> approveOrder(
       String orderId, {
         required double paidAmount,
-        required double voucherDiscount, // Thêm vào
-        String? appliedVoucherCode,     // Thêm vào
+        required double voucherDiscount,
+        String? appliedVoucherCode,
       }) async {
     try {
       final orderRef = _firestore.collection('orders').doc(orderId);
@@ -280,29 +281,20 @@ class OrderRepositoryImpl implements OrderRepository {
         }
 
         final orderData = orderSnapshot.data() as Map<String, dynamic>;
-        // Lấy các giá trị cần thiết từ đơn hàng hiện tại
         final double orderFinalTotal = (orderData['finalTotal'] as num?)?.toDouble() ?? 0.0;
         final double orderDebtAmount = (orderData['debtAmount'] as num?)?.toDouble() ?? 0.0;
-
-        // --- SỬA ĐỔI: Tính toán công nợ còn lại bao gồm cả voucher ---
-        // Công nợ mới = Tiền hàng + Nợ cũ - Tiền trả - Giảm giá voucher
         final double newRemainingDebt = orderFinalTotal + orderDebtAmount - paidAmount - voucherDiscount;
 
-        // Dữ liệu cần cập nhật
         final Map<String, dynamic> dataToUpdate = {
           'status': 'pending',
           'approvedAt': FieldValue.serverTimestamp(),
           'paidAmount': paidAmount,
-          'remainingDebt': newRemainingDebt.clamp(0, double.infinity), // Đảm bảo không âm
-          'discount': voucherDiscount, // <-- Lưu giá trị voucher discount
-          // Cân nhắc thêm trường 'appliedVoucherCode' vào OrderModel nếu bạn muốn lưu mã voucher đã áp dụng
-          // 'appliedVoucherCode': appliedVoucherCode,
+          'remainingDebt': newRemainingDebt.clamp(0, double.infinity),
+          'discount': voucherDiscount,
+          'appliedVoucherCode': appliedVoucherCode,
         };
-        // --- KẾT THÚC SỬA ĐỔI ---
-
         transaction.update(orderRef, dataToUpdate);
-
-        developer.log('Approved order $orderId. Set paid: $paidAmount, discount: $voucherDiscount, newRemainingDebt: $newRemainingDebt', name: 'OrderRepository');
+        developer.log('Approved order $orderId. Set paid: $paidAmount, discount: $voucherDiscount, code: $appliedVoucherCode, newRemainingDebt: $newRemainingDebt', name: 'OrderRepository');
       });
 
       return const Right(unit);

@@ -458,10 +458,23 @@ export const onOrderStatusUpdate = onDocumentUpdated(
         if (!beforeData || !afterData || beforeData.status === afterData.status) return;
 
         const orderId = event.params.orderId;
-        const {userId, total, status: newStatus, salesRepId, shippingAddress, placedBy, shippingDate} = afterData;
+        const {userId, total, status: newStatus, salesRepId, shippingAddress, placedBy, shippingDate, appliedVoucherCode, discount} = afterData;
         const oldStatus = beforeData.status;
 
         if (newStatus === "completed" && oldStatus !== "completed") {
+            if (appliedVoucherCode && typeof appliedVoucherCode === "string" && appliedVoucherCode.length > 0 && discount > 0) {
+                const voucherRef = db.collection("vouchers").doc(appliedVoucherCode);
+                try {
+                    await voucherRef.update({
+                        usedCount: admin.firestore.FieldValue.increment(1)
+                    });
+                    logger.info(`Incremented usedCount for voucher ${appliedVoucherCode} (discount: ${discount}) due to order ${orderId} completion.`);
+                } catch (voucherError) {
+                    logger.error(`Failed to increment usedCount for voucher ${appliedVoucherCode} on order ${orderId} completion:`, voucherError);
+                }
+            } else {
+                 logger.info(`Order ${orderId} completed. No voucher usedCount incremented (code: ${appliedVoucherCode}, discount: ${discount}).`);
+            }
             try {
                 const userRef = db.collection("users").doc(userId);
                 const userDoc = await userRef.get();

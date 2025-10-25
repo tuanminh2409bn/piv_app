@@ -38,7 +38,6 @@ class SalesCommitmentView extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (state.status == SalesCommitmentAgentStatus.error && state.errorMessage != null) {
-            // Hiển thị lỗi ngay trên màn hình chính
             WidgetsBinding.instance.addPostFrameCallback((_) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.red),
@@ -104,11 +103,9 @@ class ProgramSelectionView extends StatelessWidget {
                     alignment: Alignment.centerRight,
                     child: ElevatedButton(
                       onPressed: () {
-                        // ====================== KẾT NỐI NAVIGATION ======================
                         Navigator.of(context).push(
                             CreateCommitmentFormPage.route(context.read<SalesCommitmentAgentCubit>())
                         );
-                        // ===============================================================
                       },
                       child: const Text('Đăng ký tham gia'),
                     ),
@@ -123,7 +120,6 @@ class ProgramSelectionView extends StatelessWidget {
   }
 }
 
-// ... (Class ActiveCommitmentDashboard giữ nguyên không đổi)
 class ActiveCommitmentDashboard extends StatelessWidget {
   final SalesCommitmentModel commitment;
   const ActiveCommitmentDashboard({super.key, required this.commitment});

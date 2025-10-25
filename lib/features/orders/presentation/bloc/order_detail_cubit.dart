@@ -172,7 +172,7 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
       code: code.toUpperCase(),
       userId: userId,
       userRole: userRole,
-      // CÓ THỂ cần truyền thêm subtotal vào đây nếu repository cần để kiểm tra minSpend
+      subtotal: subtotal,
     );
 
     result.fold(

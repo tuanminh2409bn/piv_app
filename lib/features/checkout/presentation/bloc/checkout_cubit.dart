@@ -106,14 +106,9 @@ class CheckoutCubit extends Cubit<CheckoutState> {
 
     final agent = state.placeOrderForAgent!;
     final currentAgentDebt = state.currentDebt;
-    // --- SỬA LỖI: Tính toán giá trị cho OrderModel.total ---
     final double orderTotalBeforeCommission = (state.subtotal + state.shippingFee - state.discount).clamp(0, double.infinity);
-    // Giá trị tiền hàng thực tế (sau cả commission)
     final double orderFinalTotal = state.finalTotal;
-    // --------------------------------------------------
-
-    const double paidAmountForThisOrder = 0.0; // Mặc định là 0 khi chờ duyệt
-    // Công nợ còn lại dự kiến = Tiền hàng (finalTotal) + Nợ cũ - Tiền trả (là 0)
+    const double paidAmountForThisOrder = 0.0;
     final double remainingDebtAfterOrder = orderFinalTotal + currentAgentDebt - paidAmountForThisOrder;
 
     final order = OrderModel(
@@ -130,20 +125,15 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       shippingAddress: state.selectedAddress!,
       subtotal: state.subtotal,
       shippingFee: state.shippingFee,
-      discount: state.discount, // Voucher discount
-      // --- SỬA LỖI: Gán đúng giá trị cho total và finalTotal ---
-      total: orderTotalBeforeCommission,    // subtotal + ship - voucher
-      finalTotal: orderFinalTotal,          // total - commissionDiscount
-      // -------------------------------------------------------
+      discount: state.discount,
+      total: orderTotalBeforeCommission,
+      finalTotal: orderFinalTotal,
       paymentMethod: 'bank_transfer',
       paymentStatus: 'unpaid',
       commissionDiscount: state.commissionDiscount,
-
-      // --- LƯU THÔNG TIN CÔNG NỢ ĐÚNG ---
       debtAmount: currentAgentDebt,
-      paidAmount: paidAmountForThisOrder, // = 0.0
+      paidAmount: paidAmountForThisOrder,
       remainingDebt: remainingDebtAfterOrder,
-      // ------------------------------------
     );
 
     final result = await _orderRepository.createOrder(
@@ -198,6 +188,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       debtAmount: state.currentDebt,
       paidAmount: state.amountToPay,
       remainingDebt: remainingDebt,
+      appliedVoucherCode: state.appliedVoucher?.id,
     );
 
     final result = await _orderRepository.createOrder(
@@ -337,6 +328,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       code: code.toUpperCase(),
       userId: _currentUserId,
       userRole: userRole,
+      subtotal: state.subtotal,
     );
 
     result.fold(
