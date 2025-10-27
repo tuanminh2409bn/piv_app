@@ -458,7 +458,7 @@ export const onOrderStatusUpdate = onDocumentUpdated(
         if (!beforeData || !afterData || beforeData.status === afterData.status) return;
 
         const orderId = event.params.orderId;
-        const {userId, total, status: newStatus, salesRepId, shippingAddress, placedBy, shippingDate, appliedVoucherCode, discount} = afterData;
+        const {userId, total, status: newStatus, salesRepId, shippingAddress, placedBy, shippingDate, appliedVoucherCode, discount, paidAmount} = afterData;
         const oldStatus = beforeData.status;
 
         if (newStatus === "completed" && oldStatus !== "completed") {
@@ -490,8 +490,11 @@ export const onOrderStatusUpdate = onDocumentUpdated(
                         if (!commitmentSnapshot.empty) {
                             const commitmentDoc = commitmentSnapshot.docs[0];
                             const commitment = commitmentDoc.data();
-                            const newAmount = (commitment.currentAmount || 0) + total;
-                            await commitmentDoc.ref.update({currentAmount: newAmount});
+                            const amountToAdd = paidAmount as number || 0;
+                            const newAmount = (commitment.currentAmount || 0) + amountToAdd;
+                            if (amountToAdd > 0) {
+                                logger.info(`Updating sales commitment for user ${userId} (order ${orderId}). Adding paidAmount: ${amountToAdd}. New total: ${newAmount}.`);
+                                await commitmentDoc.ref.update({currentAmount: newAmount});
                             if (newAmount >= commitment.targetAmount) {
                                 await commitmentDoc.ref.update({status: "completed"});
                                 await userRef.update({activeRewardProgram: "instant_discount"});
@@ -499,8 +502,6 @@ export const onOrderStatusUpdate = onDocumentUpdated(
                                     const title = "🎉 Chúc mừng! Bạn đã đạt mục tiêu!";
                                     const body = "Bạn đã hoàn thành cam kết doanh thu của mình. Liên hệ với công ty để nhận thưởng!";
                                     const type = "commitment_completed";
-
-                                    // --- SỬA LỖI 1: Thay thế hàm cũ ---
                                     await sendPushNotification(
                                         [userData.fcmToken],
                                         title,
@@ -509,6 +510,9 @@ export const onOrderStatusUpdate = onDocumentUpdated(
                                     );
                                     await saveNotificationToFirestore(userId, title, body, type, {commitmentId: commitmentDoc.id});
                                 }
+                            }
+                            } else {
+                            logger.info(`Skipping sales commitment update for order ${orderId}. paidAmount is ${amountToAdd}.`);
                             }
                         }
                     }

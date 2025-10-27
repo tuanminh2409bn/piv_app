@@ -10,13 +10,11 @@ import 'package:piv_app/data/models/order_item_model.dart';
 import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/data/models/payment_info_model.dart';
 import 'package:piv_app/data/models/user_model.dart';
-// +++ THÊM IMPORT VOUCHER MODEL +++
 import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
-// +++ KẾT THÚC THÊM +++
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/orders/presentation/bloc/order_detail_cubit.dart';
 import 'package:piv_app/features/returns/presentation/pages/create_return_request_page.dart';
-import 'package:piv_app/features/checkout/presentation/pages/checkout_page.dart'; // Để sử dụng CurrencyInputFormatter
+import 'package:piv_app/features/checkout/presentation/pages/checkout_page.dart';
 
 class OrderDetailPage extends StatelessWidget {
   // ... (Constructor và route giữ nguyên) ...
@@ -384,33 +382,27 @@ class _OrderItemsList extends StatelessWidget {
 
 class _PaymentSummary extends StatelessWidget {
   final OrderModel order;
-  final double totalAmountToHandle; // Tổng cần xử lý (đã trừ voucher)
-  final double voucherDiscount;     // Số tiền voucher giảm
+  final double totalAmountToHandle;
+  final double voucherDiscount;
   const _PaymentSummary({
     required this.order,
     required this.totalAmountToHandle,
-    required this.voucherDiscount, // Nhận voucherDiscount
+    required this.voucherDiscount,
   });
 
   @override
   Widget build(BuildContext context) {
     final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     final bool isDebtPaymentOnly = order.items.isEmpty && order.debtAmount > 0;
-
-    // --- TÍNH TOÁN CÔNG NỢ DỰ KIẾN (ESTIMATED) BAO GỒM VOUCHER ---
-    // Công nợ dự kiến = Tiền hàng + Nợ cũ - Tiền trả (hiện là 0) - Voucher giảm giá
     final double estimatedRemainingDebt = (order.finalTotal + order.debtAmount - order.paidAmount - voucherDiscount).clamp(0, double.infinity).toDouble();
-    // --- KẾT THÚC TÍNH TOÁN ---
 
     return Column(
       children: [
         if (!isDebtPaymentOnly) ...[
-          // ... (Tạm tính, Phí VC, Giảm giá voucher, Chiết khấu, Tiền hàng đơn này giữ nguyên) ...
           _buildSummaryRow(context, 'Tạm tính', formatter.format(order.subtotal)),
           const SizedBox(height: 8),
           _buildSummaryRow(context, 'Phí vận chuyển', formatter.format(order.shippingFee)),
           const SizedBox(height: 8),
-          // Hiển thị voucher discount từ state
           if (voucherDiscount > 0)
             _buildSummaryRow(context, 'Giảm giá voucher', '- ${formatter.format(voucherDiscount)}', isDiscount: true),
           if (order.commissionDiscount > 0) ...[
@@ -421,22 +413,27 @@ class _PaymentSummary extends StatelessWidget {
           _buildSummaryRow(context, 'Tiền hàng đơn này', formatter.format(order.finalTotal), isBold: true),
           const SizedBox(height: 8),
         ],
-
         if (order.debtAmount > 0)
           _buildSummaryRow(context, 'Công nợ trước đơn', '+ ${formatter.format(order.debtAmount)}', isDebt: true),
-
         const Divider(height: 24),
-
-        // Tổng cộng cần xử lý (đã bao gồm voucher)
-        _buildSummaryRow(context, 'Tổng cộng cần xử lý', formatter.format(totalAmountToHandle), isTotal: true),
+        if (isDebtPaymentOnly) ...[
+          _buildSummaryRow(
+            context,
+            'Số tiền thanh toán nợ',
+            formatter.format(order.paidAmount),
+            isTotal: true,
+          ),
+        ] else ...[
+          _buildSummaryRow(
+            context,
+            'Tổng cộng cần xử lý',
+            formatter.format(totalAmountToHandle),
+            isTotal: true,
+          ),
+        ],
         const SizedBox(height: 8),
-
         _buildSummaryRow(context, 'Đã thanh toán (đơn này)', formatter.format(order.paidAmount), isBold: true, color: Colors.blue.shade700),
         const SizedBox(height: 8),
-
-        // --- SỬA ĐỔI HIỂN THỊ CÔNG NỢ CÒN LẠI ---
-        // Nếu đang chờ duyệt, hiển thị công nợ dự kiến vừa tính
-        // Nếu đã duyệt hoặc trạng thái khác, hiển thị công nợ đã lưu trong order
         _buildSummaryRow(
             context,
             'Công nợ còn lại (dự kiến)',
@@ -446,15 +443,12 @@ class _PaymentSummary extends StatelessWidget {
                 ? Colors.red.shade700
                 : Colors.green.shade700
         ),
-        // --- KẾT THÚC SỬA ĐỔI ---
-
         const SizedBox(height: 16),
         _buildSummaryRow(context, 'Trạng thái TT', _getPaymentStatusText(order.paymentStatus), isBold: true, color: _getPaymentStatusColor(order.paymentStatus)),
       ],
     );
   }
 
-  // ... (_buildSummaryRow giữ nguyên) ...
   Widget _buildSummaryRow(BuildContext context, String label, String value, {bool isTotal = false, bool isDiscount = false, bool isDebt = false, bool isBold = false, Color? color}) {
     Color defaultColor = Colors.black87;
     if (isDiscount) defaultColor = Colors.green.shade700;
@@ -469,7 +463,7 @@ class _PaymentSummary extends StatelessWidget {
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start, // Align top để tránh nhảy dòng nếu label dài
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Flexible(
           flex: 2,
@@ -483,15 +477,15 @@ class _PaymentSummary extends StatelessWidget {
             softWrap: true,
           ),
         ),
-        const SizedBox(width: 16), // Khoảng cách giữa label và value
+        const SizedBox(width: 16),
         Flexible(
           flex: 3,
           child: Text(
             value,
             style: valueStyle,
-            textAlign: TextAlign.end, // Căn phải
-            softWrap: false, // Hạn chế value xuống dòng (nếu quá dài sẽ bị ...)
-            overflow: TextOverflow.ellipsis, // Hiển thị ... nếu quá dài
+            textAlign: TextAlign.end,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -499,7 +493,6 @@ class _PaymentSummary extends StatelessWidget {
   }
 }
 
-// +++ WIDGET MỚI: _VoucherSection +++
 class _VoucherSection extends StatefulWidget {
   final TextEditingController voucherController;
   const _VoucherSection({required this.voucherController});
@@ -540,7 +533,6 @@ class _VoucherSectionState extends State<_VoucherSection> {
 
   @override
   Widget build(BuildContext context) {
-    // Vẫn dùng BlocBuilder để lấy voucher đã áp dụng và trạng thái loading
     return BlocBuilder<OrderDetailCubit, OrderDetailState>(
       buildWhen: (prev, current) =>
       prev.appliedVoucher != current.appliedVoucher ||
@@ -554,7 +546,6 @@ class _VoucherSectionState extends State<_VoucherSection> {
           icon: Icons.confirmation_number_outlined,
           child: state.appliedVoucher != null
               ? _buildAppliedVoucherCard(context, state.appliedVoucher!, cubit)
-          // Truyền trạng thái isLoading và isButtonEnabled vào hàm build input
               : _buildVoucherInput(context, widget.voucherController, cubit, isLoadingVoucher, _isButtonEnabled),
         );
       },

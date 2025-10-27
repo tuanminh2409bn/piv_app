@@ -1,8 +1,10 @@
+//lib/features/orders/presentation/pages/order_success_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:piv_app/features/orders/presentation/pages/order_detail_page.dart';
 
 class OrderSuccessPage extends StatelessWidget {
-  final String orderId; // <<< NHẬN ORDER ID
+  final String orderId;
 
   const OrderSuccessPage({super.key, required this.orderId});
 
