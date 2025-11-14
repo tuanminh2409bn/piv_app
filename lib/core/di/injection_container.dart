@@ -109,7 +109,7 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<NewsDetailCubit>(() => NewsDetailCubit(homeRepository: sl()));
 
   // == Product & Category ==
-  sl.registerFactory<ProductDetailCubit>(() => ProductDetailCubit(homeRepository: sl()));
+  sl.registerFactory<ProductDetailCubit>(() => ProductDetailCubit(homeRepository: sl(), authBloc: sl()));
   sl.registerFactory<CategoryProductsCubit>(() => CategoryProductsCubit(homeRepository: sl()));
 
   // == Cart ==
@@ -129,7 +129,7 @@ Future<void> initializeDependencies() async {
 
   // == Search ==
   sl.registerLazySingleton<SearchRepository>(() => SearchRepositoryImpl(prefs: sl()));
-  sl.registerFactory<SearchCubit>(() => SearchCubit(searchRepository: sl(), homeRepository: sl()));
+  sl.registerFactory<SearchCubit>(() => SearchCubit(searchRepository: sl(), homeRepository: sl(), authBloc: sl(),));
 
   // == Order & Checkout ==
   sl.registerLazySingleton<OrderRepository>(() => OrderRepositoryImpl(firestore: sl(), settingsRepository: sl()));
@@ -143,7 +143,7 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<AdminOrdersCubit>(() => AdminOrdersCubit(orderRepository: sl(), userProfileRepository: sl()));
   sl.registerFactory<AdminProductsCubit>(() => AdminProductsCubit(homeRepository: sl()));
   sl.registerFactory(() => AdminUsersCubit(adminRepository: sl(), authBloc: sl()));
-  sl.registerFactory<ProductFormCubit>(() => ProductFormCubit(homeRepository: sl(), storageRepository: sl()));
+  sl.registerFactory<ProductFormCubit>(() => ProductFormCubit(homeRepository: sl(), storageRepository: sl(), adminRepository: sl()));
   sl.registerFactory<AdminCategoriesCubit>(() => AdminCategoriesCubit(homeRepository: sl<HomeRepository>()));
   sl.registerFactory<AdminCommissionsCubit>(() => AdminCommissionsCubit(orderRepository: sl(), adminRepository: sl(), authBloc: sl()));
   sl.registerLazySingleton<SettingsRepository>(() => SettingsRepositoryImpl(firestore: sl()));

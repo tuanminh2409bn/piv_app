@@ -1,7 +1,6 @@
 // lib/features/admin/presentation/bloc/manage_quick_list_cubit.dart
 
 import 'dart:async';
-
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/features/admin/data/models/quick_order_item_model.dart';

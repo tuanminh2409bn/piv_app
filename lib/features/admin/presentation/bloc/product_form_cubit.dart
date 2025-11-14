@@ -9,52 +9,87 @@ import 'dart:io';
 import 'package:uuid/uuid.dart';
 import 'dart:developer' as developer;
 
+// Import cần thiết
+import 'package:dartz/dartz.dart';
+import 'package:piv_app/core/error/failure.dart';
+import 'package:piv_app/features/admin/domain/repositories/admin_repository.dart';
+import 'package:piv_app/data/models/user_model.dart';
+import 'package:collection/collection.dart';
+
+// --- LƯU Ý: Đảm bảo file state của bạn được import đúng ---
 part 'product_form_state.dart';
 
 class ProductFormCubit extends Cubit<ProductFormState> {
   final HomeRepository _homeRepository;
   final StorageRepository _storageRepository;
+  final AdminRepository _adminRepository;
 
   ProductFormCubit({
     required HomeRepository homeRepository,
     required StorageRepository storageRepository,
+    required AdminRepository adminRepository,
   })  : _homeRepository = homeRepository,
         _storageRepository = storageRepository,
+        _adminRepository = adminRepository,
         super(ProductFormState.initial());
 
   Future<void> initializeForm({ProductModel? productToEdit}) async {
     emit(state.copyWith(status: ProductFormStatus.loading));
 
-    final categoriesResult = await _homeRepository.getAllCategories();
+    final results = await Future.wait([
+      _homeRepository.getAllCategories(),
+      _adminRepository.getAllUsers(), // <-- SỬA LỖI 1: Dùng getAllUsers()
+    ]);
 
-    categoriesResult.fold(
-          (failure) {
-        emit(state.copyWith(status: ProductFormStatus.error, errorMessage: failure.message));
-      },
-          (allCategories) {
-        final topLevelCategories = allCategories.where((c) => c.parentId == null).toList();
+    final categoriesResult = results[0] as Either<Failure, List<CategoryModel>>;
+    final usersResult = results[1] as Either<Failure, List<UserModel>>;
 
-        List<List<CategoryModel>> initialLevels = [topLevelCategories];
-        List<CategoryModel?> initialPath = [null];
+    if (categoriesResult.isLeft() || usersResult.isLeft()) {
+      final errorMessage = categoriesResult.isLeft()
+          ? (categoriesResult as Left<Failure, dynamic>).value.message
+          : (usersResult as Left<Failure, dynamic>).value.message;
+      emit(state.copyWith(status: ProductFormStatus.error, errorMessage: errorMessage));
+      return;
+    }
 
-        if (productToEdit != null && productToEdit.categoryId.isNotEmpty) {
-          final pathAndLevels = _buildInitialPath(productToEdit.categoryId, allCategories, topLevelCategories);
-          initialPath = pathAndLevels.$1;
-          initialLevels = pathAndLevels.$2;
-        }
+    final allCategories = categoriesResult.getOrElse(() => []);
+    // --- SỬA LỖI 2: Lọc đại lý bằng cách kiểm tra role ---
+    final allAgents = usersResult.getOrElse(() => [])
+        .where((user) => user.role == 'agent_1' || user.role == 'agent_2')
+        .toList();
+    // --- KẾT THÚC SỬA LỖI 2 ---
 
-        emit(state.copyWith(
-          status: ProductFormStatus.success,
-          allCategories: allCategories,
-          categoryLevels: initialLevels,
-          selectedCategoryPath: initialPath,
-          initialProduct: productToEdit,
-          isEditing: productToEdit != null,
-        ));
-      },
-    );
+    final topLevelCategories = allCategories.where((c) => c.parentId == null).toList();
+    List<List<CategoryModel>> initialLevels = [topLevelCategories];
+    List<CategoryModel?> initialPath = [null];
+    UserModel? initialOwnerAgent;
+
+    if (productToEdit != null) {
+      if (productToEdit.categoryId.isNotEmpty) {
+        final pathAndLevels = _buildInitialPath(productToEdit.categoryId, allCategories, topLevelCategories);
+        initialPath = pathAndLevels.$1;
+        initialLevels = pathAndLevels.$2;
+      }
+      if (productToEdit.isPrivate && productToEdit.ownerAgentId != null) {
+        initialOwnerAgent = allAgents.firstWhereOrNull(
+                (agent) => agent.id == productToEdit.ownerAgentId
+        );
+      }
+    }
+
+    emit(state.copyWith(
+      status: ProductFormStatus.success,
+      allCategories: allCategories,
+      categoryLevels: initialLevels,
+      selectedCategoryPath: initialPath,
+      initialProduct: productToEdit,
+      isEditing: productToEdit != null,
+      agents: allAgents,
+      selectedOwnerAgent: initialOwnerAgent,
+    ));
   }
 
+  // ... (Hàm selectCategory và _buildInitialPath giữ nguyên) ...
   void selectCategory(CategoryModel? selectedCategory, int level) {
     if (state.status != ProductFormStatus.success && state.status != ProductFormStatus.error) return;
 
@@ -139,6 +174,7 @@ class ProductFormCubit extends Cubit<ProductFormState> {
     );
   }
 
+  // SỬA HÀM saveProduct (thêm isPrivate và ownerAgentId)
   Future<void> saveProduct({
     required String name,
     required String description,
@@ -148,6 +184,9 @@ class ProductFormCubit extends Cubit<ProductFormState> {
     required String itemUnit,
     required Map<String, String> prices,
     required bool isFeatured,
+    // --- THÊM 2 THAM SỐ MỚI ---
+    required bool isPrivate,
+    required String? ownerAgentId,
   }) async {
     emit(state.copyWith(status: ProductFormStatus.submitting));
 
@@ -157,6 +196,12 @@ class ProductFormCubit extends Cubit<ProductFormState> {
       return;
     }
 
+    if (isPrivate && (ownerAgentId == null || ownerAgentId.isEmpty)) {
+      emit(state.copyWith(status: ProductFormStatus.error, errorMessage: 'Vui lòng chọn một đại lý sở hữu cho sản phẩm riêng tư.'));
+      return;
+    }
+
+    // ... (Logic xử lý giá, ảnh, quy cách giữ nguyên) ...
     Map<String, double> pricesToSave = {};
     try {
       prices.forEach((key, value) {
@@ -186,11 +231,11 @@ class ProductFormCubit extends Cubit<ProductFormState> {
 
     final newPackagingOption = PackagingOptionModel(
         name: packagingName,
-        // --- SỬA: Sử dụng đúng tên tham số khi khởi tạo ---
         quantityPerPackage: int.tryParse(itemsPerCase) ?? 1,
         unit: itemUnit,
         prices: pricesToSave
     );
+    // --- KẾT THÚC LOGIC CŨ ---
 
     final productToSave = ProductModel(
       id: state.initialProduct?.id ?? '',
@@ -199,8 +244,11 @@ class ProductFormCubit extends Cubit<ProductFormState> {
       imageUrl: finalImageUrl,
       categoryId: selectedCategoryId,
       isFeatured: isFeatured,
-      packingOptions: [newPackagingOption], // --- SỬA: Sử dụng packingOptions ---
+      packingOptions: [newPackagingOption],
       createdAt: state.initialProduct?.createdAt,
+      // --- THÊM DỮ LIỆU MỚI VÀO MODEL ---
+      isPrivate: isPrivate,
+      ownerAgentId: isPrivate ? ownerAgentId : null,
     );
 
     final result = state.isEditing

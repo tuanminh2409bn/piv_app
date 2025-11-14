@@ -15,6 +15,8 @@ class ProductModel extends Equatable {
   final Map<String, dynamic>? attributes;
   final List<PackagingOptionModel> packingOptions;
   final String? productType;
+  final bool isPrivate;
+  final String? ownerAgentId;
 
   const ProductModel({
     required this.id,
@@ -27,6 +29,8 @@ class ProductModel extends Equatable {
     this.attributes,
     this.packingOptions = const [],
     this.productType,
+    this.isPrivate = false,
+    this.ownerAgentId,
   });
 
   double getPriceForRole(String role) {
@@ -43,7 +47,7 @@ class ProductModel extends Equatable {
   List<Object?> get props => [
     id, name, description, imageUrl, categoryId,
     isFeatured, createdAt, attributes, packingOptions,
-    productType // <<< THÊM VÀO PROPS
+    productType, isPrivate, ownerAgentId
   ];
 
   factory ProductModel.fromSnapshot(DocumentSnapshot snap) {
@@ -64,6 +68,8 @@ class ProductModel extends Equatable {
       attributes: data['attributes'] is Map ? Map<String, dynamic>.from(data['attributes']) : null,
       packingOptions: optionsList,
       productType: data['productType'] as String?,
+      isPrivate: data['isPrivate'] as bool? ?? false,
+      ownerAgentId: data['ownerAgentId'] as String?,
     );
   }
 
@@ -78,6 +84,8 @@ class ProductModel extends Equatable {
       'attributes': attributes,
       'packingOptions': packingOptions.map((option) => option.toMap()).toList(),
       'productType': productType,
+      'isPrivate': isPrivate,
+      'ownerAgentId': ownerAgentId,
     };
   }
 
@@ -92,6 +100,9 @@ class ProductModel extends Equatable {
     Map<String, dynamic>? attributes,
     List<PackagingOptionModel>? packingOptions,
     String? productType,
+    bool? isPrivate,
+    String? ownerAgentId,
+    bool clearOwnerAgentId = false,
   }) {
     return ProductModel(
       id: id ?? this.id,
@@ -104,6 +115,8 @@ class ProductModel extends Equatable {
       attributes: attributes ?? this.attributes,
       packingOptions: packingOptions ?? this.packingOptions,
       productType: productType ?? this.productType,
+      isPrivate: isPrivate ?? this.isPrivate,
+      ownerAgentId: clearOwnerAgentId ? null : (ownerAgentId ?? this.ownerAgentId),
     );
   }
 }

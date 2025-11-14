@@ -1,5 +1,3 @@
-// lib/features/sales_rep/presentation/pages/sales_rep_home_page.dart
-
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -21,6 +19,8 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/create_agent_order_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/manage_quick_order_list_page.dart';
 import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
+import 'package:piv_app/features/admin/presentation/bloc/admin_products_cubit.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_products_page.dart';
 
 
 class SalesRepHomePage extends StatelessWidget {
@@ -49,8 +49,9 @@ class SalesRepView extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
 
+    // --- SỬA ĐỔI: Tăng length từ 6 lên 7 ---
     return DefaultTabController(
-      length: 6,
+      length: 7, // <-- SỬA Ở ĐÂY
       child: Scaffold(
         appBar: AppBar(
           title: Text('Chào, ${user.displayName ?? user.email}'),
@@ -67,6 +68,7 @@ class SalesRepView extends StatelessWidget {
               onPressed: () => context.read<AuthBloc>().add(AuthLogoutRequested()),
             ),
           ],
+          // --- SỬA ĐỔI: Thêm Tab "Sản phẩm" ---
           bottom: const TabBar(
             isScrollable: true,
             tabAlignment: TabAlignment.start,
@@ -77,9 +79,11 @@ class SalesRepView extends StatelessWidget {
               Tab(icon: Icon(Icons.attach_money_outlined), text: 'Hoa hồng'),
               Tab(icon: Icon(Icons.workspace_premium_outlined), text: 'Cam kết'),
               Tab(icon: Icon(Icons.confirmation_number_outlined), text: 'Voucher'),
+              Tab(icon: Icon(Icons.inventory_2_outlined), text: 'Sản phẩm'), // <-- TAB MỚI
             ],
           ),
         ),
+        // --- SỬA ĐỔI: Thêm View cho tab "Sản phẩm" ---
         body: const TabBarView(
           children: [
             MyAgentsView(),
@@ -88,6 +92,7 @@ class SalesRepView extends StatelessWidget {
             SalesRepCommissionsView(),
             CommitmentManagementPageWrapper(),
             VoucherManagementPageWrapper(),
+            ProductManagementPageWrapper(),
           ],
         ),
       ),
@@ -143,6 +148,18 @@ class CommitmentManagementPageWrapper extends StatelessWidget {
     return BlocProvider(
       create: (context) => sl<SalesCommitmentAdminCubit>()..watchAllCommitments(),
       child: const AdminCommitmentsPage(),
+    );
+  }
+}
+
+class ProductManagementPageWrapper extends StatelessWidget {
+  const ProductManagementPageWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => sl<AdminProductsCubit>()..fetchAllProducts(),
+      child: const AdminProductsPage(),
     );
   }
 }

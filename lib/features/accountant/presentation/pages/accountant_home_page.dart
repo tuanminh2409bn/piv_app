@@ -18,6 +18,8 @@ import 'package:piv_app/features/accountant/presentation/bloc/accountant_agents_
 import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
 import 'package:piv_app/features/returns/presentation/bloc/admin_returns_cubit.dart';
 import 'package:piv_app/features/returns/presentation/pages/admin_return_requests_page.dart';
+import 'package:piv_app/features/admin/presentation/bloc/admin_products_cubit.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_products_page.dart';
 
 
 class AccountantHomePage extends StatelessWidget {
@@ -31,8 +33,9 @@ class AccountantHomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
 
+    // --- SỬA ĐỔI: Tăng length từ 7 lên 8 ---
     return DefaultTabController(
-      length: 7,
+      length: 8, // <-- SỬA Ở ĐÂY
       child: Scaffold(
         appBar: AppBar(
           title: Text('Kế toán: ${user.displayName ?? ''}'),
@@ -44,6 +47,7 @@ class AccountantHomePage extends StatelessWidget {
               onPressed: () => context.read<AuthBloc>().add(AuthLogoutRequested()),
             ),
           ],
+          // --- SỬA ĐỔI: Thêm Tab "Sản phẩm" ---
           bottom: const TabBar(
             isScrollable: true,
             tabAlignment: TabAlignment.start,
@@ -52,18 +56,21 @@ class AccountantHomePage extends StatelessWidget {
               Tab(icon: Icon(Icons.receipt_long_outlined), text: 'Đơn hàng'),
               Tab(icon: Icon(Icons.account_balance_wallet_outlined), text: 'Công nợ'),
               Tab(icon: Icon(Icons.sync_problem_outlined), text: 'Đổi/Trả'),
+              Tab(icon: Icon(Icons.inventory_2_outlined), text: 'Sản phẩm'), // <-- TAB MỚI
               Tab(icon: Icon(Icons.workspace_premium_outlined), text: 'Cam kết'),
               Tab(icon: Icon(Icons.add_shopping_cart), text: 'Đặt hàng hộ'),
               Tab(icon: Icon(Icons.playlist_add_check_rounded), text: 'Cài đặt Đặt nhanh'),
             ],
           ),
         ),
+        // --- SỬA ĐỔI: Thêm View cho tab "Sản phẩm" ---
         body: const TabBarView(
           children: [
             AdminUsersPage(),
             AdminOrdersPage(),
             AdminDebtManagementPageWrapper(),
             _ReturnRequestManagementTabWrapper(),
+            ProductManagementPageWrapper(), // <-- VIEW MỚI
             CommitmentManagementPageWrapper(),
             AllAgentsViewForAccountant(),
             _QuickOrderManagementTabWrapper(),
@@ -74,7 +81,18 @@ class AccountantHomePage extends StatelessWidget {
   }
 }
 
-// --- THÊM WIDGET WRAPPER MỚI CHO TRANG CÔNG NỢ ---
+class ProductManagementPageWrapper extends StatelessWidget {
+  const ProductManagementPageWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => sl<AdminProductsCubit>()..fetchAllProducts(),
+      child: const AdminProductsPage(),
+    );
+  }
+}
+
 class AdminDebtManagementPageWrapper extends StatelessWidget {
   const AdminDebtManagementPageWrapper({super.key});
 
@@ -87,9 +105,7 @@ class AdminDebtManagementPageWrapper extends StatelessWidget {
     );
   }
 }
-// ------------------------------------------------
 
-// ... (Các widget wrapper và view còn lại giữ nguyên không đổi)
 class _ReturnRequestManagementTabWrapper extends StatelessWidget {
   const _ReturnRequestManagementTabWrapper();
 

@@ -1,5 +1,3 @@
-// lib/features/admin/presentation/pages/manage_quick_order_list_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -17,8 +15,6 @@ class ManageQuickOrderListPage extends StatelessWidget {
   const ManageQuickOrderListPage({super.key, required this.agent});
 
   static Route<void> route(UserModel agent) {
-    // Đảm bảo rằng chúng ta chỉ truyền vào các repository cần thiết
-    // và agentId cho Cubit
     return MaterialPageRoute<void>(
       builder: (_) => BlocProvider(
         create: (context) => ManageQuickListCubit(
@@ -30,15 +26,20 @@ class ManageQuickOrderListPage extends StatelessWidget {
     );
   }
 
-  // Hàm xử lý khi nhấn nút "Thêm sản phẩm"
+  // --- SỬA ĐỔI HÀM NÀY ---
   void _onAddProduct(BuildContext context) async {
     final currentUser = (context.read<AuthBloc>().state as AuthAuthenticated).user;
     final cubit = context.read<ManageQuickListCubit>();
 
     // Điều hướng đến trang tìm kiếm để chọn sản phẩm
     final selectedProduct = await Navigator.of(context).push<ProductModel?>(
-      SearchPage.route(isSelectionMode: true, targetUserRole: agent.role),
+      SearchPage.route(
+        isSelectionMode: true,
+        targetUserRole: agent.role,
+        targetAgentId: agent.id, // <-- THÊM ID CỦA ĐẠI LÝ ĐANG QUẢN LÝ
+      ),
     );
+    // --- KẾT THÚC SỬA ĐỔI ---
 
     if (selectedProduct != null && context.mounted) {
       // Gọi hàm addProduct từ Cubit
@@ -118,7 +119,6 @@ class _ProductListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Lấy giá mặc định từ quy cách đầu tiên để hiển thị.
-    // Bạn có thể thay đổi logic này nếu muốn hiển thị giá khác.
     final displayPrice = product.packingOptions.isNotEmpty
         ? product.getPriceForRole('agent_2') // Giả sử lấy giá đại lý cấp 2 để hiển thị
         : 0.0;
@@ -129,22 +129,42 @@ class _ProductListItem extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(8.0),
-          child: Image.network(
-            product.imageUrl,
-            width: 60,
-            height: 60,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) =>
-                Container(
-                  width: 60,
-                  height: 60,
-                  color: Colors.grey.shade200,
-                  child: const Icon(Icons.image_not_supported, color: Colors.grey),
+        // --- SỬA ĐỔI: Thêm Stack để hiển thị icon private ---
+        leading: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8.0),
+              child: Image.network(
+                product.imageUrl,
+                width: 60,
+                height: 60,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    Container(
+                      width: 60,
+                      height: 60,
+                      color: Colors.grey.shade200,
+                      child: const Icon(Icons.image_not_supported, color: Colors.grey),
+                    ),
+              ),
+            ),
+            if (product.isPrivate) // <-- Kiểm tra
+              Positioned(
+                top: -4,
+                left: -4,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.error,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.lock, color: Colors.white, size: 12),
                 ),
-          ),
+              ),
+          ],
         ),
+        // --- KẾT THÚC SỬA ĐỔI ---
         title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(
           currencyFormatter.format(displayPrice),
@@ -158,7 +178,7 @@ class _ProductListItem extends StatelessWidget {
           icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
           tooltip: 'Xóa',
           onPressed: () {
-            // Hiển thị dialog xác nhận trước khi xóa
+            // Dialog xác nhận (giữ nguyên)
             showDialog(
               context: context,
               builder: (dialogContext) => AlertDialog(

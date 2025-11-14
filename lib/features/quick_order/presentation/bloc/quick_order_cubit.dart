@@ -1,4 +1,5 @@
 // lib/features/quick_order/presentation/bloc/quick_order_cubit.dart
+
 import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';

@@ -6,7 +6,11 @@ import 'package:piv_app/features/admin/presentation/bloc/product_form_cubit.dart
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/home/data/models/category_model.dart';
 
-// ... phần còn lại của file giữ nguyên như phiên bản trước ...
+// --- THÊM IMPORT CẦN THIẾT ---
+import 'package:piv_app/data/models/user_model.dart';
+import 'package:collection/collection.dart'; // Cần cho firstWhereOrNull
+// --- KẾT THÚC IMPORT ---
+
 class AdminProductFormPage extends StatelessWidget {
   final ProductModel? product;
   const AdminProductFormPage({super.key, this.product});
@@ -44,6 +48,11 @@ class _ProductFormViewState extends State<ProductFormView> {
   late final TextEditingController _agent1PriceController = TextEditingController();
   late final TextEditingController _agent2PriceController = TextEditingController();
 
+  // --- THÊM STATE CHO SẢN PHẨM RIÊNG ---
+  late bool _isPrivate = false;
+  UserModel? _selectedOwnerAgent;
+  // --- KẾT THÚC THÊM STATE ---
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -57,6 +66,7 @@ class _ProductFormViewState extends State<ProductFormView> {
   }
 
   void _onSavePressed() {
+    // --- SỬA LỖI 2 & 3: Truyền thêm isPrivate và ownerAgentId ---
     context.read<ProductFormCubit>().saveProduct(
       name: _nameController.text.trim(),
       description: _descriptionController.text.trim(),
@@ -69,6 +79,9 @@ class _ProductFormViewState extends State<ProductFormView> {
         'agent_2': _agent2PriceController.text.trim(),
       },
       isFeatured: _isFeatured,
+      // --- THÊM CÁC THAM SỐ CÒN THIẾU ---
+      isPrivate: _isPrivate,
+      ownerAgentId: _selectedOwnerAgent?.id,
     );
   }
 
@@ -80,9 +93,20 @@ class _ProductFormViewState extends State<ProductFormView> {
 
     _nameController.text = product.name;
     _descriptionController.text = product.description;
+
     if(mounted) {
+      // Lấy state hiện tại của Cubit để tìm agent
+      final cubitState = context.read<ProductFormCubit>().state;
       setState(() {
         _isFeatured = product.isFeatured;
+
+        // --- CẬP NHẬT STATE MỚI KHI SỬA ---
+        _isPrivate = product.isPrivate;
+        // Tìm và gán đại lý đã chọn từ danh sách đã tải
+        _selectedOwnerAgent = cubitState.agents.firstWhereOrNull(
+                (agent) => agent.id == product.ownerAgentId
+        );
+        // --- KẾT THÚC CẬP NHẬT ---
       });
     }
 
@@ -96,10 +120,15 @@ class _ProductFormViewState extends State<ProductFormView> {
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<ProductFormCubit, ProductFormState>(
-      listenWhen: (previous, current) => previous.status != current.status,
+      // --- SỬA LOGIC LISTEN ĐỂ GỌI _updateControllers CHÍNH XÁC ---
+      listenWhen: (previous, current) =>
+      previous.status != current.status ||
+          (previous.status == ProductFormStatus.loading && current.status == ProductFormStatus.success),
       listener: (context, state) {
         if (state.status == ProductFormStatus.success) {
-          if(state.initialProduct != null) {
+          // Chỉ gọi _updateControllers KHI initialProduct có sẵn
+          // và tên chưa được điền (chỉ chạy 1 lần)
+          if(state.initialProduct != null && _nameController.text.isEmpty) {
             _updateControllers(state.initialProduct);
           }
         } else if (state.status == ProductFormStatus.submissionSuccess) {
@@ -113,6 +142,7 @@ class _ProductFormViewState extends State<ProductFormView> {
           );
         }
       },
+      // --- KẾT THÚC SỬA LOGIC LISTEN ---
       builder: (context, state) {
         final isSubmitting = state.status == ProductFormStatus.submitting;
         return Scaffold(
@@ -152,10 +182,54 @@ class _ProductFormViewState extends State<ProductFormView> {
             _buildTextField(controller: _descriptionController, label: 'Mô tả', maxLines: 5),
             const SizedBox(height: 24),
 
+            // --- THÊM MỤC SẢN PHẨM RIÊNG ---
+            Text('Phân loại sản phẩm', style: Theme.of(context).textTheme.titleMedium),
+            const Divider(),
+            SwitchListTile(
+              title: const Text('Sản phẩm riêng tư'),
+              subtitle: const Text('Chỉ hiển thị cho một đại lý cụ thể'),
+              value: _isPrivate,
+              onChanged: (bool value) => setState(() {
+                _isPrivate = value;
+                if (!_isPrivate) {
+                  _selectedOwnerAgent = null; // Xóa đại lý nếu không còn private
+                }
+              }),
+              contentPadding: EdgeInsets.zero,
+            ),
+            // Hiển thị Dropdown chọn đại lý nếu là private
+            if (_isPrivate) ...[
+              const SizedBox(height: 8),
+              if (state.agents.isEmpty) // Kiểm tra nếu danh sách rỗng
+                const Text('Không có đại lý nào để gán.')
+              else
+                DropdownButtonFormField<UserModel>(
+                  value: _selectedOwnerAgent, // Đã có sẵn từ state
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Chọn đại lý sở hữu', border: OutlineInputBorder()),
+                  hint: const Text('-- Chọn --'),
+                  items: state.agents.map((UserModel agent) {
+                    return DropdownMenuItem<UserModel>(
+                      value: agent,
+                      child: Text(agent.displayName ?? 'N/A'),
+                    );
+                  }).toList(),
+                  onChanged: (UserModel? newValue) {
+                    setState(() => _selectedOwnerAgent = newValue);
+                  },
+                  validator: (value) {
+                    if (_isPrivate && value == null) return 'Vui lòng chọn đại lý';
+                    return null;
+                  },
+                ),
+            ],
+            const SizedBox(height: 24),
+            // --- KẾT THÚC MỤC SẢN PHẨM RIÊNG ---
+
             Text('Chọn danh mục', style: Theme.of(context).textTheme.titleMedium),
             const Divider(),
             if (state.categoryLevels.isEmpty)
-              const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Text('Đang tải danh mục...'))
+              const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Text('Không tải được danh mục...'))
             else
               ..._buildCategoryDropdowns(context, state),
             const SizedBox(height: 24),
@@ -190,6 +264,7 @@ class _ProductFormViewState extends State<ProductFormView> {
     );
   }
 
+  // ... (các hàm _buildImagePicker, _buildCategoryDropdowns, _buildTextField giữ nguyên) ...
   Widget _buildImagePicker(BuildContext context, ProductFormState state) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

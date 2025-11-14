@@ -1,5 +1,3 @@
-// lib/features/products/presentation/pages/search_page.dart
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -12,35 +10,41 @@ import 'package:piv_app/features/search/bloc/search_cubit.dart';
 
 class SearchPage extends StatelessWidget {
   final bool isSelectionMode;
-  final String? targetUserRole;
+  final String? targetUserRole; // Vẫn giữ để hiển thị giá
+  final String? targetAgentId;  // <-- THÊM MỚI: ID của đại lý
 
   const SearchPage({
     super.key,
     this.isSelectionMode = false,
     this.targetUserRole,
+    this.targetAgentId, // <-- THÊM MỚI
   });
 
-  // --- NÂNG CẤP ROUTE: Trả về ProductModel thay vì CartItemModel ---
   static PageRoute<ProductModel?> route({
     bool isSelectionMode = false,
     String? targetUserRole,
+    String? targetAgentId, // <-- THÊM MỚI
   }) {
     return MaterialPageRoute<ProductModel?>(
       builder: (_) => BlocProvider(
-        create: (_) => sl<SearchCubit>()..searchProducts(''),
+        // --- SỬA ĐỔI: Gọi searchProducts với targetAgentId ---
+        create: (_) => sl<SearchCubit>()..searchProducts('', targetAgentId: targetAgentId),
         child: SearchPage(
           isSelectionMode: isSelectionMode,
           targetUserRole: targetUserRole,
+          targetAgentId: targetAgentId, // <-- THÊM MỚI
         ),
       ),
     );
   }
+  // --- KẾT THÚC SỬA ĐỔI ---
 
   @override
   Widget build(BuildContext context) {
     return SearchView(
       isSelectionMode: isSelectionMode,
       targetUserRole: targetUserRole,
+      targetAgentId: targetAgentId, // <-- THÊM MỚI
     );
   }
 }
@@ -48,11 +52,13 @@ class SearchPage extends StatelessWidget {
 class SearchView extends StatefulWidget {
   final bool isSelectionMode;
   final String? targetUserRole;
+  final String? targetAgentId; // <-- THÊM MỚI
 
   const SearchView({
     super.key,
     required this.isSelectionMode,
     this.targetUserRole,
+    this.targetAgentId, // <-- THÊM MỚI
   });
 
   @override
@@ -70,7 +76,11 @@ class _SearchViewState extends State<SearchView> {
       if (_debounce?.isActive ?? false) _debounce!.cancel();
       _debounce = Timer(const Duration(milliseconds: 400), () {
         if (mounted) {
-          context.read<SearchCubit>().searchProducts(_searchController.text);
+          // --- SỬA ĐỔI: Truyền targetAgentId khi tìm kiếm ---
+          context.read<SearchCubit>().searchProducts(
+            _searchController.text,
+            targetAgentId: widget.targetAgentId,
+          );
         }
       });
       setState(() {});
@@ -86,7 +96,11 @@ class _SearchViewState extends State<SearchView> {
 
   void _onSubmitted(String query) {
     if (query.trim().isNotEmpty) {
-      context.read<SearchCubit>().searchProducts(query.trim());
+      // --- SỬA ĐỔI: Truyền targetAgentId khi tìm kiếm ---
+      context.read<SearchCubit>().searchProducts(
+        query.trim(),
+        targetAgentId: widget.targetAgentId,
+      );
     }
   }
 
@@ -156,12 +170,32 @@ class _SearchViewState extends State<SearchView> {
         final price = product.getPriceForRole(userRole);
         final unit = product.displayUnit;
         return ListTile(
-          leading: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(product.imageUrl,
-                  width: 70, height: 70, fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) => Container(
-                      color: Colors.grey.shade200, child: const Icon(Icons.image)))),
+          // --- THÊM HIỂN THỊ ICON RIÊNG TƯ ---
+          leading: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(product.imageUrl,
+                      width: 70, height: 70, fit: BoxFit.cover,
+                      errorBuilder: (c, e, s) => Container(
+                          color: Colors.grey.shade200, child: const Icon(Icons.image)))),
+              if (product.isPrivate) // Nếu là sản phẩm riêng
+                Positioned(
+                  top: -4,
+                  left: -4,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.error,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.lock, color: Colors.white, size: 12),
+                  ),
+                ),
+            ],
+          ),
+          // --- KẾT THÚC THÊM ICON ---
           title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
           subtitle: Text(
               price > 0 ? '${currencyFormatter.format(price)} / $unit' : 'Chưa có giá',
@@ -171,7 +205,6 @@ class _SearchViewState extends State<SearchView> {
           trailing: Icon(isSelectionMode ? Icons.add_shopping_cart : Icons.arrow_forward_ios, size: 16),
           onTap: () {
             if (isSelectionMode) {
-              // --- THAY ĐỔI: Trả về ProductModel đầy đủ ---
               if (product.packingOptions.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                     content: Text('Sản phẩm này chưa có quy cách đóng gói.'),

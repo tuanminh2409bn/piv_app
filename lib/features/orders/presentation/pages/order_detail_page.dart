@@ -17,7 +17,6 @@ import 'package:piv_app/features/returns/presentation/pages/create_return_reques
 import 'package:piv_app/features/checkout/presentation/pages/checkout_page.dart';
 
 class OrderDetailPage extends StatelessWidget {
-  // ... (Constructor và route giữ nguyên) ...
   final String orderId;
   const OrderDetailPage({super.key, required this.orderId});
 
@@ -35,22 +34,19 @@ class OrderDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final amountController = TextEditingController();
     final formKey = GlobalKey<FormState>();
-    // +++ THÊM CONTROLLER CHO VOUCHER +++
     final voucherController = TextEditingController();
-    // +++ KẾT THÚC THÊM +++
 
-    // Dispose controllers
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!context.mounted) {
         amountController.dispose();
-        voucherController.dispose(); // Dispose voucher controller
+        voucherController.dispose();
       }
     });
 
     return OrderDetailView(
       amountController: amountController,
       formKey: formKey,
-      voucherController: voucherController, // Truyền voucher controller
+      voucherController: voucherController,
     );
   }
 }
@@ -58,19 +54,16 @@ class OrderDetailPage extends StatelessWidget {
 class OrderDetailView extends StatelessWidget {
   final TextEditingController amountController;
   final GlobalKey<FormState> formKey;
-  // +++ NHẬN VOUCHER CONTROLLER +++
   final TextEditingController voucherController;
   const OrderDetailView({
     super.key,
     required this.amountController,
     required this.formKey,
-    required this.voucherController, // Thêm vào constructor
+    required this.voucherController,
   });
-  // +++ KẾT THÚC NHẬN +++
 
   @override
   Widget build(BuildContext context) {
-    // ... (Lấy currentUser, formatters giữ nguyên) ...
     final currentUser = context.select((AuthBloc bloc) =>
     bloc.state is AuthAuthenticated ? (bloc.state as AuthAuthenticated).user : null);
     final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
@@ -82,24 +75,19 @@ class OrderDetailView extends StatelessWidget {
         onTap: () => FocusScope.of(context).unfocus(),
         child: BlocConsumer<OrderDetailCubit, OrderDetailState>(
           listener: (context, state) {
-            // ... (listener xử lý error giữ nguyên) ...
             if (state.status == OrderDetailStatus.error && state.errorMessage != null) {
               ScaffoldMessenger.of(context)
                 ..hideCurrentSnackBar()
                 ..showSnackBar(SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.red));
               context.read<OrderDetailCubit>().emit(state.copyWith(status: OrderDetailStatus.success, clearError: true));
             }
-            // Xử lý lỗi voucher riêng
             if (state.status == OrderDetailStatus.voucherError && state.errorMessage != null) {
               ScaffoldMessenger.of(context)
                 ..hideCurrentSnackBar()
                 ..showSnackBar(SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.orange));
-              // Cubit đã tự reset về success sau khi emit voucherError
             }
 
-            // Cập nhật amountController
             if (state.status == OrderDetailStatus.success && state.order?.status == 'pending_approval') {
-              // --- SỬA ĐỔI: Tính totalAmountToHandle bao gồm voucherDiscount ---
               final totalAmountToHandle = (state.order!.finalTotal + state.order!.debtAmount - state.voucherDiscount).clamp(0, double.infinity).toDouble();
               final formattedTotal = numberFormatter.format(totalAmountToHandle);
               if (amountController.text != formattedTotal) {
@@ -108,15 +96,12 @@ class OrderDetailView extends StatelessWidget {
                   selection: TextSelection.collapsed(offset: formattedTotal.length),
                 );
               }
-              // Xóa text trong voucher controller nếu voucher bị remove từ state
               if (state.appliedVoucher == null && voucherController.text.isNotEmpty) {
                 voucherController.clear();
               }
-              // --- KẾT THÚC SỬA ĐỔI ---
             }
           },
           builder: (context, state) {
-            // ... (Phần loading và kiểm tra order null giữ nguyên) ...
             if (state.status == OrderDetailStatus.loading || state.status == OrderDetailStatus.initial) {
               return const Center(child: CircularProgressIndicator());
             }
@@ -185,26 +170,23 @@ class OrderDetailView extends StatelessWidget {
                     _Section(
                       title: 'Tóm tắt đơn hàng',
                       icon: Icons.receipt_long_outlined,
-                      // +++ TRUYỀN THÊM voucherDiscount VÀO _PaymentSummary +++
                       child: _PaymentSummary(
                         order: order,
                         totalAmountToHandle: totalAmountToHandle,
-                        voucherDiscount: state.voucherDiscount, // Truyền voucher discount từ state
+                        voucherDiscount: state.voucherDiscount,
                       ),
                     ),
 
-                    // +++ THÊM PHẦN VOUCHER KHI CẦN DUYỆT +++
                     if (order.status == 'pending_approval') ...[
                       const Divider(height: 32),
-                      _VoucherSection(voucherController: voucherController), // Widget mới
+                      _VoucherSection(voucherController: voucherController),
                     ],
-                    // +++ KẾT THÚC THÊM +++
 
                     if (order.status == 'pending_approval') ...[
                       const Divider(height: 32),
                       _ApprovalPaymentInputSection(
                         amountController: amountController,
-                        totalAmount: totalAmountToHandle, // Đã bao gồm voucher
+                        totalAmount: totalAmountToHandle,
                         numberFormatter: numberFormatter,
                       ),
                       const SizedBox(height: 120),
@@ -224,9 +206,6 @@ class OrderDetailView extends StatelessWidget {
   }
 }
 
-// --- WIDGETS ---
-
-// ... (_OrderHeader, _ShippingInfo, _OrderItemsList giữ nguyên) ...
 class _OrderHeader extends StatelessWidget {
   final OrderModel order;
   final UserModel? placedByUser;
@@ -358,7 +337,7 @@ class _OrderItemsList extends StatelessWidget {
                     style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                   ),
                   Text(
-                    'Số lượng: ${item.quantity} thùng', // Giả sử đơn vị là thùng
+                    'Số lượng: ${item.quantity} thùng',
                     style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                   ),
                 ],
@@ -437,7 +416,7 @@ class _PaymentSummary extends StatelessWidget {
         _buildSummaryRow(
             context,
             'Công nợ còn lại (dự kiến)',
-            formatter.format(order.status == 'pending_approval' ? estimatedRemainingDebt : order.remainingDebt), // <-- Thay đổi ở đây
+            formatter.format(order.status == 'pending_approval' ? estimatedRemainingDebt : order.remainingDebt),
             isTotal: true,
             color: (order.status == 'pending_approval' ? estimatedRemainingDebt : order.remainingDebt) > 0
                 ? Colors.red.shade700
@@ -502,27 +481,22 @@ class _VoucherSection extends StatefulWidget {
 }
 
 class _VoucherSectionState extends State<_VoucherSection> {
-  bool _isButtonEnabled = false; // Trạng thái local để quản lý nút
+  bool _isButtonEnabled = false;
 
   @override
   void initState() {
     super.initState();
-    // Khởi tạo trạng thái ban đầu
     _isButtonEnabled = widget.voucherController.text.trim().isNotEmpty;
-    // Lắng nghe thay đổi text
     widget.voucherController.addListener(_updateButtonState);
   }
 
   @override
   void dispose() {
-    // Gỡ listener khi widget bị hủy
     widget.voucherController.removeListener(_updateButtonState);
     super.dispose();
   }
 
-  // Hàm cập nhật trạng thái nút
   void _updateButtonState() {
-    // Chỉ setState nếu trạng thái thực sự thay đổi
     final newState = widget.voucherController.text.trim().isNotEmpty;
     if (_isButtonEnabled != newState) {
       setState(() {
@@ -552,7 +526,6 @@ class _VoucherSectionState extends State<_VoucherSection> {
     );
   }
 
-  // Sửa hàm này để nhận thêm isButtonEnabled
   Widget _buildVoucherInput(BuildContext context, TextEditingController controller, OrderDetailCubit cubit, bool isLoading, bool isButtonEnabled) {
     return Row(
       children: [
@@ -566,15 +539,12 @@ class _VoucherSectionState extends State<_VoucherSection> {
               contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
             textCapitalization: TextCapitalization.characters,
-            // Cập nhật lại isButtonEnabled khi người dùng submit (ví dụ: nhấn enter trên bàn phím ảo)
-            // Mặc dù đã có listener, nhưng cách này đảm bảo trạng thái đúng khi submit
             onSubmitted: (_) => _updateButtonState(),
           ),
         ),
         const SizedBox(width: 8),
         ElevatedButton(
-          // Sử dụng isButtonEnabled (trạng thái local) kết hợp isLoading (trạng thái cubit)
-          onPressed: isLoading || !isButtonEnabled // Disable nếu đang loading HOẶC nút không enabled
+          onPressed: isLoading || !isButtonEnabled
               ? null
               : () {
             cubit.applyVoucher(controller.text.trim());
@@ -582,7 +552,6 @@ class _VoucherSectionState extends State<_VoucherSection> {
           },
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            // Thêm style cho nút disabled để rõ ràng hơn
             disabledBackgroundColor: Colors.grey.shade300,
           ),
           child: isLoading
@@ -597,7 +566,6 @@ class _VoucherSectionState extends State<_VoucherSection> {
   }
 
   Widget _buildAppliedVoucherCard(BuildContext context, VoucherModel voucher, OrderDetailCubit cubit) {
-    // ... (Hàm này giữ nguyên) ...
     return Card(
       color: Colors.green.shade50,
       elevation: 0,
@@ -609,7 +577,6 @@ class _VoucherSectionState extends State<_VoucherSection> {
         trailing: IconButton(
           icon: const Icon(Icons.close, color: Colors.red),
           tooltip: 'Xóa mã',
-          // Disable nút xóa khi đang loading
           onPressed: context.select((OrderDetailCubit c) => c.state.status == OrderDetailStatus.applyingVoucher)
               ? null
               : () => cubit.removeVoucher(),
@@ -620,7 +587,6 @@ class _VoucherSectionState extends State<_VoucherSection> {
 }
 
 
-// ... (_ApprovalPaymentInputSection, _BottomBar, _ApprovalActionButtonsOnly giữ nguyên) ...
 class _ApprovalPaymentInputSection extends StatelessWidget {
   final TextEditingController amountController;
   final double totalAmount;
@@ -641,7 +607,6 @@ class _ApprovalPaymentInputSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Hiển thị tổng sau khi đã trừ voucher (nếu có)
           Text('Tổng cần xử lý: ${formatter.format(totalAmount)}', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           TextFormField(
@@ -666,12 +631,9 @@ class _ApprovalPaymentInputSection extends StatelessWidget {
               if (amount < 0) {
                 return 'Số tiền không hợp lệ';
               }
-              // --- SỬA LỖI VALIDATION: So sánh số chính xác ---
-              // Cho phép nhập số lớn hơn totalAmount một chút để tránh lỗi làm tròn
               if (amount > totalAmount + 0.01) {
                 return 'Không lớn hơn tổng cần xử lý';
               }
-              // --- KẾT THÚC SỬA ---
               return null;
             },
           ),
@@ -755,7 +717,6 @@ class _ApprovalActionButtonsOnly extends StatelessWidget {
   const _ApprovalActionButtonsOnly({required this.amountController, required this.formKey});
 
   void _showRejectionDialog(BuildContext context) {
-    // ... (Giữ nguyên) ...
     final reasonController = TextEditingController();
     showDialog(
       context: context,
@@ -775,7 +736,6 @@ class _ApprovalActionButtonsOnly extends StatelessWidget {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
             onPressed: () {
               if (reasonController.text.trim().isNotEmpty) {
-                // Gọi cubit từ context gốc (parent context)
                 context.read<OrderDetailCubit>().rejectOrder(reasonController.text.trim());
                 Navigator.of(dialogContext).pop();
               } else {
@@ -839,7 +799,6 @@ class _ApprovalActionButtonsOnly extends StatelessWidget {
 }
 
 
-// ... (_PaymentConfirmationButton, _ReturnExchangeButton, _PaymentQrInfo, _Section, _AddressInfo giữ nguyên) ...
 class _PaymentConfirmationButton extends StatelessWidget {
   final bool isLoading;
   const _PaymentConfirmationButton({required this.isLoading});

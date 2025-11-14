@@ -16,12 +16,11 @@ class ProductFormState extends Equatable {
   final List<CategoryModel> allCategories;
   final List<List<CategoryModel>> categoryLevels;
   final List<CategoryModel?> selectedCategoryPath;
-
-  // ** THÊM TRƯỜNG NÀY ĐỂ LƯU FILE ẢNH ĐÃ CHỌN **
   final File? selectedImageFile;
-
   final String? errorMessage;
   final String version;
+  final List<UserModel> agents;
+  final UserModel? selectedOwnerAgent;
 
   const ProductFormState({
     this.status = ProductFormStatus.initial,
@@ -30,9 +29,11 @@ class ProductFormState extends Equatable {
     this.allCategories = const [],
     this.categoryLevels = const [],
     this.selectedCategoryPath = const [],
-    this.selectedImageFile, // << THÊM VÀO CONSTRUCTOR
+    this.selectedImageFile,
     this.errorMessage,
     required this.version,
+    this.agents = const [],
+    this.selectedOwnerAgent,
   });
 
   factory ProductFormState.initial() {
@@ -52,9 +53,11 @@ class ProductFormState extends Equatable {
     allCategories,
     categoryLevels,
     selectedCategoryPath,
-    selectedImageFile, // << THÊM VÀO PROPS
+    selectedImageFile,
     errorMessage,
     version,
+    agents,
+    selectedOwnerAgent,
   ];
 
   ProductFormState copyWith({
@@ -64,8 +67,11 @@ class ProductFormState extends Equatable {
     List<CategoryModel>? allCategories,
     List<List<CategoryModel>>? categoryLevels,
     List<CategoryModel?>? selectedCategoryPath,
-    File? selectedImageFile, // << THÊM VÀO COPYWITH
+    File? selectedImageFile,
     String? errorMessage,
+    List<UserModel>? agents,
+    UserModel? selectedOwnerAgent,
+    bool clearOwnerAgent = false,
   }) {
     return ProductFormState(
       status: status ?? this.status,
@@ -74,9 +80,11 @@ class ProductFormState extends Equatable {
       allCategories: allCategories ?? this.allCategories,
       categoryLevels: categoryLevels ?? this.categoryLevels,
       selectedCategoryPath: selectedCategoryPath ?? this.selectedCategoryPath,
-      selectedImageFile: selectedImageFile ?? this.selectedImageFile, // << GÁN GIÁ TRỊ
+      selectedImageFile: selectedImageFile ?? this.selectedImageFile,
       errorMessage: errorMessage ?? this.errorMessage,
       version: const Uuid().v4(),
+      agents: agents ?? this.agents,
+      selectedOwnerAgent: clearOwnerAgent ? null : (selectedOwnerAgent ?? this.selectedOwnerAgent),
     );
   }
 }
