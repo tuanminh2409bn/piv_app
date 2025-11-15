@@ -1,3 +1,5 @@
+// lib/features/home/data/repositories/home_repository_impl.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
@@ -19,7 +21,6 @@ class HomeRepositoryImpl implements HomeRepository {
   CollectionReference get _bannersCollection => _firestore.collection('banners');
   CollectionReference get _newsArticlesCollection => _firestore.collection('newsArticles');
 
-  // ... (getFeaturedCategories, getAllCategories, getSubCategories giữ nguyên) ...
   @override
   Future<Either<Failure, List<CategoryModel>>> getFeaturedCategories() async {
     try {
@@ -417,6 +418,26 @@ class HomeRepositoryImpl implements HomeRepository {
       return Left(ServerFailure('Lỗi Firebase khi cập nhật trường sản phẩm: ${e.message}'));
     } catch (e) {
       return Left(ServerFailure('Lỗi không xác định khi cập nhật trường sản phẩm: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<ProductModel>>> getAllProductsForAdmin() async {
+    try {
+      // Chỉ lấy và sắp xếp theo tên, không lọc (where)
+      final querySnapshot = await _productsCollection
+          .orderBy('name')
+          .get();
+
+      final products = querySnapshot.docs.map((doc) => ProductModel.fromSnapshot(doc)).toList();
+      developer.log('Fetched ${products.length} total products for Admin view.', name: 'HomeRepository');
+      return Right(products);
+
+    } on FirebaseException catch (e) {
+      developer.log('Lỗi getAllProductsForAdmin: ${e.message}.', name: 'HomeRepositoryError');
+      return Left(ServerFailure('Lỗi Firebase: ${e.message}.'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
     }
   }
 }

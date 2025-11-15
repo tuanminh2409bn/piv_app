@@ -1,3 +1,5 @@
+// lib/features/home/presentation/bloc/home_cubit.dart
+
 import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:dartz/dartz.dart';
@@ -63,9 +65,9 @@ class HomeCubit extends Cubit<HomeState> {
       final results = await Future.wait([
         _homeRepository.getBanners(),
         _homeRepository.getFeaturedCategories(),
-        _homeRepository.getFeaturedProducts(),
+        _homeRepository.getFeaturedProducts(currentUserId: user.id),
         _homeRepository.getLatestNewsArticles(),
-        _homeRepository.getAllProducts(),
+        _homeRepository.getAllProducts(currentUserId: user.id),
       ]);
 
       List<String> errors = [];

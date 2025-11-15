@@ -1,6 +1,7 @@
+// lib/features/products/presentation/bloc/category_products_cubit.dart
+
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
-// Import các model và repository cần thiết
 import 'package:piv_app/features/home/data/models/category_model.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/home/domain/repositories/home_repository.dart';
@@ -15,7 +16,9 @@ class CategoryProductsCubit extends Cubit<CategoryProductsState> {
         super(const CategoryProductsState());
 
   /// Tải dữ liệu cho một danh mục cụ thể (bao gồm danh mục con và sản phẩm của nó)
-  Future<void> fetchDataForCategory(CategoryModel category) async {
+
+  // BƯỚC 1: SỬA ĐỊNH NGHĨA HÀM (Thêm tham số {String? currentUserId})
+  Future<void> fetchDataForCategory(CategoryModel category, {String? currentUserId}) async {
     // Phát ra trạng thái loading và cập nhật danh mục hiện tại đang xem
     emit(state.copyWith(status: CategoryProductsStatus.loading, currentCategory: category));
 
@@ -30,7 +33,12 @@ class CategoryProductsCubit extends Cubit<CategoryProductsState> {
       },
       // Nếu tải danh mục con thành công -> tiếp tục tải sản phẩm
           (subCategories) async {
-        final productsResult = await _homeRepository.getProductsByCategoryId(category.id);
+
+        // BƯỚC 2: SỬ DỤNG THAM SỐ (Truyền currentUserId xuống repository)
+        final productsResult = await _homeRepository.getProductsByCategoryId(
+            category.id,
+            currentUserId: currentUserId // <-- Đây là dòng 34 (hoặc tương tự) gây lỗi
+        );
 
         productsResult.fold(
           // Nếu tải sản phẩm thất bại -> báo lỗi, nhưng vẫn giữ lại danh mục con đã tải

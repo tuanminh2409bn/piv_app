@@ -1,3 +1,5 @@
+// lib/features/admin/presentation/bloc/admin_products_cubit.dart
+
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
@@ -15,9 +17,12 @@ class AdminProductsCubit extends Cubit<AdminProductsState> {
 
   Future<void> fetchAllProducts() async {
     emit(state.copyWith(status: AdminProductsStatus.loading));
-    developer.log('AdminProductsCubit: Fetching all products...', name: 'AdminProductsCubit');
+    developer.log('AdminProductsCubit: Fetching all products for Admin...', name: 'AdminProductsCubit'); // Cập nhật log
 
-    final result = await _homeRepository.getAllProducts();
+    // --- BƯỚC 3: SỬA LỖI TẠI ĐÂY ---
+    // Gọi hàm mới dành riêng cho Admin, không phải hàm getAllProducts() cũ
+    final result = await _homeRepository.getAllProductsForAdmin();
+    // --- KẾT THÚC BƯỚC 3 ---
 
     result.fold(
           (failure) {
@@ -55,16 +60,10 @@ class AdminProductsCubit extends Cubit<AdminProductsState> {
       // Cập nhật trạng thái trong bộ nhớ mà không cần gọi lại server
       final updatedAllProducts = state.allProducts.map((p) {
         if (p.id == productId) {
-          return ProductModel(
-              id: p.id,
-              name: p.name,
-              description: p.description,
-              imageUrl: p.imageUrl,
-              categoryId: p.categoryId,
-              isFeatured: !currentValue,
-              createdAt: p.createdAt,
-              attributes: p.attributes,
-              packingOptions: p.packingOptions);
+          // --- SỬA LỖI NHỎ: ĐẢM BẢO COPY ĐÚNG CÁC TRƯỜNG MỚI ---
+          // Sử dụng copyWith để đảm bảo an toàn
+          return p.copyWith(isFeatured: !currentValue);
+          // --- KẾT THÚC SỬA LỖI NHỎ ---
         }
         return p;
       }).toList();
@@ -82,7 +81,7 @@ class AdminProductsCubit extends Cubit<AdminProductsState> {
         emit(state.copyWith(status: AdminProductsStatus.error, errorMessage: failure.message));
       },
           (_) {
-        fetchAllProducts();
+        fetchAllProducts(); // Sau khi sửa, hàm này sẽ chạy đúng
       },
     );
   }

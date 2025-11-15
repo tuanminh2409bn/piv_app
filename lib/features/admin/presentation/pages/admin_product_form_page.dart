@@ -1,3 +1,5 @@
+// lib/features/admin/presentation/pages/admin_product_form_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -5,11 +7,8 @@ import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/admin/presentation/bloc/product_form_cubit.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/home/data/models/category_model.dart';
-
-// --- THÊM IMPORT CẦN THIẾT ---
 import 'package:piv_app/data/models/user_model.dart';
-import 'package:collection/collection.dart'; // Cần cho firstWhereOrNull
-// --- KẾT THÚC IMPORT ---
+import 'package:collection/collection.dart';
 
 class AdminProductFormPage extends StatelessWidget {
   final ProductModel? product;

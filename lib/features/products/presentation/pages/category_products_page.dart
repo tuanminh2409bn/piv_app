@@ -21,12 +21,31 @@ class CategoryProductsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // --- SỬA ĐỔI QUAN TRỌNG BẮT ĐẦU TỪ ĐÂY ---
+
+    // 1. Lấy trạng thái AuthBloc (đã được cung cấp toàn cục)
+    final authState = context.read<AuthBloc>().state;
+    String? userId;
+    if (authState is AuthAuthenticated) {
+      userId = authState.user.id;
+    }
+
     return BlocProvider(
-      create: (_) => sl<CategoryProductsCubit>()..fetchDataForCategory(category),
+      create: (_) => sl<CategoryProductsCubit>()
+      // 2. Truyền userId vào hàm fetchDataForCategory
+        ..fetchDataForCategory(
+          category,
+          currentUserId: userId,
+        ),
       child: const CategoryProductsView(),
     );
+    // --- KẾT THÚC SỬA ĐỔI ---
   }
 }
+
+//
+// PHẦN CategoryProductsView GIỮ NGUYÊN, KHÔNG CẦN THAY ĐỔI
+//
 
 class CategoryProductsView extends StatelessWidget {
   const CategoryProductsView({super.key});
@@ -144,7 +163,6 @@ class CategoryProductsView extends StatelessWidget {
     );
   }
 
-  // --- HÀM NÀY ĐÃ ĐƯỢC SỬA ---
   Widget _buildProductList(BuildContext context, List<ProductModel> products, String userRole, bool canViewPrice) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     return ListView.separated(
@@ -164,7 +182,6 @@ class CategoryProductsView extends StatelessWidget {
                 : Container(width: 70, height: 70, color: Colors.grey.shade200, child: const Icon(Icons.image, color: Colors.grey)),
           ),
           title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-          // --- HIỂN THỊ GIÁ CÓ ĐIỀU KIỆN ---
           subtitle: canViewPrice
               ? Text(
             '${currencyFormatter.format(price)} / $unit',
@@ -174,7 +191,6 @@ class CategoryProductsView extends StatelessWidget {
             'Đăng nhập để xem giá',
             style: TextStyle(color: Colors.grey.shade600),
           ),
-          // ------------------------------------
           trailing: const Icon(Icons.arrow_forward_ios, size: 16),
           onTap: () {
             Navigator.of(context).push(ProductDetailPage.route(product.id));

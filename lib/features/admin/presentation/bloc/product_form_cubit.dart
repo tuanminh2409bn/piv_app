@@ -1,3 +1,5 @@
+// lib/features/admin/presentation/bloc/product_form_cubit.dart
+
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
@@ -8,15 +10,12 @@ import 'package:piv_app/features/admin/data/repositories/storage_repository.dart
 import 'dart:io';
 import 'package:uuid/uuid.dart';
 import 'dart:developer' as developer;
-
-// Import cần thiết
 import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/features/admin/domain/repositories/admin_repository.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:collection/collection.dart';
 
-// --- LƯU Ý: Đảm bảo file state của bạn được import đúng ---
 part 'product_form_state.dart';
 
 class ProductFormCubit extends Cubit<ProductFormState> {

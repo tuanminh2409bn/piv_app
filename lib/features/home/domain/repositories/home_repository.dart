@@ -1,3 +1,5 @@
+// lib/features/home/domain/repositories/home_repository.dart
+
 import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/features/home/data/models/category_model.dart';
@@ -24,4 +26,5 @@ abstract class HomeRepository {
   Future<Either<Failure, Unit>> updateCategory(CategoryModel category);
   Future<Either<Failure, Unit>> deleteCategory(String categoryId);
   Future<Either<Failure, List<ProductModel>>> getProductsByIds(List<String> ids, {String? currentUserId});
+  Future<Either<Failure, List<ProductModel>>> getAllProductsForAdmin();
 }
