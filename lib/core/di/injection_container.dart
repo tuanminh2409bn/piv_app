@@ -46,9 +46,6 @@ import 'package:piv_app/features/admin/presentation/bloc/product_form_cubit.dart
 import 'package:piv_app/features/admin/presentation/bloc/admin_categories_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_commissions_cubit.dart';
-import 'package:piv_app/features/admin/domain/repositories/settings_repository.dart';
-import 'package:piv_app/features/admin/data/repositories/settings_repository_impl.dart';
-import 'package:piv_app/features/admin/presentation/bloc/admin_settings_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/sales_rep_commissions_cubit.dart';
 import 'package:piv_app/features/sales_rep/presentation/bloc/agent_orders_cubit.dart';
@@ -80,64 +77,37 @@ import 'package:piv_app/features/returns/presentation/bloc/admin_returns_cubit.d
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:piv_app/features/profile/presentation/bloc/debt_payment_cubit.dart';
 
-
-
 final sl = GetIt.instance;
 
 Future<void> initializeDependencies() async {
   sl.registerLazySingleton(() => AppBlocObserver());
-  // --- Core ---
-  sl.registerLazySingleton<firebase_auth.FirebaseAuth>(() => firebase_auth.FirebaseAuth.instance);
-
-  final prefs = await SharedPreferences.getInstance();
+  sl.registerLazySingleton<firebase_auth.FirebaseAuth>(() => firebase_auth.FirebaseAuth.instance); final prefs = await SharedPreferences.getInstance();
   sl.registerLazySingleton<SharedPreferences>(() => prefs);
-
-  // --- Features ---
-
-  // == Auth ==
   sl.registerLazySingleton<GoogleSignIn>(() => GoogleSignIn());
   sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(firebaseAuth: sl(), firestore: sl(), googleSignIn: sl()));
   sl.registerLazySingleton<AuthBloc>(() => AuthBloc(authRepository: sl(), userProfileRepository: sl()));
   sl.registerFactory<LoginCubit>(() => LoginCubit(authRepository: sl()));
   sl.registerFactory<RegisterCubit>(() => RegisterCubit(authRepository: sl()));
   sl.registerFactory<SocialSignInCubit>(() => SocialSignInCubit(authRepository: sl()));
-
-  // == Home ==
   sl.registerLazySingleton<HomeRepository>(() => HomeRepositoryImpl(firestore: sl()));
   sl.registerFactory<HomeCubit>(() => HomeCubit(homeRepository: sl(), authBloc: sl()));
-  // == News ==
   sl.registerFactory<NewsDetailCubit>(() => NewsDetailCubit(homeRepository: sl()));
-
-  // == Product & Category ==
   sl.registerFactory<ProductDetailCubit>(() => ProductDetailCubit(homeRepository: sl(), authBloc: sl()));
   sl.registerFactory<CategoryProductsCubit>(() => CategoryProductsCubit(homeRepository: sl()));
-
-  // == Cart ==
   sl.registerLazySingleton<CartRepository>(() => CartRepositoryImpl(firestore: sl()));
   sl.registerLazySingleton<CartCubit>(() => CartCubit(cartRepository: sl(), authBloc: sl()));
   sl.registerFactory<CartSuggestionsCubit>(() => CartSuggestionsCubit(homeRepository: sl()));
-
-  // == Profile ==
   sl.registerLazySingleton<UserProfileRepository>(() => UserProfileRepositoryImpl(firestore: sl()));
   sl.registerLazySingleton<ProfileCubit>(() => ProfileCubit(userProfileRepository: sl(), authBloc: sl()));
   sl.registerFactory(() => DebtPaymentCubit(authBloc: sl(), orderRepository: sl()));
-
-
-  // == Wishlist ==
   sl.registerLazySingleton<WishlistCubit>(() => WishlistCubit(userProfileRepository: sl(), authBloc: sl()));
   sl.registerFactory<WishlistPageCubit>(() => WishlistPageCubit(homeRepository: sl(), wishlistCubit: sl()));
-
-  // == Search ==
   sl.registerLazySingleton<SearchRepository>(() => SearchRepositoryImpl(prefs: sl()));
   sl.registerFactory<SearchCubit>(() => SearchCubit(searchRepository: sl(), homeRepository: sl(), authBloc: sl(),));
-
-  // == Order & Checkout ==
-  sl.registerLazySingleton<OrderRepository>(() => OrderRepositoryImpl(firestore: sl(), settingsRepository: sl()));
+  sl.registerLazySingleton<OrderRepository>(() => OrderRepositoryImpl(firestore: sl()));
   sl.registerFactory<CheckoutCubit>(() => CheckoutCubit(userProfileRepository: sl(), orderRepository: sl(), authBloc: sl(), cartCubit: sl(), voucherRepository: sl(), functions: sl(),));
   sl.registerLazySingleton<MyOrdersCubit>(() => MyOrdersCubit(orderRepository: sl(), authBloc: sl()));
   sl.registerFactory<OrderDetailCubit>(() => OrderDetailCubit(orderRepository: sl(), userProfileRepository: sl(), returnRepository: sl(), voucherRepository: sl(), authBloc: sl()));
-
-  // == Admin ==
   sl.registerLazySingleton<StorageRepository>(() => StorageRepository());
   sl.registerLazySingleton<AdminRepository>(() => AdminRepositoryImpl(firestore: sl()));
   sl.registerFactory<AdminOrdersCubit>(() => AdminOrdersCubit(orderRepository: sl(), userProfileRepository: sl()));
@@ -146,15 +116,10 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<ProductFormCubit>(() => ProductFormCubit(homeRepository: sl(), storageRepository: sl(), adminRepository: sl()));
   sl.registerFactory<AdminCategoriesCubit>(() => AdminCategoriesCubit(homeRepository: sl<HomeRepository>()));
   sl.registerFactory<AdminCommissionsCubit>(() => AdminCommissionsCubit(orderRepository: sl(), adminRepository: sl(), authBloc: sl()));
-  sl.registerLazySingleton<SettingsRepository>(() => SettingsRepositoryImpl(firestore: sl()));
-  sl.registerFactory<AdminSettingsCubit>(() => AdminSettingsCubit(settingsRepository: sl()));
   sl.registerFactory<AdminVouchersCubit>(() => AdminVouchersCubit(firestore: sl(), authBloc: sl(),));
-
-  // == Sales Rep ==
   sl.registerFactory<SalesRepCubit>(() => SalesRepCubit(adminRepository: sl(), authBloc: sl()));
   sl.registerFactory<SalesRepCommissionsCubit>(() => SalesRepCommissionsCubit(orderRepository: sl(), authBloc: sl()));
   sl.registerFactory<AgentOrdersCubit>(() => AgentOrdersCubit(orderRepository: sl(), authBloc: sl(),));
-
   sl.registerLazySingleton<VoucherRepository>(() => VoucherRepositoryImpl(firestore: sl()));
   sl.registerFactory<VoucherManagementCubit>(() => VoucherManagementCubit(voucherRepository: sl(), authBloc: sl()));
   sl.registerLazySingleton(() => FirebaseFirestore.instance);
@@ -162,21 +127,17 @@ Future<void> initializeDependencies() async {
   sl.registerFactory(() => AgentApprovalCubit(userProfileRepository: sl()));
   sl.registerLazySingleton(() => NotificationService());
   sl.registerFactory<AccountantAgentsCubit>(() => AccountantAgentsCubit(userProfileRepository: sl()));
-
   sl.registerLazySingleton<SalesCommitmentRepository>(() => SalesCommitmentRepositoryImpl(firestore: sl(), functions: sl()));
   sl.registerFactory(() => SalesCommitmentAgentCubit(repository: sl(), authBloc: sl()));
   sl.registerFactory(() => SalesCommitmentAdminCubit(repository: sl()));
-
   sl.registerLazySingleton<LuckyWheelRepository>(() => LuckyWheelRepositoryImpl(firestore: sl(), functions: sl(), auth: sl()));
   sl.registerFactory(() => LuckyWheelCubit(repository: sl(), authBloc: sl()));
   sl.registerFactory(() => LuckyWheelAdminCubit(repository: sl()));
   sl.registerFactory(() => SpinHistoryCubit(repository: sl()));
   sl.registerFactory(() => CampaignFormCubit(repository: sl()));
-
   sl.registerLazySingleton<NotificationRepository>(() => NotificationRepositoryImpl(),);
   sl.registerFactory(() => NotificationCubit(notificationRepository: sl(), authBloc: sl()));
   sl.registerLazySingleton<QuickOrderRepository>(() => QuickOrderRepositoryImpl(firestore: sl()));
-
   sl.registerFactory(() => CreateReturnRequestCubit(returnRepository: sl()));
   sl.registerLazySingleton<ReturnRepository>(() => ReturnRepositoryImpl(firestore: sl(), storage: sl(), auth: sl()));
   sl.registerLazySingleton(() => FirebaseStorage.instance);

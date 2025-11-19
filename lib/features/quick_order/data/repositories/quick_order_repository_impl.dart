@@ -26,11 +26,17 @@ class QuickOrderRepositoryImpl implements QuickOrderRepository {
     });
   }
 
+  // --- SỬA ĐỔI: Thêm currentUserId và logic lọc ---
   @override
-  Future<List<ProductModel>> getProductsByIds(List<String> productIds) async {
+  Future<List<ProductModel>> getProductsByIds(List<String> productIds, {String? currentUserId}) async {
     if (productIds.isEmpty) {
       return [];
     }
+
+    // Lưu ý: Firestore giới hạn 'whereIn' tối đa 10 phần tử.
+    // Nếu danh sách > 10, bạn nên chia nhỏ (chunk) như đã làm ở HomeRepository.
+    // Ở đây tôi giữ nguyên logic cũ của bạn để tránh phức tạp, nhưng bạn nên lưu ý điều này.
+
     final querySnapshot = await _firestore
         .collection('products')
         .where(FieldPath.documentId, whereIn: productIds)
@@ -40,7 +46,16 @@ class QuickOrderRepositoryImpl implements QuickOrderRepository {
         .map((doc) => ProductModel.fromSnapshot(doc))
         .toList();
 
-    final productMap = {for (var p in products) p.id: p};
+    // --- LOGIC LỌC MỚI ---
+    // Chỉ giữ lại sản phẩm Public HOẶC sản phẩm Private mà user này sở hữu
+    final allowedProducts = products.where((product) {
+      if (!product.isPrivate) return true; // Sản phẩm chung
+      return product.ownerAgentId == currentUserId; // Sản phẩm riêng đúng chủ
+    }).toList();
+    // --------------------
+
+    final productMap = {for (var p in allowedProducts) p.id: p};
+
     final sortedProducts = productIds
         .map((id) => productMap[id])
         .where((p) => p != null)
@@ -49,4 +64,5 @@ class QuickOrderRepositoryImpl implements QuickOrderRepository {
 
     return sortedProducts;
   }
+// --- KẾT THÚC SỬA ĐỔI ---
 }

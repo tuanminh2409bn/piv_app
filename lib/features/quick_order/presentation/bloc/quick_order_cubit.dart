@@ -18,23 +18,36 @@ class QuickOrderCubit extends Cubit<QuickOrderState> {
   QuickOrderCubit({
     required QuickOrderRepository quickOrderRepository,
     required AuthBloc authBloc,
+    String? targetAgentId, // <-- 1. THÊM THAM SỐ TÙY CHỌN
   })  : _quickOrderRepository = quickOrderRepository,
         _authBloc = authBloc,
         super(const QuickOrderState()) {
-    final authState = _authBloc.state;
-    if (authState is AuthAuthenticated) {
-      _agentId = authState.user.id;
+
+    // --- 2. LOGIC XÁC ĐỊNH ID NGƯỜI DÙNG ---
+    if (targetAgentId != null) {
+      // Nếu có targetAgentId (đặt hàng hộ), dùng ID đó
+      _agentId = targetAgentId;
       _subscribeToQuickList();
     } else {
-      emit(state.copyWith(
-          status: QuickOrderStatus.error,
-          errorMessage: 'Không thể xác thực người dùng.'));
+      // Nếu không (người dùng tự xem), dùng ID đăng nhập
+      final authState = _authBloc.state;
+      if (authState is AuthAuthenticated) {
+        _agentId = authState.user.id;
+        _subscribeToQuickList();
+      } else {
+        emit(state.copyWith(
+            status: QuickOrderStatus.error,
+            errorMessage: 'Không thể xác thực người dùng.'));
+      }
     }
+    // ---------------------------------------
   }
 
   void _subscribeToQuickList() {
     emit(state.copyWith(status: QuickOrderStatus.loading));
     _quickListSubscription?.cancel();
+
+    // Lấy danh sách item của _agentId (Đã đúng logic trên)
     _quickListSubscription =
         _quickOrderRepository.getQuickOrderItems(_agentId).listen((items) async {
           try {
@@ -47,7 +60,15 @@ class QuickOrderCubit extends Cubit<QuickOrderState> {
             }
 
             final productIds = items.map((item) => item.productId).toList();
-            final products = await _quickOrderRepository.getProductsByIds(productIds);
+
+            // --- 3. QUAN TRỌNG: Cần truyền _agentId vào đây để lấy Private Product ---
+            // Lưu ý: Bạn cần đảm bảo QuickOrderRepository.getProductsByIds
+            // cũng đã được cập nhật để nhận tham số `currentUserId` giống HomeRepository.
+            final products = await _quickOrderRepository.getProductsByIds(
+                productIds,
+                currentUserId: _agentId // <-- SỬA: Truyền ID để lọc sản phẩm private
+            );
+            // -------------------------------------------------------------------------
 
             emit(state.copyWith(
               status: QuickOrderStatus.success,

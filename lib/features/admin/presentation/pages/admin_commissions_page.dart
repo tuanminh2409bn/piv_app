@@ -1,6 +1,5 @@
 // lib/features/admin/presentation/pages/admin_commissions_page.dart
 
-import 'dart:ui'; // <--- THÊM IMPORT NÀY
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -20,50 +19,15 @@ class AdminCommissionsPage extends StatelessWidget {
         appBar: AppBar(
           title: const Text('Quản lý Hoa hồng'),
         ),
-        // ====================== BẮT ĐẦU SỬA ĐỔI ======================
-        body: Stack(
-          children: [
-            // Lớp 1: Nội dung gốc của trang
-            const AdminCommissionsView(),
-
-            // Lớp 2: Lớp kính mờ
-            Positioned.fill(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 4.0, sigmaY: 4.0),
-                child: Container(
-                  color: Colors.black.withOpacity(0.1),
-                ),
-              ),
-            ),
-
-            // Lớp 3: Lớp thông báo
-            Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'Tính năng này tạm thời chưa được áp dụng',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        // ======================= KẾT THÚC SỬA ĐỔI =======================
+        // --- ĐÃ SỬA: Bỏ Stack và lớp phủ mờ, hiển thị trực tiếp View ---
+        body: const AdminCommissionsView(),
+        // -------------------------------------------------------------
       ),
     );
   }
 }
 
-// Nội dung của AdminCommissionsView và các hàm bên dưới được giữ nguyên
+// ... (Phần code còn lại của AdminCommissionsView và các widget con giữ nguyên như cũ)
 class AdminCommissionsView extends StatelessWidget {
   const AdminCommissionsView({super.key});
 
@@ -243,7 +207,14 @@ class AdminCommissionsView extends StatelessWidget {
             const Divider(),
             _buildInfoRow(context, 'Ngày tạo:', dateFormat.format(commission.createdAt.toDate())),
             _buildInfoRow(context, 'Giá trị ĐH:', currencyFormatter.format(commission.orderTotal)),
-            _buildInfoRow(context, 'Hoa hồng (${(commission.commissionRate * 100).toStringAsFixed(1)}%):', currencyFormatter.format(commission.commissionAmount), isBold: true),
+
+            // LƯU Ý: Ở đây code cũ của bạn đang hiển thị tỷ lệ %.
+            // Vì logic backend mới tính % linh động (không cố định),
+            // bạn nên sửa nhãn hiển thị ở đây để tránh hiểu nhầm.
+            // Thay vì: 'Hoa hồng (${(commission.commissionRate * 100).toStringAsFixed(1)}%):'
+            // Hãy dùng: 'Hoa hồng thực nhận:'
+            _buildInfoRow(context, 'Hoa hồng thực nhận:', currencyFormatter.format(commission.commissionAmount), isBold: true),
+
             const Divider(),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

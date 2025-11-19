@@ -165,6 +165,7 @@ class CategoryProductsView extends StatelessWidget {
 
   Widget _buildProductList(BuildContext context, List<ProductModel> products, String userRole, bool canViewPrice) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -174,13 +175,55 @@ class CategoryProductsView extends StatelessWidget {
         final product = products[index];
         final price = product.getPriceForRole(userRole);
         final unit = product.displayUnit;
+
         return ListTile(
-          leading: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: (product.imageUrl.isNotEmpty)
-                ? Image.network(product.imageUrl, width: 70, height: 70, fit: BoxFit.cover, errorBuilder: (c,e,s) => Container(width: 70, height: 70, color: Colors.grey.shade200, child: const Icon(Icons.image, color: Colors.grey)))
-                : Container(width: 70, height: 70, color: Colors.grey.shade200, child: const Icon(Icons.image, color: Colors.grey)),
+          // --- SỬA ĐỔI: THÊM NHÃN SẢN PHẨM ĐỘC QUYỀN ---
+          leading: Stack(
+            children: [
+              // Lớp 1: Ảnh sản phẩm
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: (product.imageUrl.isNotEmpty)
+                    ? Image.network(
+                    product.imageUrl,
+                    width: 70,
+                    height: 70,
+                    fit: BoxFit.cover,
+                    errorBuilder: (c,e,s) => Container(width: 70, height: 70, color: Colors.grey.shade200, child: const Icon(Icons.image, color: Colors.grey))
+                )
+                    : Container(width: 70, height: 70, color: Colors.grey.shade200, child: const Icon(Icons.image, color: Colors.grey)),
+              ),
+
+              // Lớp 2: Nhãn SẢN PHẨM ĐỘC QUYỀN
+              if (product.isPrivate)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(8), // Bo góc khớp với ảnh
+                        bottomRight: Radius.circular(8),
+                      ),
+                    ),
+                    child: const Text(
+                      'SẢN PHẨM ĐỘC QUYỀN', // Ngắt dòng để vừa với ảnh nhỏ
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 4, // Font nhỏ để hiển thị đủ
+                        fontWeight: FontWeight.bold,
+                        height: 1.1, // Giãn dòng một chút cho dễ đọc
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
           ),
+          // --- KẾT THÚC SỬA ĐỔI ---
+
           title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
           subtitle: canViewPrice
               ? Text(

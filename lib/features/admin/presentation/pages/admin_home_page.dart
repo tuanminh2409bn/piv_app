@@ -9,7 +9,6 @@ import 'package:piv_app/features/admin/presentation/pages/admin_categories_page.
 import 'package:piv_app/features/admin/presentation/pages/admin_users_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_commissions_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_vouchers_page.dart';
-import 'package:piv_app/features/admin/presentation/pages/admin_settings_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/manual_notification_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/notification_history_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_news_list_page.dart';
@@ -47,13 +46,11 @@ class AdminHomePage extends StatelessWidget {
               icon: Icons.shopping_cart_outlined,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminOrdersPage())),
             ),
-            // --- THÊM THẺ QUẢN LÝ CÔNG NỢ TẠI ĐÂY ---
             _DashboardCard(
               title: 'Quản lý Công nợ',
-              icon: Icons.receipt_long_outlined, // Icon mới
+              icon: Icons.receipt_long_outlined,
               onTap: () => Navigator.of(context).push(AdminDebtManagementPage.route()),
             ),
-            // ------------------------------------------
             _DashboardCard(
               title: 'Quản lý Đổi/Trả',
               icon: Icons.sync_problem_outlined,
@@ -115,11 +112,6 @@ class AdminHomePage extends StatelessWidget {
               title: 'Quản lý Tin tức',
               icon: Icons.article_outlined,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminNewsListPage())),
-            ),
-            _DashboardCard(
-              title: 'Cài đặt',
-              icon: Icons.settings_outlined,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminSettingsPage())),
             ),
           ],
         ),

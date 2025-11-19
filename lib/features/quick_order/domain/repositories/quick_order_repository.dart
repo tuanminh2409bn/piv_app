@@ -8,5 +8,5 @@ abstract class QuickOrderRepository {
   Stream<List<QuickOrderItemModel>> getQuickOrderItems(String agentId);
 
   // Lấy danh sách sản phẩm đầy đủ từ một danh sách ID
-  Future<List<ProductModel>> getProductsByIds(List<String> productIds);
+  Future<List<ProductModel>> getProductsByIds(List<String> productIds, {String? currentUserId});
 }

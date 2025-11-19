@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:intl/intl.dart';
+import 'package:piv_app/core/di/injection_container.dart'; // Cần để dùng sl nếu cần
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/home/presentation/bloc/home_cubit.dart';
 import 'package:piv_app/features/home/data/models/category_model.dart';
@@ -15,6 +16,13 @@ import 'package:piv_app/features/products/presentation/pages/product_detail_page
 import 'package:piv_app/features/products/presentation/pages/category_products_page.dart';
 import 'package:piv_app/features/products/presentation/pages/search_page.dart';
 import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
+
+// --- THÊM CÁC IMPORT MỚI ĐỂ HỖ TRỢ MUA HÀNG ---
+import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
+import 'package:piv_app/features/checkout/presentation/pages/checkout_page.dart';
+import 'package:piv_app/data/models/cart_item_model.dart';
+import 'package:piv_app/data/models/packaging_option_model.dart';
+// -------------------------------------------------
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -58,7 +66,6 @@ class HomeView extends StatelessWidget {
                 children: [
                   Text(state.errorMessage ?? 'Không thể tải dữ liệu trang chủ.', textAlign: TextAlign.center),
                   const SizedBox(height: 16),
-                  // <<< SỬA LẠI: GỌI HÀM refreshHomeData >>>
                   ElevatedButton(onPressed: () => context.read<HomeCubit>().refreshHomeData(), child: const Text('Thử lại')),
                 ],
               ),
@@ -67,6 +74,8 @@ class HomeView extends StatelessWidget {
         }
 
         return Scaffold(
+          // Thay đổi màu nền nhẹ nhàng hơn để làm nổi bật Card
+          backgroundColor: const Color(0xFFF9F9F9),
           body: RefreshIndicator(
             onRefresh: () async => context.read<HomeCubit>().refreshHomeData(),
             child: SingleChildScrollView(
@@ -90,7 +99,6 @@ class HomeView extends StatelessWidget {
                         const SizedBox(height: 24),
                         _buildSectionTitle(context, 'Sản Phẩm Nổi Bật'),
                         if (state.featuredProducts.isNotEmpty)
-                        // ========== TRUYỀN THÊM BIẾN canViewPrice ==========
                           _buildFeaturedProductsGrid(context, state.featuredProducts, userRole, canViewPrice)
                         else
                           _buildPlaceholderContainer(context, 'Không có sản phẩm nổi bật.', height: 200),
@@ -100,7 +108,7 @@ class HomeView extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10), // Thêm padding bottom để không bị che bởi navigation bar nếu có
                 ],
               ),
             ),
@@ -110,7 +118,7 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  // --- CÁC HÀM BUILD HELPER GIỮ NGUYÊN ---
+  // --- CÁC HÀM BUILD HELPER ---
 
   Widget _buildSearchBar(BuildContext context) {
     return Padding(
@@ -193,51 +201,34 @@ class HomeView extends StatelessWidget {
     );
   }
 
+  // --- CẬP NHẬT: TỶ LỆ THẺ CAO HƠN (0.58) ĐỂ TRÁNH TRÀN ---
   Widget _buildFeaturedProductsGrid(BuildContext context, List<ProductModel> products, String userRole, bool canViewPrice) {
-    final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // Tinh chỉnh tỷ lệ:
+    // Màn hình nhỏ (< 360): 0.55 (thẻ cao hơn)
+    // Màn hình thường: 0.58 - 0.6
+    double aspectRatio = 0.58;
+    if (screenWidth < 380) {
+      aspectRatio = 0.55;
+    }
+
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: products.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 0.7),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: aspectRatio, // <-- Tỷ lệ an toàn mới
+      ),
       itemBuilder: (context, index) {
         final product = products[index];
-        final price = product.getPriceForRole(userRole);
-        final unit = product.displayUnit;
-        return Card(
-          elevation: 3,
-          clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: InkWell(
-            onTap: () => Navigator.of(context).push(ProductDetailPage.route(product.id)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(flex: 5, child: (product.imageUrl.isNotEmpty) ? Image.network(product.imageUrl, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey.shade200, alignment: Alignment.center, child: const Icon(Icons.image_search_outlined, size: 50, color: Colors.grey))) : Container(color: Colors.grey.shade200, alignment: Alignment.center, child: const Icon(Icons.image_search_outlined, size: 50, color: Colors.grey))),
-                Padding(
-                  padding: const EdgeInsets.all(10.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(product.name, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 4),
-                      // --- HIỂN THỊ GIÁ CÓ ĐIỀU KIỆN ---
-                      if (canViewPrice)
-                        Text('${currencyFormatter.format(price)} / $unit', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold))
-                      else
-                        TextButton(
-                          style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(50, 20), alignment: Alignment.centerLeft),
-                          onPressed: () => Navigator.of(context).pushAndRemoveUntil(LoginPage.route(), (route) => false),
-                          child: const Text('Xem giá'),
-                        ),
-                      // ------------------------------------
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+        return _FeaturedProductCard(
+          product: product,
+          userRole: userRole,
+          canViewPrice: canViewPrice,
         );
       },
     );
@@ -277,6 +268,312 @@ class HomeView extends StatelessWidget {
       decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(12)),
       alignment: Alignment.center,
       child: Text(text, style: TextStyle(color: Colors.grey.shade600)),
+    );
+  }
+}
+
+// --- WIDGET MỚI: CARD SẢN PHẨM ĐẸP MẮT (Tách riêng để code gọn gàng) ---
+class _FeaturedProductCard extends StatelessWidget {
+  final ProductModel product;
+  final String userRole;
+  final bool canViewPrice;
+  final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+
+  _FeaturedProductCard({
+    required this.product,
+    required this.userRole,
+    required this.canViewPrice,
+  });
+
+  // ... (Giữ nguyên hàm _showPackagingOptionsDialog cũ của bạn ở đây) ...
+  Future<CartItemModel?> _showPackagingOptionsDialog(BuildContext context) async {
+    return showDialog<CartItemModel>(
+      context: context,
+      builder: (dialogContext) {
+        if (product.packingOptions.isEmpty) {
+          return AlertDialog(
+            title: const Text('Thông báo'),
+            content: const Text('Sản phẩm này chưa có quy cách đóng gói.'),
+            actions: [TextButton(onPressed: ()=> Navigator.of(dialogContext).pop(), child: const Text('Đóng'))],
+          );
+        }
+
+        PackagingOptionModel selectedOption = product.packingOptions.first;
+        final quantityController = TextEditingController(text: '1');
+
+        return StatefulBuilder(
+          builder: (stfContext, stfSetState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Text('Chọn quy cách cho ${product.name}', style: const TextStyle(fontSize: 18)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<PackagingOptionModel>(
+                      value: selectedOption,
+                      isExpanded: true,
+                      items: product.packingOptions.map((option) {
+                        final price = option.getPriceForRole(userRole);
+                        return DropdownMenuItem(
+                          value: option,
+                          child: Text('${option.name} - ${currencyFormatter.format(price)}', overflow: TextOverflow.ellipsis),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) stfSetState(() => selectedOption = value);
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Quy cách',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: quantityController,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      decoration: InputDecoration(
+                        labelText: 'Số lượng',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        prefixIcon: IconButton(
+                            onPressed: () {
+                              int current = int.tryParse(quantityController.text) ?? 0;
+                              if(current > 1) quantityController.text = (current - 1).toString();
+                            },
+                            icon: const Icon(Icons.remove)
+                        ),
+                        suffixIcon: IconButton(
+                            onPressed: () {
+                              int current = int.tryParse(quantityController.text) ?? 0;
+                              quantityController.text = (current + 1).toString();
+                            },
+                            icon: const Icon(Icons.add)
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.of(dialogContext).pop(null), child: const Text('Hủy')),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () {
+                    final quantity = int.tryParse(quantityController.text) ?? 0;
+                    if (quantity > 0) {
+                      final price = selectedOption.getPriceForRole(userRole);
+                      final cartItem = CartItemModel(
+                        productId: product.id,
+                        productName: product.name,
+                        imageUrl: product.imageUrl,
+                        price: price,
+                        itemUnitName: selectedOption.unit,
+                        quantity: quantity,
+                        quantityPerPackage: selectedOption.quantityPerPackage,
+                        caseUnitName: selectedOption.name,
+                        categoryId: product.categoryId,
+                      );
+                      Navigator.of(dialogContext).pop(cartItem);
+                    }
+                  },
+                  child: const Text('Xác nhận'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+  // ... (Hết hàm dialog) ...
+
+  @override
+  Widget build(BuildContext context) {
+    final price = product.getPriceForRole(userRole);
+
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(ProductDetailPage.route(product.id)),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // --- 1. ẢNH (TỶ LỆ 1:1 GIỮ NGUYÊN) ---
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  child: AspectRatio(
+                    aspectRatio: 1.0,
+                    child: (product.imageUrl.isNotEmpty)
+                        ? Image.network(product.imageUrl, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey.shade100, child: Icon(Icons.image, size: 40, color: Colors.grey.shade300)))
+                        : Container(color: Colors.grey.shade100, child: Icon(Icons.image, size: 40, color: Colors.grey.shade300)),
+                  ),
+                ),
+                if (product.isPrivate)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(12),
+                          bottomRight: Radius.circular(12),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('SẢN PHẨM ĐỘC QUYỀN', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+
+            // --- 2. NỘI DUNG (SỬ DỤNG EXPANDED + LAYOUTBUILDER ĐỂ CHỐNG TRÀN) ---
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                // LayoutBuilder giúp chúng ta biết chiều cao còn lại
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      physics: const ClampingScrollPhysics(), // Cho phép cuộn nhẹ nếu quá chật
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                        child: IntrinsicHeight(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween, // Thay thế Spacer()
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    product.name,
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, height: 1.2),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  if (canViewPrice)
+                                    Text(
+                                      currencyFormatter.format(price),
+                                      style: TextStyle(
+                                        color: Theme.of(context).colorScheme.primary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                      ),
+                                    )
+                                  else
+                                    Text(
+                                      'Liên hệ để xem giá',
+                                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontStyle: FontStyle.italic),
+                                    ),
+                                ],
+                              ),
+
+                              // Khoảng cách an toàn
+                              const SizedBox(height: 8),
+
+                              // Nút bấm
+                              if (canViewPrice)
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: SizedBox(
+                                        height: 32,
+                                        child: OutlinedButton(
+                                          onPressed: () async {
+                                            final cartItem = await _showPackagingOptionsDialog(context);
+                                            if (cartItem != null && context.mounted) {
+                                              Navigator.of(context).push(CheckoutPage.route(buyNowItems: [cartItem]));
+                                            }
+                                          },
+                                          style: OutlinedButton.styleFrom(
+                                            padding: EdgeInsets.zero,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                            side: BorderSide(color: Theme.of(context).colorScheme.primary),
+                                          ),
+                                          child: const Text('Mua', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    SizedBox(
+                                      width: 32,
+                                      height: 32,
+                                      child: IconButton.filled(
+                                        padding: EdgeInsets.zero,
+                                        icon: const Icon(Icons.add_shopping_cart, size: 16),
+                                        onPressed: () async {
+                                          final cartItem = await _showPackagingOptionsDialog(context);
+                                          if (cartItem != null && context.mounted) {
+                                            context.read<CartCubit>().addProduct(
+                                              product: product,
+                                              selectedOption: product.packingOptions.firstWhere((opt) => opt.name == cartItem.caseUnitName),
+                                              quantity: cartItem.quantity,
+                                            );
+                                            ScaffoldMessenger.of(context)
+                                              ..hideCurrentSnackBar()
+                                              ..showSnackBar(SnackBar(content: Text('Đã thêm ${product.name} vào giỏ hàng')));
+                                          }
+                                        },
+                                        style: IconButton.styleFrom(
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                                          foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              else
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 32,
+                                  child: OutlinedButton(
+                                    onPressed: () => Navigator.of(context).pushAndRemoveUntil(LoginPage.route(), (route) => false),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                    ),
+                                    child: const Text('Đăng nhập để xem giá', style: TextStyle(fontSize: 12)),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

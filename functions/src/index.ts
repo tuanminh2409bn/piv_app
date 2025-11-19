@@ -458,7 +458,7 @@ export const onOrderStatusUpdate = onDocumentUpdated(
         if (!beforeData || !afterData || beforeData.status === afterData.status) return;
 
         const orderId = event.params.orderId;
-        const {userId, total, status: newStatus, salesRepId, shippingAddress, placedBy, shippingDate, appliedVoucherCode, discount, paidAmount} = afterData;
+        const {userId, total, status: newStatus, salesRepId, shippingAddress, placedBy, shippingDate, appliedVoucherCode, discount, paidAmount, items} = afterData;
         const oldStatus = beforeData.status;
 
         if (newStatus === "completed" && oldStatus !== "completed") {
@@ -474,6 +474,63 @@ export const onOrderStatusUpdate = onDocumentUpdated(
                 }
             } else {
                  logger.info(`Order ${orderId} completed. No voucher usedCount incremented (code: ${appliedVoucherCode}, discount: ${discount}).`);
+            }
+            if (salesRepId && items && Array.isArray(items) && items.length > 0) {
+                try {
+                    const productIds: string[] = items.map((item: any) => item.productId);
+                    const productChunks = [];
+                    for (let i = 0; i < productIds.length; i += 10) {
+                        productChunks.push(productIds.slice(i, i + 10));
+                    }
+
+                    let foliarTotalValue = 0;
+                    let rootTotalValue = 0;
+                    const productsMap = new Map<string, any>();
+                    for (const chunk of productChunks) {
+                        const snapshot = await db.collection("products")
+                            .where(admin.firestore.FieldPath.documentId(), "in", chunk)
+                            .get();
+                        snapshot.forEach(doc => productsMap.set(doc.id, doc.data()));
+                    }
+                    for (const item of items) {
+                        const productInfo = productsMap.get(item.productId);
+                        if (productInfo) {
+                            const itemValue = Number(item.subtotal) || 0;
+                            if (productInfo.productType === "foliar_fertilizer") {
+                                foliarTotalValue += itemValue;
+                            } else if (productInfo.productType === "root_fertilizer") {
+                                rootTotalValue += itemValue;
+                            } else {
+                                rootTotalValue += itemValue;
+                            }
+                        }
+                    }
+
+                    const commissionFromFoliar = calculateCommissionForFoliar(foliarTotalValue);
+                    const commissionFromRoot = calculateCommissionForRoot(rootTotalValue);
+                    const totalCommission = commissionFromFoliar + commissionFromRoot;
+
+                    if (totalCommission > 0) {
+                        await db.collection("commissions").add({
+                            salesRepId: salesRepId,
+                            orderId: orderId,
+                            amount: totalCommission,
+                            details: {
+                                foliarSales: foliarTotalValue,
+                                foliarCommission: commissionFromFoliar,
+                                rootSales: rootTotalValue,
+                                rootCommission: commissionFromRoot
+                            },
+                            status: "pending",
+                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                            orderTotal: total,
+                        });
+                        logger.info(`Calculated commission for Rep ${salesRepId} on order ${orderId}: ${totalCommission} VND.`);
+                    }
+
+                } catch (commError) {
+                    logger.error(`Error calculating commission for order ${orderId}:`, commError);
+                }
             }
             try {
                 const userRef = db.collection("users").doc(userId);
@@ -1483,4 +1540,22 @@ function calculateDiscountForRoot(total: number, role: string): number {
       else if (total >= 30000000) discountRate = 0.03;
     }
     return total * discountRate;
+}
+
+function calculateCommissionForFoliar(total: number): number {
+    let rate = 0;
+    if (total >= 100000000) rate = 0.05;      // 5% nếu > 100tr
+    else if (total >= 50000000) rate = 0.04; // 4% nếu > 50tr
+    else if (total >= 30000000) rate = 0.03; // 3% nếu > 30tr
+    else if (total >= 10000000) rate = 0.02; // 2% nếu > 10tr
+    else rate = 0.01;                        // 1% cho đơn nhỏ
+    return total * rate;
+}
+
+function calculateCommissionForRoot(total: number): number {
+    let rate = 0;
+    if (total >= 50000000) rate = 0.03;      // 3% nếu > 50tr
+    else if (total >= 30000000) rate = 0.02; // 2% nếu > 30tr
+    else rate = 0.01;                        // 1% mặc định
+    return total * rate;
 }

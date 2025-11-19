@@ -68,12 +68,15 @@ class _CreateAgentOrderView extends StatelessWidget {
 
   Future<void> _onAddProduct(BuildContext context) async {
     final checkoutCubit = context.read<CheckoutCubit>();
-    final agentRole = checkoutCubit.state.placeOrderForAgent?.role;
+    final agent = checkoutCubit.state.placeOrderForAgent;
+    final agentRole = agent?.role;
+    final agentId = agent?.id;
     if (agentRole == null) return;
 
     final result = await Navigator.of(context).push(SearchPage.route(
       isSelectionMode: true,
       targetUserRole: agentRole,
+      targetAgentId: agentId,
     ));
 
     if (result != null && result is ProductModel && context.mounted) {

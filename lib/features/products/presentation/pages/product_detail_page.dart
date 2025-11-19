@@ -177,7 +177,6 @@ class ProductDetailView extends StatelessWidget {
       leading: _buildAppBarActionIcon(child: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.of(context).pop(), tooltip: 'Quay lại')),
       automaticallyImplyLeading: false,
       actions: [
-        // ========== ẨN WISHLIST CHO KHÁCH ==========
         if (!isGuest)
           _buildAppBarActionIcon(
             child: WishlistButton(
@@ -185,11 +184,47 @@ class ProductDetailView extends StatelessWidget {
               color: Colors.white,
             ),
           ),
-        // ========================================
         _buildAppBarActionIcon(child: CartIconWithBadge(iconColor: Colors.white, onPressed: () => Navigator.of(context).push(CartPage.route()))),
         const SizedBox(width: 8),
       ],
-      flexibleSpace: FlexibleSpaceBar(background: (product.imageUrl.isEmpty) ? Container(color: Colors.grey.shade200, child: const Icon(Icons.image_search_outlined, size: 80, color: Colors.grey)) : Image.network(product.imageUrl, fit: BoxFit.cover, width: double.infinity, errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image_outlined, size: 80, color: Colors.grey))),
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack( // <-- Bọc Image trong Stack
+          fit: StackFit.expand,
+          children: [
+            // Lớp ảnh gốc
+            (product.imageUrl.isEmpty)
+                ? Container(color: Colors.grey.shade200, child: const Icon(Icons.image_search_outlined, size: 80, color: Colors.grey))
+                : Image.network(product.imageUrl, fit: BoxFit.cover, width: double.infinity, errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image_outlined, size: 80, color: Colors.grey)),
+
+            // Lớp nhãn SẢN PHẨM ĐỘC QUYỀN
+            if (product.isPrivate)
+              Positioned(
+                top: 355, // Đẩy xuống một chút để không bị tai thỏ che (nếu cần)
+                left: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.only(
+                      topRight: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
+                    ),
+                    boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2))],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                          'SẢN PHẨM ĐỘC QUYỀN',
+                          style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5)
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 

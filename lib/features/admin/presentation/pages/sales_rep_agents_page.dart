@@ -36,7 +36,6 @@ class SalesRepAgentsPage extends StatelessWidget {
                   title: Text(agent.displayName ?? 'Chưa có tên', style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text('Cấp: ${agent.role.replaceAll('agent_', '')} - Trạng thái: ${agent.status}'),
                   trailing: const Icon(Icons.edit_outlined, color: Colors.grey),
-                  // ‼️ THÊM CHỨC NĂNG SỬA TẠI ĐÂY ‼️
                   onTap: () => _showEditUserDialog(context, agent),
                 ),
               );
