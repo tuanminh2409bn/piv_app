@@ -29,7 +29,7 @@ dependencies:
   dartz:
 
   # Auth
-  google_sign_in: 6.3.0
+  google_sign_in:
   flutter_facebook_auth:
   app_tracking_transparency:
 
@@ -45,7 +45,7 @@ dependencies:
   qr_flutter:
   mobile_scanner:
   image_cropper:
-  dotted_border: 2.1.0
+  dotted_border:
 
   cloud_functions:
   flutter_inappwebview:
