@@ -55,12 +55,25 @@ class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
   }
 
   double _calculatedPenalty = 0.0;
+  double _calculatedRefund = 0.0;
   String _policyMessage = '';
 
   void _calculatePenalty(OrderModel order, CreateReturnRequestState state) {
+    // 1. Tính toán giá trị hoàn trả (Refund Amount)
+    double totalRefund = 0;
+    state.returnedItems.forEach((productId, returnedQuantity) {
+      if (returnedQuantity > 0) {
+        final originalItem = order.items.firstWhere((item) => item.productId == productId);
+        // Giá trị trả = Số lượng trả * Đơn giá lúc mua
+        totalRefund += returnedQuantity * originalItem.price;
+      }
+    });
+
+    // 2. Tính toán phí phạt (Penalty Fee)
     if (order.createdAt == null) {
       setState(() {
         _calculatedPenalty = 0.0;
+        _calculatedRefund = totalRefund;
         _policyMessage = 'Không thể xác định ngày tạo đơn hàng.';
       });
       return;
@@ -84,11 +97,6 @@ class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
       penaltyPerCrate = 0;
     }
 
-    if (penaltyPerCrate == 0) {
-      setState(() => _calculatedPenalty = 0.0);
-      return;
-    }
-
     double totalCratesToReturn = 0;
     state.returnedItems.forEach((productId, returnedQuantity) {
       if (returnedQuantity > 0) {
@@ -100,7 +108,8 @@ class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
     });
 
     setState(() {
-      _calculatedPenalty = totalCratesToReturn * penaltyPerCrate;
+      _calculatedRefund = totalRefund;
+      _calculatedPenalty = penaltyPerCrate > 0 ? totalCratesToReturn * penaltyPerCrate : 0.0;
     });
   }
 
@@ -119,10 +128,7 @@ class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
           return false;
         },
         listener: (context, state) {
-          // --- GỘP LOGIC LẠI LÀM MỘT ---
-
           // 1. Tính toán lại phí khi số lượng thay đổi
-          // (Chúng ta gọi hàm này trong listenWhen, nhưng gọi ở đây cũng đảm bảo an toàn)
           _calculatePenalty(order, state);
 
           // 2. Xử lý kết quả submit
@@ -184,6 +190,7 @@ class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
                       reason: _selectedReason,
                       userNotes: _notesController.text.trim(),
                       penaltyFee: _calculatedPenalty,
+                      refundAmount: _calculatedRefund,
                     ),
                     child: state.status == CreateReturnRequestStatus.submitting
                         ? const CircularProgressIndicator()
@@ -209,50 +216,63 @@ class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
           border: Border.all(color: Colors.blue.shade200)
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start, // Giữ căn lề trái cho toàn bộ cột
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Quy Chế Đổi Trả',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: Colors.blue.shade800),
           ),
           const SizedBox(height: 8),
-          const Text('• Miễn phí đổi trả trong 3 tháng đầu.\n'
-              '• Phạt 150.000 đ/thùng từ 3-12 tháng.\n'
-              '• Phạt 300.000 đ/thùng từ 12-24 tháng.\n'
+          const Text('• Miễn phí đổi trả trong 3 tháng đầu.\n' // Corrected newline escape sequence
+              '• Phạt 150.000 đ/thùng từ 3-12 tháng.\n' // Corrected newline escape sequence
+              '• Phạt 300.000 đ/thùng từ 12-24 tháng.\n' // Corrected newline escape sequence
               '• Sau 24 tháng, yêu cầu có thể bị từ chối.'),
           const Divider(height: 20, thickness: 1),
 
-          // --- THAY ĐỔI TỪ ROW THÀNH COLUMN ---
-          // Hiển thị thông báo về mức phạt
           Text(
             _policyMessage,
             style: const TextStyle(fontStyle: FontStyle.italic),
           ),
-          // Thêm khoảng cách nhỏ nếu có phí phạt
           if (_calculatedPenalty > 0) const SizedBox(height: 4),
-          // Hiển thị số tiền phạt (luôn hiển thị, kể cả 0đ)
-          Align( // Căn phải số tiền cho đẹp
+          Align(
             alignment: Alignment.centerRight,
-            child: Text(
-              formatter.format(_calculatedPenalty),
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                // Màu đỏ nếu có phí, màu xanh nếu miễn phí
-                color: _calculatedPenalty > 0 ? Colors.red.shade700 : Colors.green.shade700,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  'Giá trị hàng trả lại: ${formatter.format(_calculatedRefund)}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue.shade700,
+                  ),
+                ),
+                if (_calculatedPenalty > 0)
+                  Text(
+                    'Phí phạt dự kiến: -${formatter.format(_calculatedPenalty)}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red.shade700,
+                    ),
+                  ),
+                const Divider(),
+                Text(
+                  'Hoàn lại vào công nợ: ${formatter.format(_calculatedRefund - _calculatedPenalty)}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: (_calculatedRefund - _calculatedPenalty) >= 0 ? Colors.green.shade800 : Colors.red,
+                  ),
+                ),
+              ],
             ),
           ),
-          // --- KẾT THÚC THAY ĐỔI ---
 
-          // Hiển thị ghi chú về trừ công nợ nếu có phí
-          if (_calculatedPenalty > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 4.0), // Giữ padding
-              child: const Text(
-                '(Phí sẽ được trừ trực tiếp vào công nợ của bạn sau khi yêu cầu được xử lý)',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4.0),
+            child: const Text(
+              '(Số tiền thực nhận sẽ được cộng/trừ vào công nợ sau khi duyệt)',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
+          ),
         ],
       ),
     );
@@ -307,6 +327,10 @@ class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
                             'Đã mua: ${item.packaging.contains('thùng') ? 'thùng' : item.packaging} (Tổng: $maxQuantity ${item.unit})',
                             style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                           ),
+                          Text(
+                            'Đơn giá: ${NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(item.price)} / ${item.unit}',
+                            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                          )
                         ],
                       ),
                     ),
@@ -324,27 +348,21 @@ class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
 
   Widget _buildQuantitySelector(BuildContext context, OrderItemModel item, int currentQuantity, int maxQuantity) {
     return Row(
-      // mainAxisAlignment: MainAxisAlignment.spaceBetween, // Bỏ thuộc tính này
       children: [
-        // --- THAY ĐỔI 1: Bọc Text trong Expanded ---
-        // Expanded cho phép Text co dãn và chiếm hết không gian còn lại
         Expanded(
           child: Text(
             'Số lượng trả (${item.unit}):',
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
           ),
         ),
-        // Thêm một khoảng trống nhỏ để ngăn cách
         const SizedBox(width: 8),
-
-        // --- THAY ĐỔI 2: Tối ưu lại vùng chọn số lượng ---
         Container(
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey.shade300),
             borderRadius: BorderRadius.circular(30),
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min, // Giúp Row chỉ chiếm không gian cần thiết
+            mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
                 icon: const Icon(Icons.remove),
@@ -356,7 +374,7 @@ class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
               InkWell(
                 onTap: () => _showQuantityInputDialog(context, item, currentQuantity, maxQuantity),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12.0), // Giảm padding ngang
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
                   child: Text(
                     '$currentQuantity',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -431,7 +449,6 @@ class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
               onPressed: () {
                 if (formKey.currentState!.validate()) {
                   final newQuantity = int.parse(controller.text);
-                  // Sử dụng context của trang để gọi Cubit
                   pageContext.read<CreateReturnRequestCubit>().updateReturnQuantity(item, newQuantity);
                   Navigator.of(dialogContext).pop();
                 }

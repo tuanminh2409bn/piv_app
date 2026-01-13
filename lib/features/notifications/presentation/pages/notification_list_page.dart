@@ -9,6 +9,7 @@ import 'package:piv_app/features/notifications/presentation/bloc/notification_st
 import 'package:piv_app/features/notifications/presentation/widgets/notification_list_item.dart';
 import 'package:piv_app/features/orders/presentation/pages/order_detail_page.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
+import 'package:piv_app/features/returns/presentation/pages/admin_return_request_loader_page.dart';
 
 class NotificationListPage extends StatelessWidget {
   const NotificationListPage({super.key});
@@ -43,17 +44,26 @@ class NotificationListPage extends StatelessWidget {
         }
         break;
 
-    // Thông báo Tin tức mới
-      case 'new_article':
-        if (payload['articleId'] != null) {
-          Navigator.of(context).push(
-            NewsDetailPage.route(payload['articleId'] as String), // Sửa ở đây
-          );
-        }
-        break;
-
-    // Các loại thông báo khác không cần điều hướng (chỉ cần xem)
-      default:
+          // Thông báo Tin tức mới
+          case 'new_article':
+            if (payload['articleId'] != null) {
+              Navigator.of(context).push(
+                NewsDetailPage.route(payload['articleId'] as String), // Sửa ở đây
+              );
+            }
+            break;
+    
+          // Thông báo Đổi trả hàng
+          case 'new_return_request':
+          case 'return_request_status_update':
+            if (payload['returnRequestId'] != null) {
+              Navigator.of(context).push(
+                AdminReturnRequestLoaderPage.route(payload['returnRequestId'] as String),
+              );
+            }
+            break;
+    
+        // Các loại thông báo khác không cần điều hướng (chỉ cần xem)      default:
         print('Không có hành động điều hướng cho loại thông báo: $type');
         break;
     }

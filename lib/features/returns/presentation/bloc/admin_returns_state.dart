@@ -28,3 +28,22 @@ class AdminReturnsState extends Equatable {
     );
   }
 }
+
+// --- THÊM MỚI CHO LOADER ---
+class AdminReturnsLoading extends AdminReturnsState {}
+
+class AdminReturnsError extends AdminReturnsState {
+  final String message;
+  const AdminReturnsError(this.message) : super(errorMessage: message, status: AdminReturnsStatus.error);
+
+  @override
+  List<Object?> get props => [message];
+}
+
+class AdminReturnRequestLoaded extends AdminReturnsState {
+  final ReturnRequestModel request;
+  const AdminReturnRequestLoaded(this.request) : super(status: AdminReturnsStatus.success);
+
+  @override
+  List<Object?> get props => [request];
+}

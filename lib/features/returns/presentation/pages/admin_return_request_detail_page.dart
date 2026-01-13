@@ -3,9 +3,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:piv_app/data/models/user_model.dart';
+import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/returns/data/models/return_request_model.dart';
 import 'package:piv_app/features/returns/presentation/bloc/admin_returns_cubit.dart';
-import 'package:intl/intl.dart';
 
 class AdminReturnRequestDetailPage extends StatelessWidget {
   final ReturnRequestModel request;
@@ -30,6 +31,13 @@ class AdminReturnRequestDetailPage extends StatelessWidget {
     final statusInfo = _getStatusInfo(request.status, context);
     final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
 
+    // Lấy thông tin user hiện tại để phân quyền
+    final authState = context.read<AuthBloc>().state;
+    UserModel? currentUser;
+    if (authState is AuthAuthenticated) {
+      currentUser = authState.user;
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('Chi tiết Yêu cầu Đổi/Trả')),
       body: SingleChildScrollView(
@@ -43,6 +51,10 @@ class AdminReturnRequestDetailPage extends StatelessWidget {
             _buildInfoRow('Người yêu cầu:', request.userDisplayName),
             _buildInfoRow('Ngày tạo:', dateFormat.format(request.createdAt.toDate())),
             _buildInfoRow('Phí phạt:', formatter.format(request.penaltyFee), color: request.penaltyFee > 0 ? Colors.red : Colors.green.shade700),
+            _buildInfoRow('Hoàn trả:', formatter.format(request.refundAmount), color: Colors.blue.shade700),
+            if (request.refundAmount > 0)
+              _buildInfoRow('Thực nhận (vào công nợ):', formatter.format(request.refundAmount - request.penaltyFee), color: (request.refundAmount - request.penaltyFee) >= 0 ? Colors.green.shade800 : Colors.red),
+            
             _buildInfoRow('Trạng thái:', statusInfo.$2, color: statusInfo.$1),
             const Divider(height: 32),
 
@@ -56,6 +68,8 @@ class AdminReturnRequestDetailPage extends StatelessWidget {
               _buildInfoRow('Ghi chú của đại lý:', request.userNotes),
             if (request.adminNotes != null && request.adminNotes!.isNotEmpty)
               _buildInfoRow('Ghi chú của Admin:', request.adminNotes!),
+            if (request.rejectionReason != null && request.rejectionReason!.isNotEmpty)
+              _buildInfoRow('Lý do từ chối:', request.rejectionReason!, color: Colors.red),
             const Divider(height: 32),
 
             _buildSectionTitle(context, 'Hình ảnh bằng chứng'),
@@ -63,23 +77,27 @@ class AdminReturnRequestDetailPage extends StatelessWidget {
           ],
         ),
       ),
-      // --- THAY ĐỔI: Cập nhật logic hiển thị cho bottomNavigationBar ---
       bottomNavigationBar: Builder(
         builder: (context) {
+          if (currentUser == null) return const SizedBox.shrink();
+
+          // 1. Nếu đơn đang CHỜ DUYỆT
           if (request.status == 'pending_approval') {
-            return _ActionButtons(request: request);
+            // Hiển thị nút duyệt cho cả Admin và Kế toán (nhưng Kế toán bấm vào sẽ bị chặn)
+            return _ActionButtons(request: request, currentUser: currentUser);
           }
+          
+          // 2. Nếu đơn ĐÃ DUYỆT -> Chờ hoàn thành
           if (request.status == 'approved') {
-            return _MarkAsCompletedButton(request: request);
+            // Admin và Kế toán đều thấy nút này
+             return _MarkAsCompletedButton(request: request, currentUser: currentUser);
           }
           return const SizedBox.shrink();
         },
       ),
-      // --- KẾT THÚC THAY ĐỔI ---
     );
   }
 
-  // ... (các hàm build khác giữ nguyên)
   Widget _buildSectionTitle(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
@@ -101,14 +119,14 @@ class AdminReturnRequestDetailPage extends StatelessWidget {
   }
 
   Widget _buildProductItem(Map<String, dynamic> item) {
-    final quantity = item['quantity'] ?? 0; // Đọc số lượng từ map đã xử lý ở model
-    final unit = item['itemUnit'] ?? 'sản phẩm'; // Đọc đơn vị
+    final quantity = item['quantity'] ?? 0;
+    final unit = item['itemUnit'] ?? 'sản phẩm';
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
         title: Text(item['productName'] ?? 'Sản phẩm không tên'),
-        subtitle: Text('Số lượng trả: $quantity $unit'), // Hiển thị cả số lượng và đơn vị
+        subtitle: Text('Số lượng trả: $quantity $unit'),
       ),
     );
   }
@@ -143,7 +161,9 @@ class AdminReturnRequestDetailPage extends StatelessWidget {
 
 class _MarkAsCompletedButton extends StatelessWidget {
   final ReturnRequestModel request;
-  const _MarkAsCompletedButton({required this.request});
+  final UserModel currentUser;
+  
+  const _MarkAsCompletedButton({required this.request, required this.currentUser});
 
   @override
   Widget build(BuildContext context) {
@@ -161,6 +181,17 @@ class _MarkAsCompletedButton extends StatelessWidget {
             textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           onPressed: () {
+            // --- KIỂM TRA QUYỀN: Admin HOẶC Kế toán được quyền hoàn thành ---
+            if (!currentUser.isAdmin && !currentUser.isAccountant) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Bạn không có quyền thực hiện thao tác này.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+
             context.read<AdminReturnsCubit>().updateRequestStatus(
               requestId: request.id,
               newStatus: 'completed',
@@ -178,7 +209,9 @@ class _MarkAsCompletedButton extends StatelessWidget {
 
 class _ActionButtons extends StatelessWidget {
   final ReturnRequestModel request;
-  const _ActionButtons({required this.request});
+  final UserModel currentUser;
+
+  const _ActionButtons({required this.request, required this.currentUser});
 
   void _showRejectionDialog(BuildContext context) {
     final reasonController = TextEditingController();
@@ -218,6 +251,22 @@ class _ActionButtons extends StatelessWidget {
     );
   }
 
+  void _handleAction(BuildContext context, VoidCallback action) {
+    // --- KIỂM TRA QUYỀN: CHỈ ADMIN MỚI ĐƯỢC DUYỆT/TỪ CHỐI ---
+    // Nếu là Kế toán (hoặc user khác) -> Chặn và báo lỗi
+    if (!currentUser.isAdmin) {
+       ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chức năng này chỉ dành cho Admin (Quản trị viên). Kế toán không có quyền duyệt.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    // Nếu là Admin -> Thực thi
+    action();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -230,7 +279,7 @@ class _ActionButtons extends StatelessWidget {
         children: [
           Expanded(
             child: OutlinedButton(
-              onPressed: () => _showRejectionDialog(context),
+              onPressed: () => _handleAction(context, () => _showRejectionDialog(context)),
               style: OutlinedButton.styleFrom(foregroundColor: Colors.red, side: const BorderSide(color: Colors.red)),
               child: const Text('TỪ CHỐI'),
             ),
@@ -238,13 +287,13 @@ class _ActionButtons extends StatelessWidget {
           const SizedBox(width: 16),
           Expanded(
             child: ElevatedButton(
-              onPressed: () {
+              onPressed: () => _handleAction(context, () {
                 context.read<AdminReturnsCubit>().updateRequestStatus(
                   requestId: request.id,
                   newStatus: 'approved',
                 );
                 Navigator.of(context).pop();
-              },
+              }),
               child: const Text('DUYỆT YÊU CẦU'),
             ),
           ),
@@ -258,7 +307,7 @@ class _ActionButtons extends StatelessWidget {
 (Color, String) _getStatusInfo(String status, BuildContext context) {
   switch (status) {
     case 'pending_approval': return (Colors.orange.shade700, 'Chờ duyệt');
-    case 'approved': return (Colors.blue.shade700, 'Đã duyệt');
+    case 'approved': return (Colors.blue.shade700, 'Đã duyệt (Chờ hoàn tất)');
     case 'completed': return (Theme.of(context).colorScheme.primary, 'Hoàn thành');
     case 'rejected': return (Colors.red.shade700, 'Đã từ chối');
     default: return (Colors.grey.shade700, 'Không xác định');

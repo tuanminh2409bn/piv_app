@@ -53,6 +53,7 @@ class CreateReturnRequestCubit extends Cubit<CreateReturnRequestState> {
     required String reason,
     required String userNotes,
     required double penaltyFee,
+    required double refundAmount, // <<< THÊM MỚI
   }) async {
     if (state.returnedItems.isEmpty || state.returnedItems.values.every((qty) => qty == 0)) {
       emit(state.copyWith(status: CreateReturnRequestStatus.error, errorMessage: 'Vui lòng chọn số lượng cần trả cho ít nhất một sản phẩm.'));
@@ -89,6 +90,7 @@ class CreateReturnRequestCubit extends Cubit<CreateReturnRequestState> {
       images: state.images,
       userNotes: userNotes,
       penaltyFee: penaltyFee,
+      refundAmount: refundAmount, // <<< THÊM MỚI
     );
 
     result.fold(

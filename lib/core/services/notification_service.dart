@@ -13,6 +13,7 @@ import 'package:piv_app/features/news/presentation/pages/news_detail_page.dart';
 import 'package:piv_app/features/notifications/presentation/pages/notification_list_page.dart';
 import 'package:piv_app/features/orders/presentation/pages/order_detail_page.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
+import 'package:piv_app/features/returns/presentation/pages/admin_return_request_loader_page.dart';
 import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:piv_app/firebase_options.dart';
 import 'package:piv_app/main.dart';
@@ -208,9 +209,9 @@ class NotificationService {
       case 'new_return_request':
       case 'return_request_status_update':
         final returnRequestId = data['returnRequestId'];
-        developer.log("Cần điều hướng đến trang đổi trả ID: $returnRequestId", name: "NotificationService");
-        // Khi có trang chi tiết đổi trả, bạn sẽ thêm vào đây
-        // navigator.push(ReturnRequestDetailPage.route(returnRequestId));
+        if (returnRequestId != null) {
+          navigator.push(AdminReturnRequestLoaderPage.route(returnRequestId));
+        }
         break;
       default:
         developer.log('Loại thông báo không xác định: $type. Mở trang thông báo.', name: "NotificationService");

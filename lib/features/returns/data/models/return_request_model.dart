@@ -15,7 +15,9 @@ class ReturnRequestModel extends Equatable {
   final String? adminNotes;
   final String? rejectionReason;
   final double penaltyFee; // <<< THÊM MỚI
+  final double refundAmount; // <<< THÊM MỚI
   final Timestamp createdAt;
+  final Timestamp? updatedAt;
 
   const ReturnRequestModel({
     required this.id,
@@ -29,7 +31,9 @@ class ReturnRequestModel extends Equatable {
     this.adminNotes,
     this.rejectionReason,
     this.penaltyFee = 0.0, // <<< THÊM MỚI
+    this.refundAmount = 0.0, // <<< THÊM MỚI
     required this.createdAt,
+    this.updatedAt,
   });
 
   factory ReturnRequestModel.fromSnapshot(DocumentSnapshot doc) {
@@ -60,7 +64,9 @@ class ReturnRequestModel extends Equatable {
       adminNotes: data['adminNotes'],
       rejectionReason: data['rejectionReason'],
       penaltyFee: (data['penaltyFee'] as num? ?? 0).toDouble(), // <<< THÊM MỚI
+      refundAmount: (data['refundAmount'] as num? ?? 0).toDouble(), // <<< THÊM MỚI
       createdAt: data['createdAt'] ?? Timestamp.now(),
+      updatedAt: data['updatedAt'],
     );
   }
 
@@ -72,6 +78,9 @@ class ReturnRequestModel extends Equatable {
     status,
     createdAt,
     rejectionReason,
-    penaltyFee // <<< THÊM MỚI
+    updatedAt,
+    adminNotes,
+    penaltyFee,
+    refundAmount,
   ];
 }

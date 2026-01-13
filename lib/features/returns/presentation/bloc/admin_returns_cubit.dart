@@ -11,6 +11,7 @@ part 'admin_returns_state.dart';
 class AdminReturnsCubit extends Cubit<AdminReturnsState> {
   final ReturnRepository _returnRepository;
   StreamSubscription? _requestsSubscription;
+  StreamSubscription? _detailSubscription;
 
   AdminReturnsCubit({required ReturnRepository returnRepository})
       : _returnRepository = returnRepository,
@@ -29,24 +30,39 @@ class AdminReturnsCubit extends Cubit<AdminReturnsState> {
     );
   }
 
+  // --- THÊM MỚI: Load chi tiết ---
+  void loadReturnRequestDetail(String requestId) {
+    emit(AdminReturnsLoading());
+    _detailSubscription?.cancel();
+    _detailSubscription = _returnRepository.watchReturnRequestById(requestId).listen(
+          (request) {
+        emit(AdminReturnRequestLoaded(request));
+      },
+      onError: (error) {
+        emit(const AdminReturnsError('Không thể tải chi tiết yêu cầu.'));
+      },
+    );
+  }
+
   Future<void> updateRequestStatus({
     required String requestId,
     required String newStatus,
     String? adminNotes,
-    String? rejectionReason, // <<< THÊM MỚI
+    String? rejectionReason,
   }) async {
     final result = await _returnRepository.updateReturnRequestStatus(
       requestId: requestId,
       newStatus: newStatus,
       adminNotes: adminNotes,
-      rejectionReason: rejectionReason, // <<< THÊM MỚI
+      rejectionReason: rejectionReason,
     );
-    // UI sẽ tự cập nhật nhờ stream, không cần emit state ở đây
+    // UI sẽ tự cập nhật nhờ stream
   }
 
   @override
   Future<void> close() {
     _requestsSubscription?.cancel();
+    _detailSubscription?.cancel();
     return super.close();
   }
 }

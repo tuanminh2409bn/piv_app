@@ -14,6 +14,7 @@ abstract class ReturnRepository {
     required List<File> images,
     required String userNotes,
     required double penaltyFee,
+    required double refundAmount,
   });
 
   Stream<List<ReturnRequestModel>> watchAllReturnRequests();

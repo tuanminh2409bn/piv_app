@@ -1200,7 +1200,7 @@ export const onReturnRequestUpdated = onDocumentUpdated(
 );
 
 // ===================================================================
-// --- FUNCTION 16: TỰ ĐỘNG TRỪ CÔNG NỢ KHI ĐƠN ĐỔI TRẢ HOÀN THÀNH ---
+// --- FUNCTION 16: TỰ ĐỘNG CẬP NHẬT CÔNG NỢ KHI ĐƠN ĐỔI TRẢ HOÀN THÀNH ---
 // ===================================================================
 export const onReturnRequestCompleted = onDocumentUpdated(
   {document: "returnRequests/{requestId}", region: "asia-southeast1"},
@@ -1227,24 +1227,27 @@ export const onReturnRequestCompleted = onDocumentUpdated(
 
     // Chỉ thực thi khi trạng thái chuyển thành 'completed'
     if (beforeData.status !== "completed" && afterData.status === "completed") {
-      const penaltyFee = afterData.penaltyFee as number;
+      const penaltyFee = (afterData.penaltyFee as number) || 0;
+      const refundAmount = (afterData.refundAmount as number) || 0;
       const userId = afterData.userId as string;
       const orderId = afterData.orderId as string;
-      const requestId = event.params.requestId; // Lấy requestId từ event.params
+      const requestId = event.params.requestId;
 
-      // Nếu không có phí phạt, không làm gì cả
-      if (!userId || penaltyFee <= 0) {
-        logger.log( // Sử dụng logger đã import
-          `No penalty fee for return request ${requestId}. Skipping.`
+      // Tính toán số tiền điều chỉnh công nợ
+      // penaltyFee: Cộng vào nợ (Khách phải trả)
+      // refundAmount: Trừ vào nợ (Công ty trả lại khách)
+      const netAdjustment = penaltyFee - refundAmount;
+
+      if (!userId || netAdjustment === 0) {
+        logger.log(
+          `No debt adjustment needed for return request ${requestId} (Net: ${netAdjustment}). Skipping.`
         );
-        return; // Dùng return thay vì return null
+        return;
       }
 
-      // const db = admin.firestore(); // db đã được khởi tạo ở đầu file
       const userRef = db.collection("users").doc(userId);
 
       try {
-        // Sử dụng transaction để đảm bảo tính toàn vẹn dữ liệu
         await db.runTransaction(async (transaction) => {
           const userDoc = await transaction.get(userRef);
           if (!userDoc.exists) {
@@ -1252,36 +1255,49 @@ export const onReturnRequestCompleted = onDocumentUpdated(
           }
 
           const currentDebt = (userDoc.data()?.debtAmount as number) || 0;
-          const newDebt = currentDebt + penaltyFee;
+          const newDebt = currentDebt + netAdjustment;
 
           // 1. Cập nhật công nợ của user
           transaction.update(userRef, {debtAmount: newDebt});
 
           // 2. Ghi lại một giao dịch công nợ để đối soát
           const debtTransactionRef = db.collection("debtTransactions").doc();
+          
+          let description = "";
+          if (penaltyFee > 0 && refundAmount > 0) {
+            description = `Hoàn trả đơn hàng #${orderId.substring(0, 8).toUpperCase()} (Trị giá: ${refundAmount}, Phạt: ${penaltyFee})`;
+          } else if (refundAmount > 0) {
+            description = `Hoàn trả đơn hàng #${orderId.substring(0, 8).toUpperCase()}`;
+          } else {
+            description = `Phí phạt đổi trả đơn hàng #${orderId.substring(0, 8).toUpperCase()}`;
+          }
+
           transaction.set(debtTransactionRef, {
             userId: userId,
-            amount: penaltyFee,
-            type: "return_penalty",
-            description: `Phí phạt đổi trả cho đơn hàng #${orderId.substring(0, 8).toUpperCase()}`,
+            amount: netAdjustment, // Số dương là tăng nợ, âm là giảm nợ
+            type: "return_adjustment",
+            description: description,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             orderId: orderId,
             returnRequestId: requestId,
+            metadata: {
+                penaltyFee: penaltyFee,
+                refundAmount: refundAmount
+            }
           });
         });
 
-        logger.log( // Sử dụng logger đã import
-          `Successfully applied penalty of ${penaltyFee} to user ${userId} for return request ${requestId}.`
+        logger.log(
+          `Successfully applied debt adjustment of ${netAdjustment} to user ${userId} for return request ${requestId}.`
         );
       } catch (error) {
-        logger.error( // Sử dụng logger đã import
-          `Failed to apply penalty for return request ${requestId}:`,
+        logger.error(
+          `Failed to apply debt adjustment for return request ${requestId}:`,
           error
         );
-        // Có thể thêm throw error ở đây nếu muốn Cloud Functions báo lỗi
       }
     }
-    return; // Dùng return thay vì return null
+    return;
   });
 
 // ===================================================================
