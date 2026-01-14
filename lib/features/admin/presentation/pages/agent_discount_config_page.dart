@@ -50,7 +50,6 @@ class _AgentDiscountConfigPageState extends State<AgentDiscountConfigPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Đã lưu cấu hình chiết khấu thành công!')),
     );
-    Navigator.of(context).pop();
   }
 
   @override

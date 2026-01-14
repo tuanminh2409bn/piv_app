@@ -201,24 +201,44 @@ export const calculateOrderDiscount = onCall({region: "asia-southeast1"}, async 
 
         // 3. Kiểm tra Cấu hình Chiết khấu RIÊNG LẺ (Custom Discount)
         // Cấu trúc mong đợi: customDiscount: { enabled: boolean, policy: AgentPolicy }
-        if (userData.customDiscount && userData.customDiscount.enabled === true) {
-            const policy = userData.customDiscount.policy as AgentPolicy | undefined;
+        const customDiscount = userData.customDiscount;
+        const isCustomEnabled = customDiscount && (customDiscount.enabled === true || customDiscount.enabled === "true");
+
+        if (isCustomEnabled) {
+            logger.info(`Processing CUSTOM DISCOUNT for user ${targetUserId}.`, { config: customDiscount });
+            const policy = customDiscount.policy as AgentPolicy | undefined;
+
             if (policy) {
                 // Tính chiết khấu Phân Bón Lá (Custom)
                 if (foliarTotalValue > 0 && policy.foliar?.tiers) {
                     const sortedTiers = policy.foliar.tiers.sort((a, b) => b.minAmount - a.minAmount);
                     const matchedTier = sortedTiers.find(tier => foliarTotalValue >= tier.minAmount);
-                    if (matchedTier) totalDiscount += foliarTotalValue * matchedTier.rate;
+                    if (matchedTier) {
+                        const amount = foliarTotalValue * matchedTier.rate;
+                        totalDiscount += amount;
+                        logger.info(`Custom Foliar: Val=${foliarTotalValue}, Rate=${matchedTier.rate}, Disc=${amount}`);
+                    }
                 }
                 // Tính chiết khấu Phân Bón Gốc (Custom)
                 if (rootTotalValue > 0 && policy.root?.tiers) {
                     const sortedTiers = policy.root.tiers.sort((a, b) => b.minAmount - a.minAmount);
                     const matchedTier = sortedTiers.find(tier => rootTotalValue >= tier.minAmount);
-                    if (matchedTier) totalDiscount += rootTotalValue * matchedTier.rate;
+                    if (matchedTier) {
+                        const amount = rootTotalValue * matchedTier.rate;
+                        totalDiscount += amount;
+                        logger.info(`Custom Root: Val=${rootTotalValue}, Rate=${matchedTier.rate}, Disc=${amount}`);
+                    }
                 }
                 logger.info(`Applied CUSTOM TIERED discount for user ${targetUserId}. Total: ${totalDiscount}`);
                 return { discount: totalDiscount, appliedPolicy: 'custom_tiered' };
+            } else {
+                logger.warn(`User ${targetUserId} has customDiscount enabled but NO policy data.`);
+                // Nếu bật enabled nhưng không có policy, có thể fallback hoặc trả về 0. 
+                // Ở đây ta return 0 để an toàn, tránh fallback nhầm sang Global.
+                return { discount: 0, appliedPolicy: 'custom_tiered_error' };
             }
+        } else {
+             logger.info(`Custom Discount Skipped for user ${targetUserId} (Enabled: ${customDiscount?.enabled}). Fallback to Global.`);
         }
 
         // 4. Nếu không có riêng lẻ -> Dùng Cấu hình CHUNG (Global Policy)
