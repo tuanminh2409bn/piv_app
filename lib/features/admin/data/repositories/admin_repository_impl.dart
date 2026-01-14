@@ -8,6 +8,7 @@ import 'package:piv_app/features/admin/domain/repositories/admin_repository.dart
 import 'dart:developer' as developer;
 import 'package:piv_app/features/admin/data/models/quick_order_item_model.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
+import 'package:piv_app/features/admin/data/models/discount_policy_model.dart';
 
 class AdminRepositoryImpl implements AdminRepository {
   final FirebaseFirestore _firestore;
@@ -221,29 +222,45 @@ class AdminRepositoryImpl implements AdminRepository {
   }
 
   @override
-  Future<Either<Failure, Unit>> updateUserDebt({
+  Future<Either<Failure, void>> updateUserDebt({
     required String userId,
     required double newDebtAmount,
-    required String updatedBy, // Giữ lại tham số này, có thể hữu ích cho việc log hoặc kiểm tra sau này nếu cần
+    required String updatedBy,
   }) async {
     try {
       final userRef = _firestore.collection('users').doc(userId);
+      await _firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(userRef);
+        if (!snapshot.exists) throw Exception("User does not exist!");
 
-      // --- THAY ĐỔI CHÍNH: Chỉ thực hiện cập nhật debtAmount ---
-      await userRef.update({'debtAmount': newDebtAmount});
-      // --- KẾT THÚC THAY ĐỔI ---
+        // 1. Cập nhật debtAmount trong User
+        transaction.update(userRef, {'debtAmount': newDebtAmount});
 
-      // Ghi log (chỉ log debug, không ghi vào Firestore ở đây)
-      developer.log('Manually updated debt for user $userId to $newDebtAmount by $updatedBy', name: 'AdminRepository');
-      return const Right(unit);
-
-    } on FirebaseException catch (e) {
-      // Nếu lỗi là do permission, kiểm tra lại rule cho phép update 'debtAmount' trên collection 'users'
-      developer.log('Firebase Error updating debt (manual): ${e.code} - ${e.message}', name: 'AdminRepositoryError');
-      return Left(ServerFailure('Lỗi Firebase khi cập nhật công nợ: ${e.message}'));
+        // 2. Tạo bản ghi DebtHistory (nếu cần thiết, tuỳ yêu cầu)
+        // Hiện tại chỉ update field debtAmount theo yêu cầu cơ bản.
+      });
+      return const Right(null);
     } catch (e) {
-      developer.log('Unknown Error updating debt (manual): ${e.toString()}', name: 'AdminRepositoryError');
-      return Left(ServerFailure('Lỗi không xác định khi cập nhật công nợ: ${e.toString()}'));
+      return Left(ServerFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> updateUserDiscountConfig({
+    required String userId,
+    required bool enabled,
+    required AgentPolicy policy,
+  }) async {
+    try {
+      await _firestore.collection('users').doc(userId).update({
+        'customDiscount': {
+          'enabled': enabled,
+          'policy': policy.toJson(),
+        }
+      });
+      return const Right(null);
+    } catch (e) {
+      return Left(ServerFailure(e.toString()));
     }
   }
 }

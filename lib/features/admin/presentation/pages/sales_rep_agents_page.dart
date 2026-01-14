@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
+import 'package:piv_app/features/admin/presentation/pages/agent_discount_config_page.dart';
 
 class SalesRepAgentsPage extends StatelessWidget {
   final UserModel salesRep;
@@ -14,10 +15,8 @@ class SalesRepAgentsPage extends StatelessWidget {
       appBar: AppBar(
         title: Text('Đại lý của ${salesRep.displayName ?? ''}'),
       ),
-      // Sử dụng BlocBuilder để trang này tự động cập nhật khi có thay đổi
       body: BlocBuilder<AdminUsersCubit, AdminUsersState>(
         builder: (context, state) {
-          // Lọc danh sách đại lý của NVKD này từ state tổng
           final agents = state.allUsers.where((user) => user.salesRepId == salesRep.id).toList();
 
           if (agents.isEmpty) {
@@ -29,13 +28,26 @@ class SalesRepAgentsPage extends StatelessWidget {
             itemCount: agents.length,
             itemBuilder: (context, index) {
               final agent = agents[index];
+              final isActive = agent.status == 'active';
+
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: ListTile(
                   leading: CircleAvatar(child: Text(agent.displayName?[0].toUpperCase() ?? 'Đ')),
                   title: Text(agent.displayName ?? 'Chưa có tên', style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text('Cấp: ${agent.role.replaceAll('agent_', '')} - Trạng thái: ${agent.status}'),
-                  trailing: const Icon(Icons.edit_outlined, color: Colors.grey),
+                  trailing: isActive
+                      ? IconButton(
+                          icon: const Icon(Icons.price_change_outlined, color: Colors.blue),
+                          tooltip: 'Cấu hình chiết khấu riêng',
+                          onPressed: () {
+                            Navigator.of(context).push(AgentDiscountConfigPage.route(
+                              user: agent,
+                              cubit: context.read<AdminUsersCubit>(),
+                            ));
+                          },
+                        )
+                      : null,
                   onTap: () => _showEditUserDialog(context, agent),
                 ),
               );
@@ -46,8 +58,6 @@ class SalesRepAgentsPage extends StatelessWidget {
     );
   }
 
-  // --- HÀM HELPER ĐỂ MỞ DIALOG CHỈNH SỬA ---
-  // (Hàm này được sao chép từ admin_users_page.dart để tái sử dụng)
   void _showEditUserDialog(BuildContext parentContext, UserModel user) {
     final cubit = parentContext.read<AdminUsersCubit>();
     String selectedRole = user.role;
@@ -100,6 +110,24 @@ class SalesRepAgentsPage extends StatelessWidget {
                         }
                       },
                     ),
+                    // Chỉ hiển thị nút cấu hình nếu đã active
+                    if ((user.role == 'agent_1' || user.role == 'agent_2') && user.status == 'active') ...[
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.price_change),
+                          label: const Text('Cấu hình Chiết khấu Riêng'),
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                            Navigator.of(parentContext).push(AgentDiscountConfigPage.route(
+                              user: user,
+                              cubit: cubit,
+                            ));
+                          },
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

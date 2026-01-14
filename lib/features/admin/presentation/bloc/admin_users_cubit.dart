@@ -5,6 +5,7 @@ import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/admin/domain/repositories/admin_repository.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:piv_app/features/admin/data/models/discount_policy_model.dart';
 
 part 'admin_users_state.dart';
 
@@ -85,6 +86,29 @@ class AdminUsersCubit extends Cubit<AdminUsersState> {
         emit(state.copyWith(
           status: AdminUsersStatus.success,
           errorMessage: 'Cập nhật công nợ thất bại: ${failure.message}',
+        ));
+        emit(state.copyWith(clearErrorMessage: true));
+      },
+          (_) => fetchAndGroupUsers(),
+    );
+  }
+
+  Future<void> updateUserDiscountConfig({
+    required String userId,
+    required bool enabled,
+    required AgentPolicy policy,
+  }) async {
+    emit(state.copyWith(status: AdminUsersStatus.updating));
+    final result = await _adminRepository.updateUserDiscountConfig(
+      userId: userId,
+      enabled: enabled,
+      policy: policy,
+    );
+    result.fold(
+          (failure) {
+        emit(state.copyWith(
+          status: AdminUsersStatus.success,
+          errorMessage: 'Cập nhật chiết khấu thất bại: ${failure.message}',
         ));
         emit(state.copyWith(clearErrorMessage: true));
       },

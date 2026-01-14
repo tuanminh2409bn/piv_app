@@ -7,6 +7,7 @@ import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
 import 'package:piv_app/features/admin/presentation/pages/sales_rep_agents_page.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:piv_app/features/admin/presentation/pages/agent_discount_config_page.dart';
 
 class AdminUsersPage extends StatelessWidget {
   const AdminUsersPage({super.key});
@@ -41,7 +42,6 @@ class AdminUsersView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authState = context.watch<AuthBloc>().state;
-    // Lấy thông tin người dùng hiện tại, bao gồm cả vai trò
     final currentUser =
     (authState is AuthAuthenticated) ? authState.user : null;
 
@@ -54,11 +54,8 @@ class AdminUsersView extends StatelessWidget {
           return Center(child: Text(state.errorMessage ?? 'Có lỗi xảy ra'));
         }
 
-        // Lọc danh sách một cách chính xác
         final admins = state.allUsers.where((user) => user.role == 'admin').toList();
         final accountants = state.allUsers.where((user) => user.role == 'accountant').toList();
-
-        // --- LOGIC MỚI: Kiểm tra vai trò của người dùng hiện tại ---
         final bool isAdmin = currentUser?.role == 'admin';
 
         return RefreshIndicator(
@@ -73,7 +70,6 @@ class AdminUsersView extends StatelessWidget {
                   currentUser?.id ?? ''),
               const SizedBox(height: 16),
 
-              // --- THAY ĐỔI: Chỉ hiển thị mục này cho Admin ---
               if (isAdmin) ...[
                 _buildSectionHeader(context, 'Kế toán',
                     Icons.account_balance_wallet_outlined,
@@ -102,9 +98,6 @@ class AdminUsersView extends StatelessWidget {
     );
   }
 
-  // Các hàm widget con (_buildSectionHeader, _buildSalesRepsList, etc.)
-  // và dialog _showEditUserDialog không thay đổi.
-  // ... (Giữ nguyên toàn bộ code còn lại của bạn ở đây) ...
   Widget _buildSectionHeader(BuildContext context, String title, IconData icon, {required int count}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
@@ -167,13 +160,26 @@ class AdminUsersView extends StatelessWidget {
       itemCount: agents.length,
       itemBuilder: (context, index) {
         final agent = agents[index];
+        final isActive = agent.status == 'active';
+
         return Card(
           color: Colors.orange.shade50,
           child: ListTile(
             leading: CircleAvatar(backgroundColor: Colors.orange.shade100, child: const Icon(Icons.person_outline, color: Colors.orange)),
             title: Text(agent.displayName ?? 'Chưa có tên'),
             subtitle: Text(agent.email ?? 'Chưa có email'),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            trailing: isActive
+                ? IconButton(
+                    icon: const Icon(Icons.price_change_outlined, color: Colors.blue),
+                    tooltip: 'Cấu hình chiết khấu riêng',
+                    onPressed: () {
+                      Navigator.of(context).push(AgentDiscountConfigPage.route(
+                        user: agent,
+                        cubit: context.read<AdminUsersCubit>(),
+                      ));
+                    },
+                  )
+                : null,
             onTap: () => _showEditUserDialog(context, agent),
           ),
         );
@@ -237,7 +243,6 @@ class AdminUsersView extends StatelessWidget {
 
   void _showEditUserDialog(BuildContext parentContext, UserModel userToEdit) {
     final cubit = parentContext.read<AdminUsersCubit>();
-    // Lấy thông tin người dùng hiện tại đang đăng nhập
     final currentUser = (parentContext.read<AuthBloc>().state as AuthAuthenticated).user;
 
     String selectedRole = userToEdit.role;
@@ -248,7 +253,6 @@ class AdminUsersView extends StatelessWidget {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setState) {
-            // --- LOGIC MỚI: Lấy danh sách vai trò được phép gán ---
             final availableRoles = _getAvailableRolesForUser(currentUser.role);
 
             return AlertDialog(
@@ -263,11 +267,9 @@ class AdminUsersView extends StatelessWidget {
                     const Divider(height: 24),
                     const Text('Vai trò', style: TextStyle(fontWeight: FontWeight.bold)),
                     DropdownButton<String>(
-                      // Nếu vai trò hiện tại không có trong danh sách được phép, không cho chọn
                       value: availableRoles.any((item) => item.value == selectedRole) ? selectedRole : null,
                       isExpanded: true,
                       hint: const Text('Không có quyền thay đổi vai trò'),
-                      // --- HIỂN THỊ DANH SÁCH VAI TRÒ ĐỘNG ---
                       items: availableRoles,
                       onChanged: (value) {
                         if (value != null) {
@@ -291,6 +293,24 @@ class AdminUsersView extends StatelessWidget {
                         }
                       },
                     ),
+                    // Chỉ hiển thị nút cấu hình nếu là đại lý VÀ đã active
+                    if ((userToEdit.role == 'agent_1' || userToEdit.role == 'agent_2') && userToEdit.status == 'active') ...[
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.price_change),
+                          label: const Text('Cấu hình Chiết khấu Riêng'),
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                            Navigator.of(parentContext).push(AgentDiscountConfigPage.route(
+                              user: userToEdit,
+                              cubit: cubit,
+                            ));
+                          },
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -314,7 +334,6 @@ class AdminUsersView extends StatelessWidget {
     );
   }
 
-  // --- HÀM HELPER MỚI ĐỂ LẤY VAI TRÒ THEO QUYỀN ---
   List<DropdownMenuItem<String>> _getAvailableRolesForUser(String currentUserRole) {
     const allRoles = {
       'accountant': 'Kế toán',
@@ -327,10 +346,8 @@ class AdminUsersView extends StatelessWidget {
     List<String> allowedRoleKeys = [];
 
     if (currentUserRole == 'admin') {
-      // Admin có mọi quyền
       allowedRoleKeys = ['accountant', 'sales_rep', 'agent_1', 'agent_2', 'admin'];
     } else if (currentUserRole == 'accountant') {
-      // Kế toán có thể nâng cấp lên NVKD và Đại lý
       allowedRoleKeys = ['sales_rep', 'agent_1', 'agent_2'];
     }
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:piv_app/features/admin/presentation/pages/admin_debt_management_page.dart'; // <--- THÊM IMPORT MỚI
+import 'package:piv_app/features/admin/presentation/pages/admin_debt_management_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/quick_order_agent_selection_page.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_orders_page.dart';
@@ -16,6 +16,7 @@ import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commi
 import 'package:piv_app/features/lucky_wheel/presentation/pages/lucky_wheel_admin_page.dart';
 import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
 import 'package:piv_app/features/returns/presentation/pages/admin_return_requests_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/discount_settings_page.dart';
 
 class AdminHomePage extends StatelessWidget {
   const AdminHomePage({super.key});
@@ -50,6 +51,11 @@ class AdminHomePage extends StatelessWidget {
               title: 'Quản lý Công nợ',
               icon: Icons.receipt_long_outlined,
               onTap: () => Navigator.of(context).push(AdminDebtManagementPage.route()),
+            ),
+            _DashboardCard(
+              title: 'Cấu hình Chiết khấu',
+              icon: Icons.price_change_outlined,
+              onTap: () => Navigator.of(context).push(DiscountSettingsPage.route()),
             ),
             _DashboardCard(
               title: 'Quản lý Đổi/Trả',

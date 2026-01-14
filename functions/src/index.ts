@@ -133,8 +133,22 @@ const getRecipientsByRoles = async (roles: string[]): Promise<{ id: string; toke
 };
 
 // ===================================================================
-// FUNCTION 1: TÍNH TOÁN CHIẾT KHẤU ĐẠI LÝ
+// FUNCTION 1: TÍNH TOÁN CHIẾT KHẤU ĐẠI LÝ (DYNAMIC)
 // ===================================================================
+interface DiscountTier {
+    minAmount: number;
+    rate: number;
+}
+
+interface ProductTypePolicy {
+    tiers: DiscountTier[]; // Dùng cho cấu hình chung (theo nấc)
+}
+
+interface AgentPolicy {
+    foliar: ProductTypePolicy;
+    root: ProductTypePolicy;
+}
+
 export const calculateOrderDiscount = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
     const callerId = request.auth.uid;
@@ -145,43 +159,113 @@ export const calculateOrderDiscount = onCall({region: "asia-southeast1"}, async 
     }
 
     try {
+        // 1. Xác định User mục tiêu
         if (agentId && typeof agentId === "string") {
             const callerDoc = await db.collection("users").doc(callerId).get();
             const callerRole = callerDoc.data()?.role;
             if (!callerRole || !["admin", "sales_rep", "accountant"].includes(callerRole)) {
-                throw new HttpsError("permission-denied", "You do not have permission to calculate discounts for other users.");
+                throw new HttpsError("permission-denied", "Permission denied.");
             }
         }
         const targetUserId = agentId || callerId;
         const userDoc = await db.collection("users").doc(targetUserId).get();
         if (!userDoc.exists) {
-            throw new HttpsError("not-found", `User with ID ${targetUserId} not found.`);
+            throw new HttpsError("not-found", `User ${targetUserId} not found.`);
         }
         const userData = userDoc.data()!;
+        
+        // Nếu đang chạy chương trình cam kết doanh số, KHÔNG tính chiết khấu đơn hàng
         if (userData.activeRewardProgram === "sales_target") return {discount: 0};
 
+        // 2. Phân loại và tính tổng tiền theo nhóm sản phẩm
         const productIds: string[] = orderItems.map((item: { productId: string }) => item.productId);
         if (productIds.length === 0) return {discount: 0};
+        
         const productsSnapshot = await db.collection("products").where(admin.firestore.FieldPath.documentId(), "in", productIds).get();
         const productsMap = new Map<string, any>();
         productsSnapshot.forEach((doc) => productsMap.set(doc.id, doc.data()));
+
         let foliarTotalValue = 0;
         let rootTotalValue = 0;
+
         for (const item of orderItems) {
             const productInfo = productsMap.get(item.productId);
             if (productInfo) {
-                const itemValue = item.subtotal;
+                const itemValue = Number(item.subtotal) || 0;
                 if (productInfo.productType === "foliar_fertilizer") foliarTotalValue += itemValue;
                 else if (productInfo.productType === "root_fertilizer") rootTotalValue += itemValue;
             }
         }
+
         let totalDiscount = 0;
-        const userRole = userData.role;
-        if ((userRole === "agent_1" || userRole === "agent_2") && (foliarTotalValue > 0 || rootTotalValue > 0)) {
-            totalDiscount += calculateDiscountForFoliar(foliarTotalValue, userRole);
-            totalDiscount += calculateDiscountForRoot(rootTotalValue, userRole);
+
+        // 3. Kiểm tra Cấu hình Chiết khấu RIÊNG LẺ (Custom Discount)
+        // Cấu trúc mong đợi: customDiscount: { enabled: boolean, policy: AgentPolicy }
+        if (userData.customDiscount && userData.customDiscount.enabled === true) {
+            const policy = userData.customDiscount.policy as AgentPolicy | undefined;
+            if (policy) {
+                // Tính chiết khấu Phân Bón Lá (Custom)
+                if (foliarTotalValue > 0 && policy.foliar?.tiers) {
+                    const sortedTiers = policy.foliar.tiers.sort((a, b) => b.minAmount - a.minAmount);
+                    const matchedTier = sortedTiers.find(tier => foliarTotalValue >= tier.minAmount);
+                    if (matchedTier) totalDiscount += foliarTotalValue * matchedTier.rate;
+                }
+                // Tính chiết khấu Phân Bón Gốc (Custom)
+                if (rootTotalValue > 0 && policy.root?.tiers) {
+                    const sortedTiers = policy.root.tiers.sort((a, b) => b.minAmount - a.minAmount);
+                    const matchedTier = sortedTiers.find(tier => rootTotalValue >= tier.minAmount);
+                    if (matchedTier) totalDiscount += rootTotalValue * matchedTier.rate;
+                }
+                logger.info(`Applied CUSTOM TIERED discount for user ${targetUserId}. Total: ${totalDiscount}`);
+                return { discount: totalDiscount, appliedPolicy: 'custom_tiered' };
+            }
         }
-        return {discount: totalDiscount};
+
+        // 4. Nếu không có riêng lẻ -> Dùng Cấu hình CHUNG (Global Policy)
+        const userRole = userData.role;
+        if (userRole === "agent_1" || userRole === "agent_2") {
+            // Lấy cấu hình từ Firestore: settings/discount_policy
+            const policyDoc = await db.collection("settings").doc("discount_policy").get();
+            let policyData = policyDoc.data();
+
+            // FALLBACK: Nếu chưa có cấu hình trong DB, dùng mặc định (như code cũ) để hệ thống không chết
+            if (!policyData) {
+                logger.warn("Missing settings/discount_policy. Using hardcoded fallback.");
+                policyData = {
+                    agent_1: {
+                        foliar: { tiers: [{ minAmount: 100000000, rate: 0.10 }, { minAmount: 50000000, rate: 0.07 }, { minAmount: 30000000, rate: 0.05 }, { minAmount: 10000000, rate: 0.03 }] },
+                        root: { tiers: [{ minAmount: 100000000, rate: 0.05 }, { minAmount: 50000000, rate: 0.03 }] }
+                    },
+                    agent_2: {
+                        foliar: { tiers: [{ minAmount: 50000000, rate: 0.10 }, { minAmount: 30000000, rate: 0.08 }, { minAmount: 10000000, rate: 0.06 }, { minAmount: 3000000, rate: 0.04 }] },
+                        root: { tiers: [{ minAmount: 50000000, rate: 0.05 }, { minAmount: 30000000, rate: 0.03 }] }
+                    }
+                };
+            }
+
+            const agentPolicy = policyData[userRole] as AgentPolicy | undefined;
+            if (agentPolicy) {
+                // Tính chiết khấu Phân Bón Lá
+                if (foliarTotalValue > 0 && agentPolicy.foliar?.tiers) {
+                    // Sắp xếp giảm dần theo minAmount để lấy mốc cao nhất thỏa mãn
+                    const sortedTiers = agentPolicy.foliar.tiers.sort((a, b) => b.minAmount - a.minAmount);
+                    const matchedTier = sortedTiers.find(tier => foliarTotalValue >= tier.minAmount);
+                    if (matchedTier) {
+                        totalDiscount += foliarTotalValue * matchedTier.rate;
+                    }
+                }
+                // Tính chiết khấu Phân Bón Gốc
+                if (rootTotalValue > 0 && agentPolicy.root?.tiers) {
+                    const sortedTiers = agentPolicy.root.tiers.sort((a, b) => b.minAmount - a.minAmount);
+                    const matchedTier = sortedTiers.find(tier => rootTotalValue >= tier.minAmount);
+                    if (matchedTier) {
+                        totalDiscount += rootTotalValue * matchedTier.rate;
+                    }
+                }
+            }
+        }
+
+        return { discount: totalDiscount, appliedPolicy: 'global' };
     } catch (error) {
         logger.error("Error in calculateOrderDiscount:", error);
         if (error instanceof HttpsError) throw error;
@@ -1838,34 +1922,6 @@ export const checkExpiredSalesCommitments = onSchedule({
 // ===================================================================
 // SECTION: PRIVATE HELPER FUNCTIONS (Không thay đổi)
 // ===================================================================
-
-function calculateDiscountForFoliar(total: number, role: string): number {
-    let discountRate = 0;
-    if (role === "agent_1") {
-      if (total >= 100000000) discountRate = 0.10;
-      else if (total >= 50000000) discountRate = 0.07;
-      else if (total >= 30000000) discountRate = 0.05;
-      else if (total >= 10000000) discountRate = 0.03;
-    } else if (role === "agent_2") {
-      if (total >= 50000000) discountRate = 0.10;
-      else if (total >= 30000000) discountRate = 0.08;
-      else if (total >= 10000000) discountRate = 0.06;
-      else if (total >= 3000000) discountRate = 0.04;
-    }
-    return total * discountRate;
-}
-
-function calculateDiscountForRoot(total: number, role: string): number {
-    let discountRate = 0;
-    if (role === "agent_1") {
-      if (total >= 100000000) discountRate = 0.05;
-      else if (total >= 50000000) discountRate = 0.03;
-    } else if (role === "agent_2") {
-      if (total >= 50000000) discountRate = 0.05;
-      else if (total >= 30000000) discountRate = 0.03;
-    }
-    return total * discountRate;
-}
 
 function calculateCommissionForFoliar(total: number): number {
     let rate = 0;

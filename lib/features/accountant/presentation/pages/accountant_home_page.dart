@@ -86,7 +86,7 @@ class ProductManagementPageWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
+    return BlocProvider<AdminProductsCubit>(
       create: (context) => sl<AdminProductsCubit>()..fetchAllProducts(),
       child: const AdminProductsPage(),
     );
@@ -99,7 +99,7 @@ class AdminDebtManagementPageWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Wrapper này cung cấp AdminUsersCubit cho trang quản lý công nợ
-    return BlocProvider(
+    return BlocProvider<AdminUsersCubit>(
       create: (context) => sl<AdminUsersCubit>()..fetchAndGroupUsers(),
       child: const AdminDebtManagementPage(),
     );
@@ -111,7 +111,7 @@ class _ReturnRequestManagementTabWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
+    return BlocProvider<AdminReturnsCubit>(
       create: (context) => sl<AdminReturnsCubit>()..watchAllRequests(),
       child: const AdminReturnRequestsPage(),
     );
@@ -123,7 +123,7 @@ class _QuickOrderManagementTabWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
+    return BlocProvider<AgentSelectionCubit>(
       create: (context) => AgentSelectionCubit(
         adminRepository: sl<AdminRepository>(),
       )..fetchAllAgents(),
@@ -137,7 +137,7 @@ class CommitmentManagementPageWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
+    return BlocProvider<SalesCommitmentAdminCubit>(
       create: (context) => sl<SalesCommitmentAdminCubit>()..watchAllCommitments(),
       child: const AdminCommitmentsPage(),
     );
@@ -149,7 +149,7 @@ class AllAgentsViewForAccountant extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
+    return BlocProvider<AccountantAgentsCubit>(
       create: (context) => sl<AccountantAgentsCubit>()..fetchAllAgents(),
       child: BlocBuilder<AccountantAgentsCubit, AccountantAgentsState>(
         builder: (context, state) {

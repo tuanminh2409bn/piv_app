@@ -71,11 +71,11 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(create: (context) => di.sl<AuthBloc>()..add(AuthAppStarted())),
-        BlocProvider(create: (context) => di.sl<CartCubit>()),
-        BlocProvider(create: (context) => di.sl<WishlistCubit>()),
-        BlocProvider(create: (context) => di.sl<ProfileCubit>()),
-        BlocProvider(create: (context) => di.sl<NotificationCubit>()),
+        BlocProvider<AuthBloc>(create: (context) => di.sl<AuthBloc>()..add(AuthAppStarted())),
+        BlocProvider<CartCubit>(create: (context) => di.sl<CartCubit>()),
+        BlocProvider<WishlistCubit>(create: (context) => di.sl<WishlistCubit>()),
+        BlocProvider<ProfileCubit>(create: (context) => di.sl<ProfileCubit>()),
+        BlocProvider<NotificationCubit>(create: (context) => di.sl<NotificationCubit>()),
       ],
       child: MaterialApp(
         navigatorKey: navigatorKey,

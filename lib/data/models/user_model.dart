@@ -20,6 +20,7 @@ class UserModel extends Equatable {
   final String activeRewardProgram;
   final int spinCount;
   final double debtAmount;
+  final Map<String, dynamic>? customDiscount;
 
   String get referralCode => id;
 
@@ -39,12 +40,18 @@ class UserModel extends Equatable {
     this.activeRewardProgram = 'instant_discount',
     this.spinCount = 0,
     this.debtAmount = 0.0,
+    this.customDiscount,
   });
 
   bool get isGuest => role == 'guest';
   bool get isAdmin => role == 'admin';
   bool get isSalesRep => role == 'sales_rep';
   bool get isAccountant => role == 'accountant';
+  
+  bool get customDiscountEnabled => customDiscount?['enabled'] == true;
+  double get customFoliarRate => (customDiscount?['foliarRate'] as num?)?.toDouble() ?? 0.0;
+  double get customRootRate => (customDiscount?['rootRate'] as num?)?.toDouble() ?? 0.0;
+
   static const empty = UserModel(id: '');
   bool get isEmpty => this == UserModel.empty;
   bool get isNotEmpty => this != UserModel.empty;
@@ -65,6 +72,7 @@ class UserModel extends Equatable {
     String? activeRewardProgram,
     int? spinCount,
     double? debtAmount,
+    Map<String, dynamic>? customDiscount,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -82,6 +90,7 @@ class UserModel extends Equatable {
       activeRewardProgram: activeRewardProgram ?? this.activeRewardProgram,
       spinCount: spinCount ?? this.spinCount,
       debtAmount: debtAmount ?? this.debtAmount,
+      customDiscount: customDiscount ?? this.customDiscount,
     );
   }
 
@@ -102,6 +111,7 @@ class UserModel extends Equatable {
       'activeRewardProgram': activeRewardProgram,
       'spinCount': spinCount,
       'debtAmount': debtAmount,
+      'customDiscount': customDiscount,
     };
   }
 
@@ -127,6 +137,7 @@ class UserModel extends Equatable {
       activeRewardProgram: data['activeRewardProgram'] as String? ?? 'instant_discount',
       spinCount: data['spinCount'] as int? ?? 0,
       debtAmount: (data['debtAmount'] as num?)?.toDouble() ?? 0.0,
+      customDiscount: data['customDiscount'] as Map<String, dynamic>?,
     );
   }
 
@@ -149,6 +160,7 @@ class UserModel extends Equatable {
       activeRewardProgram: json['activeRewardProgram'] as String? ?? 'instant_discount',
       spinCount: json['spinCount'] as int? ?? 0,
       debtAmount: (json['debtAmount'] as num?)?.toDouble() ?? 0.0,
+      customDiscount: json['customDiscount'] as Map<String, dynamic>?,
     );
   }
 
@@ -168,6 +180,7 @@ class UserModel extends Equatable {
     assignedAgentIds,
     activeRewardProgram,
     spinCount,
-    debtAmount
+    debtAmount,
+    customDiscount,
   ];
 }
