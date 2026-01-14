@@ -12,15 +12,18 @@ class NotificationHistoryPage extends StatelessWidget {
   String _getTargetDescription(Map<String, dynamic> targetData) {
     final type = targetData['type'];
     if (type == 'all') {
-      return 'Tất cả Đại lý & NVKD';
+      return 'Tất cả Đại lý';
     }
     if (type == 'sales_rep_group') {
-      // Sử dụng `salesRepName` nếu có, nếu không thì hiển thị ID
       final name = targetData['salesRepName'];
-      if (name != null && name.isNotEmpty) {
-        return 'Đại lý của: $name';
-      }
-      return 'Nhóm NVKD (ID: ${targetData['id']})';
+      return 'Đại lý của NVKD: ${name ?? 'Chưa xác định'}';
+    }
+    if (type == 'specific_users') {
+        final names = targetData['recipientNames'];
+        if (names != null && names is List && names.isNotEmpty) {
+            return 'Khách hàng: ${names.join(", ")}';
+        }
+        return 'Khách hàng lẻ';
     }
     return 'Không rõ';
   }

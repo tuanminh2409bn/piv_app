@@ -819,47 +819,115 @@ export const sendManualNotification = onCall(
         if (adminDoc.data()?.role !== "admin") {
             throw new HttpsError("permission-denied", "Bạn không có quyền thực hiện hành động này.");
         }
-        const {title, body, salesRepId} = request.data;
-        let salesRepName: string | null = null; // Khai báo biến để lưu tên
+        
+        // userIds: Danh sách ID cụ thể (mới thêm)
+        // salesRepId: Gửi theo nhóm sales (cũ)
+        const {title, body, salesRepId, userIds} = request.data;
+        logger.info(`sendManualNotification called. Title: ${title}, Target: ${userIds ? 'Specific (' + userIds.length + ')' : (salesRepId ? 'Group ' + salesRepId : 'All')}`);
+
+        let salesRepName: string | null = null; 
 
         if (!title || !body) {
             throw new HttpsError("invalid-argument", "Vui lòng nhập đầy đủ tiêu đề và nội dung.");
         }
 
-        let userQuery = db.collection("users").where("status", "==", "active").where("role", "in", ["agent_1", "agent_2", "sales_rep"]);
-        if (salesRepId && typeof salesRepId === "string") {
-            userQuery = userQuery.where("salesRepId", "==", salesRepId);
-            const salesRepDoc = await db.collection("users").doc(salesRepId).get();
-        if (salesRepDoc.exists) {
-            salesRepName = salesRepDoc.data()?.displayName ?? null;
+        let recipients: {id: string, token?: string, name: string}[] = [];
+        let targetType = "all";
+
+        // TRƯỜNG HỢP 1: Gửi cho danh sách cụ thể (Ưu tiên cao nhất)
+        // Kiểm tra userIds có tồn tại và có phần tử
+        if (userIds && Array.isArray(userIds) && userIds.length > 0) {
+            targetType = "specific_users";
+            logger.info(`Targeting ${userIds.length} specific users.`);
+            
+            // Chia nhỏ mảng userIds thành các chunk (mỗi chunk tối đa 10 phần tử cho whereIn)
+            const chunks = [];
+            for (let i = 0; i < userIds.length; i += 10) {
+                chunks.push(userIds.slice(i, i + 10));
             }
+
+            for (const chunk of chunks) {
+                const snapshot = await db.collection("users")
+                    .where(admin.firestore.FieldPath.documentId(), "in", chunk)
+                    .get();
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    recipients.push({
+                        id: doc.id, 
+                        token: data.fcmToken as string | undefined,
+                        name: data.displayName || "Khách hàng"
+                    });
+                });
+            }
+        } 
+        // TRƯỜNG HỢP 2: Gửi theo nhóm Sales Rep
+        else if (salesRepId && typeof salesRepId === "string") {
+            targetType = "sales_rep_group";
+            const salesRepDoc = await db.collection("users").doc(salesRepId).get();
+            if (salesRepDoc.exists) {
+                salesRepName = salesRepDoc.data()?.displayName ?? null;
+            }
+            const snapshot = await db.collection("users")
+                .where("status", "==", "active")
+                .where("role", "in", ["agent_1", "agent_2"]) // Đã đảm bảo chỉ lấy Đại lý
+                .where("salesRepId", "==", salesRepId)
+                .get();
+            recipients = snapshot.docs.map((doc) => ({
+                id: doc.id, 
+                token: doc.data().fcmToken as string | undefined,
+                name: doc.data().displayName || "Khách hàng"
+            }));
         }
-        const usersSnapshot = await userQuery.get();
-        const recipients = usersSnapshot.docs.map((doc) => ({id: doc.id, token: doc.data().fcmToken as string | undefined}));
+        // TRƯỜNG HỢP 3: Gửi cho tất cả (Mặc định)
+        else {
+            logger.info("Targeting ALL AGENTS (excluding Sales Reps).");
+            const snapshot = await db.collection("users")
+                .where("status", "==", "active")
+                .where("role", "in", ["agent_1", "agent_2"]) // SỬA: Chỉ gửi cho Agent, BỎ sales_rep
+                .get();
+            recipients = snapshot.docs.map((doc) => ({
+                id: doc.id, 
+                token: doc.data().fcmToken as string | undefined,
+                name: doc.data().displayName || "Khách hàng"
+            }));
+        }
 
         if (recipients.length === 0) {
             return {success: true, message: "Không tìm thấy người dùng nào phù hợp để gửi."};
         }
-        const type = "manual_promo";
+        
+        const type = "manual_notification"; // Đổi tên type cho tổng quát hơn
 
+        // Gửi FCM
         await sendPushNotification(recipients.map((r) => r.token), title, body, {
             type,
             payload: JSON.stringify({sentAt: new Date().toISOString()}),
         });
 
+        // Lưu thông báo vào Firestore của từng user
         const savePromises = recipients.map((r) => saveNotificationToFirestore(r.id, title, body, type, {}));
         await Promise.all(savePromises);
+
+        // Lưu lịch sử gửi của Admin
+        // CHỈ LƯU DANH SÁCH TÊN NẾU GỬI CỤ THỂ (Để tránh document quá nặng nếu gửi all)
+        let recipientNamesForHistory: string[] = [];
+        if (targetType === "specific_users") {
+            recipientNamesForHistory = recipients.map(r => r.name);
+        }
 
         await db.collection("manualNotifications").add({
             title, body, sentBy: adminId,
             target: {
-                type: salesRepId ? "sales_rep_group" : "all",
-                id: salesRepId ?? null,
+                type: targetType,
+                ids: targetType === 'specific_users' ? userIds : null,
+                salesRepId: salesRepId ?? null,
                 salesRepName: salesRepName,
-                },
+                recipientNames: recipientNamesForHistory, // <--- THÊM TRƯỜNG NÀY
+            },
             recipientCount: recipients.length,
-            sentAt: new Date(),
+            sentAt: admin.firestore.FieldValue.serverTimestamp(),
          });
+         
         return {success: true, message: `Đã gửi thông báo thành công đến ${recipients.length} người dùng.`};
     }
 );
