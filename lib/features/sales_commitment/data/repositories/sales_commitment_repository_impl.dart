@@ -58,11 +58,64 @@ class SalesCommitmentRepositoryImpl implements SalesCommitmentRepository {
   }
 
   @override
+  Future<Either<Failure, void>> requestCancelCommitment({
+    required String commitmentId,
+    required String reason,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable('requestCancelCommitment');
+      await callable.call({
+        'commitmentId': commitmentId,
+        'reason': reason,
+      });
+      return const Right(null);
+    } on FirebaseFunctionsException catch (e) {
+      return Left(ServerFailure(e.message ?? 'Lỗi không xác định từ server.'));
+    } catch (e) {
+      return Left(ServerFailure('Không thể yêu cầu hủy cam kết: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> approveCancelCommitment({
+    required String commitmentId,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable('approveCancelCommitment');
+      await callable.call({
+        'commitmentId': commitmentId,
+      });
+      return const Right(null);
+    } on FirebaseFunctionsException catch (e) {
+      return Left(ServerFailure(e.message ?? 'Lỗi không xác định từ server.'));
+    } catch (e) {
+      return Left(ServerFailure('Không thể duyệt hủy cam kết: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> rejectCancelCommitment({
+    required String commitmentId,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable('rejectCancelCommitment');
+      await callable.call({
+        'commitmentId': commitmentId,
+      });
+      return const Right(null);
+    } on FirebaseFunctionsException catch (e) {
+      return Left(ServerFailure(e.message ?? 'Lỗi không xác định từ server.'));
+    } catch (e) {
+      return Left(ServerFailure('Không thể từ chối hủy cam kết: ${e.toString()}'));
+    }
+  }
+
+  @override
   Stream<SalesCommitmentModel?> watchActiveCommitmentForUser(String userId) {
     return _firestore
         .collection('sales_commitments')
         .where('userId', isEqualTo: userId)
-        .where('status', isEqualTo: 'active')
+        .where('status', whereIn: ['active', 'pending_cancellation', 'pending_approval']) // Include pending_approval
         .limit(1)
         .snapshots()
         .map((snapshot) {
@@ -70,6 +123,20 @@ class SalesCommitmentRepositoryImpl implements SalesCommitmentRepository {
         return null;
       }
       return SalesCommitmentModel.fromSnap(snapshot.docs.first);
+    });
+  }
+
+  @override
+  Stream<List<SalesCommitmentModel>> watchCommitmentHistoryForUser(String userId) {
+    return _firestore
+        .collection('sales_commitments')
+        .where('userId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => SalesCommitmentModel.fromSnap(doc))
+          .toList();
     });
   }
 

@@ -43,8 +43,7 @@ class SalesCommitmentAdminCubit extends Cubit<SalesCommitmentAdminState> {
       commitmentId: commitmentId,
       detailsText: detailsText,
     );
-    // Không cần emit state vì danh sách sẽ tự cập nhật qua stream,
-    // nhưng có thể emit lỗi để hiển thị snackbar nếu cần.
+    
     result.fold(
           (failure) => emit(state.copyWith(
         status: SalesCommitmentAdminStatus.error,
@@ -53,6 +52,45 @@ class SalesCommitmentAdminCubit extends Cubit<SalesCommitmentAdminState> {
           (_) {
         // Có thể emit một state thành công riêng nếu muốn hiển thị thông báo
       },
+    );
+  }
+
+  Future<void> requestCancel({
+    required String commitmentId,
+    required String reason,
+  }) async {
+    final result = await _repository.requestCancelCommitment(
+      commitmentId: commitmentId,
+      reason: reason,
+    );
+    result.fold(
+          (failure) => emit(state.copyWith(
+        status: SalesCommitmentAdminStatus.error,
+        errorMessage: failure.message,
+      )),
+          (_) {}, 
+    );
+  }
+
+  Future<void> approveCancel({required String commitmentId}) async {
+    final result = await _repository.approveCancelCommitment(commitmentId: commitmentId);
+    result.fold(
+          (failure) => emit(state.copyWith(
+        status: SalesCommitmentAdminStatus.error,
+        errorMessage: failure.message,
+      )),
+          (_) {},
+    );
+  }
+
+  Future<void> rejectCancel({required String commitmentId}) async {
+    final result = await _repository.rejectCancelCommitment(commitmentId: commitmentId);
+    result.fold(
+          (failure) => emit(state.copyWith(
+        status: SalesCommitmentAdminStatus.error,
+        errorMessage: failure.message,
+      )),
+          (_) {},
     );
   }
 

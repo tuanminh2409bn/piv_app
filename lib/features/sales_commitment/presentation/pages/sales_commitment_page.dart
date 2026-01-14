@@ -7,6 +7,7 @@ import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/sales_commitment/presentation/bloc/agent/sales_commitment_agent_cubit.dart';
 import 'package:piv_app/data/models/sales_commitment_model.dart';
+import 'package:piv_app/features/sales_commitment/presentation/pages/commitment_history_page.dart';
 import 'create_commitment_form_page.dart';
 
 class SalesCommitmentPage extends StatelessWidget {
@@ -26,11 +27,18 @@ class SalesCommitmentView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = (context.watch<AuthBloc>().state as AuthAuthenticated).user;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chương trình thưởng'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'Lịch sử cam kết',
+            onPressed: () {
+              Navigator.of(context).push(CommitmentHistoryPage.route());
+            },
+          )
+        ],
       ),
       body: BlocBuilder<SalesCommitmentAgentCubit, SalesCommitmentAgentState>(
         builder: (context, state) {
@@ -45,12 +53,57 @@ class SalesCommitmentView extends StatelessWidget {
             });
           }
 
-          if (user.activeRewardProgram == 'sales_target' && state.activeCommitment != null) {
-            return ActiveCommitmentDashboard(commitment: state.activeCommitment!);
-          } else {
-            return ProgramSelectionView();
+          if (state.activeCommitment != null) {
+            if (state.activeCommitment!.status == 'pending_approval') {
+              return const PendingApprovalView();
+            }
+            if (['active', 'pending_cancellation', 'completed'].contains(state.activeCommitment!.status)) {
+               return ActiveCommitmentDashboard(commitment: state.activeCommitment!);
+            }
           }
+          
+          return ProgramSelectionView();
         },
+      ),
+    );
+  }
+}
+
+class PendingApprovalView extends StatelessWidget {
+  const PendingApprovalView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.hourglass_top, size: 80, color: Colors.orange.shade300),
+              const SizedBox(height: 24),
+              Text(
+                'Đang chờ duyệt',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Yêu cầu đăng ký cam kết của bạn đang được công ty xem xét. Chúng tôi sẽ thông báo ngay khi cam kết được duyệt và bạn có thể bắt đầu tích lũy doanh số.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+              const SizedBox(height: 32),
+              OutlinedButton(
+                onPressed: () {
+                   context.read<SalesCommitmentAgentCubit>().close(); 
+                   Navigator.of(context).pop();
+                },
+                child: const Text('Quay lại trang chủ'),
+              )
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -59,7 +112,7 @@ class SalesCommitmentView extends StatelessWidget {
 class ProgramSelectionView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -130,7 +183,7 @@ class ActiveCommitmentDashboard extends StatelessWidget {
     final dateFormatter = DateFormat('dd/MM/yyyy');
     final progress = (commitment.currentAmount / commitment.targetAmount).clamp(0.0, 1.0);
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

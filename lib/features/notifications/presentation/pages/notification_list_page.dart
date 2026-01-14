@@ -10,6 +10,9 @@ import 'package:piv_app/features/notifications/presentation/widgets/notification
 import 'package:piv_app/features/orders/presentation/pages/order_detail_page.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
 import 'package:piv_app/features/returns/presentation/pages/admin_return_request_loader_page.dart';
+import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
+import 'package:piv_app/features/sales_commitment/presentation/pages/sales_commitment_page.dart';
+import 'package:piv_app/features/sales_commitment/presentation/pages/commitment_history_page.dart';
 
 class NotificationListPage extends StatelessWidget {
   const NotificationListPage({super.key});
@@ -44,26 +47,45 @@ class NotificationListPage extends StatelessWidget {
         }
         break;
 
-          // Thông báo Tin tức mới
-          case 'new_article':
-            if (payload['articleId'] != null) {
-              Navigator.of(context).push(
-                NewsDetailPage.route(payload['articleId'] as String), // Sửa ở đây
-              );
-            }
-            break;
-    
-          // Thông báo Đổi trả hàng
-          case 'new_return_request':
-          case 'return_request_status_update':
-            if (payload['returnRequestId'] != null) {
-              Navigator.of(context).push(
-                AdminReturnRequestLoaderPage.route(payload['returnRequestId'] as String),
-              );
-            }
-            break;
-    
-        // Các loại thông báo khác không cần điều hướng (chỉ cần xem)      default:
+      // Thông báo Tin tức mới
+      case 'new_article':
+        if (payload['articleId'] != null) {
+          Navigator.of(context).push(
+            NewsDetailPage.route(payload['articleId'] as String), // Sửa ở đây
+          );
+        }
+        break;
+
+      // Thông báo Đổi trả hàng
+      case 'new_return_request':
+      case 'return_request_status_update':
+      case 'return_request_approved_for_accountant': // Thêm case này
+        if (payload['returnRequestId'] != null) {
+          Navigator.of(context).push(
+            AdminReturnRequestLoaderPage.route(payload['returnRequestId'] as String),
+          );
+        }
+        break;
+
+      // Thông báo Cam kết doanh số
+      case 'commitment_approval_request':
+        final commitmentId = payload['commitmentId'] as String?;
+        Navigator.of(context).push(AdminCommitmentsPage.route(commitmentId: commitmentId));
+        break;
+      case 'commitment_approved':
+      case 'commitment_created':
+      case 'commitment_details_set':
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SalesCommitmentPage()));
+        break;
+      case 'commitment_cancelled':
+      case 'commitment_expired':
+      case 'commitment_completed':
+        final commitmentId = payload['commitmentId'] as String?;
+        Navigator.of(context).push(CommitmentHistoryPage.route(commitmentId: commitmentId));
+        break;
+
+      // Các loại thông báo khác không cần điều hướng (chỉ cần xem)
+      default:
         print('Không có hành động điều hướng cho loại thông báo: $type');
         break;
     }

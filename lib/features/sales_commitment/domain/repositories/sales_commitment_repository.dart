@@ -18,8 +18,27 @@ abstract class SalesCommitmentRepository {
     required String detailsText,
   });
 
+  /// Yêu cầu hủy cam kết (Admin hủy ngay, Staff gửi yêu cầu)
+  Future<Either<Failure, void>> requestCancelCommitment({
+    required String commitmentId,
+    required String reason,
+  });
+
+  /// Admin duyệt yêu cầu hủy
+  Future<Either<Failure, void>> approveCancelCommitment({
+    required String commitmentId,
+  });
+
+  /// Admin từ chối yêu cầu hủy
+  Future<Either<Failure, void>> rejectCancelCommitment({
+    required String commitmentId,
+  });
+
   /// Lấy cam kết đang hoạt động của một người dùng cụ thể
   Stream<SalesCommitmentModel?> watchActiveCommitmentForUser(String userId);
+
+  /// Lấy lịch sử tất cả các cam kết của một người dùng
+  Stream<List<SalesCommitmentModel>> watchCommitmentHistoryForUser(String userId);
 
   /// Lấy danh sách tất cả các cam kết (dành cho Admin/NVKD)
   Stream<List<SalesCommitmentModel>> watchAllCommitments();

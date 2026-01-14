@@ -1,6 +1,7 @@
 // functions/src/index.ts
 
 import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onDocumentCreated, onDocumentUpdated, onDocumentDeleted, FirestoreEvent } from "firebase-functions/v2/firestore";
 import { Change } from "firebase-functions";
 import * as logger from "firebase-functions/logger";
@@ -783,7 +784,7 @@ export const approveAgentBySalesRep = onCall({region: "asia-southeast1"}, async 
 });
 
 // ===================================================================
-// FUNCTION 10: TẠO MỘT CAM KẾT DOANH THU MỚI (Không thay đổi)
+// FUNCTION 10: TẠO MỘT CAM KẾT DOANH THU MỚI (CHỜ DUYỆT)
 // ===================================================================
 export const createSalesCommitment = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
@@ -800,7 +801,9 @@ export const createSalesCommitment = onCall({region: "asia-southeast1"}, async (
         if (!["agent_1", "agent_2"].includes(userData.role)) {
              throw new HttpsError("permission-denied", "Only agents can create a sales commitment.");
         }
-        await db.runTransaction(async (transaction) => {
+        
+        // Tạo cam kết với trạng thái chờ duyệt
+        const commitmentId = await db.runTransaction(async (transaction) => {
             const commitmentRef = db.collection("sales_commitments").doc();
             transaction.set(commitmentRef, {
                 userId: userId,
@@ -810,12 +813,53 @@ export const createSalesCommitment = onCall({region: "asia-southeast1"}, async (
                 currentAmount: 0,
                 startDate: admin.firestore.Timestamp.fromDate(new Date(startDate)),
                 endDate: admin.firestore.Timestamp.fromDate(new Date(endDate)),
-                status: "active",
+                status: "pending_approval", // <--- THAY ĐỔI
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
             });
-            transaction.update(userRef, {activeRewardProgram: "sales_target"});
+            // KHÔNG cập nhật activeRewardProgram ngay lập tức
+            return commitmentRef.id;
         });
-        return { success: true, message: "Đăng ký cam kết doanh thu thành công!" };
+
+        // Gửi thông báo cho Admin, Kế toán và NVKD phụ trách
+        const tokens: string[] = [];
+        const staffIds: string[] = [];
+        
+        // 1. Tìm Admin và Kế toán
+        const staffQuery = db.collection("users").where("role", "in", ["admin", "accountant"]);
+        const staffSnapshot = await staffQuery.get();
+        staffSnapshot.forEach(doc => {
+            const data = doc.data();
+            staffIds.push(doc.id);
+            if (data.fcmToken) tokens.push(data.fcmToken);
+        });
+
+        // 2. Tìm NVKD phụ trách (nếu có)
+        if (userData.salesRepId) {
+            const repDoc = await db.collection("users").doc(userData.salesRepId).get();
+            if (repDoc.exists) {
+                 const repData = repDoc.data();
+                 if (!staffIds.includes(userData.salesRepId)) staffIds.push(userData.salesRepId);
+                 if (repData && repData.fcmToken) tokens.push(repData.fcmToken);
+            }
+        }
+
+        const title = "🔔 Đăng ký cam kết mới";
+        const body = `${userData.displayName} vừa đăng ký cam kết doanh thu. Vui lòng kiểm tra và duyệt.`;
+        const type = "commitment_approval_request";
+
+        // Gửi Push Notification
+        if (tokens.length > 0) {
+            const uniqueTokens = [...new Set(tokens)];
+            await sendPushNotification(uniqueTokens, title, body, {type, commitmentId});
+        }
+
+        // Lưu thông báo vào Firestore cho từng nhân viên
+        const savePromises = staffIds.map(sid => 
+            saveNotificationToFirestore(sid, title, body, type, {commitmentId})
+        );
+        await Promise.all(savePromises);
+
+        return { success: true, message: "Đã gửi yêu cầu đăng ký. Vui lòng chờ duyệt." };
     } catch (error) {
         if (error instanceof HttpsError) throw error;
         throw new HttpsError("internal", "Failed to create sales commitment.", error);
@@ -823,7 +867,7 @@ export const createSalesCommitment = onCall({region: "asia-southeast1"}, async (
 });
 
 // ===================================================================
-// FUNCTION 11: THIẾT LẬP CHI TIẾT CAM KẾT (BỞI ADMIN/NVKD)
+// FUNCTION 11: THIẾT LẬP CHI TIẾT CAM KẾT & DUYỆT (BỞI ADMIN/NVKD)
 // ===================================================================
 export const setSalesCommitmentDetails = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
@@ -836,31 +880,44 @@ export const setSalesCommitmentDetails = onCall({region: "asia-southeast1"}, asy
         if (!setterDoc.exists || !setterData || !["admin", "sales_rep", "accountant"].includes(setterData.role)) {
             throw new HttpsError("permission-denied", "You do not have permission.");
         }
+
         const commitmentRef = db.collection("sales_commitments").doc(commitmentId);
-        await commitmentRef.update({
-            "commitmentDetails": {
-                text: detailsText,
-                setByUserId: setterId,
-                setByUserName: setterData.displayName ?? "Không rõ",
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            },
+        const commitmentDoc = await commitmentRef.get();
+        if (!commitmentDoc.exists) throw new HttpsError("not-found", "Commitment not found.");
+        const commitmentData = commitmentDoc.data()!;
+        const agentId = commitmentData.userId;
+
+        await db.runTransaction(async (transaction) => {
+             // 1. Cập nhật thông tin phần thưởng và Active cam kết
+             transaction.update(commitmentRef, {
+                status: "active", // <--- ACTIVE TẠI ĐÂY
+                commitmentDetails: {
+                    text: detailsText,
+                    setByUserId: setterId,
+                    setByUserName: setterData.displayName ?? "Không rõ",
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                },
+             });
+
+             // 2. Cập nhật User
+             const agentRef = db.collection("users").doc(agentId);
+             transaction.update(agentRef, {activeRewardProgram: "sales_target"});
         });
-        const agentId = (await commitmentRef.get()).data()?.userId;
-        if (agentId) {
-             const agentDoc = await db.collection("users").doc(agentId).get();
-             if (agentDoc.exists) {
-                 const title = "🎁 Cam kết của bạn đã được xác nhận!";
-                 const body = "Công ty đã xác nhận phần thưởng cho cam kết doanh thu của bạn. Hãy xem ngay!";
-                 const type = "commitment_details_set";
-                 const token = agentDoc.data()?.fcmToken;
-                 if (token) {
-                    // --- SỬA LỖI 2: Thay thế hàm cũ ---
-                    await sendPushNotification([token], title, body, {type, commitmentId});
-                 }
-                 await saveNotificationToFirestore(agentId, title, body, type, {commitmentId});
-             }
+
+        // 3. Gửi thông báo cho Đại lý
+        const agentDoc = await db.collection("users").doc(agentId).get();
+        if (agentDoc.exists) {
+            const title = "🎉 Cam kết của bạn đã được DUYỆT!";
+            const body = `Công ty đã xác nhận: "${detailsText}". Chương trình bắt đầu tính từ bây giờ!`;
+            const type = "commitment_approved"; // <--- TYPE MỚI
+            const token = agentDoc.data()?.fcmToken;
+            if (token) {
+                await sendPushNotification([token], title, body, {type, commitmentId});
+            }
+            await saveNotificationToFirestore(agentId, title, body, type, {commitmentId});
         }
-        return { success: true, message: "Thiết lập cam kết thành công." };
+        
+        return { success: true, message: "Đã duyệt và thiết lập cam kết thành công." };
     } catch (error) {
         if (error instanceof HttpsError) throw error;
         throw new HttpsError("internal", "Failed to set commitment details.", error);
@@ -1196,6 +1253,23 @@ export const onReturnRequestUpdated = onDocumentUpdated(
             await sendPushNotification([token], title, body, dataPayload);
         }
         await saveNotificationToFirestore(userId, title, body, type, dataPayload);
+
+        // --- MỚI: Thông báo cho Kế toán khi Admin duyệt (Approved) ---
+        if (newStatus === "approved") {
+             const accountants = await getRecipientsByRoles(["accountant"]);
+             if (accountants.length > 0) {
+                 const acTitle = "⚡ Đơn đổi trả đã được DUYỆT";
+                 const acBody = `Admin đã duyệt đơn đổi trả #${shortOrderId}. Vui lòng kiểm tra và hoàn tất xử lý.`;
+                 const acType = "return_request_approved_for_accountant"; 
+                 const acPayload = { type: acType, returnRequestId: requestId, orderId };
+                 
+                 const acTokens = accountants.map(a => a.token).filter((t): t is string => !!t);
+                 if (acTokens.length > 0) await sendPushNotification(acTokens, acTitle, acBody, acPayload);
+                 
+                 const acPromises = accountants.map(a => saveNotificationToFirestore(a.id, acTitle, acBody, acType, acPayload));
+                 await Promise.all(acPromises);
+             }
+        }
     }
 );
 
@@ -1525,7 +1599,242 @@ export const onVoucherDeleted = onDocumentDeleted(
         }
     }
 );
+// ===================================================================
+// FUNCTION 20: YÊU CẦU HỦY CAM KẾT (ADMIN/KẾ TOÁN/NVKD)
+// ===================================================================
+export const requestCancelCommitment = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
+    const requesterId = request.auth.uid;
+    const {commitmentId, reason} = request.data;
 
+    if (!commitmentId || !reason) throw new HttpsError("invalid-argument", "Missing required fields.");
+
+    try {
+        const requesterDoc = await db.collection("users").doc(requesterId).get();
+        if (!requesterDoc.exists) throw new HttpsError("not-found", "User not found.");
+        const requesterData = requesterDoc.data()!;
+        const requesterRole = requesterData.role;
+
+        if (!["admin", "accountant", "sales_rep"].includes(requesterRole)) {
+            throw new HttpsError("permission-denied", "You do not have permission.");
+        }
+
+        const commitmentRef = db.collection("sales_commitments").doc(commitmentId);
+        const commitmentDoc = await commitmentRef.get();
+        if (!commitmentDoc.exists) throw new HttpsError("not-found", "Commitment not found.");
+        const commitmentData = commitmentDoc.data()!;
+        const customerId = commitmentData.userId;
+
+        if (requesterRole === "admin") {
+            // Admin cancels immediately
+            await commitmentRef.update({
+                status: "cancelled",
+                cancellationReason: reason,
+                cancelledBy: requesterId,
+                cancelledByName: requesterData.displayName || "Admin", // <--- THÊM MỚI
+                cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+
+             // Notify Customer
+            const customerDoc = await db.collection("users").doc(customerId).get();
+            if (customerDoc.exists) {
+                const token = customerDoc.data()?.fcmToken;
+                const title = "⚠️ Cam kết đã bị hủy";
+                const body = `Chương trình cam kết của bạn đã bị hủy bởi Admin. Lý do: ${reason}`;
+                const type = "commitment_cancelled";
+                if (token) await sendPushNotification([token], title, body, {type, commitmentId});
+                await saveNotificationToFirestore(customerId, title, body, type, {commitmentId});
+            }
+
+            return { success: true, message: "Cam kết đã được hủy thành công." };
+
+        } else {
+            // Accountant/Sales Rep requests cancellation
+            await commitmentRef.update({
+                status: "pending_cancellation",
+                cancellationRequest: {
+                    requesterId: requesterId,
+                    requesterName: requesterData.displayName || "Staff",
+                    requesterRole: requesterRole,
+                    reason: reason,
+                    requestedAt: admin.firestore.FieldValue.serverTimestamp(),
+                }
+            });
+
+            // Notify Admin
+            const adminQuery = db.collection("users").where("role", "==", "admin");
+            const adminSnapshot = await adminQuery.get();
+            
+            const adminTokens: string[] = [];
+            const adminIds: string[] = [];
+            
+            adminSnapshot.forEach(doc => {
+                const data = doc.data();
+                adminIds.push(doc.id);
+                if (data.fcmToken) adminTokens.push(data.fcmToken);
+            });
+
+            const title = "⚠️ Yêu cầu HỦY cam kết";
+            const body = `${requesterData.displayName} yêu cầu hủy cam kết của khách hàng. Lý do: ${reason}`;
+            const type = "commitment_approval_request"; // Dùng chung type để mở trang AdminCommitmentsPage
+
+            if (adminTokens.length > 0) {
+                await sendPushNotification(adminTokens, title, body, {type, commitmentId});
+            }
+            
+            const savePromises = adminIds.map(aid => 
+                saveNotificationToFirestore(aid, title, body, type, {commitmentId})
+            );
+            await Promise.all(savePromises);
+            
+            return { success: true, message: "Đã gửi yêu cầu hủy cam kết tới Admin." };
+        }
+
+    } catch (error) {
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError("internal", "Failed to process cancellation.", error);
+    }
+});
+
+// ===================================================================
+// FUNCTION 21: ADMIN DUYỆT YÊU CẦU HỦY
+// ===================================================================
+export const approveCancelCommitment = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
+    const adminId = request.auth.uid;
+    const {commitmentId} = request.data;
+
+    try {
+        const adminDoc = await db.collection("users").doc(adminId).get();
+        if (!adminDoc.exists || adminDoc.data()?.role !== "admin") {
+            throw new HttpsError("permission-denied", "Only Admin can approve cancellation.");
+        }
+
+        const commitmentRef = db.collection("sales_commitments").doc(commitmentId);
+        const commitmentDoc = await commitmentRef.get();
+        if (!commitmentDoc.exists) throw new HttpsError("not-found", "Commitment not found.");
+        
+        const data = commitmentDoc.data()!;
+        const requestDetails = data.cancellationRequest;
+        const customerId = data.userId;
+        const adminName = adminDoc.data()?.displayName || "Admin";
+
+        await commitmentRef.update({
+            status: "cancelled",
+            cancelledBy: adminId, // Approved by Admin
+            cancelledByName: adminName, // <--- THÊM MỚI
+            cancellationReason: requestDetails?.reason || "Admin approved", // <--- COPY REASON
+            cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Notify Customer
+        const customerDoc = await db.collection("users").doc(customerId).get();
+        if (customerDoc.exists) {
+            const token = customerDoc.data()?.fcmToken;
+            const title = "⚠️ Cam kết đã bị hủy";
+            const body = `Chương trình cam kết của bạn đã bị hủy sau khi xem xét. Lý do: ${requestDetails?.reason || "Admin approved"}`;
+            const type = "commitment_cancelled";
+            if (token) await sendPushNotification([token], title, body, {type, commitmentId});
+            await saveNotificationToFirestore(customerId, title, body, type, {commitmentId});
+        }
+
+        return { success: true, message: "Đã duyệt hủy cam kết." };
+
+    } catch (error) {
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError("internal", "Failed to approve cancellation.", error);
+    }
+});
+
+// ===================================================================
+// FUNCTION 22: ADMIN TỪ CHỐI YÊU CẦU HỦY (KHÔI PHỤC)
+// ===================================================================
+export const rejectCancelCommitment = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
+    const adminId = request.auth.uid;
+    const {commitmentId} = request.data;
+
+    try {
+        const adminDoc = await db.collection("users").doc(adminId).get();
+        if (!adminDoc.exists || adminDoc.data()?.role !== "admin") {
+            throw new HttpsError("permission-denied", "Only Admin can reject cancellation.");
+        }
+
+        const commitmentRef = db.collection("sales_commitments").doc(commitmentId);
+        
+        // Remove cancellationRequest and set status back to active
+        await commitmentRef.update({
+            status: "active",
+            cancellationRequest: admin.firestore.FieldValue.delete(),
+        });
+
+        return { success: true, message: "Đã từ chối hủy, cam kết tiếp tục hoạt động." };
+
+    } catch (error) {
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError("internal", "Failed to reject cancellation.", error);
+    }
+});
+
+// ===================================================================
+// FUNCTION 23: TỰ ĐỘNG HỦY CAM KẾT HẾT HẠN (CRON JOB)
+// ===================================================================
+export const checkExpiredSalesCommitments = onSchedule({
+    schedule: "every day 00:00", // Run daily at midnight
+    timeZone: "Asia/Ho_Chi_Minh",
+    region: "asia-southeast1",
+}, async (event) => {
+    logger.info("Running checkExpiredSalesCommitments...");
+    const now = admin.firestore.Timestamp.now();
+
+    try {
+        // Find active commitments that have passed their endDate
+        const snapshot = await db.collection("sales_commitments")
+            .where("status", "in", ["active", "pending_cancellation"])
+            .where("endDate", "<", now)
+            .get();
+
+        if (snapshot.empty) {
+            logger.info("No expired commitments found.");
+            return;
+        }
+
+        const batch = db.batch();
+        const notifications: Promise<any>[] = [];
+
+        for (const doc of snapshot.docs) {
+            const data = doc.data();
+            // Double check if target not met (though logic says if met, it becomes 'completed')
+            if (data.currentAmount < data.targetAmount) {
+                batch.update(doc.ref, {
+                    status: "expired",
+                    expiredAt: now
+                });
+
+                // Prepare notification
+                const userId = data.userId;
+                const notifPromise = db.collection("users").doc(userId).get().then(async userDoc => {
+                    if (userDoc.exists) {
+                         const token = userDoc.data()?.fcmToken;
+                         const title = "⏰ Cam kết đã hết hạn";
+                         const body = "Rất tiếc, thời gian cam kết đã hết và bạn chưa đạt mục tiêu.";
+                         const type = "commitment_expired";
+                         if (token) await sendPushNotification([token], title, body, {type, commitmentId: doc.id});
+                         await saveNotificationToFirestore(userId, title, body, type, {commitmentId: doc.id});
+                    }
+                });
+                notifications.push(notifPromise);
+            }
+        }
+
+        await batch.commit();
+        await Promise.all(notifications);
+        logger.info(`Expired ${snapshot.size} commitments.`);
+
+    } catch (error) {
+        logger.error("Error in checkExpiredSalesCommitments:", error);
+    }
+});
 // ===================================================================
 // SECTION: PRIVATE HELPER FUNCTIONS (Không thay đổi)
 // ===================================================================

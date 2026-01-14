@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/news/presentation/pages/news_detail_page.dart';
@@ -15,6 +16,9 @@ import 'package:piv_app/features/orders/presentation/pages/order_detail_page.dar
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
 import 'package:piv_app/features/returns/presentation/pages/admin_return_request_loader_page.dart';
 import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
+import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
+import 'package:piv_app/features/sales_commitment/presentation/pages/sales_commitment_page.dart';
+import 'package:piv_app/features/sales_commitment/presentation/pages/commitment_history_page.dart';
 import 'package:piv_app/firebase_options.dart';
 import 'package:piv_app/main.dart';
 
@@ -176,7 +180,7 @@ class NotificationService {
       developer.log("NavigatorKey is null, không thể điều hướng.", name: "NotificationService");
       return;
     }
-    developer.log("Điều hướng cho loại thông báo: '$type'", name: "NotificationService");
+    developer.log("Điều hướng cho loại thông báo: '$type' với data: $data", name: "NotificationService");
 
     switch (type) {
       case 'new_article':
@@ -208,10 +212,28 @@ class NotificationService {
         break;
       case 'new_return_request':
       case 'return_request_status_update':
+      case 'return_request_approved_for_accountant':
         final returnRequestId = data['returnRequestId'];
         if (returnRequestId != null) {
           navigator.push(AdminReturnRequestLoaderPage.route(returnRequestId));
+        } else {
+           developer.log("Thiếu returnRequestId trong payload.", name: "NotificationService");
         }
+        break;
+      case 'commitment_approval_request':
+        final commitmentId = data['commitmentId'];
+        navigator.push(AdminCommitmentsPage.route(commitmentId: commitmentId));
+        break;
+      case 'commitment_approved':
+      case 'commitment_created':
+      case 'commitment_details_set':
+        navigator.push(MaterialPageRoute(builder: (_) => const SalesCommitmentPage()));
+        break;
+      case 'commitment_cancelled':
+      case 'commitment_expired':
+      case 'commitment_completed':
+        final commitmentId = data['commitmentId'];
+        navigator.push(CommitmentHistoryPage.route(commitmentId: commitmentId));
         break;
       default:
         developer.log('Loại thông báo không xác định: $type. Mở trang thông báo.', name: "NotificationService");

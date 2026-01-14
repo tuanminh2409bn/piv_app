@@ -14,6 +14,7 @@ class SalesCommitmentAgentCubit extends Cubit<SalesCommitmentAgentState> {
   final AuthBloc _authBloc;
   StreamSubscription? _authSubscription;
   StreamSubscription? _commitmentSubscription;
+  StreamSubscription? _historySubscription;
   String _currentUserId = '';
 
   SalesCommitmentAgentCubit({
@@ -40,6 +41,7 @@ class SalesCommitmentAgentCubit extends Cubit<SalesCommitmentAgentState> {
     if (_currentUserId == userId) return;
     _currentUserId = userId;
     _commitmentSubscription?.cancel();
+    _historySubscription?.cancel();
 
     if (userId.isEmpty) {
       emit(const SalesCommitmentAgentState());
@@ -47,6 +49,8 @@ class SalesCommitmentAgentCubit extends Cubit<SalesCommitmentAgentState> {
     }
 
     emit(state.copyWith(status: SalesCommitmentAgentStatus.loading));
+    
+    // Active
     _commitmentSubscription = _repository.watchActiveCommitmentForUser(userId).listen(
           (commitment) {
         emit(state.copyWith(
@@ -59,6 +63,16 @@ class SalesCommitmentAgentCubit extends Cubit<SalesCommitmentAgentState> {
         emit(state.copyWith(
           status: SalesCommitmentAgentStatus.error,
           errorMessage: 'Lỗi tải dữ liệu cam kết.',
+        ));
+      },
+    );
+
+    // History
+    _historySubscription = _repository.watchCommitmentHistoryForUser(userId).listen(
+      (history) {
+        emit(state.copyWith(
+          status: SalesCommitmentAgentStatus.success,
+          history: history,
         ));
       },
     );
@@ -76,11 +90,15 @@ class SalesCommitmentAgentCubit extends Cubit<SalesCommitmentAgentState> {
       endDate: endDate,
     );
     result.fold(
-          (failure) => emit(state.copyWith(
+      (failure) => emit(state.copyWith(
         status: SalesCommitmentAgentStatus.error,
         errorMessage: failure.message,
       )),
-          (_) => emit(state.copyWith(status: SalesCommitmentAgentStatus.success)),
+      (_) {
+        // Refresh user profile to get updated activeRewardProgram
+        _authBloc.add(AuthUserRefreshRequested());
+        emit(state.copyWith(status: SalesCommitmentAgentStatus.success));
+      },
     );
   }
 
@@ -88,6 +106,7 @@ class SalesCommitmentAgentCubit extends Cubit<SalesCommitmentAgentState> {
   Future<void> close() {
     _authSubscription?.cancel();
     _commitmentSubscription?.cancel();
+    _historySubscription?.cancel();
     return super.close();
   }
 }

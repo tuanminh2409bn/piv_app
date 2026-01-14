@@ -7,26 +7,30 @@ enum SalesCommitmentAgentStatus { initial, loading, success, error }
 class SalesCommitmentAgentState extends Equatable {
   final SalesCommitmentAgentStatus status;
   final SalesCommitmentModel? activeCommitment;
+  final List<SalesCommitmentModel> history;
   final String? errorMessage;
 
   const SalesCommitmentAgentState({
     this.status = SalesCommitmentAgentStatus.initial,
     this.activeCommitment,
+    this.history = const [],
     this.errorMessage,
   });
 
   @override
-  List<Object?> get props => [status, activeCommitment, errorMessage];
+  List<Object?> get props => [status, activeCommitment, history, errorMessage];
 
   SalesCommitmentAgentState copyWith({
     SalesCommitmentAgentStatus? status,
     SalesCommitmentModel? activeCommitment,
+    List<SalesCommitmentModel>? history,
     String? errorMessage,
     bool forceCommitmentToNull = false,
   }) {
     return SalesCommitmentAgentState(
       status: status ?? this.status,
       activeCommitment: forceCommitmentToNull ? null : activeCommitment ?? this.activeCommitment,
+      history: history ?? this.history,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }

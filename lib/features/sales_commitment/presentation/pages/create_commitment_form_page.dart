@@ -66,8 +66,6 @@ class _CreateCommitmentFormPageState extends State<CreateCommitmentFormPage> {
         startDate: _selectedDateRange!.start,
         endDate: _selectedDateRange!.end,
       );
-      // Quay lại màn hình trước đó sau khi gửi
-      Navigator.of(context).pop();
     }
   }
 
@@ -86,6 +84,11 @@ class _CreateCommitmentFormPageState extends State<CreateCommitmentFormPage> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(state.errorMessage ?? 'Đăng ký thất bại'), backgroundColor: Colors.red),
             );
+          } else if (state.status == SalesCommitmentAgentStatus.success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Đăng ký cam kết thành công!'), backgroundColor: Colors.green),
+            );
+            Navigator.of(context).pop();
           }
         },
         child: SingleChildScrollView(
