@@ -30,7 +30,7 @@ dependencies:
 
   # Auth
   google_sign_in:
-  flutter_facebook_auth:
+  flutter_facebook_auth: 7.1.2
   app_tracking_transparency:
 
   # Helpers & Utilities
