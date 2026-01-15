@@ -155,7 +155,7 @@ class AdminDebtManagementPage extends StatelessWidget {
           }
 
           final agents = state.allUsers.where((user) =>
-          !user.isAdmin && !user.isAccountant && !user.isSalesRep
+          !user.isAdmin && !user.isAccountant && !user.isSalesRep && user.status == 'active'
           ).toList();
 
           if (agents.isEmpty) {

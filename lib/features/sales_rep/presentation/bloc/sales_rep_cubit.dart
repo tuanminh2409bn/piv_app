@@ -44,7 +44,10 @@ class SalesRepCubit extends Cubit<SalesRepState> {
     final result = await _adminRepository.getAgentsBySalesRepId(_currentSalesRepId);
     result.fold(
           (failure) => emit(state.copyWith(status: SalesRepStatus.error, errorMessage: failure.message)),
-          (agents) => emit(state.copyWith(status: SalesRepStatus.success, myAgents: agents)),
+          (agents) {
+            final activeAgents = agents.where((a) => a.status == 'active').toList();
+            emit(state.copyWith(status: SalesRepStatus.success, myAgents: activeAgents));
+          },
     );
   }
 

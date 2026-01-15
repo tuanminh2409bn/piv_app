@@ -1,9 +1,12 @@
 // lib/features/orders/presentation/pages/my_orders_page.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
+import 'package:piv_app/core/theme/app_theme.dart';
+import 'package:piv_app/core/theme/nature_background_painter.dart';
 import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/features/orders/presentation/bloc/my_orders_cubit.dart';
 import 'package:piv_app/features/orders/presentation/pages/order_detail_page.dart';
@@ -32,38 +35,81 @@ class MyOrdersView extends StatelessWidget {
     return DefaultTabController(
       length: 3,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Đơn hàng của tôi'),
-          bottom: TabBar(
-            // --- SỬA LỖI GIAO DIỆN TẠI ĐÂY ---
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            // ------------------------------------
-            tabs: [
-              _buildTabWithBadge(context, 'Chờ duyệt', context.select((MyOrdersCubit cubit) => cubit.state.pendingApprovalOrders.length)),
-              _buildTabWithBadge(context, 'Đang xử lý', context.select((MyOrdersCubit cubit) => cubit.state.ongoingOrders.length)),
-              const Tab(text: 'Lịch sử'),
-            ],
-          ),
-        ),
-        body: BlocBuilder<MyOrdersCubit, MyOrdersState>(
-          builder: (context, state) {
-            if (state.status == MyOrdersStatus.loading && state.ongoingOrders.isEmpty && state.pendingApprovalOrders.isEmpty) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (state.status == MyOrdersStatus.error) {
-              return Center(child: Text(state.errorMessage ?? 'Không thể tải đơn hàng.'));
-            }
-
-            return TabBarView(
-              children: [
-                _OrderListView(orders: state.pendingApprovalOrders, emptyMessage: 'Không có đơn hàng nào cần bạn phê duyệt.'),
-                _OrderListView(orders: state.ongoingOrders, emptyMessage: 'Không có đơn hàng nào đang được xử lý.'),
-                _OrderListView(orders: state.completedOrders, emptyMessage: 'Chưa có đơn hàng nào trong lịch sử.'),
-              ],
-            );
+        backgroundColor: AppTheme.backgroundLight,
+        body: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) {
+            return [
+              SliverAppBar(
+                expandedHeight: 120.0,
+                floating: false,
+                pinned: true,
+                backgroundColor: AppTheme.primaryGreen,
+                leading: const BackButton(color: Colors.white),
+                flexibleSpace: FlexibleSpaceBar(
+                  centerTitle: true,
+                  title: const Text('Đơn hàng của tôi', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                  background: Stack(
+                    children: [
+                      Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [AppTheme.primaryGreen, AppTheme.secondaryGreen],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        ),
+                      ),
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: NatureBackgroundPainter(
+                            color1: Colors.white.withValues(alpha: 0.1),
+                            color2: Colors.white.withValues(alpha: 0.05),
+                            accent: AppTheme.accentGold.withValues(alpha: 0.2),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverPersistentHeader(
+                delegate: _SliverAppBarDelegate(
+                  TabBar(
+                    labelColor: AppTheme.primaryGreen,
+                    unselectedLabelColor: AppTheme.textGrey,
+                    indicatorColor: AppTheme.primaryGreen,
+                    indicatorWeight: 3,
+                    labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                    tabs: [
+                      _buildTabWithBadge(context, 'Chờ duyệt', context.select((MyOrdersCubit cubit) => cubit.state.pendingApprovalOrders.length)),
+                      _buildTabWithBadge(context, 'Đang xử lý', context.select((MyOrdersCubit cubit) => cubit.state.ongoingOrders.length)),
+                      const Tab(text: 'Lịch sử'),
+                    ],
+                  ),
+                ),
+                pinned: true,
+              ),
+            ];
           },
+          body: BlocBuilder<MyOrdersCubit, MyOrdersState>(
+            builder: (context, state) {
+              if (state.status == MyOrdersStatus.loading && state.ongoingOrders.isEmpty && state.pendingApprovalOrders.isEmpty) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (state.status == MyOrdersStatus.error) {
+                return Center(child: Text(state.errorMessage ?? 'Không thể tải đơn hàng.'));
+              }
+
+              return TabBarView(
+                children: [
+                  _OrderListView(orders: state.pendingApprovalOrders, emptyMessage: 'Không có đơn hàng nào cần bạn phê duyệt.'),
+                  _OrderListView(orders: state.ongoingOrders, emptyMessage: 'Không có đơn hàng nào đang được xử lý.'),
+                  _OrderListView(orders: state.completedOrders, emptyMessage: 'Chưa có đơn hàng nào trong lịch sử.'),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -74,24 +120,54 @@ class MyOrdersView extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(text),
+          Flexible(
+            child: Text(
+              text,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
           if (count > 0) ...[
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.error,
-                borderRadius: BorderRadius.circular(8),
+                color: AppTheme.errorRed,
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 count.toString(),
-                style: TextStyle(color: Theme.of(context).colorScheme.onError, fontSize: 12),
+                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
               ),
             ),
           ]
         ],
       ),
     );
+  }
+}
+
+class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar _tabBar;
+
+  _SliverAppBarDelegate(this._tabBar);
+
+  @override
+  double get minExtent => _tabBar.preferredSize.height;
+  @override
+  double get maxExtent => _tabBar.preferredSize.height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: AppTheme.backgroundLight, // Nền trùng với background app
+      child: _tabBar,
+    );
+  }
+
+  @override
+  bool shouldRebuild(_SliverAppBarDelegate oldDelegate) {
+    return false;
   }
 }
 
@@ -105,19 +181,13 @@ class _OrderListView extends StatelessWidget {
   Widget build(BuildContext context) {
     if (orders.isEmpty) {
       return Center(
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height * 0.5),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.receipt_long_outlined, size: 80, color: Colors.grey),
-                const SizedBox(height: 16),
-                Text(emptyMessage, style: const TextStyle(fontSize: 18), textAlign: TextAlign.center),
-              ],
-            ),
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.receipt_long_outlined, size: 80, color: Colors.grey.withValues(alpha: 0.3)),
+            const SizedBox(height: 16),
+            Text(emptyMessage, style: const TextStyle(fontSize: 16, color: AppTheme.textGrey), textAlign: TextAlign.center),
+          ],
         ),
       );
     }
@@ -126,10 +196,10 @@ class _OrderListView extends StatelessWidget {
       child: ListView.separated(
         padding: const EdgeInsets.all(16.0),
         itemCount: orders.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 12),
+        separatorBuilder: (context, index) => const SizedBox(height: 16),
         itemBuilder: (context, index) {
           final order = orders[index];
-          return _OrderCard(order: order);
+          return _OrderCard(order: order).animate().fadeIn(delay: (50 * index).ms).slideY(begin: 0.1, end: 0);
         },
       ),
     );
@@ -141,151 +211,118 @@ class _OrderCard extends StatelessWidget {
 
   const _OrderCard({required this.order});
 
-  (Color, String, String?) _getStatusInfo(OrderModel order,
-      BuildContext context) {
+  (Color, String, String?) _getStatusInfo(OrderModel order) {
     if (order.returnInfo != null) {
       switch (order.returnInfo!.returnStatus) {
-        case 'pending_approval':
-          return (Colors.purple.shade700, 'Đang chờ duyệt đổi/trả', null);
-        case 'approved':
-          return (Colors.blue
-              .shade700, 'Đã duyệt đổi/trả', 'Công ty sẽ liên hệ để xử lý');
-        case 'rejected':
-          return (Colors.red
-              .shade700, 'Từ chối đổi/trả', 'Xem chi tiết để biết lý do');
-        case 'completed':
-          return (Theme
-              .of(context)
-              .colorScheme
-              .primary, 'Đã đổi/trả thành công', null);
+        case 'pending_approval': return (Colors.purple, 'Đang chờ duyệt đổi/trả', null);
+        case 'approved': return (Colors.blue, 'Đã duyệt đổi/trả', 'Công ty sẽ liên hệ');
+        case 'rejected': return (Colors.red, 'Từ chối đổi/trả', 'Xem chi tiết');
+        case 'completed': return (AppTheme.primaryGreen, 'Đã đổi/trả xong', null);
       }
     }
-
-    // Nếu không có, hiển thị trạng thái đơn hàng như cũ
     switch (order.status) {
-      case 'pending_approval':
-        return (Colors.blue.shade700, 'Chờ phê duyệt', null);
-      case 'pending':
-        return (Colors.orange.shade700, 'Chờ xử lý', null);
-      case 'processing':
-        return (Colors.cyan.shade700, 'Đang xử lý', null);
-      case 'shipped':
-        return (Colors.teal.shade700, 'Đang giao', null);
-      case 'completed':
-        return (Theme
-            .of(context)
-            .colorScheme
-            .primary, 'Hoàn thành', null);
-      case 'cancelled':
-        return (Colors.grey.shade700, 'Đã hủy', null);
-      case 'rejected':
-        return (Colors.red.shade700, 'Đã từ chối', null);
-      default:
-        return (Colors.grey.shade700, 'Không xác định', null);
+      case 'pending_approval': return (Colors.blue, 'Chờ phê duyệt', null);
+      case 'pending': return (Colors.orange, 'Chờ xử lý', null);
+      case 'processing': return (Colors.cyan, 'Đang xử lý', null);
+      case 'shipped': return (Colors.teal, 'Đang giao', null);
+      case 'completed': return (AppTheme.primaryGreen, 'Hoàn thành', null);
+      case 'cancelled': return (Colors.grey, 'Đã hủy', null);
+      case 'rejected': return (Colors.red, 'Đã từ chối', null);
+      default: return (Colors.grey, 'Không xác định', null);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final statusInfo = _getStatusInfo(order, context);
+    final statusInfo = _getStatusInfo(order);
     final statusColor = statusInfo.$1;
     final statusText = statusInfo.$2;
-    final statusSubtext = statusInfo.$3;
     final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
 
     return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      clipBehavior: Clip.antiAlias,
+      elevation: 2,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap: () {
           if (order.id != null) {
             Navigator.of(context).push(OrderDetailPage.route(order.id!));
           }
         },
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Header: Mã đơn + Trạng thái
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.backgroundLight,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+                    ),
                     child: Text(
-                      'Đơn hàng #${order.id?.substring(0, 6).toUpperCase() ??
-                          'N/A'}',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16),
+                      '#${order.id?.substring(0, 6).toUpperCase() ?? 'N/A'}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     ),
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          statusText,
-                          style: TextStyle(color: statusColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12),
-                        ),
-                      ),
-                      if (statusSubtext != null) ...[
-                        const SizedBox(height: 4),
-                        Text(statusSubtext,
-                            style: TextStyle(color: statusColor, fontSize: 11)),
-                      ]
-                    ],
-                  )
-                ],
-              ),
-              if (order.placedBy != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4.0),
-                  child: Text(
-                    'Được tạo bởi NVKD/Kế toán',
-                    style: TextStyle(
-                        color: Colors.blueGrey.shade700, fontSize: 13),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
                   ),
-                ),
-              const Divider(height: 20),
-              Row(
-                children: [
-                  Icon(Icons.calendar_today, size: 14,
-                      color: Colors.grey.shade600),
-                  const SizedBox(width: 8),
-                  Text('Ngày đặt: ${order.createdAt != null ? dateFormat.format(
-                      order.createdAt!.toDate()) : 'N/A'}',
-                      style: TextStyle(color: Colors.grey.shade700)),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
+              
+              // Nội dung: Ngày đặt + Số lượng
               Row(
                 children: [
-                  Icon(Icons.receipt_long, size: 14,
-                      color: Colors.grey.shade600),
-                  const SizedBox(width: 8),
-                  Text('${order.items.length} sản phẩm',
-                      style: TextStyle(color: Colors.grey.shade700)),
+                  const Icon(Icons.calendar_today, size: 16, color: AppTheme.textGrey),
+                  const SizedBox(width: 6),
+                  Text(
+                    order.createdAt != null ? dateFormat.format(order.createdAt!.toDate()) : 'N/A',
+                    style: const TextStyle(color: AppTheme.textGrey, fontSize: 13),
+                  ),
+                  const SizedBox(width: 16),
+                  const Icon(Icons.shopping_bag_outlined, size: 16, color: AppTheme.textGrey),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${order.items.length} sản phẩm',
+                    style: const TextStyle(color: AppTheme.textGrey, fontSize: 13),
+                  ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  'Tổng cộng: ${formatter.format(order.finalTotal)}',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-              )
+              
+              const Divider(height: 24),
+              
+              // Footer: Tổng tiền
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Tổng thanh toán', style: TextStyle(color: AppTheme.textGrey)),
+                  Text(
+                    formatter.format(order.finalTotal),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),

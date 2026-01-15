@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
+import 'package:piv_app/core/theme/app_theme.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/cart/presentation/pages/cart_page.dart';
 import 'package:piv_app/features/cart/presentation/widgets/cart_icon_with_badge.dart';
@@ -30,22 +31,13 @@ class _MainScreenState extends State<MainScreen> {
 
   late final List<Widget> _widgetOptions;
 
-  // <<< SỬA ĐỔI 1: Thêm tiêu đề cho trang "Đặt hàng nhanh" >>>
-  static const List<String> _appBarTitles = <String>[
-    'Phân Bón PIV',
-    'Tất cả Danh mục',
-    'Đặt hàng nhanh', // Tiêu đề mới
-    'Tài khoản'
-  ];
-
   @override
   void initState() {
     super.initState();
-    // <<< SỬA ĐỔI 2: Thêm trang QuickOrderPage vào danh sách màn hình >>>
     _widgetOptions = <Widget>[
       const HomePage(),
       const AllCategoriesPage(),
-      const QuickOrderPage(), // Màn hình mới
+      const QuickOrderPage(),
       BlocProvider.value(
         value: _profileCubit,
         child: const ProfilePage(),
@@ -77,51 +69,7 @@ class _MainScreenState extends State<MainScreen> {
         BlocProvider.value(value: _profileCubit),
       ],
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            _appBarTitles[_selectedIndex],
-            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-          ),
-          centerTitle: false,
-          automaticallyImplyLeading: false,
-          flexibleSpace: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.green.shade800, Colors.green.shade600],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-          ),
-          actionsIconTheme: const IconThemeData(color: Colors.white),
-          actions: [
-            // <<< SỬA ĐỔI 3: Xóa IconButton Đặt hàng nhanh khỏi đây >>>
-            /*
-            IconButton(
-              icon: const Icon(Icons.flash_on_outlined),
-              tooltip: 'Đặt hàng nhanh',
-              onPressed: () {
-                Navigator.of(context).push(QuickOrderPage.route());
-              },
-            ),
-            */
-            const NotificationIconWithBadge(iconColor: Colors.white),
-            CartIconWithBadge(
-              iconColor: Colors.white,
-              onPressed: () {
-                Navigator.of(context).push(CartPage.route());
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Đăng xuất',
-              onPressed: () {
-                context.read<AuthBloc>().add(AuthLogoutRequested());
-              },
-            ),
-            const SizedBox(width: 4),
-          ],
-        ),
+        // The AppBar is now removed from here. Each page in _widgetOptions will have its own.
         body: BlocListener<ProfileCubit, ProfileState>(
           listener: (context, state) {
             if (state.status == ProfileStatus.success && state.user.referralPromptPending) {
@@ -132,24 +80,42 @@ class _MainScreenState extends State<MainScreen> {
               });
             }
           },
-          child: Center(
-            child: _widgetOptions.elementAt(_selectedIndex),
+          child: IndexedStack(
+            index: _selectedIndex,
+            children: _widgetOptions,
           ),
         ),
-        bottomNavigationBar: BottomNavigationBar(
-          // <<< SỬA ĐỔI 4: Thêm mục "Đặt nhanh" vào đây >>>
-          items: const <BottomNavigationBarItem>[
-            BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Trang chủ'),
-            BottomNavigationBarItem(icon: Icon(Icons.category_outlined), activeIcon: Icon(Icons.category), label: 'Danh mục'),
-            BottomNavigationBarItem(icon: Icon(Icons.shop_2_outlined), activeIcon: Icon(Icons.shop_2), label: 'Đặt nhanh'),
-            BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Tài khoản'),
-          ],
-          currentIndex: _selectedIndex,
-          onTap: _onItemTapped,
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: Theme.of(context).colorScheme.primary,
-          unselectedItemColor: Colors.grey.shade600,
-          showUnselectedLabels: true,
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardTheme.color,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, -5),
+              )
+            ],
+            border: Border(
+              top: BorderSide(color: Colors.grey.withOpacity(0.2), width: 1),
+            ),
+          ),
+          child: BottomNavigationBar(
+            items: const <BottomNavigationBarItem>[
+              BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Trang chủ'),
+              BottomNavigationBarItem(icon: Icon(Icons.category_outlined), activeIcon: Icon(Icons.category), label: 'Danh mục'),
+              BottomNavigationBarItem(icon: Icon(Icons.shopping_bag_outlined), activeIcon: Icon(Icons.shopping_bag), label: 'Đặt nhanh'),
+              BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Tài khoản'),
+            ],
+            currentIndex: _selectedIndex,
+            onTap: _onItemTapped,
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.transparent, // Use container's color
+            elevation: 0, // Use container's shadow
+            selectedItemColor: Theme.of(context).primaryColor,
+            unselectedItemColor: AppTheme.textGrey,
+            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
+            showUnselectedLabels: true,
+          ),
         ),
       ),
     );

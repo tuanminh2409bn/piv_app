@@ -21,7 +21,7 @@ class AgentSelectionCubit extends Cubit<AgentSelectionState> {
           status: AgentSelectionStatus.error, errorMessage: failure.message)),
           (users) {
         final agents = users
-            .where((user) => user.role == 'agent_1' || user.role == 'agent_2')
+            .where((user) => (user.role == 'agent_1' || user.role == 'agent_2') && user.status == 'active')
             .toList();
         emit(state.copyWith(
           status: AgentSelectionStatus.success,

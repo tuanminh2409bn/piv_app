@@ -1,6 +1,5 @@
 // lib/features/returns/presentation/pages/create_return_request_page.dart
 
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:dotted_border/dotted_border.dart';
@@ -511,11 +510,12 @@ class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
         ),
         const SizedBox(height: 12),
         DottedBorder(
-          color: Colors.grey,
-          strokeWidth: 1,
-          dashPattern: const [6, 3],
-          borderType: BorderType.RRect,
-          radius: const Radius.circular(12),
+          options: RoundedRectDottedBorderOptions(
+            color: Colors.grey,
+            strokeWidth: 1,
+            dashPattern: const [6, 3],
+            radius: const Radius.circular(12),
+          ),
           child: InkWell(
             onTap: () => context.read<CreateReturnRequestCubit>().pickImages(),
             child: Container(

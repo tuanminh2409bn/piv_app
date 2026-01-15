@@ -3,12 +3,15 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:math';
+import 'dart:io'; 
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/news/presentation/pages/news_detail_page.dart';
 import 'package:piv_app/features/notifications/presentation/pages/notification_list_page.dart';
@@ -75,7 +78,7 @@ class NotificationService {
   }
 
   Future<void> _createAndroidChannel() async {
-    if (!kIsWeb) {
+    if (!kIsWeb && Platform.isAndroid) {
       await _localNotifications
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(_androidChannel);
@@ -85,13 +88,11 @@ class NotificationService {
 
   Future<void> _initLocalNotifications() async {
     const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@drawable/ic_notification');
+    
+    // Bỏ const để tránh lỗi trên một số phiên bản Dart cũ hơn hoặc cấu hình strict
+    final DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings();
 
-    // --- BẮT ĐẦU SỬA LỖI: Bỏ 'const' ---
-    // DarwinInitializationSettings() không phải là một hàm khởi tạo const.
-    const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings();
-    // --- KẾT THÚC SỬA LỖI ---
-
-    const InitializationSettings initializationSettings = InitializationSettings(
+    final InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
       iOS: initializationSettingsIOS,
     );
@@ -116,20 +117,17 @@ class NotificationService {
       developer.log('🟢 [FOREGROUND] Nhận được thông báo: ${message.notification?.title}', name: "NotificationService");
       final RemoteNotification? notification = message.notification;
 
-      // --- BẮT ĐẦU SỬA LỖI ---
-      // Chỉ hiển thị thông báo local trên Android.
-      // Trên iOS, chúng ta để hệ điều hành tự xử lý để tránh lặp.
-      if (notification != null && !kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      // Chỉ hiển thị Local Notification trên Android
+      // iOS tự động hiển thị khi app ở foreground nếu đã cấu hình presentation options (đã làm ở trên)
+      if (notification != null && !kIsWeb && Platform.isAndroid) {
         _showLocalNotification(
           notification.title ?? 'Thông báo',
           notification.body ?? '',
           message.data,
         );
       }
-      // --- KẾT THÚC SỬA LỖI ---
     });
 
-    // Giữ nguyên các listener còn lại
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       developer.log('🔵 [BACKGROUND TAP] Mở app từ thông báo: ${message.data}', name: "NotificationService");
       _handleNotificationNavigation(message.data);
@@ -155,13 +153,11 @@ class NotificationService {
       icon: '@drawable/ic_notification',
     );
 
-    // --- BẮT ĐẦU SỬA LỖI: Bỏ 'const' ở đây ---
-    // Vì androidDetails không phải là hằng số, nên cả NotificationDetails cũng không thể là const
+    // Bỏ const ở đây
     final NotificationDetails notificationDetails = NotificationDetails(
       android: androidDetails,
       iOS: const DarwinNotificationDetails(presentSound: true, presentBadge: true, presentAlert: true),
     );
-    // --- KẾT THÚC SỬA LỖI ---
 
     await _localNotifications.show(
       Random().nextInt(100000),

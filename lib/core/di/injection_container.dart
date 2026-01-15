@@ -8,6 +8,7 @@ import 'package:piv_app/features/quick_order/data/repositories/quick_order_repos
 import 'package:piv_app/features/quick_order/domain/repositories/quick_order_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:piv_app/app/app_bloc_observer.dart';
+import 'package:flutter/foundation.dart';
 import 'package:piv_app/features/auth/data/repositories/auth_repository_impl.dart';
 import 'package:piv_app/features/auth/domain/repositories/auth_repository.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
@@ -87,7 +88,17 @@ Future<void> initializeDependencies() async {
   sl.registerLazySingleton<firebase_auth.FirebaseAuth>(() => firebase_auth.FirebaseAuth.instance);
   final prefs = await SharedPreferences.getInstance();
   sl.registerLazySingleton<SharedPreferences>(() => prefs);
-  sl.registerLazySingleton<GoogleSignIn>(() => GoogleSignIn());
+  sl.registerLazySingleton<GoogleSignIn>(() => GoogleSignIn.instance);
+  // Initialize GoogleSignIn with serverClientId (Web Client ID)
+  // Required for Google Sign In v7 on Android
+  try {
+     await GoogleSignIn.instance.initialize(
+       serverClientId: '435533952242-8n673mvm4t37l3i82f5j48hdv4h8uv8m.apps.googleusercontent.com',
+     );
+  } catch (e) {
+    debugPrint('GoogleSignIn initialize error: $e');
+  }
+  
   sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(firebaseAuth: sl(), firestore: sl(), googleSignIn: sl()));
   sl.registerLazySingleton<AuthBloc>(() => AuthBloc(authRepository: sl(), userProfileRepository: sl()));
   sl.registerFactory<LoginCubit>(() => LoginCubit(authRepository: sl()));

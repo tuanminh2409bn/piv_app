@@ -2,9 +2,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
+import 'package:piv_app/core/theme/app_theme.dart';
+import 'package:piv_app/core/theme/nature_background_painter.dart';
 import 'package:piv_app/features/orders/presentation/pages/order_success_page.dart';
 import 'package:piv_app/features/profile/presentation/bloc/debt_payment_cubit.dart';
 
@@ -12,29 +15,13 @@ class CurrencyInputFormatter extends TextInputFormatter {
   final NumberFormat _formatter = NumberFormat.decimalPattern('vi_VN');
 
   @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue,
-      TextEditingValue newValue,
-      ) {
-    if (newValue.text.isEmpty) {
-      return newValue.copyWith(text: '');
-    }
-
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.isEmpty) return newValue.copyWith(text: '');
     final cleanText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (cleanText.isEmpty) {
-      return const TextEditingValue(
-        text: '',
-        selection: TextSelection.collapsed(offset: 0),
-      );
-    }
-
+    if (cleanText.isEmpty) return const TextEditingValue(text: '', selection: TextSelection.collapsed(offset: 0));
     final number = int.parse(cleanText);
     final formattedText = _formatter.format(number);
-
-    return newValue.copyWith(
-      text: formattedText,
-      selection: TextSelection.collapsed(offset: formattedText.length),
-    );
+    return newValue.copyWith(text: formattedText, selection: TextSelection.collapsed(offset: formattedText.length));
   }
 }
 
@@ -42,12 +29,7 @@ class DebtPaymentPage extends StatelessWidget {
   const DebtPaymentPage({super.key});
 
   static Route<void> route() {
-    return MaterialPageRoute(
-      builder: (_) => BlocProvider(
-        create: (context) => sl<DebtPaymentCubit>(),
-        child: const DebtPaymentPage(),
-      ),
-    );
+    return MaterialPageRoute(builder: (_) => BlocProvider(create: (context) => sl<DebtPaymentCubit>(), child: const DebtPaymentPage()));
   }
 
   @override
@@ -73,17 +55,13 @@ class _DebtPaymentViewState extends State<DebtPaymentView> {
     _amountController.addListener(_onAmountChanged);
   }
 
-  // --- BẮT ĐẦU SỬA LỖI ---
   void _onAmountChanged() {
     final cleanText = _amountController.text.replaceAll('.', '');
     final amount = double.tryParse(cleanText) ?? 0.0;
-    // Chỉ gọi update nếu giá trị trong state khác với giá trị đang nhập
-    // để tránh vòng lặp không cần thiết.
     if (amount != context.read<DebtPaymentCubit>().state.amountToPay) {
       context.read<DebtPaymentCubit>().updateAmountToPay(amount);
     }
   }
-  // --- KẾT THÚC SỬA LỖI ---
 
   @override
   void dispose() {
@@ -94,141 +72,174 @@ class _DebtPaymentViewState extends State<DebtPaymentView> {
 
   @override
   Widget build(BuildContext context) {
-    // --- BẮT ĐẦU SỬA LỖI ---
-    // Tách riêng Listener và Builder để quản lý các tác vụ phụ và việc build UI
     return MultiBlocListener(
       listeners: [
-        // Listener này xử lý các tác vụ như điều hướng, hiển thị SnackBar
         BlocListener<DebtPaymentCubit, DebtPaymentState>(
           listenWhen: (previous, current) => previous.status != current.status,
           listener: (context, state) {
             if (state.status == DebtPaymentStatus.success && state.newOrderId != null) {
-              Navigator.of(context).pushAndRemoveUntil(
-                OrderSuccessPage.route(orderId: state.newOrderId!),
-                    (route) => route.isFirst,
-              );
+              Navigator.of(context).pushAndRemoveUntil(OrderSuccessPage.route(orderId: state.newOrderId!), (route) => route.isFirst);
             }
             if (state.status == DebtPaymentStatus.error && state.errorMessage != null) {
-              ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar()
-                ..showSnackBar(SnackBar(
-                  content: Text(state.errorMessage!),
-                  backgroundColor: Colors.red,
-                ));
+              ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content: Text(state.errorMessage!), backgroundColor: AppTheme.errorRed));
               context.read<DebtPaymentCubit>().clearError();
             }
           },
         ),
-        // Listener này đồng bộ state từ Cubit vào TextEditingController
         BlocListener<DebtPaymentCubit, DebtPaymentState>(
           listenWhen: (previous, current) => previous.amountToPay != current.amountToPay,
           listener: (context, state) {
             final formattedAmount = _numberFormat.format(state.amountToPay);
             if (_amountController.text != formattedAmount) {
-              // Tạm thời gỡ listener để tránh vòng lặp khi cập nhật controller
               _amountController.removeListener(_onAmountChanged);
-              _amountController.value = TextEditingValue(
-                text: formattedAmount,
-                selection: TextSelection.collapsed(offset: formattedAmount.length),
-              );
-              // Thêm lại listener sau khi cập nhật xong
+              _amountController.value = TextEditingValue(text: formattedAmount, selection: TextSelection.collapsed(offset: formattedAmount.length));
               _amountController.addListener(_onAmountChanged);
             }
           },
         ),
       ],
-      child: BlocBuilder<DebtPaymentCubit, DebtPaymentState>(
-        builder: (context, state) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('Thanh toán Công nợ')),
-            body: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSummaryCard(context, state.currentUser.debtAmount),
-                    const SizedBox(height: 24),
-                    Text('Số tiền thanh toán', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _amountController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: false),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        CurrencyInputFormatter(),
-                      ],
-                      decoration: const InputDecoration(
-                        suffixText: 'đ',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () {
-                            context.read<DebtPaymentCubit>().updateAmountToPay(state.currentUser.debtAmount);
-                          },
-                          child: const Text('TRẢ HẾT'),
-                        )
-                      ],
-                    ),
-                    const Spacer(),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: state.status == DebtPaymentStatus.loading
-                            ? null
-                            : () {
-                          context.read<DebtPaymentCubit>().createDebtPaymentOrder();
-                        },
-                        child: state.status == DebtPaymentStatus.loading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('TẠO LỆNH THANH TOÁN'),
-                      ),
-                    ),
-                  ],
+      child: Scaffold(
+        backgroundColor: AppTheme.backgroundLight,
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: CustomPaint(
+                painter: NatureBackgroundPainter(
+                  color1: AppTheme.primaryGreen.withValues(alpha: 0.05),
+                  color2: AppTheme.secondaryGreen.withValues(alpha: 0.03),
+                  accent: AppTheme.accentGold.withValues(alpha: 0.1),
                 ),
               ),
             ),
-          );
-        },
+            BlocBuilder<DebtPaymentCubit, DebtPaymentState>(
+              builder: (context, state) {
+                return CustomScrollView(
+                  slivers: [
+                    SliverAppBar(
+                      expandedHeight: 120.0,
+                      pinned: true,
+                      backgroundColor: AppTheme.primaryGreen,
+                      leading: const BackButton(color: Colors.white),
+                      flexibleSpace: FlexibleSpaceBar(
+                        centerTitle: true,
+                        title: const Text('Thanh toán Công nợ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                        background: Stack(
+                          children: [
+                            Container(decoration: const BoxDecoration(gradient: LinearGradient(colors: [AppTheme.primaryGreen, AppTheme.secondaryGreen], begin: Alignment.topLeft, end: Alignment.bottomRight))),
+                            Positioned.fill(child: CustomPaint(painter: NatureBackgroundPainter(color1: Colors.white.withValues(alpha: 0.1), color2: Colors.white.withValues(alpha: 0.05), accent: AppTheme.accentGold.withValues(alpha: 0.2)))),
+                          ],
+                        ),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSummaryCard(context, state.currentUser.debtAmount).animate().slideY(begin: 0.2, end: 0, duration: 400.ms),
+                            const SizedBox(height: 24),
+                            Text('SỐ TIỀN THANH TOÁN', style: TextStyle(color: AppTheme.textGrey, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2)),
+                            const SizedBox(height: 12),
+                            _buildPaymentInput(context, state),
+                            const SizedBox(height: 32),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: state.status == DebtPaymentStatus.loading ? null : () => context.read<DebtPaymentCubit>().createDebtPaymentOrder(),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  elevation: 8,
+                                  shadowColor: AppTheme.primaryGreen.withValues(alpha: 0.4),
+                                ),
+                                child: state.status == DebtPaymentStatus.loading
+                                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                    : const Text('TẠO LỆNH THANH TOÁN', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
-    // --- KẾT THÚC SỬA LỖI ---
   }
 
   Widget _buildSummaryCard(BuildContext context, double debtAmount) {
     final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     return Card(
-      elevation: 0,
-      color: Colors.red.withOpacity(0.05),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.red.shade200),
-      ),
+      elevation: 4,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
           children: [
-            const Text('Công nợ hiện tại', style: TextStyle(fontSize: 16)),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                currencyFormat.format(debtAmount),
-                textAlign: TextAlign.end,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red.shade700,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Công nợ hiện tại', style: TextStyle(fontSize: 16, color: AppTheme.textDark)),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.1), shape: BoxShape.circle),
+                  child: const Icon(Icons.account_balance_wallet_outlined, color: AppTheme.errorRed),
+                )
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              currencyFormat.format(debtAmount),
+              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: AppTheme.errorRed),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(20)),
+              child: const Text('Vui lòng thanh toán đúng hạn', style: TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentInput(BuildContext context, DebtPaymentState state) {
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade300)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(
+          children: [
+            TextFormField(
+              controller: _amountController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: false),
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+              decoration: const InputDecoration(
+                suffixText: 'đ',
+                border: InputBorder.none,
+                hintText: '0',
+                contentPadding: EdgeInsets.symmetric(vertical: 16),
               ),
             ),
+            const Divider(),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => context.read<DebtPaymentCubit>().updateAmountToPay(state.currentUser.debtAmount),
+                child: const Text('TRẢ HẾT TOÀN BỘ'),
+              ),
+            )
           ],
         ),
       ),

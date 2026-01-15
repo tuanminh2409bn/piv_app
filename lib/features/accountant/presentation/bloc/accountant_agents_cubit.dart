@@ -17,7 +17,10 @@ class AccountantAgentsCubit extends Cubit<AccountantAgentsState> {
     final result = await _userProfileRepository.getAllAgents();
     result.fold(
           (failure) => emit(state.copyWith(status: AccountantAgentsStatus.error, errorMessage: failure.message)),
-          (agents) => emit(state.copyWith(status: AccountantAgentsStatus.success, agents: agents)),
+          (agents) {
+            final activeAgents = agents.where((a) => a.status == 'active').toList();
+            emit(state.copyWith(status: AccountantAgentsStatus.success, agents: activeAgents));
+          },
     );
   }
 }

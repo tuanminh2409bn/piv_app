@@ -30,7 +30,7 @@ class AuthRepositoryImpl implements AuthRepository {
       :
         _firebaseAuth = firebaseAuth ?? firebase_auth.FirebaseAuth.instance,
         _firestore = firestore ?? FirebaseFirestore.instance,
-        _googleSignIn = googleSignIn ?? GoogleSignIn(scopes: ['email']) {
+        _googleSignIn = googleSignIn ?? GoogleSignIn.instance {
     _firebaseAuth.authStateChanges().listen((firebaseUser) async {
       if (firebaseUser == null) {
         // Người dùng đã đăng xuất, phát ra user rỗng
@@ -246,14 +246,18 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<Either<Failure, SocialSignInResult>> signInWithGoogle() async {
     try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) {
-        return Left(AuthFailure('Đã hủy đăng nhập bằng Google.'));
-      }
+      final GoogleSignInAccount googleUser = await _googleSignIn.authenticate(scopeHint: ['email']);
 
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final authClient = googleUser.authorizationClient;
+      final auth = await authClient.authorizeScopes(['email']);
+
+      if (auth == null) {
+        return Left(AuthFailure('Không thể lấy quyền truy cập Google.'));
+      }
+
       final firebase_auth.AuthCredential credential = firebase_auth.GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
+        accessToken: auth.accessToken,
         idToken: googleAuth.idToken,
       );
 
@@ -265,7 +269,11 @@ class AuthRepositoryImpl implements AuthRepository {
     } on firebase_auth.FirebaseAuthException catch (e) {
       return Left(AuthFailure(e.message ?? 'Lỗi đăng nhập Google.'));
     } catch (e) {
-      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+      final errorString = e.toString();
+      if (errorString.contains('canceled') || errorString.contains('sign_in_canceled')) {
+         return Left(AuthFailure('Đã hủy đăng nhập bằng Google.'));
+      }
+      return Left(ServerFailure('Lỗi không xác định: $errorString'));
     }
   }
 

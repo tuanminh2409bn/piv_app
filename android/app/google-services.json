@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "435533952242-5s22d542fqfio073bgaftpu0qoi8hnch.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.piv.app",
+            "certificate_hash": "695c06b870ede521619fbf3427ebcf55ae12ed58"
+          }
+        },
+        {
           "client_id": "435533952242-a2egah5qi3esmj3dotbbikot49rg3l4a.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

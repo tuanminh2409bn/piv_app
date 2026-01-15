@@ -59,6 +59,9 @@ dependencies:
   sign_in_with_apple:
   crypto:
   facebook_auth_desktop:
+  flutter_animate:
+  shimmer:
+  google_fonts:
 
 dev_dependencies:
   flutter_test:
