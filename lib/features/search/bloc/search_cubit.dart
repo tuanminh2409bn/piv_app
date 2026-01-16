@@ -41,11 +41,11 @@ class SearchCubit extends Cubit<SearchState> {
   }
 
   // --- SỬA ĐỔI HÀM searchProducts ---
-  Future<void> searchProducts(String query, {String? targetAgentId}) async {
+  Future<void> searchProducts(String query, {String? targetAgentId, bool saveToHistory = true}) async {
     final cleanQuery = query.trim();
 
-    // Chỉ lưu vào lịch sử nếu *người dùng tự tìm kiếm* (không phải admin chọn)
-    if (cleanQuery.isNotEmpty && targetAgentId == null) {
+    // Chỉ lưu vào lịch sử nếu *người dùng tự tìm kiếm* VÀ saveToHistory = true
+    if (cleanQuery.isNotEmpty && targetAgentId == null && saveToHistory) {
       await _searchRepository.saveSearchTerm(cleanQuery);
     }
 

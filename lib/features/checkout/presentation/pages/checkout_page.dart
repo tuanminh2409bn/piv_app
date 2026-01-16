@@ -2,9 +2,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
+import 'package:piv_app/core/theme/app_theme.dart';
 import 'package:piv_app/data/models/address_model.dart';
 import 'package:piv_app/data/models/cart_item_model.dart';
 import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
@@ -12,7 +14,7 @@ import 'package:piv_app/features/checkout/presentation/bloc/checkout_cubit.dart'
 import 'package:piv_app/features/checkout/presentation/pages/address_selection_page.dart';
 import 'package:piv_app/features/orders/presentation/pages/order_success_page.dart';
 
-// --- TIỆN ÍCH ĐỊNH DẠNG SỐ (TÁI SỬ DỤNG) ---
+// --- TIỆN ÍCH ĐỊNH DẠNG SỐ ---
 class CurrencyInputFormatter extends TextInputFormatter {
   final NumberFormat _formatter = NumberFormat.decimalPattern('vi_VN');
 
@@ -87,13 +89,10 @@ class _CheckoutViewState extends State<CheckoutView> {
     final cleanText = _amountController.text.replaceAll('.', '');
     double amount = double.tryParse(cleanText) ?? 0.0;
 
-    // --- BẮT ĐẦU SỬA LỖI: Giới hạn giá trị nhập ---
     final maxAmount = cubit.state.totalWithDebt;
     if (amount > maxAmount) {
       amount = maxAmount;
     }
-    // ------------------------------------------
-
     cubit.updateAmountToPay(amount);
   }
 
@@ -106,164 +105,245 @@ class _CheckoutViewState extends State<CheckoutView> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<CheckoutCubit, CheckoutState>(
-      listener: (context, state) {
-        if (state.status == CheckoutStatus.orderSuccess && state.newOrderId != null) {
-          Navigator.of(context).pushAndRemoveUntil(
-            OrderSuccessPage.route(orderId: state.newOrderId!),
-                (route) => route.isFirst,
-          );
-        }
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(), // 1. Ẩn bàn phím khi chạm ra ngoài
+      child: BlocConsumer<CheckoutCubit, CheckoutState>(
+        listener: (context, state) {
+          if (state.status == CheckoutStatus.orderSuccess && state.newOrderId != null) {
+            Navigator.of(context).pushAndRemoveUntil(
+              OrderSuccessPage.route(orderId: state.newOrderId!),
+                  (route) => route.isFirst,
+            );
+          }
 
-        if (state.status == CheckoutStatus.error && state.errorMessage != null) {
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(SnackBar(
-              content: Text(state.errorMessage!),
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ));
-        }
+          if (state.status == CheckoutStatus.error && state.errorMessage != null) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(SnackBar(
+                content: Text(state.errorMessage!),
+                backgroundColor: AppTheme.errorRed,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ));
+          }
 
-        // Cập nhật text field khi state thay đổi từ cubit
-        final formattedAmount = _numberFormatter.format(state.amountToPay);
-        if (_amountController.text != formattedAmount) {
-          _amountController.value = TextEditingValue(
-            text: formattedAmount,
-            selection: TextSelection.collapsed(offset: formattedAmount.length),
+          final formattedAmount = _numberFormatter.format(state.amountToPay);
+          if (_amountController.text != formattedAmount) {
+            _amountController.value = TextEditingValue(
+              text: formattedAmount,
+              selection: TextSelection.collapsed(offset: formattedAmount.length),
+            );
+          }
+        },
+        builder: (context, state) {
+          return Scaffold(
+            backgroundColor: Colors.grey[50],
+            appBar: AppBar(
+              title: const Text('Xác nhận đơn hàng', style: TextStyle(fontWeight: FontWeight.bold)),
+              elevation: 0,
+              scrolledUnderElevation: 2,
+              backgroundColor: Colors.white,
+            ),
+            body: SingleChildScrollView(
+              // 2. Padding động theo bàn phím để đẩy nội dung lên
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 100 + MediaQuery.of(context).viewInsets.bottom),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionTitle('ĐỊA CHỈ NHẬN HÀNG', icon: Icons.location_on),
+                  const SizedBox(height: 12),
+                  _buildAddressSection(context).animate().fadeIn(duration: 400.ms).slideX(begin: -0.1, end: 0),
+
+                  const SizedBox(height: 24),
+                  _buildSectionTitle('SẢN PHẨM', icon: Icons.shopping_bag_outlined),
+                  const SizedBox(height: 12),
+                  _buildOrderItems(context).animate(delay: 100.ms).fadeIn().slideX(begin: 0.1, end: 0),
+
+                  const SizedBox(height: 24),
+                  _buildSectionTitle('KHUYẾN MÃI', icon: Icons.local_offer_outlined),
+                  const SizedBox(height: 12),
+                  _buildVoucherSection(context).animate(delay: 200.ms).fadeIn().slideY(begin: 0.1, end: 0),
+
+                  const SizedBox(height: 24),
+                  _buildSectionTitle('THANH TOÁN', icon: Icons.payment),
+                  const SizedBox(height: 12),
+                  _buildOrderSummary(context, state, _currencyFormatter).animate(delay: 300.ms).fadeIn(),
+
+                  if (state.totalWithDebt > 0) ...[
+                     const SizedBox(height: 24),
+                    _buildPaymentInputSection(context, state, _currencyFormatter).animate(delay: 400.ms).fadeIn(),
+                  ],
+                ],
+              ),
+            ),
+            bottomNavigationBar: _buildBottomBar(context, state, _currencyFormatter),
           );
-        }
-      },
+        },
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, {required IconData icon}) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppTheme.primaryGreen),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCardContainer({required Widget child, EdgeInsetsGeometry? padding}) {
+    return Container(
+      width: double.infinity,
+      padding: padding ?? const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildAddressSection(BuildContext context) {
+    return BlocBuilder<CheckoutCubit, CheckoutState>(
       builder: (context, state) {
-        return Scaffold(
-          appBar: AppBar(title: const Text('Xác nhận đơn hàng')),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        if (state.status == CheckoutStatus.loading) {
+          return _buildCardContainer(child: const Center(child: CircularProgressIndicator()));
+        }
+
+        final address = state.selectedAddress;
+        
+        return InkWell(
+          onTap: () async {
+            final selectedAddress = await Navigator.of(context).push<AddressModel?>(
+              AddressSelectionPage.route(addresses: state.addresses),
+            );
+            if (selectedAddress != null) {
+              context.read<CheckoutCubit>().selectAddress(selectedAddress);
+            }
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade200),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+              ],
+            ),
+            child: Row(
               children: [
-                _buildAddressSection(context),
-                const Divider(thickness: 8, height: 32),
-                _buildOrderItems(context),
-                const Divider(thickness: 8, height: 32),
-                _buildVoucherSection(context),
-                const Divider(thickness: 8, height: 32),
-                _buildOrderSummary(context, state, _currencyFormatter),
-                const Divider(thickness: 8, height: 32),
-                _buildPaymentInputSection(context, state, _currencyFormatter),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryGreen.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.location_on, color: AppTheme.primaryGreen, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: address == null
+                      ? const Text('Vui lòng chọn địa chỉ nhận hàng', style: TextStyle(color: Colors.redAccent))
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              address.recipientName,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(address.phoneNumber, style: TextStyle(color: Colors.grey[700])),
+                            const SizedBox(height: 4),
+                            Text(
+                              address.fullAddress,
+                              style: const TextStyle(fontSize: 13, height: 1.4),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                ),
+                const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
               ],
             ),
           ),
-          bottomNavigationBar: _buildPlaceOrderButton(context),
         );
       },
     );
   }
 
-  Widget _buildAddressSection(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Địa chỉ giao hàng', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          BlocBuilder<CheckoutCubit, CheckoutState>(
-            builder: (context, state) {
-              if (state.status == CheckoutStatus.loading) {
-                return const Text('Đang tải địa chỉ...');
-              }
-              if (state.selectedAddress == null) {
-                return Center(
-                  child: OutlinedButton(
-                    onPressed: () async {
-                      final selectedAddress = await Navigator.of(context).push<AddressModel?>(
-                        AddressSelectionPage.route(addresses: state.addresses),
-                      );
-                      if (selectedAddress != null) {
-                        context.read<CheckoutCubit>().selectAddress(selectedAddress);
-                      }
-                    },
-                    child: const Text('Chọn hoặc thêm địa chỉ'),
-                  ),
-                );
-              }
-              return InkWell(
-                onTap: () async {
-                  final selectedAddress = await Navigator.of(context).push<AddressModel?>(
-                    AddressSelectionPage.route(addresses: state.addresses),
-                  );
-                  if (selectedAddress != null) {
-                    context.read<CheckoutCubit>().selectAddress(selectedAddress);
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.location_on_outlined, color: Colors.grey),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('${state.selectedAddress!.recipientName} | ${state.selectedAddress!.phoneNumber}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 4),
-                            Text(state.selectedAddress!.fullAddress),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildOrderItems(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Sản phẩm', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          BlocBuilder<CheckoutCubit, CheckoutState>(
-            builder: (context, state) {
-              return ListView.separated(
-                physics: const NeverScrollableScrollPhysics(),
-                shrinkWrap: true,
-                itemCount: state.checkoutItems.length,
-                separatorBuilder: (_, __) => const Divider(height: 12),
-                itemBuilder: (context, index) {
-                  final item = state.checkoutItems[index];
-                  return Row(
-                    children: [
-                      ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(item.imageUrl, width: 60, height: 60, fit: BoxFit.cover)),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(item.productName, maxLines: 2, overflow: TextOverflow.ellipsis),
-                            Text('SL: ${item.quantity}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                          ],
-                        ),
+    return BlocBuilder<CheckoutCubit, CheckoutState>(
+      builder: (context, state) {
+        return Column(
+          children: state.checkoutItems.asMap().entries.map((entry) {
+            final index = entry.key;
+            final item = entry.value;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: _buildCardContainer(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        item.imageUrl,
+                        width: 70,
+                        height: 70,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(color: Colors.grey[200], width: 70, height: 70),
                       ),
-                      Text(NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(item.subtotal)),
-                    ],
-                  );
-                },
-              );
-            },
-          ),
-        ],
-      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.productName,
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${item.itemUnitName} x ${item.quantity}',
+                            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(item.subtotal),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
     );
   }
 
@@ -271,223 +351,231 @@ class _CheckoutViewState extends State<CheckoutView> {
     return BlocBuilder<CheckoutCubit, CheckoutState>(
       builder: (context, state) {
         if (state.appliedVoucher != null) {
-          return _buildAppliedVoucherCard(context, state.appliedVoucher!);
-        } else {
-          return _buildVoucherInput(context);
+          return _buildCardContainer(
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.verified, color: Colors.green, size: 30),
+              title: Text('Voucher: ${state.appliedVoucher!.id}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(state.appliedVoucher!.description, style: TextStyle(color: Colors.green[700])),
+              trailing: IconButton(
+                icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                onPressed: () => context.read<CheckoutCubit>().removeVoucher(),
+              ),
+            ),
+          );
         }
+        
+        final controller = TextEditingController();
+        return _buildCardContainer(
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    hintText: 'Nhập mã giảm giá',
+                    hintStyle: TextStyle(color: Colors.grey[400]),
+                    border: InputBorder.none,
+                    icon: const Icon(Icons.confirmation_number_outlined, color: Colors.grey),
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  if (controller.text.trim().isNotEmpty) {
+                    context.read<CheckoutCubit>().applyVoucher(controller.text.trim());
+                    FocusScope.of(context).unfocus();
+                  }
+                },
+                child: const Text('ÁP DỤNG', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
       },
     );
   }
 
-  Widget _buildVoucherInput(BuildContext context) {
-    final controller = TextEditingController();
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Row(
+  Widget _buildOrderSummary(BuildContext context, CheckoutState state, NumberFormat currencyFormatter) {
+    return _buildCardContainer(
+      child: Column(
         children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                labelText: 'Mã giảm giá (tùy chọn)',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.confirmation_number_outlined),
-              ),
+          _buildSummaryRow('Tạm tính', currencyFormatter.format(state.subtotal)),
+          const SizedBox(height: 8),
+          _buildSummaryRow('Phí vận chuyển', currencyFormatter.format(state.shippingFee)),
+          
+          if (state.discount > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: _buildSummaryRow('Voucher giảm giá', '-${currencyFormatter.format(state.discount)}', valueColor: Colors.green),
             ),
+            
+          if (state.status == CheckoutStatus.calculatingDiscount)
+             const Padding(
+               padding: EdgeInsets.only(top: 8.0),
+               child: Row(
+                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                 children: [Text("Đang tính chiết khấu...", style: TextStyle(color: Colors.orange)), SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2))],
+               ),
+             )
+          else if (state.commissionDiscount > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: _buildSummaryRow('Chiết khấu đại lý', '-${currencyFormatter.format(state.commissionDiscount)}', valueColor: Colors.green),
+            ),
+          
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Divider(color: Colors.grey[200], height: 1),
           ),
-          const SizedBox(width: 8),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                context.read<CheckoutCubit>().applyVoucher(controller.text.trim());
-                FocusScope.of(context).unfocus();
-              }
-            },
-            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-            child: const Text('Áp dụng'),
-          ),
+          
+          _buildSummaryRow('Tiền hàng', currencyFormatter.format(state.finalTotal), isBold: true),
+          
+          if (state.currentDebt > 0) ...[
+             const SizedBox(height: 8),
+             _buildSummaryRow('Công nợ cũ', '+${currencyFormatter.format(state.currentDebt)}', valueColor: AppTheme.errorRed),
+             Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Divider(color: Colors.grey[200], height: 1),
+              ),
+             _buildSummaryRow('Tổng thanh toán', currencyFormatter.format(state.totalWithDebt), isBold: true, fontSize: 18, valueColor: AppTheme.primaryGreen),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildAppliedVoucherCard(BuildContext context, VoucherModel voucher) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Card(
-        color: Colors.green.shade50,
-        elevation: 0,
-        shape: RoundedRectangleBorder(side: const BorderSide(color: Colors.green), borderRadius: BorderRadius.circular(8)),
-        child: ListTile(
-          leading: const Icon(Icons.check_circle, color: Colors.green),
-          title: Text('Đã áp dụng mã: ${voucher.id}', style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Text(voucher.description),
-          trailing: IconButton(
-            icon: const Icon(Icons.close, color: Colors.red),
-            tooltip: 'Xóa mã',
-            onPressed: () => context.read<CheckoutCubit>().removeVoucher(),
-          ),
-        ),
-      ),
+  Widget _buildSummaryRow(String label, String value, {bool isBold = false, Color? valueColor, double fontSize = 14}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(fontSize: fontSize, color: isBold ? Colors.black87 : Colors.grey[600], fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
+        Text(value, style: TextStyle(fontSize: fontSize, color: valueColor ?? (isBold ? Colors.black87 : Colors.black), fontWeight: isBold ? FontWeight.bold : FontWeight.w500)),
+      ],
     );
   }
 
   Widget _buildPaymentInputSection(BuildContext context, CheckoutState state, NumberFormat formatter) {
-    // Chỉ hiển thị khi có công nợ hoặc có đơn hàng (để có thể trả trước)
-    if (state.totalWithDebt <= 0) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Thanh toán', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _amountController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: false),
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              CurrencyInputFormatter(), // Áp dụng formatter
-            ],
-            decoration: InputDecoration(
-              labelText: 'Số tiền thanh toán',
-              suffixText: 'đ',
-              hintText: 'Nhập số tiền bạn muốn trả',
-              border: const OutlineInputBorder(),
-            ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Vui lòng nhập số tiền';
-              }
-              final cleanValue = value.replaceAll('.', '');
-              final amount = double.tryParse(cleanValue) ?? -1;
-              if (amount > state.totalWithDebt) {
-                return 'Không được lớn hơn tổng thanh toán';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: () {
-                  context.read<CheckoutCubit>().updateAmountToPay(state.totalWithDebt);
-                },
-                child: const Text('TRẢ HẾT'),
-              ),
-            ],
-          )
-        ],
-      ),
-    );
+     return _buildCardContainer(
+       child: Column(
+         crossAxisAlignment: CrossAxisAlignment.start,
+         children: [
+           Text(
+             'Số tiền bạn muốn trả',
+             style: TextStyle(color: Colors.grey[600], fontSize: 13, fontWeight: FontWeight.bold),
+           ),
+           const SizedBox(height: 12),
+           Row(
+             children: [
+               Expanded(
+                 child: Container(
+                   padding: const EdgeInsets.symmetric(horizontal: 16),
+                   decoration: BoxDecoration(
+                     color: Colors.grey[100],
+                     borderRadius: BorderRadius.circular(12),
+                   ),
+                   child: TextField(
+                     controller: _amountController,
+                     keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                     inputFormatters: [
+                       FilteringTextInputFormatter.digitsOnly,
+                       CurrencyInputFormatter(),
+                     ],
+                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primaryGreen),
+                     textInputAction: TextInputAction.done, // 4. Nút Done
+                     decoration: InputDecoration(
+                       border: InputBorder.none,
+                       hintText: '0', // 3. Số mẫu là 0
+                       hintStyle: const TextStyle(color: Colors.grey),
+                       suffixText: 'đ',
+                       suffixStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+                       suffixIcon: IconButton( // 5. Nút ẩn bàn phím
+                         icon: const Icon(Icons.keyboard_hide, color: Colors.grey),
+                         onPressed: () => FocusScope.of(context).unfocus(),
+                       ),
+                     ),
+                   ),
+                 ),
+               ),
+               const SizedBox(width: 12),
+               InkWell(
+                 onTap: () {
+                   context.read<CheckoutCubit>().updateAmountToPay(state.totalWithDebt);
+                 },
+                 borderRadius: BorderRadius.circular(12),
+                 child: Container(
+                   padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                   decoration: BoxDecoration(
+                     color: AppTheme.primaryGreen.withOpacity(0.1),
+                     borderRadius: BorderRadius.circular(12),
+                   ),
+                   child: const Text('TRẢ HẾT', style: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold)),
+                 ),
+               ),
+             ],
+           ),
+         ],
+       ),
+     );
   }
 
-  Widget _buildOrderSummary(BuildContext context, CheckoutState state, NumberFormat currencyFormatter) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Tóm tắt đơn hàng', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          _buildSummaryRow('Tạm tính:', currencyFormatter.format(state.subtotal)),
-          _buildSummaryRow('Phí vận chuyển:', currencyFormatter.format(state.shippingFee)),
-          if (state.discount > 0)
-            _buildSummaryRow(
-              'Giảm giá voucher:',
-              '- ${currencyFormatter.format(state.discount)}',
-              color: Colors.green.shade700,
-            ),
-          if (state.status == CheckoutStatus.calculatingDiscount)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 4.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildBottomBar(BuildContext context, CheckoutState state, NumberFormat currencyFormatter) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
+        ],
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              flex: 4,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Chiết khấu đại lý:", style: TextStyle(fontSize: 16)),
-                  SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  Text('Tổng cộng', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                  Text(
+                    currencyFormatter.format(state.totalWithDebt), // Hiển thị tổng (bao gồm công nợ)
+                    style: const TextStyle(
+                      color: AppTheme.primaryGreen,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                 ],
               ),
-            )
-          else if (state.commissionDiscount > 0)
-            _buildSummaryRow(
-              'Chiết khấu đại lý:',
-              '- ${currencyFormatter.format(state.commissionDiscount)}',
-              color: Colors.green.shade700,
             ),
-
-          // --- THAY ĐỔI: Thêm dòng công nợ và sửa tổng cộng ---
-          const Divider(),
-          _buildSummaryRow(
-            'Tiền hàng:',
-            currencyFormatter.format(state.finalTotal),
-            isTotal: true,
-          ),
-          if (state.currentDebt > 0)
-            _buildSummaryRow(
-              'Công nợ hiện tại:',
-              '+ ${currencyFormatter.format(state.currentDebt)}',
-              color: Colors.red.shade700,
-            ),
-          const Divider(),
-          _buildSummaryRow(
-            'Tổng thanh toán:',
-            currencyFormatter.format(state.totalWithDebt),
-            isTotal: true,
-          ),
-          // ----------------------------------------------------
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryRow(String title, String value, {bool isTotal = false, Color? color}) {
-    final style = TextStyle(
-      fontSize: isTotal ? 18 : 16,
-      fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-      color: color,
-    );
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(title, style: style),
-          Text(value, style: style),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlaceOrderButton(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, -5))],
-      ),
-      child: BlocBuilder<CheckoutCubit, CheckoutState>(
-        builder: (context, state) {
-          return SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: (state.selectedAddress == null || state.status == CheckoutStatus.placingOrder || state.status == CheckoutStatus.calculatingDiscount)
-                  ? null
-                  : () => context.read<CheckoutCubit>().placeOrder(),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Expanded(
+              flex: 6,
+              child: ElevatedButton(
+                onPressed: (state.selectedAddress == null || state.status == CheckoutStatus.placingOrder || state.status == CheckoutStatus.calculatingDiscount)
+                    ? null
+                    : () => context.read<CheckoutCubit>().placeOrder(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryGreen,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  elevation: 8,
+                  shadowColor: AppTheme.primaryGreen.withOpacity(0.4),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: state.status == CheckoutStatus.placingOrder
+                    ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                    : const Text('ĐẶT HÀNG NGAY', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
-              child: state.status == CheckoutStatus.placingOrder
-                  ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                  : const Text('ĐẶT HÀNG'),
             ),
-          );
-        },
+          ],
+        ),
       ),
-    );
+    ).animate().slideY(begin: 1, end: 0, duration: 500.ms, curve: Curves.easeOutQuart);
   }
 }

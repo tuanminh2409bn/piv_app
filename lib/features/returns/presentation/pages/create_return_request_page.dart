@@ -1,13 +1,17 @@
 // lib/features/returns/presentation/pages/create_return_request_page.dart
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:dotted_border/dotted_border.dart';
+import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
+import 'package:piv_app/core/theme/app_theme.dart';
 import 'package:piv_app/data/models/order_item_model.dart';
 import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/features/returns/presentation/bloc/create_return_request_cubit.dart';
-import 'package:intl/intl.dart';
 
 class CreateReturnRequestPage extends StatelessWidget {
   final OrderModel order;
@@ -24,19 +28,22 @@ class CreateReturnRequestPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const CreateReturnRequestView();
+    return CreateReturnRequestView(order: order);
   }
 }
 
 class CreateReturnRequestView extends StatefulWidget {
-  const CreateReturnRequestView({super.key});
+  final OrderModel order;
+  const CreateReturnRequestView({super.key, required this.order});
 
   @override
-  State<CreateReturnRequestView> createState() => _CreateReturnRequestViewState();
+  State<CreateReturnRequestView> createState() =>
+      _CreateReturnRequestViewState();
 }
 
 class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
   final _notesController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   String _selectedReason = 'Sản phẩm bị hỏng/vỡ';
 
   final List<String> _reasons = [
@@ -47,229 +54,501 @@ class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
     'Lý do khác'
   ];
 
-  @override
-  void dispose() {
-    _notesController.dispose();
-    super.dispose();
-  }
-
   double _calculatedPenalty = 0.0;
   double _calculatedRefund = 0.0;
   String _policyMessage = '';
 
+  @override
+  void dispose() {
+    _notesController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   void _calculatePenalty(OrderModel order, CreateReturnRequestState state) {
-    // 1. Tính toán giá trị hoàn trả (Refund Amount)
     double totalRefund = 0;
     state.returnedItems.forEach((productId, returnedQuantity) {
       if (returnedQuantity > 0) {
-        final originalItem = order.items.firstWhere((item) => item.productId == productId);
-        // Giá trị trả = Số lượng trả * Đơn giá lúc mua
+        final originalItem =
+            order.items.firstWhere((item) => item.productId == productId);
         totalRefund += returnedQuantity * originalItem.price;
       }
     });
 
-    // 2. Tính toán phí phạt (Penalty Fee)
     if (order.createdAt == null) {
-      setState(() {
-        _calculatedPenalty = 0.0;
-        _calculatedRefund = totalRefund;
-        _policyMessage = 'Không thể xác định ngày tạo đơn hàng.';
-      });
+      if (mounted) {
+        setState(() {
+          _calculatedPenalty = 0.0;
+          _calculatedRefund = totalRefund;
+          _policyMessage = 'Không thể xác định ngày tạo đơn hàng.';
+        });
+      }
       return;
     }
 
-    final daysDifference = DateTime.now().difference(order.createdAt!.toDate()).inDays;
+    final daysDifference =
+        DateTime.now().difference(order.createdAt!.toDate()).inDays;
     final monthsDifference = daysDifference / 30;
 
     double penaltyPerCrate = 0;
     if (monthsDifference > 24) {
-      _policyMessage = 'Đơn hàng đã quá 24 tháng, có thể không được đổi trả.';
-      penaltyPerCrate = 0; // Hoặc một giá trị cấm
+      _policyMessage = 'Đơn hàng quá 24 tháng. Có thể bị từ chối.';
+      penaltyPerCrate = 0;
     } else if (monthsDifference > 12) {
-      _policyMessage = 'Phí phạt dự kiến: 300.000 đ/thùng';
+      _policyMessage = 'Phí phạt: 300.000 đ/thùng (sau 12 tháng)';
       penaltyPerCrate = 300000;
     } else if (monthsDifference > 3) {
-      _policyMessage = 'Phí phạt dự kiến: 150.000 đ/thùng';
+      _policyMessage = 'Phí phạt: 150.000 đ/thùng (sau 3 tháng)';
       penaltyPerCrate = 150000;
     } else {
-      _policyMessage = 'Miễn phí đổi trả trong 3 tháng đầu.';
+      _policyMessage = 'Miễn phí đổi trả (trong 3 tháng đầu)';
       penaltyPerCrate = 0;
     }
 
     double totalCratesToReturn = 0;
     state.returnedItems.forEach((productId, returnedQuantity) {
       if (returnedQuantity > 0) {
-        final originalItem = order.items.firstWhere((item) => item.productId == productId);
-        // Làm tròn lên để đảm bảo 1 chai cũng tính là 1 thùng
-        final crates = (returnedQuantity / originalItem.quantityPerPackage).ceil();
+        final originalItem =
+            order.items.firstWhere((item) => item.productId == productId);
+        final crates =
+            (returnedQuantity / originalItem.quantityPerPackage).ceil();
         totalCratesToReturn += crates;
       }
     });
 
-    setState(() {
-      _calculatedRefund = totalRefund;
-      _calculatedPenalty = penaltyPerCrate > 0 ? totalCratesToReturn * penaltyPerCrate : 0.0;
-    });
+    if (mounted) {
+      setState(() {
+        _calculatedRefund = totalRefund;
+        _calculatedPenalty =
+            penaltyPerCrate > 0 ? totalCratesToReturn * penaltyPerCrate : 0.0;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final order = (context.findAncestorWidgetOfExactType<CreateReturnRequestPage>())!.order;
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Tạo yêu cầu Đổi/Trả')),
+      backgroundColor: const Color(0xFFF5F7FA), // Màu nền sáng hiện đại
+      appBar: AppBar(
+        centerTitle: true,
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: const Text(
+          'Yêu cầu Đổi/Trả',
+          style: TextStyle(
+              color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        leading: const BackButton(color: Colors.black87),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline, color: AppTheme.primaryGreen),
+            onPressed: () {
+              _showPolicyDialog(context);
+            },
+          )
+        ],
+      ),
       body: BlocConsumer<CreateReturnRequestCubit, CreateReturnRequestState>(
-        listenWhen: (previous, current) {
-          // Chỉ lắng nghe khi số lượng item thay đổi
-          if (previous.returnedItems != current.returnedItems) return true;
-          // Hoặc khi trạng thái submit thay đổi
-          if (previous.status != current.status && (current.status == CreateReturnRequestStatus.error || current.status == CreateReturnRequestStatus.success)) return true;
-          return false;
-        },
+        listenWhen: (prev, curr) =>
+            prev.returnedItems != curr.returnedItems ||
+            prev.status != curr.status,
         listener: (context, state) {
-          // 1. Tính toán lại phí khi số lượng thay đổi
-          _calculatePenalty(order, state);
+          _calculatePenalty(widget.order, state);
 
-          // 2. Xử lý kết quả submit
           if (state.status == CreateReturnRequestStatus.error) {
-            ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(
-              SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.red),
-            );
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(SnackBar(
+                content: Text(state.errorMessage ?? 'Có lỗi xảy ra'),
+                backgroundColor: Colors.red.shade600,
+                behavior: SnackBarBehavior.floating,
+              ));
           } else if (state.status == CreateReturnRequestStatus.success) {
-            showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Thành công'),
-                  content: const Text('Yêu cầu của bạn đã được gửi đi. Công ty sẽ sớm xem xét và phản hồi.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(ctx).pop(); // Đóng dialog
-                        Navigator.of(context).pop(); // Quay về trang chi tiết đơn hàng
-                      },
-                      child: const Text('ĐÓNG'),
-                    )
-                  ],
-                )
-            );
+            _showSuccessDialog(context);
           }
         },
         builder: (context, state) {
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildPolicyInfo(context),
-                const SizedBox(height: 24),
-                _buildSectionTitle(context, '1. Chọn sản phẩm cần đổi/trả'),
-                _buildProductSelectionList(context, order, state),
-                const SizedBox(height: 24),
+          final bool hasItems = state.returnedItems.values.any((q) => q > 0);
 
-                _buildSectionTitle(context, '2. Lý do đổi/trả'),
-                _buildReasonDropdown(context),
-                const SizedBox(height: 24),
-
-                _buildSectionTitle(context, '3. Cung cấp bằng chứng (ảnh)'),
-                _buildImagePicker(context, state),
-                const SizedBox(height: 24),
-
-                _buildSectionTitle(context, '4. Ghi chú (tùy chọn)'),
-                _buildNotesField(context),
-                const SizedBox(height: 32),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: state.status == CreateReturnRequestStatus.submitting
-                        ? null
-                        : () => context.read<CreateReturnRequestCubit>().submitRequest(
-                      order: order,
-                      reason: _selectedReason,
-                      userNotes: _notesController.text.trim(),
-                      penaltyFee: _calculatedPenalty,
-                      refundAmount: _calculatedRefund,
-                    ),
-                    child: state.status == CreateReturnRequestStatus.submitting
-                        ? const CircularProgressIndicator()
-                        : const Text('GỬI YÊU CẦU'),
-                  ),
+          return Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeaderOrderInfo(),
+                      const SizedBox(height: 20),
+                      _buildSectionHeader('1. Chọn sản phẩm cần đổi/trả'),
+                      const SizedBox(height: 12),
+                      _buildProductList(context, widget.order, state),
+                      const SizedBox(height: 24),
+                      _buildSectionHeader('2. Lý do đổi/trả'),
+                      const SizedBox(height: 12),
+                      _buildReasonSelector(context),
+                      const SizedBox(height: 24),
+                      _buildSectionHeader('3. Hình ảnh bằng chứng'),
+                      const SizedBox(height: 12),
+                      _buildImageUpload(context, state),
+                      const SizedBox(height: 24),
+                      _buildSectionHeader('4. Ghi chú thêm'),
+                      const SizedBox(height: 12),
+                      _buildNoteInput(),
+                      const SizedBox(height: 100), // Space for bottom bar
+                    ],
+                  )
+                      .animate()
+                      .fadeIn(duration: 400.ms)
+                      .slideY(begin: 0.05, end: 0),
                 ),
-              ],
-            ),
+              ),
+              _buildBottomSummaryBar(context, state, hasItems),
+            ],
           );
         },
       ),
     );
   }
 
-  Widget _buildPolicyInfo(BuildContext context) {
-    final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+  // --- WIDGETS CON ---
 
+  Widget _buildHeaderOrderInfo() {
     return Container(
-      padding: const EdgeInsets.all(12.0),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-          color: Colors.blue.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.blue.shade200)
+        color: AppTheme.primaryGreen.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.2)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            'Quy Chế Đổi Trả',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: Colors.blue.shade800),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.receipt_long, color: AppTheme.primaryGreen),
           ),
-          const SizedBox(height: 8),
-          const Text('• Miễn phí đổi trả trong 3 tháng đầu.\n' // Corrected newline escape sequence
-              '• Phạt 150.000 đ/thùng từ 3-12 tháng.\n' // Corrected newline escape sequence
-              '• Phạt 300.000 đ/thùng từ 12-24 tháng.\n' // Corrected newline escape sequence
-              '• Sau 24 tháng, yêu cầu có thể bị từ chối.'),
-          const Divider(height: 20, thickness: 1),
-
-          Text(
-            _policyMessage,
-            style: const TextStyle(fontStyle: FontStyle.italic),
-          ),
-          if (_calculatedPenalty > 0) const SizedBox(height: 4),
-          Align(
-            alignment: Alignment.centerRight,
+          const SizedBox(width: 16),
+          Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Giá trị hàng trả lại: ${formatter.format(_calculatedRefund)}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade700,
+                  'Đơn hàng #${widget.order.id?.substring(0, 8).toUpperCase()}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Ngày tạo: ${widget.order.createdAt != null ? DateFormat('dd/MM/yyyy').format(widget.order.createdAt!.toDate()) : 'N/A'}',
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                ),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Text(
+      title.toUpperCase(),
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.1,
+        color: AppTheme.textGrey,
+      ),
+    );
+  }
+
+  Widget _buildProductList(
+      BuildContext context, OrderModel order, CreateReturnRequestState state) {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: order.items.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final item = order.items[index];
+        final returnedQuantity = state.returnedItems[item.productId] ?? 0;
+        final maxQuantity = item.quantity * item.quantityPerPackage;
+        final isSelected = returnedQuantity > 0;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? AppTheme.primaryGreen : Colors.transparent,
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              )
+            ],
+          ),
+          child: Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              initiallyExpanded: isSelected,
+              tilePadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              leading: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  item.imageUrl,
+                  width: 56,
+                  height: 56,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 56,
+                    height: 56,
+                    color: Colors.grey.shade100,
+                    child: const Icon(Icons.image_not_supported, size: 20),
                   ),
                 ),
-                if (_calculatedPenalty > 0)
-                  Text(
-                    'Phí phạt dự kiến: -${formatter.format(_calculatedPenalty)}',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red.shade700,
-                    ),
-                  ),
-                const Divider(),
-                Text(
-                  'Hoàn lại vào công nợ: ${formatter.format(_calculatedRefund - _calculatedPenalty)}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              ),
+              title: Text(
+                item.productName,
+                style: const TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: (_calculatedRefund - _calculatedPenalty) >= 0 ? Colors.green.shade800 : Colors.red,
+                    fontSize: 15,
+                    color: Colors.black87),
+              ),
+              subtitle: Text(
+                'Đã mua: ${item.packaging.contains('thùng') ? 'thùng' : item.packaging} (Tổng: $maxQuantity ${item.unit})',
+                style: const TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              trailing: isSelected
+                  ? Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: const BoxDecoration(
+                          color: AppTheme.primaryGreen, shape: BoxShape.circle),
+                      child: const Icon(Icons.check,
+                          color: Colors.white, size: 16),
+                    )
+                  : const Icon(Icons.circle_outlined, color: Colors.grey),
+              onExpansionChanged: (expanded) {
+                // Removed auto-select logic to give user full control
+              },
+              children: [
+                Padding(
+                  padding:
+                      const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 16.0),
+                  child: Column(
+                    children: [
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text('Số lượng trả lại (${item.unit}):',
+                                style: const TextStyle(fontWeight: FontWeight.w500)),
+                          ),
+                          _buildQuantityControl(
+                              context, item, returnedQuantity, maxQuantity),
+                        ],
+                      ),
+                      if (isSelected)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              'Hoàn lại: ${NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(returnedQuantity * item.price)}',
+                              style: TextStyle(
+                                  color: AppTheme.primaryGreen,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        )
+                    ],
                   ),
                 ),
               ],
             ),
           ),
+        );
+      },
+    );
+  }
 
-          Padding(
-            padding: const EdgeInsets.only(top: 4.0),
-            child: const Text(
-              '(Số tiền thực nhận sẽ được cộng/trừ vào công nợ sau khi duyệt)',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+  Widget _buildQuantityControl(BuildContext context, OrderItemModel item,
+      int current, int max) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.remove, size: 18),
+            onPressed: () => context
+                .read<CreateReturnRequestCubit>()
+                .updateReturnQuantity(item, current - 1),
+          ),
+          InkWell(
+            onTap: () => _showQuantityDialog(context, item, current, max),
+            child: Container(
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              constraints: const BoxConstraints(minWidth: 40),
+              child: Text(
+                '$current',
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add, size: 18),
+            onPressed: () => context
+                .read<CreateReturnRequestCubit>()
+                .updateReturnQuantity(item, current + 1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReasonSelector(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Column(
+        children: _reasons.map((reason) {
+          final isSelected = _selectedReason == reason;
+          return Column(
+            children: [
+              RadioListTile<String>(
+                value: reason,
+                groupValue: _selectedReason,
+                activeColor: AppTheme.primaryGreen,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                title: Text(
+                  reason,
+                  style: TextStyle(
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? Colors.black87 : Colors.black54,
+                  ),
+                ),
+                onChanged: (val) {
+                  setState(() {
+                    _selectedReason = val!;
+                  });
+                },
+              ),
+              if (reason != _reasons.last)
+                const Divider(height: 1, indent: 16, endIndent: 16),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildImageUpload(
+      BuildContext context, CreateReturnRequestState state) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (state.images.isNotEmpty)
+            Container(
+              height: 100,
+              margin: const EdgeInsets.only(bottom: 16),
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: state.images.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  return Stack(
+                    alignment: Alignment.topRight,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.file(state.images[index],
+                            width: 100, height: 100, fit: BoxFit.cover),
+                      ),
+                      GestureDetector(
+                        onTap: () => context
+                            .read<CreateReturnRequestCubit>()
+                            .removeImage(state.images[index]),
+                        child: Container(
+                          margin: const EdgeInsets.all(4),
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                              color: Colors.white, shape: BoxShape.circle),
+                          child: const Icon(Icons.close,
+                              size: 16, color: Colors.red),
+                        ),
+                      )
+                    ],
+                  );
+                },
+              ),
+            ),
+          InkWell(
+            onTap: () => context.read<CreateReturnRequestCubit>().pickImages(),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: double.infinity,
+              height: 50,
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: AppTheme.primaryGreen.withOpacity(0.5),
+                  width: 2,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.camera_alt_outlined,
+                      color: AppTheme.primaryGreen.withOpacity(0.8)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Tải lên hình ảnh',
+                    style: TextStyle(
+                        color: AppTheme.primaryGreen.withOpacity(0.8),
+                        fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -277,273 +556,261 @@ class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
     );
   }
 
-  Widget _buildSectionTitle(BuildContext context, String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-    );
-  }
-
-  Widget _buildProductSelectionList(BuildContext context, OrderModel order, CreateReturnRequestState state) {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: order.items.length,
-      itemBuilder: (context, index) {
-        final item = order.items[index];
-        final returnedQuantity = state.returnedItems[item.productId] ?? 0;
-        final maxQuantity = item.quantity * item.quantityPerPackage;
-
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 6),
-          elevation: returnedQuantity > 0 ? 4 : 1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color: returnedQuantity > 0 ? Theme.of(context).primaryColor : Colors.transparent,
-              width: 1.5,
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(item.imageUrl, width: 60, height: 60, fit: BoxFit.cover),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(item.productName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Đã mua: ${item.packaging.contains('thùng') ? 'thùng' : item.packaging} (Tổng: $maxQuantity ${item.unit})',
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                          ),
-                          Text(
-                            'Đơn giá: ${NumberFormat.currency(locale: 'vi_VN', symbol: 'đ').format(item.price)} / ${item.unit}',
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                          )
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _buildQuantitySelector(context, item, returnedQuantity, maxQuantity),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildQuantitySelector(BuildContext context, OrderItemModel item, int currentQuantity, int maxQuantity) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            'Số lượng trả (${item.unit}):',
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-          ),
+  Widget _buildNoteInput() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: TextField(
+        controller: _notesController,
+        maxLines: 4,
+        decoration: const InputDecoration(
+          hintText: 'Nhập chi tiết vấn đề...',
+          border: OutlineInputBorder(borderSide: BorderSide.none),
+          contentPadding: EdgeInsets.all(16),
         ),
-        const SizedBox(width: 8),
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+      ),
+    );
+  }
+
+  Widget _buildBottomSummaryBar(
+      BuildContext context, CreateReturnRequestState state, bool hasItems) {
+    final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    final actualRefund =
+        (_calculatedRefund - _calculatedPenalty).clamp(0, double.infinity);
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+          16, 16, 16, 16 + MediaQuery.of(context).padding.bottom),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 12,
+              offset: const Offset(0, -4))
+        ],
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              IconButton(
-                icon: const Icon(Icons.remove),
-                onPressed: () {
-                  context.read<CreateReturnRequestCubit>().updateReturnQuantity(item, currentQuantity - 1);
-                },
-                splashRadius: 20,
-              ),
-              InkWell(
-                onTap: () => _showQuantityInputDialog(context, item, currentQuantity, maxQuantity),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                  child: Text(
-                    '$currentQuantity',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.add),
-                onPressed: () {
-                  context.read<CreateReturnRequestCubit>().updateReturnQuantity(item, currentQuantity + 1);
-                },
-                splashRadius: 20,
+              const Text('Tổng hoàn lại (dự kiến):',
+                  style: TextStyle(fontSize: 14, color: Colors.grey)),
+              Text(
+                formatter.format(actualRefund),
+                style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryGreen),
               ),
             ],
           ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _showQuantityInputDialog(
-      BuildContext pageContext,
-      OrderItemModel item,
-      int currentQuantity,
-      int maxQuantity
-      ) async {
-    final controller = TextEditingController(text: currentQuantity.toString());
-    final formKey = GlobalKey<FormState>();
-
-    return showDialog<void>(
-      context: pageContext,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: Text('Nhập số lượng trả'),
-          content: Form(
-            key: formKey,
-            child: TextFormField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: 'Số lượng (${item.unit})',
-                hintText: 'Tối đa: $maxQuantity',
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Vui lòng nhập số lượng';
-                }
-                final n = int.tryParse(value);
-                if (n == null) {
-                  return 'Số không hợp lệ';
-                }
-                if (n < 0) {
-                  return 'Số lượng không thể âm';
-                }
-                if (n > maxQuantity) {
-                  return 'Vượt quá số lượng đã mua';
-                }
-                return null;
-              },
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('HỦY'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-            ),
-            ElevatedButton(
-              child: const Text('XÁC NHẬN'),
-              onPressed: () {
-                if (formKey.currentState!.validate()) {
-                  final newQuantity = int.parse(controller.text);
-                  pageContext.read<CreateReturnRequestCubit>().updateReturnQuantity(item, newQuantity);
-                  Navigator.of(dialogContext).pop();
-                }
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildReasonDropdown(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8.0),
-        border: Border.all(color: Colors.grey.shade400),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          isExpanded: true,
-          value: _selectedReason,
-          items: _reasons.map((String value) {
-            return DropdownMenuItem<String>(
-              value: value,
-              child: Text(value),
-            );
-          }).toList(),
-          onChanged: (String? newValue) {
-            setState(() {
-              _selectedReason = newValue!;
-            });
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildImagePicker(BuildContext context, CreateReturnRequestState state) {
-    return Column(
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: state.images.map((imageFile) {
-            return Stack(
-              children: [
-                Image.file(imageFile, width: 80, height: 80, fit: BoxFit.cover),
-                Positioned(
-                  top: -10,
-                  right: -10,
-                  child: IconButton(
-                    icon: const Icon(Icons.remove_circle, color: Colors.red),
-                    onPressed: () => context.read<CreateReturnRequestCubit>().removeImage(imageFile),
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: 12),
-        DottedBorder(
-          options: RoundedRectDottedBorderOptions(
-            color: Colors.grey,
-            strokeWidth: 1,
-            dashPattern: const [6, 3],
-            radius: const Radius.circular(12),
-          ),
-          child: InkWell(
-            onTap: () => context.read<CreateReturnRequestCubit>().pickImages(),
-            child: Container(
-              height: 100,
-              width: double.infinity,
-              alignment: Alignment.center,
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+          if (_calculatedPenalty > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 4.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Icon(Icons.add_a_photo_outlined, color: Colors.grey, size: 40),
-                  SizedBox(height: 4),
-                  Text('Thêm ảnh'),
+                  Text(
+                    '(Đã trừ phí phạt: ${formatter.format(_calculatedPenalty)})',
+                    style: TextStyle(fontSize: 12, color: Colors.red.shade400),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: !hasItems ||
+                      state.status == CreateReturnRequestStatus.submitting
+                  ? null
+                  : () {
+                      context.read<CreateReturnRequestCubit>().submitRequest(
+                            order: widget.order,
+                            reason: _selectedReason,
+                            userNotes: _notesController.text.trim(),
+                            penaltyFee: _calculatedPenalty,
+                            refundAmount: _calculatedRefund,
+                          );
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryGreen,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              child: state.status == CreateReturnRequestStatus.submitting
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2))
+                  : const Text(
+                      'GỬI YÊU CẦU',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- DIALOGS ---
+
+  Future<void> _showQuantityDialog(
+      BuildContext context, OrderItemModel item, int current, int max) async {
+    final controller = TextEditingController(text: current.toString());
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nhập số lượng'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: InputDecoration(
+              suffixText: item.unit, border: const OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+          ElevatedButton(
+            onPressed: () {
+              final val = int.tryParse(controller.text) ?? 0;
+              if (val >= 0 && val <= max) {
+                context
+                    .read<CreateReturnRequestCubit>()
+                    .updateReturnQuantity(item, val);
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Xác nhận'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPolicyDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.shield_outlined, color: AppTheme.primaryGreen),
+                const SizedBox(width: 8),
+                const Text('Quy định đổi trả',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildPolicyItem('Miễn phí', 'Đổi trả trong 3 tháng đầu.'),
+            _buildPolicyItem('Phí 150.000đ/thùng', 'Từ 3 - 12 tháng.'),
+            _buildPolicyItem('Phí 300.000đ/thùng', 'Từ 12 - 24 tháng.'),
+            _buildPolicyItem(
+                'Từ chối', 'Sau 24 tháng (tùy quyết định công ty).'),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Đã hiểu'),
+              ),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPolicyItem(String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.circle, size: 8, color: Colors.grey),
+          const SizedBox(width: 12),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(color: Colors.black87, fontSize: 14),
+                children: [
+                  TextSpan(
+                      text: '$title: ',
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  TextSpan(text: desc),
                 ],
               ),
             ),
           ),
-        )
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildNotesField(BuildContext context) {
-    return TextFormField(
-      controller: _notesController,
-      maxLines: 4,
-      decoration: const InputDecoration(
-        hintText: 'Mô tả thêm về vấn đề của bạn...',
-        border: OutlineInputBorder(),
+  void _showSuccessDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                  color: Colors.green.shade50, shape: BoxShape.circle),
+              child: const Icon(Icons.check_circle,
+                  color: Colors.green, size: 48),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Gửi yêu cầu thành công!',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Chúng tôi sẽ xem xét và phản hồi sớm nhất.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx); // Close dialog
+              Navigator.pop(context); // Back to Order Detail
+            },
+            child: const Text('VỀ ĐƠN HÀNG'),
+          ),
+        ],
       ),
     );
   }

@@ -1,6 +1,7 @@
 //lib/features/lucky_wheel/presentation/pages/lucky_wheel_page.dart
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -54,22 +55,30 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
 
   @override
   Widget build(BuildContext context) {
+    // Lấy kích thước màn hình để xử lý responsive
+    final size = MediaQuery.of(context).size;
+    final double wheelSize = math.min(size.width * 0.85, 300.0); // Max 300px hoặc 85% màn hình
+
     return Scaffold(
-      extendBodyBehindAppBar: true, // Để nền tràn lên cả AppBar
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Vòng Quay May Mắn', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Vòng Quay May Mắn',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        centerTitle: true,
         leading: const BackButton(color: Colors.white),
         actions: [
-          TextButton(
+          IconButton(
+            icon: const Icon(Icons.help_outline, color: Colors.white),
+            tooltip: 'Thể lệ',
             onPressed: () => Navigator.of(context).push(LuckyWheelRulesPage.route()),
-            child: const Text('Thể lệ', style: TextStyle(color: Colors.white)),
           ),
           IconButton(
             icon: const Icon(Icons.history, color: Colors.white),
             tooltip: 'Lịch sử quay',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SpinHistoryPage(isMyHistory: true))),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const SpinHistoryPage(isMyHistory: true))),
           ),
         ],
       ),
@@ -77,12 +86,19 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
         listener: (context, state) {
           if (state.status == LuckyWheelStatus.won && state.winningReward != null) {
             setState(() => _lastWinningReward = state.winningReward);
-            final winningIndex = state.activeCampaign!.rewards.indexWhere((r) => r.name == state.winningReward!.name);
+            final winningIndex =
+                state.activeCampaign!.rewards.indexWhere((r) => r.name == state.winningReward!.name);
             if (winningIndex != -1) selected.add(winningIndex);
           } else if (state.status == LuckyWheelStatus.error && state.errorMessage != null) {
-            ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content: Text(state.errorMessage!), backgroundColor: AppTheme.errorRed));
-          } else if (state.status == LuckyWheelStatus.success && state.successMessage != null){
-            ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content: Text(state.successMessage!), backgroundColor: AppTheme.secondaryGreen));
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(SnackBar(
+                  content: Text(state.errorMessage!), backgroundColor: AppTheme.errorRed));
+          } else if (state.status == LuckyWheelStatus.success && state.successMessage != null) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(SnackBar(
+                  content: Text(state.successMessage!), backgroundColor: AppTheme.secondaryGreen));
           }
         },
         builder: (context, state) {
@@ -96,169 +112,241 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
 
           final rewards = state.activeCampaign!.rewards;
 
-          return Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFF1a237e), Color(0xFF0d47a1), Color(0xFF01579b)], // Deep Blue Luxury
-              ),
-            ),
-            child: Stack(
-              children: [
-                // Starry/Confetti Background (Placeholder for simpler noise/stars)
-                Positioned.fill(
-                  child: CustomPaint(painter: _StarryBackgroundPainter()),
-                ),
-                
-                Center(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(height: 80), // Space for AppBar
-                        
-                        // Wheel Container
-                        SizedBox(
-                          height: 340,
-                          width: 340,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              // Glow Effect behind wheel
-                              Container(
-                                width: 320,
-                                height: 320,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(color: Colors.amber.withOpacity(0.6), blurRadius: 40, spreadRadius: 5),
-                                  ],
-                                ),
-                              ).animate(onPlay: (controller) => controller.repeat(reverse: true)).scale(begin: const Offset(0.95, 0.95), end: const Offset(1.05, 1.05), duration: 2000.ms),
-
-                              // The Wheel
-                              Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: FortuneWheel(
-                                  selected: selected.stream,
-                                  animateFirst: false,
-                                  physics: CircularPanPhysics(
-                                    duration: const Duration(seconds: 1),
-                                    curve: Curves.decelerate,
-                                  ),
-                                  onFling: () {
-                                    context.read<LuckyWheelCubit>().spinWheel();
-                                  },
-                                  styleStrategy: const AlternatingStyleStrategy(),
-                                  indicators: const <FortuneIndicator>[
-                                    FortuneIndicator(
-                                      alignment: Alignment.topCenter,
-                                      child: TriangleIndicator(color: AppTheme.accentGold),
-                                    ),
-                                  ],
-                                  items: [
-                                    for (var i = 0; i < rewards.length; i++)
-                                      FortuneItem(
-                                          child: RotatedBox(
-                                            quarterTurns: 1, // Xoay text để dễ đọc hơn
-                                            child: Padding(
-                                              padding: const EdgeInsets.only(bottom: 40.0),
-                                              child: Text(
-                                                rewards[i].name,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  color: i.isEven ? AppTheme.textDark : Colors.white,
-                                                  fontSize: 12,
-                                                ),
-                                                textAlign: TextAlign.center,
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ),
-                                          style: FortuneItemStyle(
-                                            color: i.isEven ? Colors.white : AppTheme.errorRed, // Đỏ - Trắng xen kẽ
-                                            borderColor: AppTheme.accentGold,
-                                            borderWidth: 2,
-                                          )
-                                      ),
-                                  ],
-                                  onAnimationEnd: () {
-                                    if (_lastWinningReward != null) {
-                                      _showWinDialog(context);
-                                    }
-                                  },
-                                ),
-                              ),
-                              
-                              // Center Button Decor
-                              Container(
-                                width: 50,
-                                height: 50,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: const RadialGradient(colors: [Colors.white, Colors.grey]),
-                                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 5)],
-                                  border: Border.all(color: AppTheme.accentGold, width: 4),
-                                ),
-                                child: const Center(child: Icon(Icons.star, color: AppTheme.accentGold)),
-                              ),
-                            ],
-                          ),
-                        ),
-                        
-                        const SizedBox(height: 40),
-                        
-                        // Spin Count & Button
-                        StreamBuilder<int>(
-                          stream: _spinCountStream,
-                          builder: (context, snapshot) {
-                            final spinCount = snapshot.data ?? 0;
-                            return Column(
-                              children: [
-                                Text(
-                                  'LƯỢT QUAY CÒN LẠI',
-                                  style: TextStyle(color: Colors.white.withOpacity(0.7), letterSpacing: 2, fontSize: 12),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  '$spinCount',
-                                  style: const TextStyle(fontSize: 48, color: AppTheme.accentGold, fontWeight: FontWeight.w900),
-                                ).animate(target: spinCount > 0 ? 1 : 0).scale(begin: const Offset(1, 1), end: const Offset(1.2, 1.2), duration: 300.ms, curve: Curves.easeInOut),
-                                
-                                const SizedBox(height: 32),
-                                
-                                SizedBox(
-                                  width: 200,
-                                  height: 60,
-                                  child: ElevatedButton(
-                                    onPressed: (state.status == LuckyWheelStatus.spinning || spinCount == 0)
-                                        ? null
-                                        : () => context.read<LuckyWheelCubit>().spinWheel(),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppTheme.accentGold,
-                                      foregroundColor: Colors.black,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                                      elevation: 10,
-                                      shadowColor: AppTheme.accentGold.withOpacity(0.5),
-                                    ),
-                                    child: state.status == LuckyWheelStatus.spinning
-                                        ? const CircularProgressIndicator(color: Colors.black)
-                                        : const Text('QUAY NGAY', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                                  ),
-                                ).animate(onPlay: (c) => c.repeat(reverse: true)).shimmer(delay: 2000.ms, duration: 1500.ms, color: Colors.white.withOpacity(0.5)),
-                              ],
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 48),
+          return Stack(
+            children: [
+              // 1. Nền Luxury Gradient & Họa tiết
+              Positioned.fill(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment(0, -0.2), // Tâm sáng hơi dịch lên trên chỗ vòng quay
+                      radius: 1.3,
+                      colors: [
+                        Color(0xFF1565C0), // Blue 800 (Sáng ở tâm)
+                        Color(0xFF0D47A1), // Blue 900
+                        Color(0xFF000000), // Đen ở viền (Vignette)
                       ],
+                      stops: [0.0, 0.5, 1.0],
                     ),
                   ),
+                  child: CustomPaint(painter: _LuxuryBackgroundPainter()),
                 ),
-              ],
-            ),
+              ),
+
+              // 2. Nội dung chính (Responsive)
+              SafeArea(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SizedBox(
+                      width: constraints.maxWidth,
+                      height: constraints.maxHeight,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Spacer(flex: 2),
+                          
+                          // --- WHEEL SECTION ---
+                          SizedBox(
+                            height: wheelSize + 20, // Cộng thêm padding cho glow
+                            width: wheelSize + 20,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                // Glow Effect (Hào quang sau vòng quay)
+                                Container(
+                                  width: wheelSize,
+                                  height: wheelSize,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                          color: Colors.amber.withOpacity(0.4),
+                                          blurRadius: 50,
+                                          spreadRadius: 10),
+                                      BoxShadow(
+                                          color: Colors.blue.withOpacity(0.5),
+                                          blurRadius: 30,
+                                          spreadRadius: 5),
+                                    ],
+                                  ),
+                                ).animate(onPlay: (c) => c.repeat(reverse: true))
+                                 .scale(begin: const Offset(0.9, 0.9), end: const Offset(1.05, 1.05), duration: 2.seconds),
+
+                                // Vòng quay chính
+                                SizedBox(
+                                  width: wheelSize,
+                                  height: wheelSize,
+                                  child: FortuneWheel(
+                                    selected: selected.stream,
+                                    animateFirst: false,
+                                    physics: CircularPanPhysics(
+                                      duration: const Duration(seconds: 1),
+                                      curve: Curves.decelerate,
+                                    ),
+                                    onFling: () {
+                                      context.read<LuckyWheelCubit>().spinWheel();
+                                    },
+                                    styleStrategy: const AlternatingStyleStrategy(),
+                                    indicators: const <FortuneIndicator>[
+                                      FortuneIndicator(
+                                        alignment: Alignment.topCenter,
+                                        child: TriangleIndicator(color: AppTheme.accentGold),
+                                      ),
+                                    ],
+                                    items: [
+                                      for (var i = 0; i < rewards.length; i++)
+                                        FortuneItem(
+                                            child: RotatedBox(
+                                              quarterTurns: 1,
+                                              child: Padding(
+                                                padding: EdgeInsets.only(bottom: wheelSize * 0.15), // Padding động theo size
+                                                child: Text(
+                                                  rewards[i].name,
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: i.isEven ? AppTheme.textDark : Colors.white,
+                                                    fontSize: wheelSize * 0.04, // Font size động
+                                                  ),
+                                                  textAlign: TextAlign.center,
+                                                  maxLines: 2,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ),
+                                            style: FortuneItemStyle(
+                                              color: i.isEven ? Colors.white : const Color(0xFFB71C1C), // Đỏ đậm sang trọng
+                                              borderColor: AppTheme.accentGold,
+                                              borderWidth: 2,
+                                            )
+                                        ),
+                                    ],
+                                    onAnimationEnd: () {
+                                      if (_lastWinningReward != null) {
+                                        _showWinDialog(context);
+                                      }
+                                    },
+                                  ),
+                                ),
+
+                                // Nút tâm (Center Decor)
+                                Container(
+                                  width: wheelSize * 0.18, // 18% kích thước vòng quay
+                                  height: wheelSize * 0.18,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: const RadialGradient(colors: [Colors.white, Color(0xFFCFD8DC)]),
+                                    boxShadow: [
+                                      BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 4))
+                                    ],
+                                    border: Border.all(color: AppTheme.accentGold, width: 3),
+                                  ),
+                                  child: Center(
+                                    child: Icon(Icons.star, color: AppTheme.accentGold, size: wheelSize * 0.08),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          
+                          const Spacer(flex: 1),
+
+                          // --- INFO & BUTTON SECTION ---
+                          StreamBuilder<int>(
+                            stream: _spinCountStream,
+                            builder: (context, snapshot) {
+                              final spinCount = snapshot.data ?? 0;
+                              return Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.3),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                                    ),
+                                    child: Text(
+                                      'LƯỢT QUAY CÒN LẠI',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.9),
+                                        letterSpacing: 1.5,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    '$spinCount',
+                                    style: const TextStyle(
+                                      fontSize: 56,
+                                      color: AppTheme.accentGold,
+                                      fontWeight: FontWeight.w900,
+                                      shadows: [
+                                        Shadow(color: Colors.orange, blurRadius: 20),
+                                      ],
+                                    ),
+                                  ).animate(target: spinCount > 0 ? 1 : 0)
+                                   .scale(begin: const Offset(1, 1), end: const Offset(1.1, 1.1), duration: 300.ms, curve: Curves.easeInOut),
+
+                                  const SizedBox(height: 24),
+
+                                  // Button "QUAY NGAY"
+                                  GestureDetector(
+                                    onTap: (state.status == LuckyWheelStatus.spinning || spinCount == 0)
+                                        ? null
+                                        : () => context.read<LuckyWheelCubit>().spinWheel(),
+                                    child: Container(
+                                      width: 220,
+                                      height: 60,
+                                      decoration: BoxDecoration(
+                                        gradient: (state.status == LuckyWheelStatus.spinning || spinCount == 0)
+                                          ? LinearGradient(colors: [Colors.grey, Colors.grey.shade700])
+                                          : const LinearGradient(
+                                              colors: [Color(0xFFFFD700), Color(0xFFFFA000)], // Gold Gradient
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                            ),
+                                        borderRadius: BorderRadius.circular(30),
+                                        boxShadow: [
+                                          if (state.status != LuckyWheelStatus.spinning && spinCount > 0)
+                                            BoxShadow(
+                                              color: AppTheme.accentGold.withOpacity(0.6),
+                                              blurRadius: 15,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                        ],
+                                      ),
+                                      child: Center(
+                                        child: state.status == LuckyWheelStatus.spinning
+                                            ? const SizedBox(
+                                                width: 24, height: 24,
+                                                child: CircularProgressIndicator(color: Colors.black, strokeWidth: 3))
+                                            : const Text(
+                                                'QUAY NGAY',
+                                                style: TextStyle(
+                                                  color: Colors.black87,
+                                                  fontSize: 20,
+                                                  fontWeight: FontWeight.w900,
+                                                  letterSpacing: 1,
+                                                ),
+                                              ),
+                                      ),
+                                    ).animate(onPlay: (c) => c.repeat(reverse: true))
+                                     .shimmer(delay: 2000.ms, duration: 1500.ms, color: Colors.white.withOpacity(0.6)),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                          const Spacer(flex: 2),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -277,29 +365,47 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: AppTheme.accentGold, width: 4),
+            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 20)],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.emoji_events, size: 60, color: AppTheme.accentGold)
-                  .animate().scale(duration: 500.ms, curve: Curves.elasticOut),
+              const Icon(Icons.emoji_events, size: 70, color: AppTheme.accentGold)
+                  .animate().scale(duration: 600.ms, curve: Curves.elasticOut).shimmer(),
               const SizedBox(height: 16),
-              const Text('CHÚC MỪNG!', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen)),
+              const Text('CHÚC MỪNG!',
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen)),
               const SizedBox(height: 16),
-              const Text('Bạn đã trúng phần thưởng:', textAlign: TextAlign.center),
-              const SizedBox(height: 8),
-              Text(
-                _lastWinningReward!.name,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
-                textAlign: TextAlign.center,
+              const Text('Bạn đã trúng phần thưởng:', textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentGold.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _lastWinningReward!.name,
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
+                  textAlign: TextAlign.center,
+                ),
               ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  context.read<LuckyWheelCubit>().acknowledgeReward();
-                },
-                child: const Text('NHẬN THƯỞNG'),
+              const SizedBox(height: 30),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryGreen,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    context.read<LuckyWheelCubit>().acknowledgeReward();
+                  },
+                  child: const Text('NHẬN THƯỞNG', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
               ),
             ],
           ),
@@ -310,7 +416,13 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
 
   Widget _buildLoadingBackground() {
     return Container(
-      color: const Color(0xFF1a237e),
+      decoration: const BoxDecoration(
+        gradient: RadialGradient(
+          center: Alignment.center,
+          radius: 1.5,
+          colors: [Color(0xFF0D47A1), Color(0xFF000000)],
+        ),
+      ),
       child: const Center(child: CircularProgressIndicator(color: AppTheme.accentGold)),
     );
   }
@@ -345,24 +457,34 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
   }
 }
 
-class _StarryBackgroundPainter extends CustomPainter {
+// --- CUSTOM PAINTERS FOR LUXURY EFFECT ---
+
+class _LuxuryBackgroundPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.white.withOpacity(0.2);
-    // Vẽ các đốm sao ngẫu nhiên (giả lập đơn giản)
-    // Trong thực tế có thể dùng Random, nhưng để tối ưu hiệu năng trong CustomPainter nên hạn chế
-    // Ở đây vẽ mẫu vài điểm cố định
-    final offsets = [
-      Offset(size.width * 0.1, size.height * 0.1),
-      Offset(size.width * 0.8, size.height * 0.2),
-      Offset(size.width * 0.5, size.height * 0.5),
-      Offset(size.width * 0.2, size.height * 0.8),
-      Offset(size.width * 0.9, size.height * 0.9),
-    ];
-    for (var offset in offsets) {
-      canvas.drawCircle(offset, 2, paint);
+    // 1. Vẽ các vòng tròn đồng tâm mờ ảo (Halo Effect)
+    final paintHalo = Paint()
+      ..color = Colors.white.withOpacity(0.03)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    final center = Offset(size.width / 2, size.height * 0.4); // Tâm hơi dịch lên
+    for (double r = 50; r < size.height; r += 40) {
+      canvas.drawCircle(center, r, paintHalo);
+    }
+
+    // 2. Vẽ các đốm sáng lấp lánh (Bokeh/Gold Dust)
+    final paintStar = Paint()..color = const Color(0xFFFFD700).withOpacity(0.2); // Vàng gold mờ
+    final random = math.Random(42); // Seed cố định để không bị nháy khi repaint
+    
+    for (int i = 0; i < 40; i++) {
+      final dx = random.nextDouble() * size.width;
+      final dy = random.nextDouble() * size.height;
+      final radius = random.nextDouble() * 3;
+      canvas.drawCircle(Offset(dx, dy), radius, paintStar);
     }
   }
+
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
