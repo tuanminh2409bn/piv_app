@@ -43,4 +43,27 @@ class PackagingOptionModel extends Equatable {
       'prices': prices,
     };
   }
+
+  PackagingOptionModel copyWith({
+    String? name,
+    int? quantityPerPackage,
+    String? unit,
+    Map<String, double>? prices,
+    double? priceAgent1,
+    double? priceAgent2,
+    double? retailPrice,
+  }) {
+    final updatedPrices = Map<String, double>.from(prices ?? this.prices);
+
+    if (priceAgent1 != null) updatedPrices['agent_1'] = priceAgent1;
+    if (priceAgent2 != null) updatedPrices['agent_2'] = priceAgent2;
+    if (retailPrice != null) updatedPrices['guest'] = retailPrice;
+
+    return PackagingOptionModel(
+      name: name ?? this.name,
+      quantityPerPackage: quantityPerPackage ?? this.quantityPerPackage,
+      unit: unit ?? this.unit,
+      prices: updatedPrices,
+    );
+  }
 }

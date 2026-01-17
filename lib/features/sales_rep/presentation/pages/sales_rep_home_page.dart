@@ -21,6 +21,7 @@ import 'package:piv_app/features/admin/presentation/pages/manage_quick_order_lis
 import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_products_cubit.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_products_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/agent_special_price_page.dart';
 
 
 class SalesRepHomePage extends StatelessWidget {
@@ -243,6 +244,8 @@ class MyAgentsView extends StatelessWidget {
                       // <<< THÊM LOGIC MỚI >>>
                       else if (value == 'manage_quick_order') {
                         Navigator.of(context).push(ManageQuickOrderListPage.route(agent));
+                      } else if (value == 'special_price') {
+                        Navigator.of(context).push(AgentSpecialPricePage.route(user: agent));
                       }
                     },
                     // <<< THÊM ITEM MỚI VÀO MENU >>>
@@ -254,6 +257,10 @@ class MyAgentsView extends StatelessWidget {
                       const PopupMenuItem<String>(
                         value: 'place_order',
                         child: ListTile(leading: Icon(Icons.add_shopping_cart), title: Text('Đặt hàng hộ')),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'special_price',
+                        child: ListTile(leading: Icon(Icons.price_change), title: Text('Cấu hình giá riêng')),
                       ),
                       const PopupMenuDivider(),
                       const PopupMenuItem<String>(

@@ -21,6 +21,7 @@ class UserModel extends Equatable {
   final int spinCount;
   final double debtAmount;
   final Map<String, dynamic>? customDiscount;
+  final bool useGeneralPrice;
 
   String get referralCode => id;
 
@@ -41,6 +42,7 @@ class UserModel extends Equatable {
     this.spinCount = 0,
     this.debtAmount = 0.0,
     this.customDiscount,
+    this.useGeneralPrice = true,
   });
 
   bool get isGuest => role == 'guest';
@@ -73,6 +75,7 @@ class UserModel extends Equatable {
     int? spinCount,
     double? debtAmount,
     Map<String, dynamic>? customDiscount,
+    bool? useGeneralPrice,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -91,6 +94,7 @@ class UserModel extends Equatable {
       spinCount: spinCount ?? this.spinCount,
       debtAmount: debtAmount ?? this.debtAmount,
       customDiscount: customDiscount ?? this.customDiscount,
+      useGeneralPrice: useGeneralPrice ?? this.useGeneralPrice,
     );
   }
 
@@ -112,6 +116,7 @@ class UserModel extends Equatable {
       'spinCount': spinCount,
       'debtAmount': debtAmount,
       'customDiscount': customDiscount,
+      'useGeneralPrice': useGeneralPrice,
     };
   }
 
@@ -138,6 +143,7 @@ class UserModel extends Equatable {
       spinCount: data['spinCount'] as int? ?? 0,
       debtAmount: (data['debtAmount'] as num?)?.toDouble() ?? 0.0,
       customDiscount: data['customDiscount'] as Map<String, dynamic>?,
+      useGeneralPrice: data['useGeneralPrice'] as bool? ?? true,
     );
   }
 
@@ -161,6 +167,7 @@ class UserModel extends Equatable {
       spinCount: json['spinCount'] as int? ?? 0,
       debtAmount: (json['debtAmount'] as num?)?.toDouble() ?? 0.0,
       customDiscount: json['customDiscount'] as Map<String, dynamic>?,
+      useGeneralPrice: json['useGeneralPrice'] as bool? ?? true,
     );
   }
 
@@ -182,5 +189,6 @@ class UserModel extends Equatable {
     spinCount,
     debtAmount,
     customDiscount,
+    useGeneralPrice,
   ];
 }

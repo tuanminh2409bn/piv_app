@@ -94,7 +94,8 @@ class HomeRepositoryImpl implements HomeRepository {
         products.addAll(privateSnapshot.docs.map((doc) => ProductModel.fromSnapshot(doc)));
       }
 
-      return Right(products);
+      final finalProducts = await _applySpecialPricesIfNeeded(products, currentUserId);
+      return Right(finalProducts);
     } on FirebaseException catch (e) {
       developer.log(
           'Lỗi getProductsByCategoryId: ${e.message}. \n'
@@ -154,7 +155,9 @@ class HomeRepositoryImpl implements HomeRepository {
       }
 
       products.shuffle();
-      return Right(products.take(6).toList());
+      final limitedProducts = products.take(6).toList();
+      final finalProducts = await _applySpecialPricesIfNeeded(limitedProducts, currentUserId);
+      return Right(finalProducts);
 
     } on FirebaseException catch (e) {
       developer.log(
@@ -216,19 +219,23 @@ class HomeRepositoryImpl implements HomeRepository {
         final product = ProductModel.fromSnapshot(docSnapshot);
 
         // --- THÊM LOGIC KIỂM TRA QUYỀN ---
+        ProductModel finalProduct = product;
         if (product.isPrivate) {
-          // Nếu là sản phẩm riêng, kiểm tra xem có phải chủ sở hữu không
           if (product.ownerAgentId == currentUserId) {
-            return Right(product); // Là chủ sở hữu
+            // OK
           } else {
-            // Người dùng không có quyền xem
-            developer.log('Access denied for product $productId. User $currentUserId is not owner.', name: 'HomeRepository');
+            developer.log('Access denied for product $productId.', name: 'HomeRepository');
             return Left(ServerFailure('Không tìm thấy sản phẩm.'));
           }
-        } else {
-          // Sản phẩm chung, ai cũng có quyền xem
-          return Right(product);
         }
+        
+        // Apply special price logic
+        final processedList = await _applySpecialPricesIfNeeded([product], currentUserId);
+        if (processedList.isNotEmpty) {
+           finalProduct = processedList.first;
+        }
+
+        return Right(finalProduct);
         // --- KẾT THÚC KIỂM TRA QUYỀN ---
       } else {
         return Left(ServerFailure('Không tìm thấy sản phẩm.'));
@@ -269,7 +276,9 @@ class HomeRepositoryImpl implements HomeRepository {
       developer.log('Fetched all ${products.length} allowed products for user $currentUserId.', name: 'HomeRepository');
       // Sắp xếp lại danh sách cuối cùng theo tên
       products.sort((a, b) => a.name.compareTo(b.name));
-      return Right(products);
+      
+      final finalProducts = await _applySpecialPricesIfNeeded(products, currentUserId);
+      return Right(finalProducts);
 
     } on FirebaseException catch (e) {
       developer.log(
@@ -398,7 +407,8 @@ class HomeRepositoryImpl implements HomeRepository {
       }).toList();
       // --- KẾT THÚC LỌC ---
 
-      return Right(filteredProducts);
+      final finalProducts = await _applySpecialPricesIfNeeded(filteredProducts, currentUserId);
+      return Right(finalProducts);
     } on FirebaseException catch (e) {
       return Left(ServerFailure('Lỗi Firebase khi tải sản phẩm: ${e.message}'));
     } catch (e) {
@@ -438,6 +448,59 @@ class HomeRepositoryImpl implements HomeRepository {
       return Left(ServerFailure('Lỗi Firebase: ${e.message}.'));
     } catch (e) {
       return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+    }
+  }
+
+  /// Helper to apply special prices logic
+  Future<List<ProductModel>> _applySpecialPricesIfNeeded(
+      List<ProductModel> products, String? userId) async {
+    if (userId == null || userId.isEmpty || products.isEmpty) return products;
+
+    try {
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      if (!userDoc.exists) return products;
+
+      final useGeneralPrice = userDoc.data()?['useGeneralPrice'] as bool? ?? true;
+      // Nếu Admin/Sale (những người có thể set giá) đang xem, họ vẫn cần thấy giá gốc để cấu hình?
+      // KHÔNG, hàm này được gọi từ Home/ProductDetail - tức là client app (User view).
+      // Admin view dùng `getAllProductsForAdmin` riêng.
+      
+      if (useGeneralPrice) return products;
+
+      final specialPricesSnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('special_prices')
+          .get();
+
+      final specialPricesMap = {
+        for (var doc in specialPricesSnapshot.docs)
+          doc.id: (doc.data()['price'] as num?)?.toDouble() ?? 0.0
+      };
+
+      return products.map((product) {
+        // Nếu user này sở hữu product độc quyền, họ luôn thấy giá gốc của họ (hoặc giá đã set).
+        // Tuy nhiên logic giá riêng ưu tiên cao nhất.
+        
+        final specialPrice = specialPricesMap[product.id];
+        // Nếu KHÔNG có giá riêng (null) -> set = 0.0 (Liên hệ)
+        // Nếu có giá riêng -> set = giá đó.
+        final finalPrice = specialPrice ?? 0.0;
+
+        final newOptions = product.packingOptions.map((opt) {
+          // Override all price fields with the special price
+          return opt.copyWith(
+            priceAgent1: finalPrice,
+            priceAgent2: finalPrice,
+            retailPrice: finalPrice,
+          );
+        }).toList();
+
+        return product.copyWith(packingOptions: newOptions);
+      }).toList();
+    } catch (e) {
+      developer.log('Error applying special prices: $e', name: 'HomeRepository');
+      return products;
     }
   }
 }

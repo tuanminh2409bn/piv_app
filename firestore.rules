@@ -1,0 +1,234 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getUserData(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data;
+    }
+
+    function userExists(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId));
+    }
+
+    function isUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && userExists(request.auth.uid) && getUserData(request.auth.uid).role == 'admin';
+    }
+
+    function isSalesRep() {
+      return isSignedIn() && userExists(request.auth.uid) && getUserData(request.auth.uid).role == 'sales_rep';
+    }
+
+    function isAgent() {
+      return isSignedIn() && userExists(request.auth.uid) && (getUserData(request.auth.uid).role == 'agent_1' || getUserData(request.auth.uid).role == 'agent_2');
+    }
+    
+    function isApprovedAgent() {
+        return isAgent() && getUserData(request.auth.uid).status == 'active';
+    }
+
+    function isAccountant() {
+      return isSignedIn() && userExists(request.auth.uid) && getUserData(request.auth.uid).role == 'accountant';
+    }
+    
+    function isStaff() {
+      return isAdmin() || isAccountant() || isSalesRep();
+    }
+    
+    function isGuest() {
+      return isSignedIn() && userExists(request.auth.uid) && getUserData(request.auth.uid).role == 'guest';
+    }
+    
+    function canAgentUpdateOwnOrder() {
+      let incomingData = request.resource.data;
+      let existingData = resource.data;
+      let isApproving = incomingData.status == 'pending' &&
+                    existingData.status == 'pending_approval' &&
+                    incomingData.diff(existingData).affectedKeys().hasOnly([
+                      'status',
+                      'approvedAt',
+                      'paidAmount',
+                      'remainingDebt',
+                      'discount',
+                      'appliedVoucherCode'
+                    ]);
+      let isRejecting = incomingData.status == 'rejected' &&
+                    existingData.status == 'pending_approval' &&
+                    incomingData.diff(existingData).affectedKeys().hasOnly([
+                      'status',
+                      'rejectedAt',
+                      'rejectionReason'
+                    ]);
+      let isConfirmingPayment = incomingData.paymentStatus == 'verifying' &&
+                    existingData.paymentStatus == 'unpaid' &&
+                    incomingData.diff(existingData).affectedKeys().hasOnly([
+                      'paymentStatus'
+                    ]);
+      return isApproving || isRejecting || isConfirmingPayment;
+}
+
+    function isStaffUpdatingOrderFields() {
+      let allowedKeys = [
+        'status', 
+        'paymentStatus', 
+        'shippingDate', 
+        'completedAt', 
+        'cancelledAt',
+        'updatedAt'
+      ];
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys);
+    }
+
+  match /users/{userId} {
+      allow create: if isUser(userId);
+      allow delete: if isAdmin();
+      allow get: if isSignedIn();
+      allow list: if isStaff();
+      allow update:
+        if isUser(userId) ||
+           isAdmin() ||
+           (isAccountant() &&
+             request.auth.uid != userId &&
+             resource.data.role != 'admin' &&
+             request.resource.data.role != 'admin'
+           ) ||
+           (
+             isSalesRep() &&
+             resource.data.status == 'pending_approval' &&
+             request.resource.data.status == 'active' &&
+             request.resource.data.salesRepId == request.auth.uid &&
+             request.resource.data.referrerId == request.auth.uid &&
+             request.resource.data.referralPromptPending == false &&
+             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['salesRepId', 'referrerId', 'status', 'referralPromptPending', 'updatedAt'])
+           ) ||
+                      (
+                        isSalesRep() &&
+                        resource.data.salesRepId == request.auth.uid &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['debtAmount'])
+                      ) ||
+                      (
+                        isSalesRep() &&
+                        resource.data.salesRepId == request.auth.uid &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['useGeneralPrice'])
+                      );
+                      
+                 match /notifications/{notificationId} {        allow read, update: if request.auth.uid == userId;
+      }
+      
+    match /special_prices/{priceId} {
+        allow read: if request.auth != null && (request.auth.uid == userId || isStaff());
+        allow write: if isStaff();
+      }
+    }
+    
+  match /products/{docId} { 
+      allow read: if isSignedIn() && (resource.data.isPrivate == false || resource.data.ownerAgentId == request.auth.uid || isStaff());
+      allow write: if isStaff();
+    }
+    
+  match /categories/{docId} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+  match /banners/{docId} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+  match /settings/{docId} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+  match /newsArticles/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    match /carts/{userId}/{documents=**} {
+        allow read, write: if isUser(userId);
+    }
+  match /vouchers/{voucherId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() || 
+                      (isSalesRep() && 
+                       request.resource.data.createdBy == request.auth.uid &&
+                       request.resource.data.status == 'pending_approval');
+      allow update: if isAdmin() ||
+                      (isSalesRep() && resource.data.createdBy == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+  match /commissions/{commissionId} {
+      allow read: if isAdmin() || isAccountant() || (isSalesRep() && resource.data.salesRepId == request.auth.uid);
+      allow write: if isAdmin() || isAccountant();
+    }
+    
+  match /sales_commitments/{commitmentId} {
+      allow read: if isAdmin() || isSalesRep() || isAccountant() ||
+                      (isAgent() && resource.data.userId == request.auth.uid);
+      allow create, delete: if false;
+      allow update: if isAdmin() || isSalesRep() || isAccountant();
+    }
+    
+  match /lucky_wheel_campaigns/{campaignId} {
+      allow read: if isAdmin() || isSalesRep() || isAccountant() || isAgent();
+      allow write: if isAdmin();
+    }
+
+    match /spin_history/{historyId} {
+      allow read: if isAdmin() || isSalesRep() || isAccountant() ||
+                      (isAgent() && resource.data.userId == request.auth.uid);
+      allow write: if false;
+    }
+
+  match /orders/{orderId} {
+      allow read: if isSignedIn() && 
+                      (isUser(resource.data.userId) || 
+                       isAdmin() || 
+                       isAccountant() ||
+                       (isSalesRep() && resource.data.salesRepId == request.auth.uid));
+      allow create: if (isAgent() && request.resource.data.userId == request.auth.uid) ||
+                      ((isSalesRep() || isAccountant()) && 
+                       request.resource.data.placedBy.userId == request.auth.uid);
+      allow update: if isAdmin() || 
+                       (isAccountant() && isStaffUpdatingOrderFields()) || 
+                       (isUser(resource.data.userId) && canAgentUpdateOwnOrder());
+      allow delete: if isAdmin();
+    }
+    
+  match /notifications/{notificationId} {
+        allow read, update: if isUser(resource.data.userId);
+        allow create, delete: if false;
+    }
+    
+  match /quick_order_lists/{agentId} {
+      allow read, write: if false;
+      match /items/{itemId} {
+        allow read: if (isUser(agentId) && (isAgent() || isGuest())) || isStaff();
+        allow write: if isAdmin() || isAccountant() || 
+                       (isSalesRep() && getUserData(agentId).salesRepId == request.auth.uid);
+      }
+    }
+    
+  match /returnRequests/{requestId} {
+     function getOrder(orderId) {
+     return get(/databases/$(database)/documents/orders/$(orderId)).data;
+     }
+       allow create: if isAgent() &&
+               request.resource.data.userId == request.auth.uid &&
+               getOrder(request.resource.data.orderId).userId == request.auth.uid &&
+               getOrder(request.resource.data.orderId).status == 'completed' &&
+               request.resource.data.status == 'pending_approval';
+       allow read: if isUser(resource.data.userId) || isStaff();
+       allow update: if isStaff() &&
+               request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                 'status', 
+                 'adminNotes', 
+                 'updatedAt', 
+                 'rejectionReason'
+               ]);
+       allow delete: if isAdmin();
+     }
+     
+  match /manualNotifications/{notificationId} {
+      allow read: if isAdmin();
+      allow write, delete: if false; 
+    }
+  }
+}

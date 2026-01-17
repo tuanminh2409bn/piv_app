@@ -80,6 +80,8 @@ import 'package:piv_app/features/profile/presentation/bloc/debt_payment_cubit.da
 import 'package:piv_app/features/admin/domain/repositories/admin_settings_repository.dart';
 import 'package:piv_app/features/admin/data/repositories/admin_settings_repository_impl.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_discount_settings_cubit.dart';
+import 'package:piv_app/features/admin/domain/repositories/special_price_repository.dart';
+import 'package:piv_app/features/admin/data/repositories/special_price_repository_impl.dart';
 
 final sl = GetIt.instance;
 
@@ -161,4 +163,7 @@ Future<void> initializeDependencies() async {
   // Admin Settings (Discount)
   sl.registerLazySingleton<AdminSettingsRepository>(() => AdminSettingsRepositoryImpl(sl()));
   sl.registerFactory(() => AdminDiscountSettingsCubit(sl()));
+  
+  // Special Prices
+  sl.registerLazySingleton<SpecialPriceRepository>(() => SpecialPriceRepositoryImpl(sl()));
 }

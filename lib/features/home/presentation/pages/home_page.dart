@@ -11,6 +11,7 @@ import 'package:piv_app/features/cart/presentation/pages/cart_page.dart';
 import 'package:piv_app/features/cart/presentation/widgets/cart_icon_with_badge.dart';
 import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/home/presentation/bloc/home_cubit.dart';
@@ -477,32 +478,53 @@ class _FeaturedProductCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (canViewPrice)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              currencyFormatter.format(price),
-                              style: const TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 15),
-                              maxLines: 1, overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Material(
-                            color: AppTheme.secondaryGreen,
-                            borderRadius: BorderRadius.circular(8),
-                            child: InkWell(
-                              onTap: () async => _handleAddToCart(context, product, userRole),
-                              borderRadius: BorderRadius.circular(8),
-                              child: const Padding(
-                                padding: EdgeInsets.all(6.0),
-                                child: Icon(Icons.add_shopping_cart, color: Colors.white, size: 18),
+                      if (price > 0)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                currencyFormatter.format(price),
+                                style: const TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 15),
+                                maxLines: 1, overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                            const SizedBox(width: 4),
+                            Material(
+                              color: AppTheme.secondaryGreen,
+                              borderRadius: BorderRadius.circular(8),
+                              child: InkWell(
+                                onTap: () async => _handleAddToCart(context, product, userRole),
+                                borderRadius: BorderRadius.circular(8),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(6.0),
+                                  child: Icon(Icons.add_shopping_cart, color: Colors.white, size: 18),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                         SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final Uri launchUri = Uri(scheme: 'tel', path: '0345012346');
+                              if (await canLaunchUrl(launchUri)) {
+                                await launchUrl(launchUri);
+                              }
+                            },
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              side: const BorderSide(color: Colors.orange),
+                              foregroundColor: Colors.orange,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            icon: const Icon(Icons.phone, size: 14),
+                            label: const Text('Liên hệ', style: TextStyle(fontSize: 12)),
                           ),
-                        ],
-                      )
+                        )
                     else
                       Align(
                         alignment: Alignment.bottomLeft,

@@ -18,6 +18,7 @@ import 'package:piv_app/features/checkout/presentation/pages/checkout_page.dart'
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/products/presentation/bloc/product_detail_cubit.dart';
 import 'package:piv_app/features/wishlist/presentation/widgets/wishlist_button.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ProductDetailPage extends StatelessWidget {
   final String productId;
@@ -255,6 +256,7 @@ class ProductDetailView extends StatelessWidget {
   Widget _buildTitleAndPrice(BuildContext context, ProductModel product, PackagingOptionModel? selectedOption, String userRole, bool canViewPrice) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     final priceForRole = selectedOption?.getPriceForRole(userRole) ?? 0.0;
+    final bool showContact = canViewPrice && priceForRole <= 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -264,7 +266,23 @@ class ProductDetailView extends StatelessWidget {
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, height: 1.3),
         ),
         const SizedBox(height: 8),
-        if (canViewPrice)
+        if (showContact)
+          OutlinedButton.icon(
+            onPressed: () async {
+              final Uri launchUri = Uri(scheme: 'tel', path: '0345012346');
+              if (await canLaunchUrl(launchUri)) {
+                await launchUrl(launchUri);
+              }
+            },
+            icon: const Icon(Icons.phone),
+            label: const Text('Liên hệ báo giá: 0345.012.346'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.orange,
+              side: const BorderSide(color: Colors.orange),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+          )
+        else if (canViewPrice)
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -399,6 +417,45 @@ class ProductDetailView extends StatelessWidget {
   Widget _buildStickyBottomBar(BuildContext context, ProductModel product, int quantity, PackagingOptionModel? selectedOption, String userRole) {
     final cartStatus = context.watch<CartCubit>().state.status;
     final bool canAddToCart = selectedOption != null;
+    final double price = selectedOption?.getPriceForRole(userRole) ?? 0.0;
+    
+    if (price <= 0) {
+      return Align(
+        alignment: Alignment.bottomCenter,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 20,
+                offset: const Offset(0, -5),
+              )
+            ],
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                  final Uri launchUri = Uri(scheme: 'tel', path: '0345012346');
+                  if (await canLaunchUrl(launchUri)) {
+                    await launchUrl(launchUri);
+                  }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              icon: const Icon(Icons.phone),
+              label: const Text('LIÊN HỆ ĐẶT HÀNG'),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Align(
       alignment: Alignment.bottomCenter,
