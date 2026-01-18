@@ -15,6 +15,7 @@ import 'package:piv_app/features/profile/presentation/pages/profile_page.dart';
 import 'package:piv_app/features/products/presentation/pages/all_categories_page.dart';
 import 'package:piv_app/features/profile/presentation/pages/qr_scanner_page.dart';
 import 'package:piv_app/features/quick_order/presentation/pages/quick_order_page.dart';
+import 'package:piv_app/features/main/presentation/widgets/glass_bottom_navigation.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -69,7 +70,7 @@ class _MainScreenState extends State<MainScreen> {
         BlocProvider.value(value: _profileCubit),
       ],
       child: Scaffold(
-        // The AppBar is now removed from here. Each page in _widgetOptions will have its own.
+        extendBody: true, // Quan trọng: Cho phép nội dung tràn xuống dưới BottomBar
         body: BlocListener<ProfileCubit, ProfileState>(
           listener: (context, state) {
             if (state.status == ProfileStatus.success && state.user.referralPromptPending) {
@@ -85,37 +86,31 @@ class _MainScreenState extends State<MainScreen> {
             children: _widgetOptions,
           ),
         ),
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardTheme.color,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, -5),
-              )
-            ],
-            border: Border(
-              top: BorderSide(color: Colors.grey.withOpacity(0.2), width: 1),
+        bottomNavigationBar: GlassBottomNavigation(
+          currentIndex: _selectedIndex,
+          onItemTapped: _onItemTapped,
+          items: [
+            GlassNavigationItem(
+              icon: Icons.home_outlined, 
+              activeIcon: Icons.home, 
+              label: 'Trang chủ'
             ),
-          ),
-          child: BottomNavigationBar(
-            items: const <BottomNavigationBarItem>[
-              BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Trang chủ'),
-              BottomNavigationBarItem(icon: Icon(Icons.category_outlined), activeIcon: Icon(Icons.category), label: 'Danh mục'),
-              BottomNavigationBarItem(icon: Icon(Icons.shopping_bag_outlined), activeIcon: Icon(Icons.shopping_bag), label: 'Đặt nhanh'),
-              BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Tài khoản'),
-            ],
-            currentIndex: _selectedIndex,
-            onTap: _onItemTapped,
-            type: BottomNavigationBarType.fixed,
-            backgroundColor: Colors.transparent, // Use container's color
-            elevation: 0, // Use container's shadow
-            selectedItemColor: Theme.of(context).primaryColor,
-            unselectedItemColor: AppTheme.textGrey,
-            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
-            showUnselectedLabels: true,
-          ),
+            GlassNavigationItem(
+              icon: Icons.category_outlined, 
+              activeIcon: Icons.category, 
+              label: 'Danh mục'
+            ),
+            GlassNavigationItem(
+              icon: Icons.shopping_bag_outlined, 
+              activeIcon: Icons.shopping_bag, 
+              label: 'Đặt nhanh'
+            ),
+            GlassNavigationItem(
+              icon: Icons.person_outline, 
+              activeIcon: Icons.person, 
+              label: 'Tài khoản'
+            ),
+          ],
         ),
       ),
     );

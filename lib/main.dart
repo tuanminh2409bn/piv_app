@@ -137,7 +137,7 @@ class InitialScreenController extends StatelessWidget {
             return const MainScreen();
           }
         }
-        if (state is AuthUnauthenticated) {
+        if (state is AuthUnauthenticated || state is AuthAccountPending) {
           return const LoginPage();
         }
         return const Scaffold(

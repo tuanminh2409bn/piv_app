@@ -54,12 +54,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   void _onUserChanged(AuthUserChanged event, Emitter<AuthState> emit) async {
     developer.log('AuthBloc: User changed - ${event.user.email}, isEmpty: ${event.user.isEmpty}', name: 'AuthBloc');
     if (event.user.isNotEmpty) {
-      try {
-        await sl<NotificationService>().saveTokenForUser(event.user.id);
-      } catch (e) {
-        developer.log("Failed to save FCM token on user change: $e", name: "AuthBloc");
+      if (event.user.status == 'pending_approval') {
+        emit(AuthAccountPending(user: event.user));
+      } else {
+        try {
+          await sl<NotificationService>().saveTokenForUser(event.user.id);
+        } catch (e) {
+          developer.log("Failed to save FCM token on user change: $e", name: "AuthBloc");
+        }
+        emit(AuthAuthenticated(user: event.user));
       }
-      emit(AuthAuthenticated(user: event.user));
     } else {
       emit(AuthUnauthenticated());
     }

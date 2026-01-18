@@ -23,6 +23,14 @@ class AuthAuthenticated extends AuthState {
   List<Object?> get props => [user];
 }
 
+class AuthAccountPending extends AuthState {
+  final String message;
+  const AuthAccountPending({required super.user, this.message = 'Tài khoản của bạn đang chờ phê duyệt.'});
+
+  @override
+  List<Object?> get props => [user, message];
+}
+
 // Trạng thái người dùng chưa được xác thực (chưa đăng nhập hoặc đã đăng xuất)
 class AuthUnauthenticated extends AuthState {}
 

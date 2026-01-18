@@ -238,9 +238,18 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<Either<Failure, Unit>> sendPasswordResetEmail(
-      {required String email}) async {
-    throw UnimplementedError();
+  Future<Either<Failure, Unit>> sendPasswordResetEmail({required String email}) async {
+    try {
+      await _firebaseAuth.sendPasswordResetEmail(email: email);
+      return const Right(unit);
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        return Left(AuthFailure('Email này chưa được đăng ký.'));
+      }
+      return Left(AuthFailure(e.message ?? 'Lỗi gửi yêu cầu reset mật khẩu.'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+    }
   }
 
   @override
@@ -360,7 +369,8 @@ class AuthRepositoryImpl implements AuthRepository {
         final userDoc = _firestore.collection('users').doc(firebaseUser.uid);
         final docSnapshot = await userDoc.get();
 
-        final bool isNewUser = userCredential.additionalUserInfo?.isNewUser ?? !docSnapshot.exists;
+        // Ưu tiên kiểm tra document trong Firestore. Nếu chưa có -> User mới của hệ thống.
+        final bool isNewUser = !docSnapshot.exists;
 
         if (isNewUser) {
           developer.log('Creating new user in Firestore: ${firebaseUser.uid}', name: 'AuthRepository');

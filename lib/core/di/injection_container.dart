@@ -14,6 +14,7 @@ import 'package:piv_app/features/auth/domain/repositories/auth_repository.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/auth/presentation/bloc/login_cubit.dart';
 import 'package:piv_app/features/auth/presentation/bloc/register_cubit.dart';
+import 'package:piv_app/features/auth/presentation/bloc/forgot_password_cubit.dart';
 import 'package:piv_app/features/auth/presentation/bloc/social_sign_in_cubit.dart';
 import 'package:piv_app/features/home/presentation/bloc/home_cubit.dart';
 import 'package:piv_app/features/home/domain/repositories/home_repository.dart';
@@ -105,6 +106,7 @@ Future<void> initializeDependencies() async {
   sl.registerLazySingleton<AuthBloc>(() => AuthBloc(authRepository: sl(), userProfileRepository: sl()));
   sl.registerFactory<LoginCubit>(() => LoginCubit(authRepository: sl()));
   sl.registerFactory<RegisterCubit>(() => RegisterCubit(authRepository: sl()));
+  sl.registerFactory<ForgotPasswordCubit>(() => ForgotPasswordCubit(authRepository: sl()));
   sl.registerFactory<SocialSignInCubit>(() => SocialSignInCubit(authRepository: sl()));
   sl.registerLazySingleton<HomeRepository>(() => HomeRepositoryImpl(firestore: sl()));
   sl.registerFactory<HomeCubit>(() => HomeCubit(homeRepository: sl(), authBloc: sl()));

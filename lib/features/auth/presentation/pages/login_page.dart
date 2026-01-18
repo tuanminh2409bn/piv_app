@@ -6,9 +6,11 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/core/theme/app_theme.dart';
+import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/auth/presentation/bloc/login_cubit.dart';
 import 'package:piv_app/features/auth/presentation/bloc/social_sign_in_cubit.dart';
 import 'package:piv_app/features/auth/presentation/pages/register_page.dart';
+import 'package:piv_app/features/auth/presentation/pages/forgot_password_page.dart';
 import 'dart:io';
 
 class LoginPage extends StatelessWidget {
@@ -71,22 +73,77 @@ class _LoginFormState extends State<LoginForm> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<LoginCubit, LoginState>(
-      listener: (context, state) {
-        if (state.status == LoginStatus.error) {
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              SnackBar(
-                content: Text(state.errorMessage ?? 'Lỗi đăng nhập không xác định.'),
-                backgroundColor: AppTheme.errorRed,
-                behavior: SnackBarBehavior.floating,
-                margin: const EdgeInsets.all(16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            );
-        }
-      },
+    return MultiBlocListener(
+      listeners: [
+        // 1. Lắng nghe AuthBloc (Để bắt trạng thái Pending Approval khi đăng nhập lại)
+        BlocListener<AuthBloc, AuthState>(
+          listener: (context, state) {
+            if (state is AuthAccountPending) {
+               ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  SnackBar(
+                    content: Text(state.message),
+                    backgroundColor: AppTheme.primaryGreen, // Màu xanh thông báo
+                    behavior: SnackBarBehavior.floating,
+                    margin: const EdgeInsets.all(16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
+            }
+          },
+        ),
+        // 2. Lắng nghe SocialSignInCubit (Để bắt sự kiện đăng ký mới thành công)
+        BlocListener<SocialSignInCubit, SocialSignInState>(
+          listener: (context, state) {
+            if (state.status == SocialSignInStatus.error) {
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  SnackBar(
+                    content: Text(state.errorMessage ?? 'Đăng nhập thất bại.'),
+                    backgroundColor: AppTheme.errorRed,
+                    behavior: SnackBarBehavior.floating,
+                    margin: const EdgeInsets.all(16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                );
+            } else if (state.status == SocialSignInStatus.success && state.isNewUser) {
+               ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  SnackBar(
+                    content: const Text('Đăng ký thành công! Tài khoản của bạn đang chờ phê duyệt.'),
+                    backgroundColor: AppTheme.primaryGreen,
+                    behavior: SnackBarBehavior.floating,
+                    margin: const EdgeInsets.all(16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
+            }
+          },
+        ),
+        // 3. Lắng nghe LoginCubit (Lỗi đăng nhập thường)
+        BlocListener<LoginCubit, LoginState>(
+          listener: (context, state) {
+            if (state.status == LoginStatus.error) {
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  SnackBar(
+                    content: Text(state.errorMessage ?? 'Lỗi đăng nhập không xác định.'),
+                    backgroundColor: AppTheme.errorRed,
+                    behavior: SnackBarBehavior.floating,
+                    margin: const EdgeInsets.all(16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                );
+            }
+          },
+        ),
+      ],
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32.0),
         child: Column(
@@ -149,7 +206,7 @@ class _LoginFormState extends State<LoginForm> {
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
-                onPressed: () {}, // TODO: Implement Forgot Password
+                onPressed: () => Navigator.of(context).push(ForgotPasswordPage.route()),
                 child: const Text('Quên mật khẩu?'),
               ),
             ),
