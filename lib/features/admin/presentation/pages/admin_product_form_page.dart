@@ -170,7 +170,7 @@ class _ProductFormViewState extends State<ProductFormView> {
     return Form(
       key: _formKey,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0 + MediaQuery.of(context).padding.bottom),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

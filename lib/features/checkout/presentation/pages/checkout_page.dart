@@ -146,7 +146,8 @@ class _CheckoutViewState extends State<CheckoutView> {
             ),
             body: SingleChildScrollView(
               // 2. Padding động theo bàn phím để đẩy nội dung lên
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 100 + MediaQuery.of(context).viewInsets.bottom),
+              // Thêm padding.bottom để tránh thanh điều hướng
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 100 + MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -521,7 +522,7 @@ class _CheckoutViewState extends State<CheckoutView> {
 
   Widget _buildBottomBar(BuildContext context, CheckoutState state, NumberFormat currencyFormatter) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      // Bỏ padding cứng bottom: 32
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -534,46 +535,50 @@ class _CheckoutViewState extends State<CheckoutView> {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SafeArea(
-        child: Row(
-          children: [
-            Expanded(
-              flex: 4,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Tổng cộng', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-                  Text(
-                    currencyFormatter.format(state.totalWithDebt), // Hiển thị tổng (bao gồm công nợ)
-                    style: const TextStyle(
-                      color: AppTheme.primaryGreen,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
+        top: false, // Chỉ quan tâm đáy
+        child: Padding(
+          padding: const EdgeInsets.all(16.0), // Padding đều 16
+          child: Row(
+            children: [
+              Expanded(
+                flex: 4,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Tổng cộng', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                    Text(
+                      currencyFormatter.format(state.totalWithDebt), // Hiển thị tổng (bao gồm công nợ)
+                      style: const TextStyle(
+                        color: AppTheme.primaryGreen,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              flex: 6,
-              child: ElevatedButton(
-                onPressed: (state.selectedAddress == null || state.status == CheckoutStatus.placingOrder || state.status == CheckoutStatus.calculatingDiscount)
-                    ? null
-                    : () => context.read<CheckoutCubit>().placeOrder(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryGreen,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  elevation: 8,
-                  shadowColor: AppTheme.primaryGreen.withOpacity(0.4),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ],
                 ),
-                child: state.status == CheckoutStatus.placingOrder
-                    ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                    : const Text('ĐẶT HÀNG NGAY', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
-            ),
-          ],
+              Expanded(
+                flex: 6,
+                child: ElevatedButton(
+                  onPressed: (state.selectedAddress == null || state.status == CheckoutStatus.placingOrder || state.status == CheckoutStatus.calculatingDiscount)
+                      ? null
+                      : () => context.read<CheckoutCubit>().placeOrder(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryGreen,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    elevation: 8,
+                    shadowColor: AppTheme.primaryGreen.withOpacity(0.4),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: state.status == CheckoutStatus.placingOrder
+                      ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                      : const Text('ĐẶT HÀNG NGAY', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     ).animate().slideY(begin: 1, end: 0, duration: 500.ms, curve: Curves.easeOutQuart);

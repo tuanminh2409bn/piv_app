@@ -102,7 +102,8 @@ class ProfileView extends StatelessWidget {
                 
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.all(16.0),
+                    // Giảm padding xuống còn 10 + safe area
+                    padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 10.0 + MediaQuery.of(context).padding.bottom),
                     child: Column(
                       children: [
                         if (isAgent) ...[

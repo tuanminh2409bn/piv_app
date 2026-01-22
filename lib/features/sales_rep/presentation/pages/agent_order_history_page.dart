@@ -53,7 +53,7 @@ class AgentOrderHistoryView extends StatelessWidget {
             context.read<AgentOrdersCubit>().fetchOrders(agentId);
           },
           child: ListView.builder(
-            padding: const EdgeInsets.all(8.0),
+            padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0 + MediaQuery.of(context).padding.bottom),
             itemCount: state.orders.length,
             itemBuilder: (context, index) {
               final order = state.orders[index];

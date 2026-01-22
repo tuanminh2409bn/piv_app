@@ -708,6 +708,52 @@ export const onOrderStatusUpdate = onDocumentUpdated(
             } catch (error) {
                 logger.error(`Failed to grant spins for order ${orderId}.`, error);
             }
+
+            const debtAmountToAdd = total - (paidAmount || 0);
+
+            if (debtAmountToAdd > 0) {
+                const userRef = db.collection("users").doc(userId);
+                // Use a deterministic ID for the debt transaction to ensure idempotency
+                const transactionId = `purchase_${orderId}`;
+                const debtTransactionRef = db.collection("debtTransactions").doc(transactionId);
+
+                try {
+                    await db.runTransaction(async (transaction) => {
+                        // Check if this specific debt transaction already exists
+                        const debtDoc = await transaction.get(debtTransactionRef);
+                        if (debtDoc.exists) {
+                            logger.info(`Debt transaction ${transactionId} already exists. Skipping.`);
+                            return;
+                        }
+
+                        const userDoc = await transaction.get(userRef);
+                        if (!userDoc.exists) {
+                            throw new Error(`User ${userId} not found!`);
+                        }
+
+                        const currentDebt = (userDoc.data()?.debtAmount as number) || 0;
+                        const newDebt = currentDebt + debtAmountToAdd;
+
+                        transaction.update(userRef, { debtAmount: newDebt });
+
+                        transaction.set(debtTransactionRef, {
+                            userId: userId,
+                            amount: debtAmountToAdd,
+                            type: "order_purchase",
+                            description: `Mua đơn hàng #${orderId.substring(0, 8).toUpperCase()}`,
+                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                            orderId: orderId,
+                            metadata: {
+                                total: total,
+                                paidAmount: paidAmount || 0
+                            }
+                        });
+                    });
+                    logger.info(`Recorded debt of ${debtAmountToAdd} for user ${userId} on order ${orderId} completion.`);
+                } catch (debtError) {
+                    logger.error(`Failed to record debt for order ${orderId}:`, debtError);
+                }
+            }
         }
 
         const userName = shippingAddress?.recipientName ?? "Khách hàng";

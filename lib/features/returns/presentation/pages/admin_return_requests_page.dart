@@ -82,6 +82,8 @@ class _RequestListView extends StatelessWidget {
     // --- THAY ĐỔI: Lấy cubit từ context ---
     final cubit = context.read<AdminReturnsCubit>();
     return ListView.builder(
+      // Thêm padding bottom
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 20),
       itemCount: requests.length,
       itemBuilder: (context, index) {
         final request = requests[index];

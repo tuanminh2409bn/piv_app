@@ -149,7 +149,8 @@ class QuickOrderView extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                  // Tăng chiều cao lên 120 để tránh bottom nav bar của MainScreen (80px + padding)
+                  const SliverToBoxAdapter(child: SizedBox(height: 120)),
                 ],
               ).animate().fadeIn(duration: 400.ms);
             },

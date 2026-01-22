@@ -19,8 +19,13 @@ class GlassBottomNavigation extends StatelessWidget {
     final bool isAndroid = Platform.isAndroid;
     // Độ dày thanh kính: Cực kỳ mỏng và mảnh mai
     final double barHeight = isAndroid ? 52.0 : 62.0; 
-    // Độ cao khung: Nằm gần đáy màn hình hơn
-    final double bottomPadding = isAndroid ? 10.0 : 20.0;
+    
+    // Lấy padding an toàn từ hệ thống (chiều cao thanh điều hướng)
+    final double safeAreaBottom = MediaQuery.of(context).padding.bottom;
+    
+    // Độ cao khung: Nằm gần đáy màn hình hơn + Safe Area
+    final double bottomPadding = (isAndroid ? 10.0 : 20.0) + safeAreaBottom;
+
     final double iconSize = isAndroid ? 23.0 : 25.0;
 
     return Padding(

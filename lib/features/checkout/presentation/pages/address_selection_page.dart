@@ -36,6 +36,7 @@ class AddressSelectionPage extends StatelessWidget {
         child: Text('Đại lý này chưa có địa chỉ nào.'),
       )
           : ListView.separated(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 20),
         itemCount: addresses.length,
         separatorBuilder: (context, index) => const Divider(height: 1),
         itemBuilder: (context, index) {

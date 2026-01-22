@@ -91,7 +91,7 @@ class _RegisterFormState extends State<RegisterForm> {
         }
       },
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 24.0 + MediaQuery.of(context).padding.bottom),
         child: Column(
           children: <Widget>[
             Text(

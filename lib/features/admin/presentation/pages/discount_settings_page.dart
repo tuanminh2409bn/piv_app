@@ -108,14 +108,16 @@ class _DiscountSettingsFormState extends State<_DiscountSettingsForm> with Singl
             ],
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _saveSettings,
-              style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-              child: const Text('LƯU CẤU HÌNH'),
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _saveSettings,
+                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                child: const Text('LƯU CẤU HÌNH'),
+              ),
             ),
           ),
         ),

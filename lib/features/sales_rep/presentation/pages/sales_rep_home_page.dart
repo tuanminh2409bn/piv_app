@@ -209,7 +209,7 @@ class MyAgentsView extends StatelessWidget {
             return const Center(child: Text('Bạn chưa có đại lý nào.'));
           }
           return ListView.builder(
-            padding: const EdgeInsets.all(8.0),
+            padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0 + MediaQuery.of(context).padding.bottom),
             itemCount: state.myAgents.length,
             itemBuilder: (context, index) {
               final agent = state.myAgents[index];
@@ -321,7 +321,7 @@ class PendingAgentsView extends StatelessWidget {
             return RefreshIndicator(
               onRefresh: () async => context.read<AgentApprovalCubit>().fetchUnassignedAgents(),
               child: ListView.builder(
-                padding: const EdgeInsets.all(8.0),
+                padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0 + MediaQuery.of(context).padding.bottom),
                 itemCount: state.users.length,
                 itemBuilder: (context, index) {
                   final agent = state.users[index];
@@ -442,7 +442,7 @@ class SalesRepCommissionsView extends StatelessWidget {
                       ));
                 }
                 return ListView.builder(
-                  padding: const EdgeInsets.all(8.0),
+                  padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0 + MediaQuery.of(context).padding.bottom),
                   itemCount: state.commissions.length,
                   itemBuilder: (context, index) {
                     final commission = state.commissions[index];

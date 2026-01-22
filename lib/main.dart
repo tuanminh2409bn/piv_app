@@ -49,12 +49,20 @@ Future<void> _requestTrackingPermission() async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // --- CẤU HÌNH SYSTEM UI (Thanh trạng thái trong suốt) ---
+  // --- CẤU HÌNH SYSTEM UI (Thanh trạng thái & Thanh điều hướng trong suốt) ---
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent, // Trong suốt
-    statusBarIconBrightness: Brightness.dark, // Icon màu tối (cho nền sáng)
-    statusBarBrightness: Brightness.light, // Cho iOS
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+    statusBarBrightness: Brightness.light,
+    
+    // Thêm phần này cho Android Edge-to-Edge:
+    systemNavigationBarColor: Colors.transparent, 
+    systemNavigationBarDividerColor: Colors.transparent,
+    systemNavigationBarIconBrightness: Brightness.dark, 
   ));
+  
+  // Bắt buộc kích hoạt chế độ Edge-to-Edge trên Android 10+
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   // --------------------------------------------------------
 
   await _requestTrackingPermission();

@@ -103,7 +103,9 @@ class ProductDetailView extends StatelessWidget {
                       SliverToBoxAdapter(
                         child: Padding(
                           // Thêm padding bottom động để đẩy nội dung lên
-                          padding: EdgeInsets.fromLTRB(16, 16, 16, 150 + bottomPadding),
+                          // viewInsets.bottom: Bàn phím
+                          // padding.bottom: Thanh điều hướng
+                          padding: EdgeInsets.fromLTRB(16, 16, 16, 150 + bottomPadding + MediaQuery.of(context).padding.bottom),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -423,7 +425,7 @@ class ProductDetailView extends StatelessWidget {
       return Align(
         alignment: Alignment.bottomCenter,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          // Bỏ padding cứng ở đây
           decoration: BoxDecoration(
             color: Colors.white,
             boxShadow: [
@@ -435,22 +437,28 @@ class ProductDetailView extends StatelessWidget {
             ],
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () async {
-                  final Uri launchUri = Uri(scheme: 'tel', path: '0345012346');
-                  if (await canLaunchUrl(launchUri)) {
-                    await launchUrl(launchUri);
-                  }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0), // Padding đều 16
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                      final Uri launchUri = Uri(scheme: 'tel', path: '0345012346');
+                      if (await canLaunchUrl(launchUri)) {
+                        await launchUrl(launchUri);
+                      }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  icon: const Icon(Icons.phone),
+                  label: const Text('LIÊN HỆ ĐẶT HÀNG'),
+                ),
               ),
-              icon: const Icon(Icons.phone),
-              label: const Text('LIÊN HỆ ĐẶT HÀNG'),
             ),
           ),
         ),
@@ -460,7 +468,7 @@ class ProductDetailView extends StatelessWidget {
     return Align(
       alignment: Alignment.bottomCenter,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        // Bỏ padding cứng ở đây
         decoration: BoxDecoration(
           color: Colors.white,
           boxShadow: [
@@ -472,38 +480,44 @@ class ProductDetailView extends StatelessWidget {
           ],
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: canAddToCart && cartStatus != CartStatus.itemAdding
-                    ? () => context.read<CartCubit>().addProduct(product: product, selectedOption: selectedOption, quantity: quantity)
-                    : null,
-                icon: const Icon(Icons.add_shopping_cart),
-                label: const Text('Thêm vào giỏ'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: BorderSide(color: canAddToCart ? AppTheme.primaryGreen : Colors.grey),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0), // Padding đều 16
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: canAddToCart && cartStatus != CartStatus.itemAdding
+                        ? () => context.read<CartCubit>().addProduct(product: product, selectedOption: selectedOption, quantity: quantity)
+                        : null,
+                    icon: const Icon(Icons.add_shopping_cart),
+                    label: const Text('Thêm vào giỏ'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      side: BorderSide(color: canAddToCart ? AppTheme.primaryGreen : Colors.grey),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: canAddToCart
-                    ? () => _showBuyNowDialog(context, product, userRole, quantity)
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  elevation: 8,
-                  shadowColor: AppTheme.primaryGreen.withValues(alpha: 0.4),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: canAddToCart
+                        ? () => _showBuyNowDialog(context, product, userRole, quantity)
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      elevation: 8,
+                      shadowColor: AppTheme.primaryGreen.withValues(alpha: 0.4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: const Text('MUA NGAY'),
+                  ),
                 ),
-                child: const Text('MUA NGAY'),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     ).animate().slideY(begin: 1, end: 0, duration: 500.ms, curve: Curves.easeOutQuart);

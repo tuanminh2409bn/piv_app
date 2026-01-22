@@ -70,6 +70,8 @@ class AdminProductsView extends StatelessWidget {
               return RefreshIndicator(
                 onRefresh: () => context.read<AdminProductsCubit>().fetchAllProducts(),
                 child: ListView.separated(
+                  // Thêm padding để tránh FAB (80px) và thanh điều hướng
+                  padding: EdgeInsets.only(bottom: 80 + MediaQuery.of(context).padding.bottom),
                   itemCount: state.filteredProducts.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, index) {

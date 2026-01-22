@@ -162,7 +162,9 @@ class AdminDebtManagementPage extends StatelessWidget {
             return const Center(child: Text('Không tìm thấy đại lý nào.'));
           }
 
-          return ListView.separated( // Sửa thành ListView.separated để đẹp hơn
+          return ListView.separated(
+            // Thêm padding bottom
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 20),
             itemCount: agents.length,
             separatorBuilder: (context, index) => const Divider(height: 1),
             itemBuilder: (context, index) {

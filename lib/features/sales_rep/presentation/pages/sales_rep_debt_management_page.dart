@@ -70,6 +70,7 @@ class SalesRepDebtManagementPage extends StatelessWidget {
           return RefreshIndicator(
             onRefresh: () async => context.read<SalesRepCubit>().fetchMyAgents(),
             child: ListView.separated(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 20),
               itemCount: state.myAgents.length,
               separatorBuilder: (context, index) => const Divider(height: 1),
               itemBuilder: (context, index) {

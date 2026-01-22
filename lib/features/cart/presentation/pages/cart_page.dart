@@ -430,37 +430,43 @@ class CartView extends StatelessWidget {
     return Align(
       alignment: Alignment.bottomCenter,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        // Bỏ padding cứng ở đây, chuyển vào trong SafeArea
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, -5))],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: SafeArea(
+          top: false, // Chỉ quan tâm đáy
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16), // Padding chuẩn
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Tạm tính (${state.uniqueItemCount} món)', style: const TextStyle(color: AppTheme.textGrey)),
-                Text(formatter.format(state.totalPrice), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Tạm tính (${state.uniqueItemCount} món)', style: const TextStyle(color: AppTheme.textGrey)),
+                    Text(formatter.format(state.totalPrice), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: state.items.isEmpty ? null : () => Navigator.of(context).push(CheckoutPage.route()),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 8,
+                      shadowColor: AppTheme.primaryGreen.withValues(alpha: 0.4),
+                    ),
+                    child: const Text('TIẾN HÀNH THANH TOÁN', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: state.items.isEmpty ? null : () => Navigator.of(context).push(CheckoutPage.route()),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 8,
-                  shadowColor: AppTheme.primaryGreen.withValues(alpha: 0.4),
-                ),
-                child: const Text('TIẾN HÀNH THANH TOÁN', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     ).animate().slideY(begin: 1, end: 0, curve: Curves.easeOutQuart);

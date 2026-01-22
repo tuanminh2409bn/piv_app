@@ -36,7 +36,7 @@ class AdminHomePage extends StatelessWidget {
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.all(12.0),
+        padding: EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 12.0 + MediaQuery.of(context).padding.bottom),
         child: GridView.count(
           crossAxisCount: 2,
           crossAxisSpacing: 12,

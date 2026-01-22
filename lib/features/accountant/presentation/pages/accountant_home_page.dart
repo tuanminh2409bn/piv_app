@@ -162,7 +162,7 @@ class AllAgentsViewForAccountant extends StatelessWidget {
           return RefreshIndicator(
             onRefresh: () async => context.read<AccountantAgentsCubit>().fetchAllAgents(),
             child: ListView.builder(
-              padding: const EdgeInsets.all(8.0),
+              padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0 + MediaQuery.of(context).padding.bottom),
               itemCount: state.agents.length,
               itemBuilder: (context, index) {
                 final agent = state.agents[index];

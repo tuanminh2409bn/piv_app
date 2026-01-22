@@ -62,15 +62,6 @@ class OrderRepositoryImpl implements OrderRepository {
 
         transaction.update(orderRef, {'status': newStatus});
         developer.log('Updated status for order $orderId to $newStatus', name: 'OrderRepository');
-
-        if (newStatus == 'completed') {
-          final userRef = _firestore.collection('users').doc(order.userId);
-          transaction.update(userRef, {'debtAmount': order.remainingDebt});
-          developer.log(
-              'Order completed. Updating debt for user ${order.userId} to ${order.remainingDebt}',
-              name: 'OrderRepository'
-          );
-        }
       });
 
       return const Right(unit);
