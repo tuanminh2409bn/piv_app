@@ -1,40 +1,58 @@
-#!/bin/sh
+#!/bin/bash
 
-# Fail on any error
+# Dừng ngay nếu có lỗi
 set -e
 
-# Detailed logging
+# In ra chi tiết các lệnh đang chạy để debug
 set -x
 
 echo "🧩 Starting ci_post_clone.sh..."
 
-# The environment variable CI_PRIMARY_REPOSITORY_PATH points to the root of the cloned repository.
-# For a Flutter project, this is the directory containing pubspec.yaml.
+# Thiết lập encoding để tránh lỗi CocoaPods (quan trọng!)
+export LANG=en_US.UTF-8
+export LANGUAGE=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+
+# Xác định thư mục gốc của dự án
 if [ -z "$CI_PRIMARY_REPOSITORY_PATH" ]; then
-    echo "⚠️  CI_PRIMARY_REPOSITORY_PATH is not set. Assuming current directory is project root or close to it."
-    # Fallback or local testing logic could go here, but for now we assume Xcode Cloud environment.
-    # If testing locally, you might be in ios/ci_scripts or just ios/
+    echo "⚠️  CI_PRIMARY_REPOSITORY_PATH is not set. Using current directory."
+    PROJECT_ROOT="."
 else
     echo "📂 Navigating to repository root: $CI_PRIMARY_REPOSITORY_PATH"
-    cd "$CI_PRIMARY_REPOSITORY_PATH"
+    PROJECT_ROOT="$CI_PRIMARY_REPOSITORY_PATH"
 fi
 
-# Install Flutter
-echo "⬇️  Cloning Flutter (stable)..."
-git clone https://github.com/flutter/flutter.git --depth 1 -b stable $HOME/flutter
+cd "$PROJECT_ROOT"
+
+# Cài đặt Flutter
+# Kiểm tra xem đã có flutter chưa (để tránh clone lại nếu test local)
+if [ ! -d "$HOME/flutter" ]; then
+    echo "⬇️  Cloning Flutter (stable)..."
+    git clone https://github.com/flutter/flutter.git --depth 1 -b stable $HOME/flutter
+else
+    echo "ℹ️  Flutter directory already exists."
+fi
+
+# Thêm Flutter vào PATH
 export PATH="$PATH:$HOME/flutter/bin"
 
-echo "✅ Flutter installed."
+echo "✅ Flutter installed. Verifying version..."
 flutter --version
 
-# Run flutter pub get to generate local files (like Generated.xcconfig)
+# Precache iOS artifacts (giúp build nhanh hơn và tránh lỗi thiếu file)
+echo "📦 Running flutter precache..."
+flutter precache --ios
+
+# Cài đặt dependencies của Flutter
 echo "📦 Running flutter pub get..."
 flutter pub get
 
-# Install CocoaPods dependencies
-echo "🥥 Running pod install in ios/ directory..."
+# Cài đặt CocoaPods dependencies
+echo "🥥 Installing Pods..."
 cd ios
-# Install pods. Use repo update if needed, but usually strictly not necessary on fresh clones unless specs are old.
-pod install
+
+# Cần đảm bảo file Podfile.lock đồng bộ, nếu không thì dùng --repo-update
+# Chạy pod install với repo update để chắc chắn có specs mới nhất
+pod install --repo-update
 
 echo "🎉 ci_post_clone.sh completed successfully."
