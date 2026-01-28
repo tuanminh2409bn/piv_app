@@ -62,7 +62,7 @@ class AdminUsersView extends StatelessWidget {
         return RefreshIndicator(
           onRefresh: () => context.read<AdminUsersCubit>().fetchAndGroupUsers(),
           child: ListView(
-            padding: const EdgeInsets.all(8.0),
+            padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0 + MediaQuery.of(context).padding.bottom),
             children: [
               _buildSectionHeader(context, 'Nhân viên Kinh doanh',
                   Icons.support_agent_rounded,

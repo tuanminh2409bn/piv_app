@@ -194,7 +194,7 @@ class _OrderListView extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: () async => context.read<MyOrdersCubit>().fetchMyOrders(),
       child: ListView.separated(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0 + MediaQuery.of(context).padding.bottom),
         itemCount: orders.length,
         separatorBuilder: (context, index) => const SizedBox(height: 16),
         itemBuilder: (context, index) {
@@ -239,6 +239,7 @@ class _OrderCard extends StatelessWidget {
     final statusText = statusInfo.$2;
     final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+    final bool isDebtPayment = order.items.isEmpty && order.paidAmount > 0;
 
     return Card(
       elevation: 2,
@@ -260,17 +261,30 @@ class _OrderCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppTheme.backgroundLight,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
-                    ),
-                    child: Text(
-                      '#${order.id?.substring(0, 6).toUpperCase() ?? 'N/A'}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppTheme.backgroundLight,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+                        ),
+                        child: Text(
+                          '#${order.id?.substring(0, 6).toUpperCase() ?? 'N/A'}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ),
+                      if (isDebtPayment)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, left: 2),
+                          child: Text(
+                            'THANH TOÁN CÔNG NỢ',
+                            style: TextStyle(color: Colors.blue.shade700, fontSize: 10, fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                    ],
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -296,13 +310,15 @@ class _OrderCard extends StatelessWidget {
                     order.createdAt != null ? dateFormat.format(order.createdAt!.toDate()) : 'N/A',
                     style: const TextStyle(color: AppTheme.textGrey, fontSize: 13),
                   ),
-                  const SizedBox(width: 16),
-                  const Icon(Icons.shopping_bag_outlined, size: 16, color: AppTheme.textGrey),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${order.items.length} sản phẩm',
-                    style: const TextStyle(color: AppTheme.textGrey, fontSize: 13),
-                  ),
+                  if (!isDebtPayment) ...[
+                    const SizedBox(width: 16),
+                    const Icon(Icons.shopping_bag_outlined, size: 16, color: AppTheme.textGrey),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${order.items.length} sản phẩm',
+                      style: const TextStyle(color: AppTheme.textGrey, fontSize: 13),
+                    ),
+                  ],
                 ],
               ),
               
@@ -312,13 +328,13 @@ class _OrderCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Tổng thanh toán', style: TextStyle(color: AppTheme.textGrey)),
+                  Text(isDebtPayment ? 'Số tiền đã trả' : 'Tổng thanh toán', style: const TextStyle(color: AppTheme.textGrey)),
                   Text(
-                    formatter.format(order.finalTotal),
+                    formatter.format(isDebtPayment ? order.paidAmount : order.finalTotal),
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
-                      color: Theme.of(context).colorScheme.primary,
+                      color: isDebtPayment ? Colors.blue.shade700 : Theme.of(context).colorScheme.primary,
                     ),
                   ),
                 ],

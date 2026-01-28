@@ -78,7 +78,7 @@ class AdminVouchersView extends StatelessWidget {
       return Center(child: Text(emptyMessage));
     }
     return ListView.builder(
-      padding: const EdgeInsets.all(8),
+      padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0 + MediaQuery.of(context).padding.bottom),
       itemCount: vouchers.length,
       itemBuilder: (context, index) {
         final item = vouchers[index];

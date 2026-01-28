@@ -74,10 +74,10 @@ class DebtPaymentCubit extends Cubit<DebtPaymentState> {
       total: 0,
       paymentMethod: 'bank_transfer',
       status: 'pending',
-      finalTotal: currentAmountToPay,
+      finalTotal: 0, // Giá trị đơn hàng là 0 vì không mua hàng
       salesRepId: state.currentUser.salesRepId,
       debtAmount: state.currentUser.debtAmount,
-      paidAmount: currentAmountToPay,
+      paidAmount: currentAmountToPay, // Số tiền khách trả
       remainingDebt: remainingDebt,
     );
 

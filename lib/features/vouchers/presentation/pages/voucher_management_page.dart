@@ -45,6 +45,7 @@ class VoucherManagementView extends StatelessWidget {
           }
 
           return ListView.builder(
+            padding: EdgeInsets.only(bottom: 80 + MediaQuery.of(context).padding.bottom),
             itemCount: state.vouchers.length,
             itemBuilder: (context, index) {
               final voucher = state.vouchers[index];

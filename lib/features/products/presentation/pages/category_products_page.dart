@@ -165,7 +165,7 @@ class CategoryProductsView extends StatelessWidget {
                       ),
                     ),
                   ],
-                  const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                  SliverToBoxAdapter(child: SizedBox(height: 40 + MediaQuery.of(context).padding.bottom)),
                 ],
               ).animate().fadeIn(duration: 400.ms);
             },

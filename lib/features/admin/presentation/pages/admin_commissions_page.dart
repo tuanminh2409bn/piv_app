@@ -79,7 +79,7 @@ class AdminCommissionsView extends StatelessWidget {
               return RefreshIndicator(
                 onRefresh: () => context.read<AdminCommissionsCubit>().fetchAllData(),
                 child: ListView.builder(
-                  padding: const EdgeInsets.all(8.0),
+                  padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0 + MediaQuery.of(context).padding.bottom),
                   itemCount: state.filteredCommissions.length,
                   itemBuilder: (context, index) {
                     final commissionItem = state.filteredCommissions[index];

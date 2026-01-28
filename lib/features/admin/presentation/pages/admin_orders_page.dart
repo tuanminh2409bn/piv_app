@@ -148,7 +148,7 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
                   : RefreshIndicator(
                 onRefresh: () => context.read<AdminOrdersCubit>().fetchAllOrders(),
                 child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0),
+                    padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0 + MediaQuery.of(context).padding.bottom),
                     itemCount: displayedOrders.length,
                     itemBuilder: (context, index) {
                       final order = displayedOrders[index];
@@ -171,6 +171,7 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
     final customerName = usersMap[order.userId]?.displayName ?? order.shippingAddress.recipientName;
 
     final bool canConfirmPayment = (order.paymentStatus == 'verifying');
+    final bool isDebtPayment = order.items.isEmpty && order.paidAmount > 0;
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
@@ -192,9 +193,27 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: Text(
-                      'Mã đơn: #${order.id?.substring(0, 8).toUpperCase() ?? 'N/A'}',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Mã đơn: #${order.id?.substring(0, 8).toUpperCase() ?? 'N/A'}',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        if (isDebtPayment)
+                          Container(
+                            margin: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade700,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'THANH TOÁN CÔNG NỢ',
+                              style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -216,7 +235,12 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
               _buildInfoRow('Số điện thoại:', order.shippingAddress.phoneNumber),
               _buildInfoRow('Thanh toán:', _getPaymentStatusText(order.paymentStatus), valueColor: _getPaymentStatusColor(order.paymentStatus)),
               const SizedBox(height: 12),
-              _buildInfoRow('Tổng tiền:', currencyFormatter.format(order.finalTotal), isBold: true, valueColor: Theme.of(context).colorScheme.primary),
+              _buildInfoRow(
+                isDebtPayment ? 'Số tiền trả nợ:' : 'Tổng tiền:', 
+                currencyFormatter.format(isDebtPayment ? order.paidAmount : order.finalTotal), 
+                isBold: true, 
+                valueColor: isDebtPayment ? Colors.blue.shade800 : Theme.of(context).colorScheme.primary,
+              ),
 
               if (canConfirmPayment) ...[
                 const Divider(height: 24),

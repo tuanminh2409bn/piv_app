@@ -28,6 +28,7 @@ class SpinHistoryPage extends StatelessWidget {
               return const Center(child: Text('Không có dữ liệu lịch sử.'));
             }
             return ListView.builder(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
               itemCount: state.history.length,
               itemBuilder: (context, index) {
                 final history = state.history[index];

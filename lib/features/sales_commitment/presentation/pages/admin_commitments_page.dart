@@ -116,7 +116,7 @@ class _AdminCommitmentsViewState extends State<AdminCommitmentsView> {
                 ),
               Expanded(
                 child: ListView.builder(
-                  padding: const EdgeInsets.all(8.0),
+                  padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0 + MediaQuery.of(context).padding.bottom),
                   itemCount: displayedCommitments.length,
                   itemBuilder: (context, index) {
                     final commitment = displayedCommitments[index];

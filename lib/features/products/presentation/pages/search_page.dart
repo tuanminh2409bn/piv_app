@@ -128,42 +128,40 @@ class _SearchViewState extends State<SearchView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildSearchHeader(context),
-            Expanded(
-              child: BlocBuilder<SearchCubit, SearchState>(
-                builder: (context, state) {
-                  if (state.status == SearchStatus.loading) {
-                    return _buildLoadingShimmer();
-                  }
+      body: Column(
+        children: [
+          SafeArea(bottom: false, child: _buildSearchHeader(context)),
+          Expanded(
+            child: BlocBuilder<SearchCubit, SearchState>(
+              builder: (context, state) {
+                if (state.status == SearchStatus.loading) {
+                  return _buildLoadingShimmer();
+                }
 
-                  // Hiển thị lịch sử nếu chưa nhập gì
-                  if (_searchController.text.isEmpty && state.searchHistory.isNotEmpty) {
-                    return _buildSearchHistory(state.searchHistory);
-                  }
+                // Hiển thị lịch sử nếu chưa nhập gì
+                if (_searchController.text.isEmpty && state.searchHistory.isNotEmpty) {
+                  return _buildSearchHistory(context, state.searchHistory);
+                }
 
-                  if (state.searchResults.isEmpty) {
-                    // Nếu đang nhập mà không thấy
-                    if (_searchController.text.isNotEmpty) {
-                      return _buildEmptyState();
-                    }
-                    // Trường hợp mới vào chưa có lịch sử và chưa search (thường load all thì sẽ có data, nhưng nếu backend rỗng)
-                    return const SizedBox(); 
+                if (state.searchResults.isEmpty) {
+                  // Nếu đang nhập mà không thấy
+                  if (_searchController.text.isNotEmpty) {
+                    return _buildEmptyState();
                   }
+                  // Trường hợp mới vào chưa có lịch sử và chưa search (thường load all thì sẽ có data, nhưng nếu backend rỗng)
+                  return const SizedBox(); 
+                }
 
-                  return _buildSearchResultsGrid(
-                    context,
-                    state.searchResults,
-                    widget.isSelectionMode,
-                    widget.targetUserRole,
-                  );
-                },
-              ),
+                return _buildSearchResultsGrid(
+                  context,
+                  state.searchResults,
+                  widget.isSelectionMode,
+                  widget.targetUserRole,
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -247,9 +245,9 @@ class _SearchViewState extends State<SearchView> {
     );
   }
 
-  Widget _buildSearchHistory(List<String> history) {
+  Widget _buildSearchHistory(BuildContext context, List<String> history) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.of(context).padding.bottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -319,7 +317,7 @@ class _SearchViewState extends State<SearchView> {
     }
 
     return GridView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).padding.bottom),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         childAspectRatio: 0.65,

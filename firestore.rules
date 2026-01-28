@@ -125,8 +125,15 @@ service cloud.firestore {
       
     match /special_prices/{priceId} {
         allow read: if request.auth != null && (request.auth.uid == userId || isStaff());
-        allow write: if isStaff();
+        allow write: if isAdmin();
       }
+    }
+    
+  match /price_requests/{requestId} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
     
   match /products/{docId} { 

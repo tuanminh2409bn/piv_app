@@ -91,7 +91,7 @@ class ManageQuickOrderListPage extends StatelessWidget {
 
           // Hiển thị danh sách sản phẩm
           return ListView.builder(
-            padding: const EdgeInsets.only(bottom: 80), // Thêm khoảng đệm để không bị FAB che
+            padding: EdgeInsets.only(bottom: 80 + MediaQuery.of(context).padding.bottom), // Thêm khoảng đệm để không bị FAB che
             itemCount: state.products.length,
             itemBuilder: (context, index) {
               final product = state.products[index];

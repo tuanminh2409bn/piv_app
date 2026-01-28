@@ -133,7 +133,7 @@ class _DebtPaymentViewState extends State<DebtPaymentView> {
                     ),
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.all(16.0),
+                        padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0 + MediaQuery.of(context).padding.bottom),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [

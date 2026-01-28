@@ -99,7 +99,7 @@ class CartView extends StatelessWidget {
                           ),
                         ),
                         SliverToBoxAdapter(child: _buildSuggestionsSection()),
-                        const SliverPadding(padding: EdgeInsets.only(bottom: 120)), // Space for bottom bar
+                        SliverPadding(padding: EdgeInsets.only(bottom: 120 + MediaQuery.of(context).padding.bottom)), // Space for bottom bar
                       ],
                     ),
                     _buildSummarySection(context, state, currencyFormatter),

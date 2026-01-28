@@ -13,6 +13,7 @@ import 'package:piv_app/features/returns/presentation/pages/admin_return_request
 import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/sales_commitment_page.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/commitment_history_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/price_approval_page.dart';
 
 class NotificationListPage extends StatelessWidget {
   const NotificationListPage({super.key});
@@ -24,6 +25,11 @@ class NotificationListPage extends StatelessWidget {
   // [ĐÃ SỬA LỖI] Hàm điều hướng với cách gọi route chính xác
   void _handleNavigation(BuildContext context, String type, Map<String, dynamic> payload) {
     switch (type) {
+      // Thông báo duyệt giá (Dành cho Admin)
+      case 'price_approval':
+        Navigator.of(context).push(PriceApprovalPage.route());
+        break;
+
     // Các loại thông báo liên quan đến Đơn hàng
       case 'order_status':
       case 'order_status_general':
@@ -122,6 +128,7 @@ class NotificationListPage extends StatelessWidget {
             }
 
             return ListView.separated(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
               itemCount: state.notifications.length,
               itemBuilder: (context, index) {
                 final notification = state.notifications[index];

@@ -51,7 +51,7 @@ class AdminCategoriesView extends StatelessWidget {
         return RefreshIndicator(
           onRefresh: () async => context.read<AdminCategoriesCubit>().fetchAllCategories(),
           child: ListView(
-            padding: const EdgeInsets.all(8.0),
+            padding: EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 8.0 + MediaQuery.of(context).padding.bottom),
             children: topLevelCategories.map((category) {
               return _AdminCategoriesViewState.buildCategoryTree(context, category, state.allCategories, 0);
             }).toList(),

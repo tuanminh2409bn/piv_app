@@ -153,13 +153,40 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                             ],
 
                             if (order.paymentStatus == 'unpaid' &&
-                                order.status != 'pending_approval' &&
-                                state.paymentInfo != null) ...[
-                              _buildInfoCard(
-                                  context,
-                                  'Thông tin thanh toán',
-                                  Icons.qr_code_scanner,
-                                  _PaymentQrInfo(paymentInfo: state.paymentInfo!, order: order)),
+                                order.status != 'pending_approval') ...[
+                              // Nếu là chủ đơn hàng (Khách hàng) -> Hiện mã QR
+                              if (currentUser?.id == order.userId && state.paymentInfo != null) ...[
+                                _buildInfoCard(
+                                    context,
+                                    'Thông tin thanh toán',
+                                    Icons.qr_code_scanner,
+                                    _PaymentQrInfo(paymentInfo: state.paymentInfo!, order: order)),
+                              ]
+                              // Nếu là Nhân viên/Admin -> Chỉ hiện thông báo
+                              else if (currentUser?.id != order.userId) ...[
+                                _buildInfoCard(
+                                    context,
+                                    'Thông tin thanh toán',
+                                    Icons.info_outline,
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'Khách hàng chưa thực hiện thanh toán/chuyển khoản.',
+                                              style: TextStyle(
+                                                  color: Colors.orange.shade800,
+                                                  fontWeight: FontWeight.w500,
+                                                  fontStyle: FontStyle.italic),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )),
+                              ],
                               const SizedBox(height: 16),
                             ],
 

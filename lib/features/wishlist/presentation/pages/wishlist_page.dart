@@ -287,7 +287,7 @@ class WishlistView extends StatelessWidget {
                       ),
                     ),
                     
-                  const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                  SliverToBoxAdapter(child: SizedBox(height: 40 + MediaQuery.of(context).padding.bottom)),
                 ],
               );
             },

@@ -24,6 +24,7 @@ class AdminNewsListPage extends StatelessWidget {
               .toList();
 
           return ListView.builder(
+            padding: EdgeInsets.only(bottom: 80 + MediaQuery.of(context).padding.bottom),
             itemCount: articles.length,
             itemBuilder: (context, index) {
               final article = articles[index];

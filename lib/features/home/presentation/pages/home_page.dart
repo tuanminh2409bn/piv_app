@@ -387,7 +387,7 @@ class _FeaturedProductsGrid extends StatelessWidget {
     if (products.isEmpty) return _buildPlaceholder('Không có sản phẩm nổi bật');
     
     final double screenWidth = MediaQuery.of(context).size.width;
-    final double childAspectRatio = (screenWidth / 2) / 300; 
+    final double childAspectRatio = (screenWidth / 2) / 330; 
 
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),

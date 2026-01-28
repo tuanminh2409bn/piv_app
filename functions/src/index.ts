@@ -711,7 +711,7 @@ export const onOrderStatusUpdate = onDocumentUpdated(
 
             const debtAmountToAdd = total - (paidAmount || 0);
 
-            if (debtAmountToAdd > 0) {
+            if (debtAmountToAdd !== 0) {
                 const userRef = db.collection("users").doc(userId);
                 // Use a deterministic ID for the debt transaction to ensure idempotency
                 const transactionId = `purchase_${orderId}`;
@@ -736,11 +736,19 @@ export const onOrderStatusUpdate = onDocumentUpdated(
 
                         transaction.update(userRef, { debtAmount: newDebt });
 
+                        let transactionType = "order_purchase";
+                        let description = `Mua đơn hàng #${orderId.substring(0, 8).toUpperCase()}`;
+
+                        if (debtAmountToAdd < 0) {
+                            transactionType = "debt_payment";
+                            description = `Thanh toán công nợ đơn hàng #${orderId.substring(0, 8).toUpperCase()}`;
+                        }
+
                         transaction.set(debtTransactionRef, {
                             userId: userId,
                             amount: debtAmountToAdd,
-                            type: "order_purchase",
-                            description: `Mua đơn hàng #${orderId.substring(0, 8).toUpperCase()}`,
+                            type: transactionType,
+                            description: description,
                             createdAt: admin.firestore.FieldValue.serverTimestamp(),
                             orderId: orderId,
                             metadata: {
@@ -749,7 +757,7 @@ export const onOrderStatusUpdate = onDocumentUpdated(
                             }
                         });
                     });
-                    logger.info(`Recorded debt of ${debtAmountToAdd} for user ${userId} on order ${orderId} completion.`);
+                    logger.info(`Recorded debt adjustment of ${debtAmountToAdd} for user ${userId} on order ${orderId} completion.`);
                 } catch (debtError) {
                     logger.error(`Failed to record debt for order ${orderId}:`, debtError);
                 }
@@ -2074,3 +2082,71 @@ function calculateCommissionForRoot(total: number): number {
     else rate = 0.01;                        // 1% mặc định
     return total * rate;
 }
+
+// ===================================================================
+// FUNCTION 24: KHI YÊU CẦU DUYỆT GIÁ ĐƯỢC TẠO
+// ===================================================================
+export const onPriceRequestCreated = onDocumentCreated(
+    { document: "price_requests/{requestId}", region: "asia-southeast1" },
+    async (event) => {
+        const request = event.data?.data();
+        const requestId = event.params.requestId;
+        if (!request) return;
+
+        const admins = await getRecipientsByRoles(["admin"]);
+        if (admins.length === 0) return;
+
+        const title = "🏷️ Yêu cầu duyệt giá mới";
+        const body = `${request.requesterName} muốn thay đổi giá cho đại lý "${request.agentName}".`;
+        const type = "price_approval"; // Dẫn đến màn hình duyệt giá
+        const payload = { type, requestId };
+
+        const tokens = admins.map((r) => r.token);
+        await sendPushNotification(tokens, title, body, payload);
+
+        const savePromises = admins.map((admin) =>
+            saveNotificationToFirestore(admin.id, title, body, type, payload)
+        );
+        await Promise.all(savePromises);
+    }
+);
+
+// ===================================================================
+// FUNCTION 25: KHI YÊU CẦU DUYỆT GIÁ ĐƯỢC CẬP NHẬT (DUYỆT/TỪ CHỐI)
+// ===================================================================
+export const onPriceRequestUpdated = onDocumentUpdated(
+    { document: "price_requests/{requestId}", region: "asia-southeast1" },
+    async (event) => {
+        const after = event.data?.after.data();
+        const before = event.data?.before.data();
+        if (!after || !before || after.status === before.status) return;
+
+        const requesterId = after.requesterId;
+        const status = after.status;
+        const agentName = after.agentName;
+
+        let title = "";
+        let body = "";
+        let type = "price_approved"; // Dẫn đến màn hình cấu hình giá
+
+        if (status === "approved") {
+            title = "✅ Yêu cầu thay đổi giá được duyệt";
+            body = `Admin đã duyệt yêu cầu thay đổi giá cho đại lý "${agentName}".`;
+        } else if (status === "rejected") {
+            title = "❌ Yêu cầu thay đổi giá bị từ chối";
+            body = `Yêu cầu cho đại lý "${agentName}" bị từ chối. Lý do: ${after.rejectionReason ?? "Không có"}.`;
+            type = "price_rejected";
+        }
+
+        if (title && requesterId) {
+            const userDoc = await db.collection("users").doc(requesterId).get();
+            if (userDoc.exists) {
+                const token = userDoc.data()?.fcmToken;
+                const payload = { type, agentId: after.agentId }; // Dẫn về màn hình AgentSpecialPricePage
+
+                if (token) await sendPushNotification([token], title, body, payload);
+                await saveNotificationToFirestore(requesterId, title, body, type, payload);
+            }
+        }
+    }
+);

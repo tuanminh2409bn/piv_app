@@ -54,7 +54,7 @@ class NotificationHistoryPage extends StatelessWidget {
           final notifications = snapshot.data!.docs;
 
           return ListView.builder(
-            padding: const EdgeInsets.all(8),
+            padding: EdgeInsets.fromLTRB(8, 8, 8, 8 + MediaQuery.of(context).padding.bottom),
             itemCount: notifications.length,
             itemBuilder: (context, index) {
               final notification = notifications[index].data() as Map<String, dynamic>;

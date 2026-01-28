@@ -145,7 +145,7 @@ class _LoginFormState extends State<LoginForm> {
         ),
       ],
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32.0),
+        padding: EdgeInsets.fromLTRB(32, 32, 32, 32 + MediaQuery.of(context).padding.bottom),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
