@@ -236,20 +236,31 @@ class OrderRepositoryImpl implements OrderRepository {
         }
 
         final orderData = orderSnapshot.data() as Map<String, dynamic>;
-        final double orderFinalTotal = (orderData['finalTotal'] as num?)?.toDouble() ?? 0.0;
+        
+        // Lấy các thành phần cơ bản để tính toán lại cho chính xác
+        final double subtotal = (orderData['subtotal'] as num?)?.toDouble() ?? 0.0;
+        final double shippingFee = (orderData['shippingFee'] as num?)?.toDouble() ?? 0.0;
+        final double commissionDiscount = (orderData['commissionDiscount'] as num?)?.toDouble() ?? 0.0;
         final double orderDebtAmount = (orderData['debtAmount'] as num?)?.toDouble() ?? 0.0;
-        final double newRemainingDebt = orderFinalTotal + orderDebtAmount - paidAmount - voucherDiscount;
+
+        // Tính toán lại Final Total để đảm bảo trừ hết các khoản chiết khấu/voucher
+        // Lưu ý: voucherDiscount truyền vào hàm là tổng giảm giá voucher áp dụng cho đơn này
+        final double calculatedFinalTotal = subtotal + shippingFee - commissionDiscount - voucherDiscount;
+
+        // Tính công nợ còn lại
+        final double newRemainingDebt = calculatedFinalTotal + orderDebtAmount - paidAmount;
 
         final Map<String, dynamic> dataToUpdate = {
           'status': 'pending',
           'approvedAt': FieldValue.serverTimestamp(),
           'paidAmount': paidAmount,
+          'finalTotal': calculatedFinalTotal, // Cập nhật lại finalTotal cho chắc chắn
           'remainingDebt': newRemainingDebt.clamp(0, double.infinity),
           'discount': voucherDiscount,
           'appliedVoucherCode': appliedVoucherCode,
         };
         transaction.update(orderRef, dataToUpdate);
-        developer.log('Approved order $orderId. Set paid: $paidAmount, discount: $voucherDiscount, code: $appliedVoucherCode, newRemainingDebt: $newRemainingDebt', name: 'OrderRepository');
+        developer.log('Approved order $orderId. Recalculated FinalTotal: $calculatedFinalTotal (Sub: $subtotal, Ship: $shippingFee, Com: $commissionDiscount, Voucher: $voucherDiscount). Set paid: $paidAmount, newRemainingDebt: $newRemainingDebt', name: 'OrderRepository');
       });
 
       return const Right(unit);

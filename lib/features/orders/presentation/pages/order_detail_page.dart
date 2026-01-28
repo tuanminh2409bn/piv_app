@@ -14,8 +14,7 @@ import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/orders/presentation/bloc/order_detail_cubit.dart';
 import 'package:piv_app/features/returns/presentation/pages/create_return_request_page.dart';
-// Đảm bảo import CurrencyInputFormatter nếu bạn để nó ở file utils riêng
-// import 'package:piv_app/core/utils/currency_input_formatter.dart'; 
+import 'package:piv_app/common/widgets/currency_input_formatter.dart'; 
 
 class OrderDetailPage extends StatelessWidget {
   final String orderId;
@@ -672,13 +671,10 @@ class _ApprovalPaymentInputSection extends StatelessWidget {
             TextFormField(
               controller: amountController,
               keyboardType: const TextInputType.numberWithOptions(decimal: false),
-              // Nếu bạn chưa có CurrencyInputFormatter thì bỏ dòng inputFormatters hoặc tạo class đó.
-              // inputFormatters: [
-              //   FilteringTextInputFormatter.digitsOnly,
-              //   CurrencyInputFormatter(),
-              // ],
-              // Tạm thời dùng DigitsOnly nếu chưa có formatter
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                CurrencyInputFormatter(),
+              ],
               decoration: const InputDecoration(
                 labelText: 'Số tiền bạn muốn thanh toán',
                 suffixText: 'đ',
@@ -751,7 +747,7 @@ class _BottomBar extends StatelessWidget {
 
     if (isOrderOwner && order.status == 'pending_approval') {
       bottomWidget = _ApprovalActionButtonsOnly(
-          amountController: amountController, formKey: formKey);
+          order: order, amountController: amountController);
     } else if (isOrderOwner &&
         order.paymentStatus == 'unpaid' &&
         order.status != 'cancelled' &&
@@ -791,10 +787,11 @@ class _BottomBar extends StatelessWidget {
 }
 
 class _ApprovalActionButtonsOnly extends StatelessWidget {
+  final OrderModel order;
   final TextEditingController amountController;
-  final GlobalKey<FormState> formKey;
+
   const _ApprovalActionButtonsOnly(
-      {required this.amountController, required this.formKey});
+      {required this.order, required this.amountController});
 
   void _showRejectionDialog(BuildContext context) {
     final reasonController = TextEditingController();
@@ -859,37 +856,46 @@ class _ApprovalActionButtonsOnly extends StatelessWidget {
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: ElevatedButton.icon(
-            icon: isLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : const Icon(Icons.check),
-            label: Text(isLoading ? 'ĐANG XỬ LÝ' : 'PHÊ DUYỆT'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryGreen,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
+          child: ElevatedButton(
             onPressed: isLoading
                 ? null
                 : () {
-                    if (formKey.currentState!.validate()) {
-                      final cleanValue = amountController.text.replaceAll('.', '');
-                      final paidAmount = double.tryParse(cleanValue) ?? 0.0;
-                      context
-                          .read<OrderDetailCubit>()
-                          .approveOrder(paidAmount: paidAmount);
-                    } else {
-                      ScaffoldMessenger.of(context)
-                        ..hideCurrentSnackBar()
-                        ..showSnackBar(const SnackBar(
-                          content: Text('Vui lòng kiểm tra lại số tiền thanh toán.'),
-                          backgroundColor: Colors.orange,
-                        ));
+                    double paidAmount = 0;
+                    try {
+                      paidAmount = double.parse(amountController.text
+                          .replaceAll(RegExp(r'[^0-9]'), ''));
+                    } catch (_) {}
+
+                    // Tính tổng tiền cần xử lý (tương tự logic hiển thị)
+                    final voucherDiscount = context.read<OrderDetailCubit>().state.voucherDiscount;
+                    final totalAmountToHandle = (order.finalTotal +
+                            order.debtAmount -
+                            voucherDiscount)
+                        .clamp(0, double.infinity)
+                        .toDouble();
+
+                    if (paidAmount > totalAmountToHandle) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text(
+                                'Số tiền trả không thể lớn hơn tổng cần thanh toán')),
+                      );
+                      return;
                     }
+
+                    context
+                        .read<OrderDetailCubit>()
+                        .approveOrder(paidAmount: paidAmount);
                   },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGreen,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Đồng ý',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ),
       ],
@@ -1103,8 +1109,7 @@ class _OrderItemsList extends StatelessWidget {
 // HELPER FUNCTIONS (Restored Logic)
 // -----------------------------------------------------------------------------
 
-(Color, String, String?) _getStatusInfo(OrderModel order, BuildContext context) {
-  final returnRequest = context.read<OrderDetailCubit>().state.returnRequest;
+  (Color, String, String?) _getStatusInfo(OrderModel order, BuildContext context) {  final returnRequest = context.read<OrderDetailCubit>().state.returnRequest;
   if (order.returnInfo != null) {
     switch (order.returnInfo!.returnStatus) {
       case 'pending_approval':
