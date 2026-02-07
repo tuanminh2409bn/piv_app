@@ -868,18 +868,18 @@ export const sendManualNotification = onCall(
     {region: "asia-southeast1"},
     async (request: CallableRequest) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
-        const adminId = request.auth.uid;
-        const adminDoc = await db.collection("users").doc(adminId).get();
-        if (adminDoc.data()?.role !== "admin") {
+        const senderId = request.auth.uid;
+        const senderDoc = await db.collection("users").doc(senderId).get();
+        const senderRole = senderDoc.data()?.role;
+
+        if (!["admin", "accountant", "sales_rep"].includes(senderRole)) {
             throw new HttpsError("permission-denied", "Bạn không có quyền thực hiện hành động này.");
         }
         
         // userIds: Danh sách ID cụ thể (mới thêm)
         // salesRepId: Gửi theo nhóm sales (cũ)
         const {title, body, salesRepId, userIds} = request.data;
-        logger.info(`sendManualNotification called. Title: ${title}, Target: ${userIds ? 'Specific (' + userIds.length + ')' : (salesRepId ? 'Group ' + salesRepId : 'All')}`);
-
-        let salesRepName: string | null = null; 
+        logger.info(`sendManualNotification called by ${senderRole}. Title: ${title}`);
 
         if (!title || !body) {
             throw new HttpsError("invalid-argument", "Vui lòng nhập đầy đủ tiêu đề và nội dung.");
@@ -888,57 +888,76 @@ export const sendManualNotification = onCall(
         let recipients: {id: string, token?: string, name: string}[] = [];
         let targetType = "all";
 
-        // TRƯỜNG HỢP 1: Gửi cho danh sách cụ thể (Ưu tiên cao nhất)
-        // Kiểm tra userIds có tồn tại và có phần tử
+        // LOGIC LỌC NGƯỜI DÙNG
+        let baseQuery = db.collection("users")
+            .where("status", "==", "active")
+            .where("role", "in", ["agent_1", "agent_2"]);
+
+        // Nếu là NVKD, CHỈ được gửi cho đại lý của mình
+        if (senderRole === "sales_rep") {
+            baseQuery = baseQuery.where("salesRepId", "==", senderId);
+        }
+
+        // TRƯỜNG HỢP 1: Gửi cho danh sách cụ thể
         if (userIds && Array.isArray(userIds) && userIds.length > 0) {
             targetType = "specific_users";
-            logger.info(`Targeting ${userIds.length} specific users.`);
             
-            // Chia nhỏ mảng userIds thành các chunk (mỗi chunk tối đa 10 phần tử cho whereIn)
             const chunks = [];
             for (let i = 0; i < userIds.length; i += 10) {
                 chunks.push(userIds.slice(i, i + 10));
             }
 
             for (const chunk of chunks) {
+                // Với NVKD, cần đảm bảo các user này thuộc quyền quản lý của họ
+                // Firestore không hỗ trợ 'in' kết hợp với 'salesRepId' nếu không có index phức tạp
+                // Cách đơn giản: Query theo ID, sau đó filter thủ công ở code nếu là sales_rep
                 const snapshot = await db.collection("users")
                     .where(admin.firestore.FieldPath.documentId(), "in", chunk)
                     .get();
+                
                 snapshot.forEach(doc => {
                     const data = doc.data();
-                    recipients.push({
-                        id: doc.id, 
-                        token: data.fcmToken as string | undefined,
-                        name: data.displayName || "Khách hàng"
-                    });
+                    // FILTER QUAN TRỌNG CHO NVKD
+                    if (senderRole === "sales_rep" && data.salesRepId !== senderId) {
+                        return; // Bỏ qua user không thuộc quyền quản lý
+                    }
+                    if (data.status === 'active') { // Chỉ gửi cho active
+                        recipients.push({
+                            id: doc.id, 
+                            token: data.fcmToken as string | undefined,
+                            name: data.displayName || "Khách hàng"
+                        });
+                    }
                 });
             }
         } 
-        // TRƯỜNG HỢP 2: Gửi theo nhóm Sales Rep
+        // TRƯỜNG HỢP 2: Gửi theo nhóm Sales Rep (Chỉ Admin/Kế toán mới chọn cái này)
         else if (salesRepId && typeof salesRepId === "string") {
-            targetType = "sales_rep_group";
-            const salesRepDoc = await db.collection("users").doc(salesRepId).get();
-            if (salesRepDoc.exists) {
-                salesRepName = salesRepDoc.data()?.displayName ?? null;
+            if (senderRole === "sales_rep" && salesRepId !== senderId) {
+                 throw new HttpsError("permission-denied", "NVKD không thể gửi cho nhóm của người khác.");
             }
-            const snapshot = await db.collection("users")
-                .where("status", "==", "active")
-                .where("role", "in", ["agent_1", "agent_2"]) // Đã đảm bảo chỉ lấy Đại lý
-                .where("salesRepId", "==", salesRepId)
-                .get();
+            targetType = "sales_rep_group";
+            if (senderRole !== "sales_rep") {
+                 // Nếu Admin gửi cho nhóm Sales Rep cụ thể
+                 baseQuery = baseQuery.where("salesRepId", "==", salesRepId);
+            }
+            // Nếu là Sales Rep, baseQuery đã có sẵn filter salesRepId ở trên rồi
+            
+            const snapshot = await baseQuery.get();
             recipients = snapshot.docs.map((doc) => ({
                 id: doc.id, 
                 token: doc.data().fcmToken as string | undefined,
                 name: doc.data().displayName || "Khách hàng"
             }));
         }
-        // TRƯỜNG HỢP 3: Gửi cho tất cả (Mặc định)
+        // TRƯỜNG HỢP 3: Gửi cho tất cả (Admin/Kế toán: Toàn bộ hệ thống. NVKD: Toàn bộ đại lý của mình)
         else {
-            logger.info("Targeting ALL AGENTS (excluding Sales Reps).");
-            const snapshot = await db.collection("users")
-                .where("status", "==", "active")
-                .where("role", "in", ["agent_1", "agent_2"]) // SỬA: Chỉ gửi cho Agent, BỎ sales_rep
-                .get();
+            if (senderRole === "sales_rep") {
+                logger.info("Sales Rep sending to ALL their agents.");
+            } else {
+                logger.info("Admin/Accountant sending to ALL agents.");
+            }
+            const snapshot = await baseQuery.get();
             recipients = snapshot.docs.map((doc) => ({
                 id: doc.id, 
                 token: doc.data().fcmToken as string | undefined,
@@ -950,7 +969,7 @@ export const sendManualNotification = onCall(
             return {success: true, message: "Không tìm thấy người dùng nào phù hợp để gửi."};
         }
         
-        const type = "manual_notification"; // Đổi tên type cho tổng quát hơn
+        const type = "manual_notification";
 
         // Gửi FCM
         await sendPushNotification(recipients.map((r) => r.token), title, body, {
@@ -962,21 +981,20 @@ export const sendManualNotification = onCall(
         const savePromises = recipients.map((r) => saveNotificationToFirestore(r.id, title, body, type, {}));
         await Promise.all(savePromises);
 
-        // Lưu lịch sử gửi của Admin
-        // CHỈ LƯU DANH SÁCH TÊN NẾU GỬI CỤ THỂ (Để tránh document quá nặng nếu gửi all)
+        // Lưu lịch sử gửi
         let recipientNamesForHistory: string[] = [];
         if (targetType === "specific_users") {
             recipientNamesForHistory = recipients.map(r => r.name);
         }
 
         await db.collection("manualNotifications").add({
-            title, body, sentBy: adminId,
+            title, body, sentBy: senderId,
+            senderRole: senderRole, // Lưu role người gửi
             target: {
                 type: targetType,
                 ids: targetType === 'specific_users' ? userIds : null,
-                salesRepId: salesRepId ?? null,
-                salesRepName: salesRepName,
-                recipientNames: recipientNamesForHistory, // <--- THÊM TRƯỜNG NÀY
+                salesRepId: salesRepId ?? (senderRole === 'sales_rep' ? senderId : null),
+                recipientNames: recipientNamesForHistory,
             },
             recipientCount: recipients.length,
             sentAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -2147,6 +2165,89 @@ export const onPriceRequestUpdated = onDocumentUpdated(
                 if (token) await sendPushNotification([token], title, body, payload);
                 await saveNotificationToFirestore(requesterId, title, body, type, payload);
             }
+        }
+    }
+);
+
+// ===================================================================
+// FUNCTION 26: KHI YÊU CẦU CHIẾT KHẤU MỚI ĐƯỢC TẠO
+// ===================================================================
+export const onDiscountRequestCreated = onDocumentCreated(
+    {document: "discount_requests/{requestId}", region: "asia-southeast1"},
+    async (event) => {
+        const requestData = event.data?.data();
+        const requestId = event.params.requestId;
+        if (!requestData) return;
+
+        // Chỉ xử lý nếu trạng thái là pending
+        if (requestData.status !== "pending") return;
+
+        const requesterName = requestData.requesterName ?? "Nhân viên";
+        const agentName = requestData.agentName ?? "Đại lý";
+        const isDisabling = requestData.customDiscount && requestData.customDiscount.enabled === false;
+
+        // Gửi cho Admin
+        const admins = await getRecipientsByRoles(["admin"]);
+        if (admins.length === 0) return;
+
+        const title = isDisabling ? "⚠️ Yêu cầu XÓA chiết khấu riêng" : "🔔 Yêu cầu duyệt chiết khấu mới";
+        const body = isDisabling 
+            ? `${requesterName} yêu cầu đại lý "${agentName}" quay về mức chiết khấu hệ thống.`
+            : `${requesterName} vừa gửi yêu cầu cấu hình chiết khấu cho đại lý "${agentName}".`;
+        const type = "discount_approval_request"; // Dẫn đến màn hình duyệt Discount
+        const dataPayload = { type, requestId, agentId: requestData.agentId };
+
+        const tokens = admins.map((r) => r.token);
+        await sendPushNotification(tokens, title, body, dataPayload);
+
+        const savePromises = admins.map((r) => saveNotificationToFirestore(r.id, title, body, type, dataPayload));
+        await Promise.all(savePromises);
+    }
+);
+
+// ===================================================================
+// FUNCTION 27: KHI YÊU CẦU CHIẾT KHẤU ĐƯỢC CẬP NHẬT (DUYỆT/TỪ CHỐI)
+// ===================================================================
+export const onDiscountRequestUpdated = onDocumentUpdated(
+    {document: "discount_requests/{requestId}", region: "asia-southeast1"},
+    async (event) => {
+        const beforeData = event.data?.before.data();
+        const afterData = event.data?.after.data();
+        const requestId = event.params.requestId;
+
+        if (!beforeData || !afterData || beforeData.status === afterData.status) return;
+
+        const requesterId = afterData.requesterId;
+        const agentName = afterData.agentName ?? "Đại lý";
+        const newStatus = afterData.status;
+
+        if (!requesterId) return;
+
+        let title = "";
+        let body = "";
+        const type = "discount_request_status_update";
+
+        if (newStatus === "approved") {
+            title = "✅ Yêu cầu chiết khấu đã được DUYỆT";
+            body = `Cấu hình chiết khấu cho đại lý "${agentName}" đã được Admin phê duyệt và áp dụng.`;
+        } else if (newStatus === "rejected") {
+            title = "❌ Yêu cầu chiết khấu bị TỪ CHỐI";
+            const reason = afterData.rejectionReason ? ` Lý do: ${afterData.rejectionReason}` : "";
+            body = `Yêu cầu cấu hình cho đại lý "${agentName}" đã bị từ chối.${reason}`;
+        } else {
+            return;
+        }
+
+        // Gửi thông báo cho người yêu cầu (NVKD/Kế toán)
+        const userDoc = await db.collection("users").doc(requesterId).get();
+        if (userDoc.exists) {
+            const token = userDoc.data()?.fcmToken;
+            const dataPayload = { type, requestId, agentId: afterData.agentId };
+            
+            if (token) {
+                await sendPushNotification([token], title, body, dataPayload);
+            }
+            await saveNotificationToFirestore(requesterId, title, body, type, dataPayload);
         }
     }
 );

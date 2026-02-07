@@ -135,6 +135,13 @@ service cloud.firestore {
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
+
+  match /discount_requests/{requestId} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
     
   match /products/{docId} { 
       allow read: if isSignedIn() && (resource.data.isPrivate == false || resource.data.ownerAgentId == request.auth.uid || isStaff());

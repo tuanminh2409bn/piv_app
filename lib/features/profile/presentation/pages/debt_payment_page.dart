@@ -78,10 +78,14 @@ class _DebtPaymentViewState extends State<DebtPaymentView> {
           listenWhen: (previous, current) => previous.status != current.status,
           listener: (context, state) {
             if (state.status == DebtPaymentStatus.success && state.newOrderId != null) {
-              Navigator.of(context).pushAndRemoveUntil(OrderSuccessPage.route(orderId: state.newOrderId!), (route) => route.isFirst);
+              Navigator.of(context).pushAndRemoveUntil(
+                  OrderSuccessPage.route(orderId: state.newOrderId!), (route) => route.isFirst);
             }
             if (state.status == DebtPaymentStatus.error && state.errorMessage != null) {
-              ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content: Text(state.errorMessage!), backgroundColor: AppTheme.errorRed));
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                    SnackBar(content: Text(state.errorMessage!), backgroundColor: AppTheme.errorRed));
               context.read<DebtPaymentCubit>().clearError();
             }
           },
@@ -92,7 +96,9 @@ class _DebtPaymentViewState extends State<DebtPaymentView> {
             final formattedAmount = _numberFormat.format(state.amountToPay);
             if (_amountController.text != formattedAmount) {
               _amountController.removeListener(_onAmountChanged);
-              _amountController.value = TextEditingValue(text: formattedAmount, selection: TextSelection.collapsed(offset: formattedAmount.length));
+              _amountController.value = TextEditingValue(
+                  text: formattedAmount,
+                  selection: TextSelection.collapsed(offset: formattedAmount.length));
               _amountController.addListener(_onAmountChanged);
             }
           },
@@ -113,56 +119,87 @@ class _DebtPaymentViewState extends State<DebtPaymentView> {
             ),
             BlocBuilder<DebtPaymentCubit, DebtPaymentState>(
               builder: (context, state) {
-                return CustomScrollView(
-                  slivers: [
-                    SliverAppBar(
-                      expandedHeight: 120.0,
-                      pinned: true,
-                      backgroundColor: AppTheme.primaryGreen,
-                      leading: const BackButton(color: Colors.white),
-                      flexibleSpace: FlexibleSpaceBar(
-                        centerTitle: true,
-                        title: const Text('Thanh toán Công nợ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-                        background: Stack(
-                          children: [
-                            Container(decoration: const BoxDecoration(gradient: LinearGradient(colors: [AppTheme.primaryGreen, AppTheme.secondaryGreen], begin: Alignment.topLeft, end: Alignment.bottomRight))),
-                            Positioned.fill(child: CustomPaint(painter: NatureBackgroundPainter(color1: Colors.white.withValues(alpha: 0.1), color2: Colors.white.withValues(alpha: 0.05), accent: AppTheme.accentGold.withValues(alpha: 0.2)))),
-                          ],
+                return RefreshIndicator.adaptive(
+                  onRefresh: () => context.read<DebtPaymentCubit>().refreshDebt(),
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverAppBar(
+                        expandedHeight: 120.0,
+                        pinned: true,
+                        backgroundColor: AppTheme.primaryGreen,
+                        leading: const BackButton(color: Colors.white),
+                        flexibleSpace: FlexibleSpaceBar(
+                          centerTitle: true,
+                          title: const Text('Thanh toán Công nợ',
+                              style: TextStyle(
+                                  color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                          background: Stack(
+                            children: [
+                              Container(
+                                  decoration: const BoxDecoration(
+                                      gradient: LinearGradient(
+                                          colors: [AppTheme.primaryGreen, AppTheme.secondaryGreen],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight))),
+                              Positioned.fill(
+                                  child: CustomPaint(
+                                      painter: NatureBackgroundPainter(
+                                          color1: Colors.white.withValues(alpha: 0.1),
+                                          color2: Colors.white.withValues(alpha: 0.05),
+                                          accent: AppTheme.accentGold.withValues(alpha: 0.2)))),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0 + MediaQuery.of(context).padding.bottom),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildSummaryCard(context, state.currentUser.debtAmount).animate().slideY(begin: 0.2, end: 0, duration: 400.ms),
-                            const SizedBox(height: 24),
-                            Text('SỐ TIỀN THANH TOÁN', style: TextStyle(color: AppTheme.textGrey, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2)),
-                            const SizedBox(height: 12),
-                            _buildPaymentInput(context, state),
-                            const SizedBox(height: 32),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: state.status == DebtPaymentStatus.loading ? null : () => context.read<DebtPaymentCubit>().createDebtPaymentOrder(),
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                  elevation: 8,
-                                  shadowColor: AppTheme.primaryGreen.withValues(alpha: 0.4),
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                              16.0, 16.0, 16.0, 16.0 + MediaQuery.of(context).padding.bottom),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildSummaryCard(context, state.currentUser.debtAmount)
+                                  .animate()
+                                  .slideY(begin: 0.2, end: 0, duration: 400.ms),
+                              const SizedBox(height: 24),
+                              Text('SỐ TIỀN THANH TOÁN',
+                                  style: TextStyle(
+                                      color: AppTheme.textGrey,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      letterSpacing: 1.2)),
+                              const SizedBox(height: 12),
+                              _buildPaymentInput(context, state),
+                              const SizedBox(height: 32),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: state.status == DebtPaymentStatus.loading
+                                      ? null
+                                      : () => context.read<DebtPaymentCubit>().createDebtPaymentOrder(),
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                    elevation: 8,
+                                    shadowColor: AppTheme.primaryGreen.withValues(alpha: 0.4),
+                                  ),
+                                  child: state.status == DebtPaymentStatus.loading
+                                      ? const SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(
+                                              color: Colors.white, strokeWidth: 2))
+                                      : const Text('TẠO LỆNH THANH TOÁN',
+                                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                 ),
-                                child: state.status == DebtPaymentStatus.loading
-                                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                    : const Text('TẠO LỆNH THANH TOÁN', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 );
               },
             ),
@@ -171,7 +208,6 @@ class _DebtPaymentViewState extends State<DebtPaymentView> {
       ),
     );
   }
-
   Widget _buildSummaryCard(BuildContext context, double debtAmount) {
     final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     return Card(

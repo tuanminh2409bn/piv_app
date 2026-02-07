@@ -20,6 +20,7 @@ import 'package:piv_app/features/returns/presentation/bloc/admin_returns_cubit.d
 import 'package:piv_app/features/returns/presentation/pages/admin_return_requests_page.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_products_cubit.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_products_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/manual_notification_page.dart';
 
 
 class AccountantHomePage extends StatelessWidget {
@@ -41,6 +42,11 @@ class AccountantHomePage extends StatelessWidget {
           title: Text('Kế toán: ${user.displayName ?? ''}'),
           actions: [
             const NotificationIconWithBadge(),
+            IconButton(
+              icon: const Icon(Icons.send_rounded),
+              tooltip: 'Gửi thông báo',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManualNotificationPage())),
+            ),
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Đăng xuất',

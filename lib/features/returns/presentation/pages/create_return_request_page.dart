@@ -11,6 +11,7 @@ import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/core/theme/app_theme.dart';
 import 'package:piv_app/data/models/order_item_model.dart';
 import 'package:piv_app/data/models/order_model.dart';
+import 'package:piv_app/data/models/return_policy_config_model.dart'; // Added import
 import 'package:piv_app/features/returns/presentation/bloc/create_return_request_cubit.dart';
 
 class CreateReturnRequestPage extends StatelessWidget {
@@ -20,7 +21,7 @@ class CreateReturnRequestPage extends StatelessWidget {
   static PageRoute<void> route(OrderModel order) {
     return MaterialPageRoute<void>(
       builder: (_) => BlocProvider(
-        create: (_) => sl<CreateReturnRequestCubit>(),
+        create: (_) => sl<CreateReturnRequestCubit>()..loadPolicy(),
         child: CreateReturnRequestPage(order: order),
       ),
     );
@@ -91,18 +92,45 @@ class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
     final monthsDifference = daysDifference / 30;
 
     double penaltyPerCrate = 0;
-    if (monthsDifference > 24) {
-      _policyMessage = 'Đơn hàng quá 24 tháng. Có thể bị từ chối.';
-      penaltyPerCrate = 0;
-    } else if (monthsDifference > 12) {
-      _policyMessage = 'Phí phạt: 300.000 đ/thùng (sau 12 tháng)';
-      penaltyPerCrate = 300000;
-    } else if (monthsDifference > 3) {
-      _policyMessage = 'Phí phạt: 150.000 đ/thùng (sau 3 tháng)';
-      penaltyPerCrate = 150000;
+    final policy = state.policy;
+
+    if (policy != null) {
+      if (monthsDifference > policy.maxReturnMonths) {
+        _policyMessage = 'Đơn hàng quá ${policy.maxReturnMonths} tháng. Có thể bị từ chối.';
+        penaltyPerCrate = 0; // Hoặc xử lý khác tùy logic
+      } else {
+        // Tìm tier phù hợp
+        final tier = policy.tiers.firstWhere(
+          (t) => monthsDifference > t.minMonths && monthsDifference <= t.maxMonths,
+          orElse: () => policy.tiers.isNotEmpty
+            ? policy.tiers.last // Fallback an toàn
+            : const ReturnPolicyTier(minMonths: 0, maxMonths: 0, penaltyPerCrate: 0),
+        );
+        
+        // Fix trường hợp monthsDifference <= 0 hoặc min tier start 0
+        if (monthsDifference <= 0 && policy.tiers.isNotEmpty) {
+             penaltyPerCrate = policy.tiers.first.penaltyPerCrate;
+             _policyMessage = _getPolicyMessage(policy.tiers.first);
+        } else {
+             penaltyPerCrate = tier.penaltyPerCrate;
+             _policyMessage = _getPolicyMessage(tier);
+        }
+      }
     } else {
-      _policyMessage = 'Miễn phí đổi trả (trong 3 tháng đầu)';
-      penaltyPerCrate = 0;
+      // Fallback nếu chưa load được policy (giữ logic cũ hoặc hiện loading)
+      if (monthsDifference > 24) {
+        _policyMessage = 'Đơn hàng quá 24 tháng. Có thể bị từ chối.';
+        penaltyPerCrate = 0;
+      } else if (monthsDifference > 12) {
+        _policyMessage = 'Phí phạt: 300.000 đ/thùng (sau 12 tháng)';
+        penaltyPerCrate = 300000;
+      } else if (monthsDifference > 3) {
+        _policyMessage = 'Phí phạt: 150.000 đ/thùng (sau 3 tháng)';
+        penaltyPerCrate = 150000;
+      } else {
+        _policyMessage = 'Miễn phí đổi trả (trong 3 tháng đầu)';
+        penaltyPerCrate = 0;
+      }
     }
 
     double totalCratesToReturn = 0;
@@ -123,6 +151,14 @@ class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
             penaltyPerCrate > 0 ? totalCratesToReturn * penaltyPerCrate : 0.0;
       });
     }
+  }
+
+  String _getPolicyMessage(ReturnPolicyTier tier) {
+     final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+     if (tier.penaltyPerCrate == 0) {
+       return 'Miễn phí đổi trả (từ ${tier.minMonths} - ${tier.maxMonths} tháng)';
+     }
+     return 'Phí phạt: ${formatter.format(tier.penaltyPerCrate)}/thùng (từ ${tier.minMonths} - ${tier.maxMonths} tháng)';
   }
 
   @override

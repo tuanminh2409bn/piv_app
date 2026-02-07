@@ -37,18 +37,15 @@ class SalesRepAgentsPage extends StatelessWidget {
                   leading: CircleAvatar(child: Text(agent.displayName?[0].toUpperCase() ?? 'Đ')),
                   title: Text(agent.displayName ?? 'Chưa có tên', style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text('Cấp: ${agent.role.replaceAll('agent_', '')} - Trạng thái: ${agent.status}'),
-                  trailing: isActive
-                      ? IconButton(
-                          icon: const Icon(Icons.price_change_outlined, color: Colors.blue),
-                          tooltip: 'Cấu hình chiết khấu riêng',
-                          onPressed: () {
-                            Navigator.of(context).push(AgentDiscountConfigPage.route(
-                              user: agent,
-                              cubit: context.read<AdminUsersCubit>(),
-                            ));
-                          },
-                        )
-                      : null,
+                  trailing: IconButton(
+                    icon: const Icon(Icons.price_change_outlined, color: Colors.blue),
+                    tooltip: 'Cấu hình chiết khấu riêng',
+                    onPressed: () {
+                      Navigator.of(context).push(AgentDiscountConfigPage.route(
+                        user: agent,
+                      ));
+                    },
+                  ),
                   onTap: () => _showEditUserDialog(context, agent),
                 ),
               );
@@ -111,8 +108,8 @@ class SalesRepAgentsPage extends StatelessWidget {
                         }
                       },
                     ),
-                    // Chỉ hiển thị nút cấu hình nếu đã active
-                    if ((user.role == 'agent_1' || user.role == 'agent_2') && user.status == 'active') ...[
+                    // Chỉ hiển thị nút cấu hình nếu là đại lý
+                    if (user.role == 'agent_1' || user.role == 'agent_2') ...[
                       const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
@@ -123,7 +120,6 @@ class SalesRepAgentsPage extends StatelessWidget {
                             Navigator.of(dialogContext).pop();
                             Navigator.of(parentContext).push(AgentDiscountConfigPage.route(
                               user: user,
-                              cubit: cubit,
                             ));
                           },
                         ),

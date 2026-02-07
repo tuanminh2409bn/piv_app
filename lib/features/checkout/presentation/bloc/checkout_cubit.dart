@@ -216,7 +216,9 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     emit(state.copyWith(status: CheckoutStatus.loading));
     developer.log('CheckoutCubit: Loading checkout data...', name: 'CheckoutCubit');
 
-    final user = authState.user;
+    // LẤY THÔNG TIN NGƯỜI DÙNG MỚI NHẤT TỪ FIREBASE THAY VÌ DÙNG AUTHBLOC (VỐN CÓ THỂ BỊ CŨ)
+    final userProfileResult = await _userProfileRepository.getUserProfile(_currentUserId);
+    final user = userProfileResult.getOrElse(() => authState.user);
 
     final addresses = user.addresses;
     AddressModel? defaultAddress;
@@ -232,7 +234,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     final subtotal = itemsToCheckout.fold<double>(0.0, (sum, item) => sum + item.subtotal);
     const shippingFee = 0.0;
 
-    // LẤY CÔNG NỢ TỪ USER MODEL
+    // LẤY CÔNG NỢ TỪ USER MODEL MỚI NHẤT
     final currentDebt = user.debtAmount;
 
     final shouldCalculateDiscount = user.activeRewardProgram == 'instant_discount' && itemsToCheckout.isNotEmpty;
@@ -250,7 +252,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       forceVoucherToNull: true,
       discount: 0.0,
       commissionDiscount: 0.0,
-      currentDebt: currentDebt,      // <-- Gán công nợ
+      currentDebt: currentDebt,      // <-- Gán công nợ mới nhất
       amountToPay: initialTotal,     // <-- Mặc định cho người dùng trả hết
     ));
 

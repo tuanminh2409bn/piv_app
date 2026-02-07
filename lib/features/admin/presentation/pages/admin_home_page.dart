@@ -18,6 +18,8 @@ import 'package:piv_app/features/notifications/presentation/widgets/notification
 import 'package:piv_app/features/returns/presentation/pages/admin_return_requests_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/discount_settings_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/price_approval_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/return_policy_config_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_discount_requests_page.dart';
 
 class AdminHomePage extends StatelessWidget {
   const AdminHomePage({super.key});
@@ -59,6 +61,11 @@ class AdminHomePage extends StatelessWidget {
               onTap: () => Navigator.of(context).push(PriceApprovalPage.route()),
             ),
             _DashboardCard(
+              title: 'Duyệt Chiết Khấu',
+              icon: Icons.assignment_turned_in_outlined,
+              onTap: () => Navigator.of(context).push(AdminDiscountRequestsPage.route()),
+            ),
+            _DashboardCard(
               title: 'Cấu hình Chiết khấu',
               icon: Icons.price_change_outlined,
               onTap: () => Navigator.of(context).push(DiscountSettingsPage.route()),
@@ -67,6 +74,11 @@ class AdminHomePage extends StatelessWidget {
               title: 'Quản lý Đổi/Trả',
               icon: Icons.sync_problem_outlined,
               onTap: () => Navigator.of(context).push(AdminReturnRequestsPage.route()),
+            ),
+            _DashboardCard(
+              title: 'Cấu hình Đổi Trả',
+              icon: Icons.settings_backup_restore_outlined,
+              onTap: () => Navigator.of(context).push(ReturnPolicyConfigPage.route()),
             ),
             _DashboardCard(
               title: 'Sản phẩm',

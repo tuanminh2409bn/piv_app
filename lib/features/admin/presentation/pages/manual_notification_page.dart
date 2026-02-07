@@ -3,7 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/data/models/user_model.dart';
+import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 
 // Model đơn giản để chứa thông tin NVKD
 class SalesRep {
@@ -40,8 +42,17 @@ class _ManualNotificationPageState extends State<ManualNotificationPage> {
   @override
   void initState() {
     super.initState();
-    _fetchSalesReps();
-    _fetchAllAgents(); // Tải sẵn danh sách đại lý
+    // Lấy role ngay khi init để load dữ liệu phù hợp
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authState = context.read<AuthBloc>().state;
+      if (authState is AuthAuthenticated) {
+        final role = authState.user.role;
+        if (role != 'sales_rep') {
+           _fetchSalesReps();
+        }
+        _fetchAllAgents(role, authState.user.id);
+      }
+    });
   }
 
   Future<void> _fetchSalesReps() async {
@@ -61,14 +72,20 @@ class _ManualNotificationPageState extends State<ManualNotificationPage> {
     }
   }
 
-  Future<void> _fetchAllAgents() async {
+  Future<void> _fetchAllAgents(String role, String userId) async {
     setState(() => _isLoadingAgents = true);
     try {
-      final snapshot = await FirebaseFirestore.instance
+      var query = FirebaseFirestore.instance
           .collection('users')
           .where('role', whereIn: ['agent_1', 'agent_2'])
-          .where('status', isEqualTo: 'active')
-          .get();
+          .where('status', isEqualTo: 'active');
+      
+      // Nếu là Sales Rep, chỉ lấy đại lý của mình
+      if (role == 'sales_rep') {
+        query = query.where('salesRepId', isEqualTo: userId);
+      }
+
+      final snapshot = await query.get();
       
       final agents = snapshot.docs.map((doc) => UserModel.fromJson(doc.data())).toList();
       if (mounted) setState(() => _allAgents = agents);
@@ -229,6 +246,9 @@ class _ManualNotificationPageState extends State<ManualNotificationPage> {
   }
 
   Widget _buildTargetSelection() {
+    final authState = context.read<AuthBloc>().state;
+    final isSalesRep = (authState is AuthAuthenticated) && authState.user.role == 'sales_rep';
+
     return Card(
       elevation: 2,
       child: Padding(
@@ -238,39 +258,43 @@ class _ManualNotificationPageState extends State<ManualNotificationPage> {
           children: [
             const Text('Gửi đến:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             RadioListTile<TargetMode>(
-              title: const Text('Tất cả Đại lý'),
+              title: Text(isSalesRep ? 'Tất cả đại lý của tôi' : 'Tất cả Đại lý'),
               value: TargetMode.all,
               groupValue: _targetMode,
               onChanged: (val) => setState(() => _targetMode = val!),
               contentPadding: EdgeInsets.zero,
             ),
-            RadioListTile<TargetMode>(
-              title: const Text('Theo nhóm NVKD quản lý'),
-              value: TargetMode.salesGroup,
-              groupValue: _targetMode,
-              onChanged: (val) => setState(() => _targetMode = val!),
-              contentPadding: EdgeInsets.zero,
-            ),
-            if (_targetMode == TargetMode.salesGroup)
-              Padding(
-                padding: const EdgeInsets.only(left: 16, bottom: 8),
-                child: DropdownButtonFormField<SalesRep?>(
-                  value: _selectedSalesRep,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    hintText: 'Chọn NVKD',
-                    isDense: true,
-                  ),
-                  items: _salesReps.map((rep) {
-                    return DropdownMenuItem<SalesRep?>(
-                      value: rep,
-                      child: Text(rep.name),
-                    );
-                  }).toList(),
-                  onChanged: (value) => setState(() => _selectedSalesRep = value),
-                ),
+            
+            if (!isSalesRep) ...[
+              RadioListTile<TargetMode>(
+                title: const Text('Theo nhóm NVKD quản lý'),
+                value: TargetMode.salesGroup,
+                groupValue: _targetMode,
+                onChanged: (val) => setState(() => _targetMode = val!),
+                contentPadding: EdgeInsets.zero,
               ),
+              if (_targetMode == TargetMode.salesGroup)
+                Padding(
+                  padding: const EdgeInsets.only(left: 16, bottom: 8),
+                  child: DropdownButtonFormField<SalesRep?>(
+                    value: _selectedSalesRep,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      hintText: 'Chọn NVKD',
+                      isDense: true,
+                    ),
+                    items: _salesReps.map((rep) {
+                      return DropdownMenuItem<SalesRep?>(
+                        value: rep,
+                        child: Text(rep.name),
+                      );
+                    }).toList(),
+                    onChanged: (value) => setState(() => _selectedSalesRep = value),
+                  ),
+                ),
+            ],
+
             RadioListTile<TargetMode>(
               title: const Text('Chọn Đại lý cụ thể'),
               value: TargetMode.specific,

@@ -6,6 +6,7 @@ import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/orders/domain/repositories/order_repository.dart';
+import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
 import 'dart:developer' as developer;
 
 part 'debt_payment_state.dart';
@@ -13,28 +14,50 @@ part 'debt_payment_state.dart';
 class DebtPaymentCubit extends Cubit<DebtPaymentState> {
   final AuthBloc _authBloc;
   final OrderRepository _orderRepository;
+  final UserProfileRepository _userProfileRepository;
 
   DebtPaymentCubit({
     required AuthBloc authBloc,
     required OrderRepository orderRepository,
+    required UserProfileRepository userProfileRepository,
   })  : _authBloc = authBloc,
         _orderRepository = orderRepository,
+        _userProfileRepository = userProfileRepository,
         super(const DebtPaymentState()) {
     _loadInitialData();
   }
 
-  void _loadInitialData() {
+  Future<void> _loadInitialData() async {
     final authState = _authBloc.state;
     if (authState is AuthAuthenticated) {
       final user = authState.user;
-      // --- BẮT ĐẦU SỬA LỖI ---
-      // Khởi tạo người dùng nhưng số tiền thanh toán ban đầu là 0
       emit(state.copyWith(
         currentUser: user,
         amountToPay: 0.0,
       ));
-      // --- KẾT THÚC SỬA LỖI ---
+      // Tự động làm mới dữ liệu khi vào trang
+      await refreshDebt();
     }
+  }
+
+  Future<void> refreshDebt() async {
+    if (state.currentUser.isEmpty) return;
+    
+    emit(state.copyWith(status: DebtPaymentStatus.loading));
+    
+    final result = await _userProfileRepository.getUserProfile(state.currentUser.id);
+    
+    result.fold(
+      (failure) {
+        emit(state.copyWith(status: DebtPaymentStatus.error, errorMessage: "Không thể làm mới dữ liệu công nợ."));
+      },
+      (updatedUser) {
+        emit(state.copyWith(
+          currentUser: updatedUser,
+          status: DebtPaymentStatus.initial,
+        ));
+      },
+    );
   }
 
   void updateAmountToPay(double amount) {

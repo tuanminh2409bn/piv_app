@@ -962,60 +962,232 @@ class _ReturnExchangeButton extends StatelessWidget {
 // UI COMPONENTS
 // -----------------------------------------------------------------------------
 
-class _PaymentQrInfo extends StatelessWidget {
+class _PaymentQrInfo extends StatefulWidget {
   final PaymentInfoModel paymentInfo;
   final OrderModel order;
   const _PaymentQrInfo({required this.paymentInfo, required this.order});
+
+  @override
+  State<_PaymentQrInfo> createState() => _PaymentQrInfoState();
+}
+
+class _PaymentQrInfoState extends State<_PaymentQrInfo> {
+  int _selectedAccountIndex = 0; // 0: Công ty, 1: Cá nhân 1, 2: Cá nhân 2
+
+  // --- THÔNG TIN TÀI KHOẢN ---
+  // Để quét ra số tiền tự động, cả 3 tài khoản đều dùng cơ chế VietQR động
+  List<Map<String, String>> get _accounts => [
+    {
+      'type': 'COMPANY',
+      'label': 'TÀI KHOẢN CÔNG TY',
+      'bank': 'Techcombank',
+      'holder': 'CONG TY TNHH MTV PIV',
+      'number': '1948883383',
+      'bankId': 'TCB', 
+    },
+    {
+      'type': 'PERSONAL',
+      'label': 'TÀI KHOẢN CÁ NHÂN 1',
+      'bank': 'VPBank', 
+      'holder': 'LUONG MAI NAM',
+      'number': '999888777666', 
+      'bankId': 'VPB',
+    },
+    {
+      'type': 'PERSONAL',
+      'label': 'TÀI KHOẢN CÁ NHÂN 2',
+      'bank': 'MB Bank',
+      'holder': 'LUONG MAI NAM',
+      'number': '0327284001',
+      'bankId': 'MB',
+    },
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final shortOrderId = order.id?.substring(0, 8).toUpperCase() ?? 'DONHANG';
+    final shortOrderId = widget.order.id?.substring(0, 8).toUpperCase() ?? 'DONHANG';
     final paymentContent = 'PIV DH $shortOrderId';
+    final amount = widget.order.finalTotal;
+    
+    final selectedAcc = _accounts[_selectedAccountIndex];
+    final bool isCompany = selectedAcc['type'] == 'COMPANY';
+
+    // Tạo link VietQR động cho tất cả các tài khoản
+    // template 'compact2' hiển thị mã QR kèm logo ngân hàng gọn đẹp
+    final qrUrl = 'https://img.vietqr.io/image/${selectedAcc['bankId']}-${selectedAcc['number']}-compact2.png?amount=${amount.toInt()}&addInfo=${Uri.encodeComponent(paymentContent)}&accountName=${Uri.encodeComponent(selectedAcc['holder']!)}';
 
     return Column(
       children: [
-        if (paymentInfo.qrCodeImageUrl.isNotEmpty)
-          Image.network(
-            paymentInfo.qrCodeImageUrl,
-            height: 300,
-            fit: BoxFit.contain,
-            loadingBuilder: (context, child, progress) => progress == null
-                ? child
-                : const Center(child: CircularProgressIndicator()),
-            errorBuilder: (context, error, stack) => const Text('Lỗi tải mã QR'),
-          ),
+        const Text('Chọn tài khoản chuyển khoản:', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark)),
         const SizedBox(height: 12),
+        
+        // --- NÚT CHỌN TÀI KHOẢN ---
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: List.generate(_accounts.length, (index) {
+              final acc = _accounts[index];
+              final isSelected = _selectedAccountIndex == index;
+              final isAccCompany = acc['type'] == 'COMPANY';
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: ChoiceChip(
+                  label: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(acc['label']!, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : (isAccCompany ? AppTheme.primaryGreen : Colors.blue))),
+                      Text(acc['bank']!, style: TextStyle(fontSize: 12, color: isSelected ? Colors.white : Colors.black87)),
+                    ],
+                  ),
+                  selected: isSelected,
+                  onSelected: (bool selected) {
+                    if (selected) setState(() => _selectedAccountIndex = index);
+                  },
+                  selectedColor: isAccCompany ? AppTheme.primaryGreen : Colors.blue,
+                  backgroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: isAccCompany ? AppTheme.primaryGreen : Colors.blue, width: 1.5),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  showCheckmark: false,
+                ),
+              );
+            }),
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        // --- KHUNG HIỂN THỊ MÃ QR ---
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: isCompany ? AppTheme.primaryGreen.withValues(alpha: 0.2) : Colors.blue.withValues(alpha: 0.2), width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: (isCompany ? AppTheme.primaryGreen : Colors.blue).withValues(alpha: 0.08),
+                blurRadius: 30,
+                spreadRadius: 5,
+                offset: const Offset(0, 10),
+              )
+            ]
+          ),
+          child: Column(
+            children: [
+              // Badge phân biệt loại tài khoản
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isCompany ? AppTheme.primaryGreen : Colors.blue,
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(isCompany ? Icons.business : Icons.person, color: Colors.white, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      selectedAcc['label']!,
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              // Ảnh QR
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  qrUrl,
+                  height: 300,
+                  width: 300,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, progress) => progress == null
+                      ? child
+                      : const SizedBox(height: 300, width: 300, child: Center(child: CircularProgressIndicator())),
+                  errorBuilder: (context, error, stack) => const SizedBox(height: 300, width: 300, child: Center(child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red, size: 40),
+                      SizedBox(height: 8),
+                      Text('Không thể tạo mã QR', style: TextStyle(color: Colors.grey)),
+                    ],
+                  ))),
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 8),
+              
+              // Thông tin văn bản bên dưới QR
+              Text(selectedAcc['holder']!, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1)),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('${selectedAcc['bank']} - ', style: const TextStyle(fontSize: 15, color: Colors.grey)),
+                  SelectableText(selectedAcc['number']!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        // --- NỘI DUNG CHUYỂN KHOẢN (VẪN GIỮ ĐỂ KHÁCH KIỂM TRA) ---
+        Container(
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
               color: Colors.amber.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.amber.shade400)),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.amber.shade300)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Nội dung chuyển khoản (bắt buộc):',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.info_outline, size: 18, color: Colors.amber.shade900),
+                  const SizedBox(width: 8),
+                  const Text('Nội dung chuyển khoản:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                ],
+              ),
+              const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
                       child: Text(paymentContent,
                           style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red))),
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.copy_all_outlined, size: 16),
-                    label: const Text('Sao chép'),
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.redAccent))),
+                  ElevatedButton.icon(
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: paymentContent));
                       ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Đã sao chép nội dung chuyển khoản!')));
+                          const SnackBar(content: Text('Đã sao chép nội dung!'), behavior: SnackBarBehavior.floating));
                     },
+                    icon: const Icon(Icons.copy, size: 16),
+                    label: const Text('SAO CHÉP'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.blue,
+                      elevation: 0,
+                      side: const BorderSide(color: Colors.blue),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                    ),
                   )
                 ],
-              )
+              ),
+              const SizedBox(height: 4),
+              const Text('* Quét mã QR để tự động điền thông tin này.', style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey)),
             ],
           ),
         ),

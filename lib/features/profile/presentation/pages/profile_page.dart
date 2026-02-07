@@ -138,7 +138,7 @@ class ProfileView extends StatelessWidget {
                         const SizedBox(height: 40),
                         Center(
                           child: Text(
-                            'Phiên bản 1.0.2', 
+                            'Phiên bản 1.0.1',
                             style: TextStyle(color: Colors.grey.withValues(alpha: 0.5), fontSize: 12)
                           ),
                         ),

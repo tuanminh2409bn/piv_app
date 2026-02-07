@@ -62,12 +62,13 @@ class CheckoutPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const CheckoutView();
+    return CheckoutView(buyNowItems: buyNowItems);
   }
 }
 
 class CheckoutView extends StatefulWidget {
-  const CheckoutView({super.key});
+  final List<CartItemModel>? buyNowItems;
+  const CheckoutView({super.key, this.buyNowItems});
 
   @override
   State<CheckoutView> createState() => _CheckoutViewState();
@@ -144,37 +145,41 @@ class _CheckoutViewState extends State<CheckoutView> {
               scrolledUnderElevation: 2,
               backgroundColor: Colors.white,
             ),
-            body: SingleChildScrollView(
-              // 2. Padding động theo bàn phím để đẩy nội dung lên
-              // Thêm padding.bottom để tránh thanh điều hướng
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 100 + MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionTitle('ĐỊA CHỈ NHẬN HÀNG', icon: Icons.location_on),
-                  const SizedBox(height: 12),
-                  _buildAddressSection(context).animate().fadeIn(duration: 400.ms).slideX(begin: -0.1, end: 0),
+            body: RefreshIndicator.adaptive(
+              onRefresh: () => context.read<CheckoutCubit>().loadCheckoutData(buyNowItems: widget.buyNowItems),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                // 2. Padding động theo bàn phím để đẩy nội dung lên
+                // Thêm padding.bottom để tránh thanh điều hướng
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 100 + MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionTitle('ĐỊA CHỈ NHẬN HÀNG', icon: Icons.location_on),
+                    const SizedBox(height: 12),
+                    _buildAddressSection(context).animate().fadeIn(duration: 400.ms).slideX(begin: -0.1, end: 0),
 
-                  const SizedBox(height: 24),
-                  _buildSectionTitle('SẢN PHẨM', icon: Icons.shopping_bag_outlined),
-                  const SizedBox(height: 12),
-                  _buildOrderItems(context).animate(delay: 100.ms).fadeIn().slideX(begin: 0.1, end: 0),
+                    const SizedBox(height: 24),
+                    _buildSectionTitle('SẢN PHẨM', icon: Icons.shopping_bag_outlined),
+                    const SizedBox(height: 12),
+                    _buildOrderItems(context).animate(delay: 100.ms).fadeIn().slideX(begin: 0.1, end: 0),
 
-                  const SizedBox(height: 24),
-                  _buildSectionTitle('KHUYẾN MÃI', icon: Icons.local_offer_outlined),
-                  const SizedBox(height: 12),
-                  _buildVoucherSection(context).animate(delay: 200.ms).fadeIn().slideY(begin: 0.1, end: 0),
+                    const SizedBox(height: 24),
+                    _buildSectionTitle('KHUYẾN MÃI', icon: Icons.local_offer_outlined),
+                    const SizedBox(height: 12),
+                    _buildVoucherSection(context).animate(delay: 200.ms).fadeIn().slideY(begin: 0.1, end: 0),
 
-                  const SizedBox(height: 24),
-                  _buildSectionTitle('THANH TOÁN', icon: Icons.payment),
-                  const SizedBox(height: 12),
-                  _buildOrderSummary(context, state, _currencyFormatter).animate(delay: 300.ms).fadeIn(),
+                    const SizedBox(height: 24),
+                    _buildSectionTitle('THANH TOÁN', icon: Icons.payment),
+                    const SizedBox(height: 12),
+                    _buildOrderSummary(context, state, _currencyFormatter).animate(delay: 300.ms).fadeIn(),
 
-                  if (state.totalWithDebt > 0) ...[
-                     const SizedBox(height: 24),
-                    _buildPaymentInputSection(context, state, _currencyFormatter).animate(delay: 400.ms).fadeIn(),
+                    if (state.totalWithDebt > 0) ...[
+                       const SizedBox(height: 24),
+                      _buildPaymentInputSection(context, state, _currencyFormatter).animate(delay: 400.ms).fadeIn(),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
             bottomNavigationBar: _buildBottomBar(context, state, _currencyFormatter),

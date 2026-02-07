@@ -6,17 +6,33 @@ import 'package:equatable/equatable.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:piv_app/data/models/order_item_model.dart';
 import 'package:piv_app/data/models/order_model.dart';
+import 'package:piv_app/data/models/return_policy_config_model.dart';
 import 'package:piv_app/features/returns/domain/entities/return_request_item.dart';
 import 'package:piv_app/features/returns/domain/repositories/return_repository.dart';
+import 'package:piv_app/features/returns/domain/repositories/return_settings_repository.dart';
 
 part 'create_return_request_state.dart';
 
 class CreateReturnRequestCubit extends Cubit<CreateReturnRequestState> {
   final ReturnRepository _returnRepository;
+  final ReturnSettingsRepository _settingsRepository;
 
-  CreateReturnRequestCubit({required ReturnRepository returnRepository})
-      : _returnRepository = returnRepository,
+  CreateReturnRequestCubit({
+    required ReturnRepository returnRepository,
+    required ReturnSettingsRepository settingsRepository,
+  })  : _returnRepository = returnRepository,
+        _settingsRepository = settingsRepository,
         super(const CreateReturnRequestState());
+
+  Future<void> loadPolicy() async {
+    try {
+      final policy = await _settingsRepository.getReturnPolicy();
+      emit(state.copyWith(policy: policy));
+    } catch (e) {
+      // Keep default policy or handle error
+      emit(state.copyWith(errorMessage: 'Không thể tải chính sách đổi trả: $e'));
+    }
+  }
 
   void updateReturnQuantity(OrderItemModel item, int newQuantity) {
     final currentItems = Map<String, int>.from(state.returnedItems);
@@ -53,7 +69,7 @@ class CreateReturnRequestCubit extends Cubit<CreateReturnRequestState> {
     required String reason,
     required String userNotes,
     required double penaltyFee,
-    required double refundAmount, // <<< THÊM MỚI
+    required double refundAmount,
   }) async {
     if (state.returnedItems.isEmpty || state.returnedItems.values.every((qty) => qty == 0)) {
       emit(state.copyWith(status: CreateReturnRequestStatus.error, errorMessage: 'Vui lòng chọn số lượng cần trả cho ít nhất một sản phẩm.'));
@@ -90,7 +106,7 @@ class CreateReturnRequestCubit extends Cubit<CreateReturnRequestState> {
       images: state.images,
       userNotes: userNotes,
       penaltyFee: penaltyFee,
-      refundAmount: refundAmount, // <<< THÊM MỚI
+      refundAmount: refundAmount,
     );
 
     result.fold(

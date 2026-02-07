@@ -99,6 +99,52 @@ class AdminUsersView extends StatelessWidget {
     );
   }
 
+  Widget _buildAllAgentsList(BuildContext context, List<UserModel> agents) {
+    if (agents.isEmpty) return const _EmptyStateCard(message: 'Không có đại lý nào.');
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: agents.length,
+      itemBuilder: (context, index) {
+        final agent = agents[index];
+        final isAgentRole = agent.role == 'agent_1' || agent.role == 'agent_2';
+
+        return Card(
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+              child: Text(agent.displayName?[0].toUpperCase() ?? 'Đ', style: TextStyle(color: Theme.of(context).primaryColor)),
+            ),
+            title: Text(agent.displayName ?? 'Chưa có tên', style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text('Cấp: ${agent.role.replaceAll('agent_', '')} - Trạng thái: ${agent.status}'),
+            trailing: isAgentRole
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.percent, color: Colors.blue),
+                        tooltip: 'Chiết khấu',
+                        onPressed: () {
+                          Navigator.of(context).push(AgentDiscountConfigPage.route(user: agent));
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.price_change_outlined, color: Colors.orange),
+                        tooltip: 'Giá riêng',
+                        onPressed: () {
+                          Navigator.of(context).push(AgentSpecialPricePage.route(user: agent));
+                        },
+                      ),
+                    ],
+                  )
+                : null,
+            onTap: () => _showEditUserDialog(context, agent),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildSectionHeader(BuildContext context, String title, IconData icon, {required int count}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
@@ -161,7 +207,6 @@ class AdminUsersView extends StatelessWidget {
       itemCount: agents.length,
       itemBuilder: (context, index) {
         final agent = agents[index];
-        final isActive = agent.status == 'active';
 
         return Card(
           color: Colors.orange.shade50,
@@ -169,18 +214,6 @@ class AdminUsersView extends StatelessWidget {
             leading: CircleAvatar(backgroundColor: Colors.orange.shade100, child: const Icon(Icons.person_outline, color: Colors.orange)),
             title: Text(agent.displayName ?? 'Chưa có tên'),
             subtitle: Text(agent.email ?? 'Chưa có email'),
-            trailing: isActive
-                ? IconButton(
-                    icon: const Icon(Icons.price_change_outlined, color: Colors.blue),
-                    tooltip: 'Cấu hình chiết khấu riêng',
-                    onPressed: () {
-                      Navigator.of(context).push(AgentDiscountConfigPage.route(
-                        user: agent,
-                        cubit: context.read<AdminUsersCubit>(),
-                      ));
-                    },
-                  )
-                : null,
             onTap: () => _showEditUserDialog(context, agent),
           ),
         );
@@ -294,8 +327,8 @@ class AdminUsersView extends StatelessWidget {
                         }
                       },
                     ),
-                    // Chỉ hiển thị nút cấu hình nếu là đại lý VÀ đã active
-                    if ((userToEdit.role == 'agent_1' || userToEdit.role == 'agent_2') && userToEdit.status == 'active') ...[
+                    // Chỉ hiển thị nút cấu hình nếu có vai trò là đại lý
+                    if (userToEdit.role == 'agent_1' || userToEdit.role == 'agent_2') ...[
                       const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
@@ -306,7 +339,6 @@ class AdminUsersView extends StatelessWidget {
                             Navigator.of(dialogContext).pop();
                             Navigator.of(parentContext).push(AgentDiscountConfigPage.route(
                               user: userToEdit,
-                              cubit: cubit,
                             ));
                           },
                         ),

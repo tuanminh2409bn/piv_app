@@ -354,6 +354,8 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
   }
 
   void _showWinDialog(BuildContext context) {
+    final isNoPrize = _lastWinningReward!.name.toLowerCase().contains('không trúng');
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -364,38 +366,64 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.accentGold, width: 4),
+            border: Border.all(color: isNoPrize ? Colors.grey : AppTheme.accentGold, width: 4),
             boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 20)],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.emoji_events, size: 70, color: AppTheme.accentGold)
-                  .animate().scale(duration: 600.ms, curve: Curves.elasticOut).shimmer(),
+              Icon(
+                isNoPrize ? Icons.sentiment_dissatisfied : Icons.emoji_events,
+                size: 70,
+                color: isNoPrize ? Colors.grey : AppTheme.accentGold,
+              ).animate().scale(duration: 600.ms, curve: Curves.elasticOut).shimmer(),
               const SizedBox(height: 16),
-              const Text('CHÚC MỪNG!',
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen)),
-              const SizedBox(height: 16),
-              const Text('Bạn đã trúng phần thưởng:', textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppTheme.accentGold.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  _lastWinningReward!.name,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
-                  textAlign: TextAlign.center,
+              Text(
+                isNoPrize ? 'RẤT TIẾC!' : 'CHÚC MỪNG!',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: isNoPrize ? AppTheme.textGrey : AppTheme.primaryGreen,
                 ),
               ),
+              const SizedBox(height: 16),
+              Text(
+                isNoPrize
+                    ? 'Rất tiếc bạn đã không trúng phần thưởng nào.'
+                    : 'Bạn đã trúng phần thưởng:',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16),
+              ),
+              if (isNoPrize)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8.0),
+                  child: Text(
+                    'Chúc bạn may mắn lần sau nhé!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, fontStyle: FontStyle.italic, color: AppTheme.textGrey),
+                  ),
+                )
+              else ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentGold.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _lastWinningReward!.name,
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
               const SizedBox(height: 30),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryGreen,
+                    backgroundColor: isNoPrize ? AppTheme.errorRed : AppTheme.primaryGreen,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -404,7 +432,10 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
                     Navigator.of(ctx).pop();
                     context.read<LuckyWheelCubit>().acknowledgeReward();
                   },
-                  child: const Text('NHẬN THƯỞNG', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  child: Text(
+                    isNoPrize ? 'ĐÓNG' : 'NHẬN THƯỞNG',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
                 ),
               ),
             ],

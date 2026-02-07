@@ -10,16 +10,18 @@ class CreateReturnRequestState extends Equatable {
   final List<File> images;
   final CreateReturnRequestStatus status;
   final String? errorMessage;
+  final ReturnPolicyConfigModel? policy;
 
   const CreateReturnRequestState({
     this.returnedItems = const {},
     this.images = const [],
     this.status = CreateReturnRequestStatus.initial,
     this.errorMessage,
+    this.policy,
   });
 
   @override
-  List<Object?> get props => [returnedItems, images, status, errorMessage];
+  List<Object?> get props => [returnedItems, images, status, errorMessage, policy];
 
   CreateReturnRequestState copyWith({
     Map<String, int>? returnedItems,
@@ -27,12 +29,14 @@ class CreateReturnRequestState extends Equatable {
     CreateReturnRequestStatus? status,
     String? errorMessage,
     bool clearError = false,
+    ReturnPolicyConfigModel? policy,
   }) {
     return CreateReturnRequestState(
       returnedItems: returnedItems ?? this.returnedItems,
       images: images ?? this.images,
       status: status ?? this.status,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
+      policy: policy ?? this.policy,
     );
   }
 }

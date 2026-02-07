@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:piv_app/features/admin/data/models/discount_policy_model.dart';
+import 'package:piv_app/data/models/return_policy_config_model.dart';
 import 'package:piv_app/features/admin/domain/repositories/admin_settings_repository.dart';
 
 class AdminSettingsRepositoryImpl implements AdminSettingsRepository {
@@ -28,6 +29,29 @@ class AdminSettingsRepositoryImpl implements AdminSettingsRepository {
       await _firestore.collection('settings').doc('discount_policy').set(policy.toJson());
     } catch (e) {
       throw Exception('Failed to update discount policy: $e');
+    }
+  }
+
+  @override
+  Future<ReturnPolicyConfigModel> getReturnPolicy() async {
+    try {
+      final doc = await _firestore.collection('settings').doc('return_policy').get();
+      if (doc.exists && doc.data() != null) {
+        return ReturnPolicyConfigModel.fromJson(doc.data()!);
+      } else {
+        return ReturnPolicyConfigModel.defaultPolicy();
+      }
+    } catch (e) {
+      throw Exception('Failed to load return policy: $e');
+    }
+  }
+
+  @override
+  Future<void> updateReturnPolicy(ReturnPolicyConfigModel policy) async {
+    try {
+      await _firestore.collection('settings').doc('return_policy').set(policy.toJson());
+    } catch (e) {
+      throw Exception('Failed to update return policy: $e');
     }
   }
 }

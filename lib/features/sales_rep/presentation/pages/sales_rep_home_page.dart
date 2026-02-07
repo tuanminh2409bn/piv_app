@@ -22,6 +22,8 @@ import 'package:piv_app/features/notifications/presentation/widgets/notification
 import 'package:piv_app/features/admin/presentation/bloc/admin_products_cubit.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_products_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/agent_special_price_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/agent_discount_config_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/manual_notification_page.dart';
 
 
 class SalesRepHomePage extends StatelessWidget {
@@ -58,6 +60,11 @@ class SalesRepView extends StatelessWidget {
           title: Text('Chào, ${user.displayName ?? user.email}'),
           actions: [
             const NotificationIconWithBadge(),
+            IconButton(
+              icon: const Icon(Icons.send_rounded),
+              tooltip: 'Gửi thông báo',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManualNotificationPage())),
+            ),
             IconButton(
               icon: const Icon(Icons.qr_code_2_outlined),
               tooltip: 'Mã QR Giới thiệu',
@@ -246,6 +253,8 @@ class MyAgentsView extends StatelessWidget {
                         Navigator.of(context).push(ManageQuickOrderListPage.route(agent));
                       } else if (value == 'special_price') {
                         Navigator.of(context).push(AgentSpecialPricePage.route(user: agent));
+                      } else if (value == 'discount_config') {
+                        Navigator.of(context).push(AgentDiscountConfigPage.route(user: agent));
                       }
                     },
                     // <<< THÊM ITEM MỚI VÀO MENU >>>
@@ -261,6 +270,10 @@ class MyAgentsView extends StatelessWidget {
                       const PopupMenuItem<String>(
                         value: 'special_price',
                         child: ListTile(leading: Icon(Icons.price_change), title: Text('Cấu hình giá riêng')),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'discount_config',
+                        child: ListTile(leading: Icon(Icons.percent), title: Text('Cấu hình chiết khấu')),
                       ),
                       const PopupMenuDivider(),
                       const PopupMenuItem<String>(
@@ -347,13 +360,31 @@ class PendingAgentsView extends StatelessWidget {
         ),
         title: Text(agentName, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(agent.email ?? 'Chưa có thông tin liên hệ'),
-        trailing: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green.shade600,
-            foregroundColor: Colors.white,
-          ),
-          onPressed: () => _showApprovalOptionsDialog(context, agent),
-          child: const Text('Duyệt'),
+        trailing: PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert),
+          onSelected: (value) {
+            if (value == 'approve') {
+              _showApprovalOptionsDialog(context, agent);
+            } else if (value == 'special_price') {
+              Navigator.of(context).push(AgentSpecialPricePage.route(user: agent));
+            } else if (value == 'discount_config') {
+              Navigator.of(context).push(AgentDiscountConfigPage.route(user: agent));
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'approve',
+              child: ListTile(leading: Icon(Icons.check_circle_outline, color: Colors.green), title: Text('Duyệt ngay')),
+            ),
+            const PopupMenuItem(
+              value: 'special_price',
+              child: ListTile(leading: Icon(Icons.price_change), title: Text('Cấu hình giá riêng')),
+            ),
+            const PopupMenuItem(
+              value: 'discount_config',
+              child: ListTile(leading: Icon(Icons.percent), title: Text('Cấu hình chiết khấu')),
+            ),
+          ],
         ),
       ),
     );

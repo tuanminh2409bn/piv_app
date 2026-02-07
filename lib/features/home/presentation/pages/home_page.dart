@@ -96,9 +96,9 @@ class HomeView extends StatelessWidget {
                     _SectionHeader(title: 'TIN TỨC & SỰ KIỆN'),
                     _NewsList(newsArticles: state.newsArticles),
                     
-                    const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                    const SliverToBoxAdapter(child: SizedBox(height: 120)),
                   ],
-                ), // Bỏ .animate() ở đây nếu có
+                ), 
               );
             },
           ),

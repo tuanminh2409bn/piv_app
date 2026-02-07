@@ -112,7 +112,7 @@ class AllCategoriesPage extends StatelessWidget {
                   ),
                 ),
                 
-               const SliverToBoxAdapter(child: SizedBox(height: 40)), // Padding bottom
+               const SliverToBoxAdapter(child: SizedBox(height: 120)), // Padding bottom
             ],
           );
         },
