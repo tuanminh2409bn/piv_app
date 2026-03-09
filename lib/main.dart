@@ -21,6 +21,7 @@ import 'package:piv_app/core/theme/app_theme.dart';
 
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
+import 'package:piv_app/features/auth/presentation/pages/complete_profile_page.dart';
 import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
 import 'package:piv_app/features/main/presentation/pages/main_screen.dart';
 import 'package:piv_app/features/profile/presentation/bloc/profile_cubit.dart';
@@ -144,6 +145,9 @@ class InitialScreenController extends StatelessWidget {
           else {
             return const MainScreen();
           }
+        }
+        if (state is AuthProfileIncomplete) {
+          return CompleteProfilePage(user: state.user);
         }
         if (state is AuthUnauthenticated || state is AuthAccountPending) {
           return const LoginPage();

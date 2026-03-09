@@ -31,6 +31,10 @@ class AuthAccountPending extends AuthState {
   List<Object?> get props => [user, message];
 }
 
+class AuthProfileIncomplete extends AuthState {
+  const AuthProfileIncomplete({required super.user});
+}
+
 // Trạng thái người dùng chưa được xác thực (chưa đăng nhập hoặc đã đăng xuất)
 class AuthUnauthenticated extends AuthState {}
 

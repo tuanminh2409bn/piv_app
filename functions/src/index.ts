@@ -2251,3 +2251,67 @@ export const onDiscountRequestUpdated = onDocumentUpdated(
         }
     }
 );
+
+// ===================================================================
+// FUNCTION 28: TỰ ĐỘNG GỬI THÔNG BÁO CHÚC MỪNG SINH NHẬT
+// ===================================================================
+export const sendBirthdayGreetings = onSchedule({
+  schedule: "0 8 * * *", // Chạy vào 8:00 sáng mỗi ngày
+  timeZone: "Asia/Ho_Chi_Minh",
+  region: "asia-southeast1",
+}, async (event) => {
+  logger.info("Bắt đầu kiểm tra sinh nhật người dùng...");
+
+  const now = new Date();
+  const todayDay = String(now.getDate()).padStart(2, "0");
+  const todayMonth = String(now.getMonth() + 1).padStart(2, "0");
+  const todayDM = `${todayDay}/${todayMonth}`;
+
+  try {
+    const snapshot = await db.collection("users")
+      .where("status", "==", "active")
+      .get();
+
+    if (snapshot.empty) {
+      logger.info("Không có người dùng nào để kiểm tra.");
+      return;
+    }
+
+    const birthdayUsers: { id: string, token?: string, name: string }[] = [];
+
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const dob = data.dob as string | undefined;
+
+      if (dob && dob.startsWith(todayDM)) {
+        birthdayUsers.push({
+          id: doc.id,
+          token: data.fcmToken as string | undefined,
+          name: data.displayName || "Quý khách",
+        });
+      }
+    });
+
+    if (birthdayUsers.length === 0) {
+      logger.info(`Hôm nay (${todayDM}) không có sinh nhật người dùng nào.`);
+      return;
+    }
+
+    logger.info(`Tìm thấy ${birthdayUsers.length} người dùng có sinh nhật hôm nay.`);
+
+    for (const user of birthdayUsers) {
+      const title = "🎂 Chúc mừng sinh nhật!";
+      const body = `Chúc mừng sinh nhật ${user.name}! Phân Bón PIV chúc bạn một ngày thật ý nghĩa, nhiều niềm vui và gặt hái được nhiều thành công.`;
+      const type = "birthday_greeting";
+
+      if (user.token) {
+        await sendPushNotification([user.token], title, body, { type });
+      }
+
+      await saveNotificationToFirestore(user.id, title, body, type, {});
+      logger.info(`Đã gửi lời chúc đến: ${user.name} (${user.id})`);
+    }
+  } catch (error) {
+    logger.error("Lỗi khi thực hiện gửi lời chúc sinh nhật:", error);
+  }
+});

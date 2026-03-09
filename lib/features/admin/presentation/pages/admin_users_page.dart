@@ -9,6 +9,7 @@ import 'package:piv_app/features/admin/presentation/pages/sales_rep_agents_page.
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/admin/presentation/pages/agent_discount_config_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/agent_special_price_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/agent_product_visibility_page.dart';
 
 class AdminUsersPage extends StatelessWidget {
   const AdminUsersPage({super.key});
@@ -353,6 +354,20 @@ class AdminUsersView extends StatelessWidget {
                             Navigator.of(dialogContext).pop();
                             Navigator.of(parentContext).push(AgentSpecialPricePage.route(
                               user: userToEdit,
+                            ));
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.visibility_off_outlined),
+                          label: const Text('Quản lý Hiển thị Sản phẩm'),
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                            Navigator.of(parentContext).push(MaterialPageRoute(
+                              builder: (_) => AgentProductVisibilityPage(agent: userToEdit),
                             ));
                           },
                         ),

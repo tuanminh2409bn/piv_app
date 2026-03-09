@@ -30,9 +30,24 @@ class RegisterCubit extends Cubit<RegisterState> {
     emit(state.copyWith(displayName: value, status: RegisterStatus.initial));
   }
 
-  // ** PHƯƠNG THỨC MỚI **
   void referralCodeChanged(String value) {
     emit(state.copyWith(referralCode: value, status: RegisterStatus.initial));
+  }
+
+  void phoneNumberChanged(String value) {
+    emit(state.copyWith(phoneNumber: value, status: RegisterStatus.initial));
+  }
+
+  void idCardOrTaxIdChanged(String value) {
+    emit(state.copyWith(idCardOrTaxId: value, status: RegisterStatus.initial));
+  }
+
+  void dobChanged(String value) {
+    emit(state.copyWith(dob: value, status: RegisterStatus.initial));
+  }
+
+  void currentAddressChanged(String value) {
+    emit(state.copyWith(currentAddress: value, status: RegisterStatus.initial));
   }
 
   Future<void> signUpWithCredentials() async {
@@ -45,7 +60,11 @@ class RegisterCubit extends Cubit<RegisterState> {
       email: state.email,
       password: state.password,
       displayName: state.displayName.isNotEmpty ? state.displayName : null,
-      referralCode: state.referralCode.isNotEmpty ? state.referralCode : null, // << TRUYỀN referralCode
+      referralCode: state.referralCode.isNotEmpty ? state.referralCode : null,
+      phoneNumber: state.phoneNumber.isNotEmpty ? state.phoneNumber : null,
+      idCardOrTaxId: state.idCardOrTaxId.isNotEmpty ? state.idCardOrTaxId : null,
+      dob: state.dob.isNotEmpty ? state.dob : null,
+      currentAddress: state.currentAddress.isNotEmpty ? state.currentAddress : null,
     );
 
     result.fold(

@@ -41,7 +41,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
               (failure) => emit(AuthUnauthenticated()),
               (user) {
             if (user.isNotEmpty) {
-              emit(AuthAuthenticated(user: user));
+              if (user.status == 'pending_approval') {
+                emit(AuthAccountPending(user: user));
+              } else if (!user.isProfileComplete) {
+                emit(AuthProfileIncomplete(user: user));
+              } else {
+                emit(AuthAuthenticated(user: user));
+              }
             } else {
               emit(AuthUnauthenticated());
             }
@@ -56,6 +62,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     if (event.user.isNotEmpty) {
       if (event.user.status == 'pending_approval') {
         emit(AuthAccountPending(user: event.user));
+      } else if (!event.user.isProfileComplete) {
+        emit(AuthProfileIncomplete(user: event.user));
       } else {
         try {
           await sl<NotificationService>().saveTokenForUser(event.user.id);
@@ -84,7 +92,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   Future<void> _onUserRefreshRequested(
       AuthUserRefreshRequested event, Emitter<AuthState> emit) async {
     final currentState = state;
-    if (currentState is AuthAuthenticated) {
+    if (currentState.user.isNotEmpty) {
       developer.log('AuthBloc: Refresh requested for user ${currentState.user.id}', name: 'AuthBloc');
       final result = await _userProfileRepository.getUserProfile(currentState.user.id);
       result.fold(

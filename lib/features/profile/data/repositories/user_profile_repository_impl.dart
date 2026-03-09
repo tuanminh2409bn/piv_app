@@ -331,6 +331,42 @@ class UserProfileRepositoryImpl implements UserProfileRepository {
   }
 
   @override
+  Future<Either<Failure, Unit>> toggleProductVisibility(String userId, String productId, bool isHidden) async {
+    try {
+      if (isHidden) {
+        await _usersCollection.doc(userId).update({
+          'hiddenProductIds': FieldValue.arrayUnion([productId])
+        });
+      } else {
+        await _usersCollection.doc(userId).update({
+          'hiddenProductIds': FieldValue.arrayRemove([productId])
+        });
+      }
+      return const Right(unit);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<String>>> getHiddenProductIds(String userId) async {
+    try {
+      final doc = await _usersCollection.doc(userId).get();
+      if (doc.exists) {
+        final List<dynamic> list = doc.data()?['hiddenProductIds'] ?? [];
+        return Right(list.cast<String>());
+      }
+      return const Right([]);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure('Lỗi Firebase: ${e.message}'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi: ${e.toString()}'));
+    }
+  }
+
+  @override
   Stream<int> watchSpinCount(String userId) {
     return _firestore.collection('users').doc(userId).snapshots().map((snap) {
       if (!snap.exists || snap.data() == null) {

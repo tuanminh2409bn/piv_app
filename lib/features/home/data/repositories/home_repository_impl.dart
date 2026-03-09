@@ -95,7 +95,8 @@ class HomeRepositoryImpl implements HomeRepository {
       }
 
       final finalProducts = await _applySpecialPricesIfNeeded(products, currentUserId);
-      return Right(finalProducts);
+      final filteredProducts = await _filterHiddenProducts(finalProducts, currentUserId);
+      return Right(filteredProducts);
     } on FirebaseException catch (e) {
       developer.log(
           'Lỗi getProductsByCategoryId: ${e.message}. \n'
@@ -156,7 +157,8 @@ class HomeRepositoryImpl implements HomeRepository {
 
       products.shuffle();
       final limitedProducts = products.take(6).toList();
-      final finalProducts = await _applySpecialPricesIfNeeded(limitedProducts, currentUserId);
+      final processedProducts = await _applySpecialPricesIfNeeded(limitedProducts, currentUserId);
+      final finalProducts = await _filterHiddenProducts(processedProducts, currentUserId);
       return Right(finalProducts);
 
     } on FirebaseException catch (e) {
@@ -277,7 +279,8 @@ class HomeRepositoryImpl implements HomeRepository {
       // Sắp xếp lại danh sách cuối cùng theo tên
       products.sort((a, b) => a.name.compareTo(b.name));
       
-      final finalProducts = await _applySpecialPricesIfNeeded(products, currentUserId);
+      final processedProducts = await _applySpecialPricesIfNeeded(products, currentUserId);
+      final finalProducts = await _filterHiddenProducts(processedProducts, currentUserId);
       return Right(finalProducts);
 
     } on FirebaseException catch (e) {
@@ -407,7 +410,8 @@ class HomeRepositoryImpl implements HomeRepository {
       }).toList();
       // --- KẾT THÚC LỌC ---
 
-      final finalProducts = await _applySpecialPricesIfNeeded(filteredProducts, currentUserId);
+      final processedProducts = await _applySpecialPricesIfNeeded(filteredProducts, currentUserId);
+      final finalProducts = await _filterHiddenProducts(processedProducts, currentUserId);
       return Right(finalProducts);
     } on FirebaseException catch (e) {
       return Left(ServerFailure('Lỗi Firebase khi tải sản phẩm: ${e.message}'));
@@ -500,6 +504,25 @@ class HomeRepositoryImpl implements HomeRepository {
       }).toList();
     } catch (e) {
       developer.log('Error applying special prices: $e', name: 'HomeRepository');
+      return products;
+    }
+  }
+
+  /// Helper to filter out products hidden for a specific user
+  Future<List<ProductModel>> _filterHiddenProducts(List<ProductModel> products, String? userId) async {
+    if (userId == null || userId.isEmpty || products.isEmpty) return products;
+
+    try {
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      if (!userDoc.exists) return products;
+
+      final hiddenIds = List<String>.from(userDoc.data()?['hiddenProductIds'] ?? []);
+      if (hiddenIds.isEmpty) return products;
+
+      final Set<String> hiddenSet = hiddenIds.toSet();
+      return products.where((product) => !hiddenSet.contains(product.id)).toList();
+    } catch (e) {
+      developer.log('Error filtering hidden products: $e', name: 'HomeRepository');
       return products;
     }
   }

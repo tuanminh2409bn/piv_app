@@ -15,6 +15,10 @@ abstract class AuthRepository {
     required String password,
     String? displayName,
     String? referralCode,
+    String? phoneNumber,
+    String? idCardOrTaxId,
+    String? dob,
+    String? currentAddress,
   });
 
   Future<Either<Failure, Unit>> logInWithEmailAndPassword({

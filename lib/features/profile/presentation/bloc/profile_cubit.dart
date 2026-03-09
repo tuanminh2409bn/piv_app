@@ -88,6 +88,22 @@ class ProfileCubit extends Cubit<ProfileState> {
     );
   }
 
+  /// Cập nhật profile trực tiếp (dùng cho trường hợp hoàn thiện hồ sơ)
+  Future<void> updateProfileDirect(UserModel user) async {
+    emit(state.copyWith(status: ProfileStatus.updating, clearErrorMessage: true));
+    final result = await _userProfileRepository.updateUserProfile(user);
+    result.fold(
+          (failure) {
+        developer.log('ProfileCubit: Failed to update profile direct - ${failure.message}', name: 'ProfileCubit');
+        emit(state.copyWith(status: ProfileStatus.error, errorMessage: failure.message));
+      },
+          (_) {
+        developer.log('ProfileCubit: Profile updated direct successfully.', name: 'ProfileCubit');
+        emit(state.copyWith(status: ProfileStatus.success, user: user));
+      },
+    );
+  }
+
   /// Hàm chung để tải lại profile cục bộ và thông báo cho AuthBloc
   Future<void> _successfulAddressUpdate() async {
     await fetchUserProfile(state.user.id);

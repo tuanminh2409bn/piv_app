@@ -4,6 +4,7 @@ import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
 import 'package:piv_app/features/admin/presentation/pages/agent_discount_config_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/agent_special_price_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/agent_product_visibility_page.dart';
 
 class SalesRepAgentsPage extends StatelessWidget {
   final UserModel salesRep;
@@ -134,6 +135,20 @@ class SalesRepAgentsPage extends StatelessWidget {
                             Navigator.of(dialogContext).pop();
                             Navigator.of(parentContext).push(AgentSpecialPricePage.route(
                               user: user,
+                            ));
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.visibility_off_outlined),
+                          label: const Text('Quản lý Hiển thị Sản phẩm'),
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                            Navigator.of(parentContext).push(MaterialPageRoute(
+                              builder: (_) => AgentProductVisibilityPage(agent: user),
                             ));
                           },
                         ),

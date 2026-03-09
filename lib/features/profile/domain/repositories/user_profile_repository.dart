@@ -51,6 +51,10 @@ abstract class UserProfileRepository {
 
   Future<Either<Failure, List<UserModel>>> getAllAgents();
 
+  Future<Either<Failure, Unit>> toggleProductVisibility(String userId, String productId, bool isHidden);
+
+  Future<Either<Failure, List<String>>> getHiddenProductIds(String userId);
+
   Stream<int> watchSpinCount(String userId);
 
   Future<Either<Failure, Unit>> deleteAccount();

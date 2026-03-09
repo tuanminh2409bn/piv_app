@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/auth/presentation/bloc/register_cubit.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
 
 Future<void> _launchURL(BuildContext context, String urlString) async {
   final Uri url = Uri.parse(urlString);
@@ -47,6 +48,10 @@ class RegisterForm extends StatefulWidget {
 
 class _RegisterFormState extends State<RegisterForm> {
   final _displayNameFocusNode = FocusNode();
+  final _phoneNumberFocusNode = FocusNode();
+  final _idCardOrTaxIdFocusNode = FocusNode();
+  final _dobFocusNode = FocusNode();
+  final _currentAddressFocusNode = FocusNode();
   final _emailFocusNode = FocusNode();
   final _passwordFocusNode = FocusNode();
   final _confirmPasswordFocusNode = FocusNode();
@@ -55,6 +60,10 @@ class _RegisterFormState extends State<RegisterForm> {
   @override
   void dispose() {
     _displayNameFocusNode.dispose();
+    _phoneNumberFocusNode.dispose();
+    _idCardOrTaxIdFocusNode.dispose();
+    _dobFocusNode.dispose();
+    _currentAddressFocusNode.dispose();
     _emailFocusNode.dispose();
     _passwordFocusNode.dispose();
     _confirmPasswordFocusNode.dispose();
@@ -104,12 +113,20 @@ class _RegisterFormState extends State<RegisterForm> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Vui lòng điền thông tin bên dưới',
+              'Vui lòng điền đầy đủ thông tin bên dưới',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 32.0),
             _DisplayNameInput(focusNode: _displayNameFocusNode),
+            const SizedBox(height: 16.0),
+            _PhoneNumberInput(focusNode: _phoneNumberFocusNode),
+            const SizedBox(height: 16.0),
+            _IdCardOrTaxIdInput(focusNode: _idCardOrTaxIdFocusNode),
+            const SizedBox(height: 16.0),
+            _DobInput(focusNode: _dobFocusNode),
+            const SizedBox(height: 16.0),
+            _CurrentAddressInput(focusNode: _currentAddressFocusNode),
             const SizedBox(height: 16.0),
             _EmailInput(focusNode: _emailFocusNode),
             const SizedBox(height: 16.0),
@@ -193,12 +210,150 @@ class _DisplayNameInput extends StatelessWidget {
           initialValue: state.displayName,
           focusNode: focusNode,
           decoration: const InputDecoration(
-            labelText: 'Tên hiển thị (Tùy chọn)',
+            labelText: 'Họ và tên (Ghi rõ) *',
             prefixIcon: Icon(Icons.person_outline),
           ),
           keyboardType: TextInputType.name,
           onChanged: (value) {
             context.read<RegisterCubit>().displayNameChanged(value);
+          },
+          textInputAction: TextInputAction.next,
+        );
+      },
+    );
+  }
+}
+
+class _PhoneNumberInput extends StatelessWidget {
+  final FocusNode focusNode;
+  const _PhoneNumberInput({required this.focusNode});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<RegisterCubit, RegisterState>(
+      buildWhen: (previous, current) => previous.phoneNumber != current.phoneNumber,
+      builder: (context, state) {
+        return TextFormField(
+          initialValue: state.phoneNumber,
+          focusNode: focusNode,
+          decoration: const InputDecoration(
+            labelText: 'Số điện thoại *',
+            prefixIcon: Icon(Icons.phone_outlined),
+          ),
+          keyboardType: TextInputType.phone,
+          onChanged: (value) {
+            context.read<RegisterCubit>().phoneNumberChanged(value);
+          },
+          textInputAction: TextInputAction.next,
+        );
+      },
+    );
+  }
+}
+
+class _IdCardOrTaxIdInput extends StatelessWidget {
+  final FocusNode focusNode;
+  const _IdCardOrTaxIdInput({required this.focusNode});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<RegisterCubit, RegisterState>(
+      buildWhen: (previous, current) => previous.idCardOrTaxId != current.idCardOrTaxId,
+      builder: (context, state) {
+        return TextFormField(
+          initialValue: state.idCardOrTaxId,
+          focusNode: focusNode,
+          decoration: const InputDecoration(
+            labelText: 'CCCD hoặc Mã số thuế *',
+            prefixIcon: Icon(Icons.badge_outlined),
+          ),
+          onChanged: (value) {
+            context.read<RegisterCubit>().idCardOrTaxIdChanged(value);
+          },
+          textInputAction: TextInputAction.next,
+        );
+      },
+    );
+  }
+}
+
+class _DobInput extends StatefulWidget {
+  final FocusNode focusNode;
+  const _DobInput({required this.focusNode});
+
+  @override
+  State<_DobInput> createState() => _DobInputState();
+}
+
+class _DobInputState extends State<_DobInput> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(2000),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      locale: const Locale('vi', 'VN'),
+    );
+    if (picked != null) {
+      final formattedDate = DateFormat('dd/MM/yyyy').format(picked);
+      _controller.text = formattedDate;
+      context.read<RegisterCubit>().dobChanged(formattedDate);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<RegisterCubit, RegisterState>(
+      buildWhen: (previous, current) => previous.dob != current.dob,
+      builder: (context, state) {
+        // Đồng bộ controller nếu state thay đổi từ bên ngoài (nếu cần)
+        if (state.dob != _controller.text) {
+          _controller.text = state.dob;
+        }
+        return TextFormField(
+          controller: _controller,
+          focusNode: widget.focusNode,
+          readOnly: true,
+          onTap: () => _selectDate(context),
+          decoration: const InputDecoration(
+            labelText: 'Ngày tháng năm sinh *',
+            hintText: 'Chọn ngày sinh',
+            prefixIcon: Icon(Icons.calendar_today_outlined),
+            suffixIcon: Icon(Icons.arrow_drop_down),
+          ),
+          textInputAction: TextInputAction.next,
+        );
+      },
+    );
+  }
+}
+
+class _CurrentAddressInput extends StatelessWidget {
+  final FocusNode focusNode;
+  const _CurrentAddressInput({required this.focusNode});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<RegisterCubit, RegisterState>(
+      buildWhen: (previous, current) => previous.currentAddress != current.currentAddress,
+      builder: (context, state) {
+        return TextFormField(
+          initialValue: state.currentAddress,
+          focusNode: focusNode,
+          decoration: const InputDecoration(
+            labelText: 'Địa chỉ hiện tại *',
+            prefixIcon: Icon(Icons.location_on_outlined),
+          ),
+          onChanged: (value) {
+            context.read<RegisterCubit>().currentAddressChanged(value);
           },
           textInputAction: TextInputAction.next,
         );

@@ -114,6 +114,10 @@ class AuthRepositoryImpl implements AuthRepository {
     required String password,
     String? displayName,
     String? referralCode,
+    String? phoneNumber,
+    String? idCardOrTaxId,
+    String? dob,
+    String? currentAddress,
   }) async {
     try {
       final userCredential = await _firebaseAuth.createUserWithEmailAndPassword(
@@ -146,6 +150,10 @@ class AuthRepositoryImpl implements AuthRepository {
           id: firebaseUser.uid,
           email: firebaseUser.email,
           displayName: displayName ?? firebaseUser.displayName,
+          phoneNumber: phoneNumber,
+          idCardOrTaxId: idCardOrTaxId,
+          dob: dob,
+          currentAddress: currentAddress,
           referrerId: foundReferrerId,
           salesRepId: foundSalesRepId,
           referralPromptPending: (foundReferrerId == null),

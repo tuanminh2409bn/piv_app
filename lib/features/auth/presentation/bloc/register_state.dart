@@ -9,7 +9,11 @@ class RegisterState extends Equatable {
   final String password;
   final String confirmPassword;
   final String displayName;
-  final String referralCode; // << THÊM TRƯỜNG NÀY
+  final String referralCode;
+  final String phoneNumber;
+  final String idCardOrTaxId;
+  final String dob;
+  final String currentAddress;
   final RegisterStatus status;
   final String? errorMessage;
 
@@ -18,21 +22,37 @@ class RegisterState extends Equatable {
     this.password = '',
     this.confirmPassword = '',
     this.displayName = '',
-    this.referralCode = '', // << GIÁ TRỊ MẶC ĐỊNH
+    this.referralCode = '',
+    this.phoneNumber = '',
+    this.idCardOrTaxId = '',
+    this.dob = '',
+    this.currentAddress = '',
     this.status = RegisterStatus.initial,
     this.errorMessage,
   });
 
   bool get passwordsMatch => password == confirmPassword;
   bool get isFormValid =>
-      email.isNotEmpty && password.isNotEmpty && passwordsMatch && password.length >= 6;
+      email.isNotEmpty &&
+      password.isNotEmpty &&
+      passwordsMatch &&
+      password.length >= 6 &&
+      displayName.isNotEmpty &&
+      phoneNumber.isNotEmpty &&
+      idCardOrTaxId.isNotEmpty &&
+      dob.isNotEmpty &&
+      currentAddress.isNotEmpty;
 
   RegisterState copyWith({
     String? email,
     String? password,
     String? confirmPassword,
     String? displayName,
-    String? referralCode, // << THÊM VÀO COPYWITH
+    String? referralCode,
+    String? phoneNumber,
+    String? idCardOrTaxId,
+    String? dob,
+    String? currentAddress,
     RegisterStatus? status,
     String? errorMessage,
   }) {
@@ -41,7 +61,11 @@ class RegisterState extends Equatable {
       password: password ?? this.password,
       confirmPassword: confirmPassword ?? this.confirmPassword,
       displayName: displayName ?? this.displayName,
-      referralCode: referralCode ?? this.referralCode, // << GÁN GIÁ TRỊ
+      referralCode: referralCode ?? this.referralCode,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      idCardOrTaxId: idCardOrTaxId ?? this.idCardOrTaxId,
+      dob: dob ?? this.dob,
+      currentAddress: currentAddress ?? this.currentAddress,
       status: status ?? this.status,
       errorMessage: errorMessage ?? this.errorMessage,
     );
@@ -53,7 +77,11 @@ class RegisterState extends Equatable {
     password,
     confirmPassword,
     displayName,
-    referralCode, // << THÊM VÀO PROPS
+    referralCode,
+    phoneNumber,
+    idCardOrTaxId,
+    dob,
+    currentAddress,
     status,
     errorMessage,
   ];
