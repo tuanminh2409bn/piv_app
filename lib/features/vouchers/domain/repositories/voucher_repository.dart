@@ -13,6 +13,9 @@ abstract class VoucherRepository {
   Future<Either<Failure, void>> updateVoucher(VoucherModel voucher);
   Future<Either<Failure, void>> deleteVoucher(String voucherId);
 
+  // Lấy danh sách voucher đang hoạt động cho khách hàng
+  Future<Either<Failure, List<VoucherModel>>> getActiveVouchers();
+
   // Sửa lại hàm applyVoucher cho nhất quán
   Future<Either<Failure, VoucherModel>> applyVoucher({
     required String code,

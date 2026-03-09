@@ -3,10 +3,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 
-// <<< GIỮ NGUYÊN ENUM CỦA BẠN, RẤT TỐT! >>>
-enum DiscountType { percentage, fixedAmount }
+enum DiscountType { percentage, fixedAmount, buyXGetY }
 
-// <<< THÊM MỚI: CÁC HẰNG SỐ TRẠNG THÁI CHO DỄ QUẢN LÝ >>>
 class VoucherStatus {
   static const String pendingApproval = 'pending_approval';
   static const String active = 'active';
@@ -15,7 +13,6 @@ class VoucherStatus {
   static const String inactive = 'inactive';
 }
 
-// <<< THÊM MỚI: MODEL ĐỂ LƯU LỊCH SỬ THAY ĐỔI >>>
 class VoucherHistoryEntry extends Equatable {
   final String action;
   final String actorId;
@@ -51,24 +48,24 @@ class VoucherHistoryEntry extends Equatable {
   }
 }
 
-
 class VoucherModel extends Equatable {
   final String id;
   final String description;
   final DiscountType discountType;
   final double discountValue;
-  final double? maxDiscountAmount; // <<< THÊM MỚI: Mức giảm tối đa cho %
-  final double minOrderValue;   // <<< THÊM MỚI: Giá trị đơn hàng tối thiểu
-  final int maxUses; // Số lần sử dụng tối đa
+  final double? maxDiscountAmount;
+  final double minOrderValue;
+  final int maxUses;
   final int usedCount;
   final Timestamp createdAt;
   final Timestamp expiresAt;
   final String status;
-  final String createdBy; // User ID của NVKD
-  final String? approvedBy; // User ID của Admin
+  final String createdBy;
+  final String? approvedBy;
   final List<VoucherHistoryEntry> history;
-  final String? statusBeforeDeletion; // Lưu trạng thái trước khi yêu cầu xóa
-
+  final String? statusBeforeDeletion;
+  final int? buyQuantity;
+  final int? getQuantity;
 
   const VoucherModel({
     required this.id,
@@ -86,17 +83,25 @@ class VoucherModel extends Equatable {
     this.approvedBy,
     this.history = const [],
     this.statusBeforeDeletion,
+    this.buyQuantity,
+    this.getQuantity,
   });
 
-  String get discountTypeString =>
-      discountType == DiscountType.percentage ? 'percentage' : 'fixed_amount';
-
-  static DiscountType _discountTypeFromString(String type) {
-    return type == 'percentage' ? DiscountType.percentage : DiscountType.fixedAmount;
+  String get discountTypeString {
+    switch (discountType) {
+      case DiscountType.percentage: return 'percentage';
+      case DiscountType.fixedAmount: return 'fixed_amount';
+      case DiscountType.buyXGetY: return 'buy_x_get_y';
+    }
   }
 
-  // <<< CẬP NHẬT HÀM TÍNH TOÁN ĐỂ KIỂM TRA STATUS VÀ CÁC ĐIỀU KIỆN MỚI >>>
-  double calculateDiscount(double subtotal) {
+  static DiscountType _discountTypeFromString(String type) {
+    if (type == 'percentage') return DiscountType.percentage;
+    if (type == 'buy_x_get_y') return DiscountType.buyXGetY;
+    return DiscountType.fixedAmount;
+  }
+
+  double calculateDiscount(double subtotal, {int totalItemsInCases = 0, double averageCasePrice = 0}) {
     if (status != VoucherStatus.active ||
         DateTime.now().isAfter(expiresAt.toDate()) ||
         (maxUses != 0 && usedCount >= maxUses) ||
@@ -106,11 +111,14 @@ class VoucherModel extends Equatable {
 
     if (discountType == DiscountType.percentage) {
       final discount = (subtotal * discountValue / 100);
-      // Nếu có mức giảm tối đa, hãy áp dụng nó
       if (maxDiscountAmount != null && discount > maxDiscountAmount!) {
         return maxDiscountAmount!;
       }
       return discount.roundToDouble();
+    } else if (discountType == DiscountType.buyXGetY) {
+      if (buyQuantity == null || getQuantity == null || buyQuantity! <= 0) return 0.0;
+      final numGifts = (totalItemsInCases ~/ buyQuantity!) * getQuantity!;
+      return (numGifts * averageCasePrice).roundToDouble();
     } else {
       return discountValue > subtotal ? subtotal : discountValue;
     }
@@ -120,7 +128,8 @@ class VoucherModel extends Equatable {
   List<Object?> get props => [
     id, description, discountType, discountValue, maxDiscountAmount,
     minOrderValue, maxUses, usedCount, createdAt, expiresAt,
-    status, createdBy, approvedBy, history, statusBeforeDeletion
+    status, createdBy, approvedBy, history, statusBeforeDeletion,
+    buyQuantity, getQuantity
   ];
 
   Map<String, dynamic> toMap() {
@@ -139,6 +148,8 @@ class VoucherModel extends Equatable {
       'approvedBy': approvedBy,
       'history': history.map((e) => e.toMap()).toList(),
       'statusBeforeDeletion': statusBeforeDeletion,
+      'buyQuantity': buyQuantity,
+      'getQuantity': getQuantity,
     };
   }
 
@@ -155,7 +166,6 @@ class VoucherModel extends Equatable {
       usedCount: data['usedCount'] ?? 0,
       createdAt: data['createdAt'] ?? Timestamp.now(),
       expiresAt: data['expiresAt'] ?? Timestamp.now(),
-      // --- Các trường mới
       status: data['status'] ?? VoucherStatus.inactive,
       createdBy: data['createdBy'] ?? '',
       approvedBy: data['approvedBy'],
@@ -163,6 +173,8 @@ class VoucherModel extends Equatable {
           ?.map((e) => VoucherHistoryEntry.fromMap(e as Map<String, dynamic>))
           .toList() ?? [],
       statusBeforeDeletion: data['statusBeforeDeletion'],
+      buyQuantity: data['buyQuantity'] as int?,
+      getQuantity: data['getQuantity'] as int?,
     );
   }
 
@@ -185,6 +197,8 @@ class VoucherModel extends Equatable {
     List<VoucherHistoryEntry>? history,
     bool setStatusBeforeDeletionNull = false,
     String? statusBeforeDeletion,
+    int? buyQuantity,
+    int? getQuantity,
   }) {
     return VoucherModel(
       id: id ?? this.id,
@@ -202,6 +216,8 @@ class VoucherModel extends Equatable {
       approvedBy: setApprovedByNull ? null : (approvedBy ?? this.approvedBy),
       history: history ?? this.history,
       statusBeforeDeletion: setStatusBeforeDeletionNull ? null : (statusBeforeDeletion ?? this.statusBeforeDeletion),
+      buyQuantity: buyQuantity ?? this.buyQuantity,
+      getQuantity: getQuantity ?? this.getQuantity,
     );
   }
 }

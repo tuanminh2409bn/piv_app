@@ -181,7 +181,31 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
         emit(state.copyWith(status: OrderDetailStatus.success, clearError: true)); // Reset status về success
       },
           (voucher) {
-        final discountAmount = voucher.calculateDiscount(subtotal);
+        // --- TÍNH TOÁN THÔNG TIN THÙNG ĐỂ ÁP DỤNG MUA X TẶNG Y ---
+        int totalItemsInCases = 0;
+        double totalCasesValue = 0;
+        
+        if (state.order != null) {
+          for (var item in state.order!.items) {
+            // Kiểm tra nếu item này là bán theo thùng
+            if (item.quantityPerPackage > 1) {
+              totalItemsInCases += item.quantity;
+              totalCasesValue += (item.price * item.quantityPerPackage * item.quantity);
+            }
+          }
+        }
+        
+        double averageCasePrice = totalItemsInCases > 0 
+            ? (totalCasesValue / totalItemsInCases) 
+            : 0.0;
+
+        final discountAmount = voucher.calculateDiscount(
+          subtotal, 
+          totalItemsInCases: totalItemsInCases,
+          averageCasePrice: averageCasePrice,
+        );
+        // --- KẾT THÚC TÍNH TOÁN ---
+
         emit(state.copyWith(
           status: OrderDetailStatus.success,
           appliedVoucher: voucher,
@@ -267,6 +291,10 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
           (failure) => emit(state.copyWith(status: OrderDetailStatus.error, errorMessage: failure.message)),
           (_) { /* Stream tự cập nhật */ },
     );
+  }
+
+  void clearError() {
+    emit(state.copyWith(status: OrderDetailStatus.success, clearError: true));
   }
 
   @override

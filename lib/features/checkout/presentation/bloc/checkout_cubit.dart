@@ -237,6 +237,12 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     // LẤY CÔNG NỢ TỪ USER MODEL MỚI NHẤT
     final currentDebt = user.debtAmount;
 
+    // --- TẢI DANH SÁCH VOUCHER KHẢ DỤNG ---
+    final voucherResult = await _voucherRepository.getActiveVouchers();
+    final availableVouchers = voucherResult.getOrElse(() => []);
+    developer.log('CheckoutCubit: Loaded ${availableVouchers.length} active vouchers', name: 'CheckoutCubit');
+    // --------------------------------------
+
     final shouldCalculateDiscount = user.activeRewardProgram == 'instant_discount' && itemsToCheckout.isNotEmpty;
 
     // Tính toán tổng tiền ban đầu (sẽ được cập nhật sau khi có chiết khấu)
@@ -252,8 +258,9 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       forceVoucherToNull: true,
       discount: 0.0,
       commissionDiscount: 0.0,
-      currentDebt: currentDebt,      // <-- Gán công nợ mới nhất
-      amountToPay: initialTotal,     // <-- Mặc định cho người dùng trả hết
+      currentDebt: currentDebt,      
+      amountToPay: initialTotal,     
+      availableVouchers: availableVouchers, // <<< CẬP NHẬT
     ));
 
     if (shouldCalculateDiscount) {
@@ -339,7 +346,27 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         emit(state.copyWith(status: CheckoutStatus.success, clearErrorMessage: true));
       },
           (voucher) {
-        final discountAmount = voucher.calculateDiscount(state.subtotal);
+        // --- TÍNH TOÁN THÔNG TIN THÙNG ĐỂ ÁP DỤNG MUA X TẶNG Y ---
+        int totalItemsInCases = 0;
+        double totalCasesValue = 0;
+        
+        for (var item in state.checkoutItems) {
+          if (item.quantityPerPackage > 1) {
+            totalItemsInCases += item.quantity;
+            totalCasesValue += item.subtotal;
+          }
+        }
+        
+        double averageCasePrice = totalItemsInCases > 0 
+            ? (totalCasesValue / totalItemsInCases) 
+            : 0.0;
+
+        final discountAmount = voucher.calculateDiscount(
+          state.subtotal, 
+          totalItemsInCases: totalItemsInCases,
+          averageCasePrice: averageCasePrice,
+        );
+        // --- KẾT THÚC TÍNH TOÁN ---
 
         // TÍNH TOÁN LẠI TỔNG TIỀN VÀ SỐ TIỀN CẦN TRẢ
         final newFinalTotal = state.subtotal - discountAmount - state.commissionDiscount;
@@ -353,6 +380,41 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         ));
       },
     );
+  }
+
+  void selectVoucher(VoucherModel voucher) {
+    // --- TÍNH TOÁN THÔNG TIN THÙNG ĐỂ ÁP DỤNG MUA X TẶNG Y ---
+    int totalItemsInCases = 0;
+    double totalCasesValue = 0;
+    
+    for (var item in state.checkoutItems) {
+      if (item.quantityPerPackage > 1) {
+        totalItemsInCases += item.quantity;
+        totalCasesValue += item.subtotal;
+      }
+    }
+    
+    double averageCasePrice = totalItemsInCases > 0 
+        ? (totalCasesValue / totalItemsInCases) 
+        : 0.0;
+
+    final discountAmount = voucher.calculateDiscount(
+      state.subtotal, 
+      totalItemsInCases: totalItemsInCases,
+      averageCasePrice: averageCasePrice,
+    );
+    // --- KẾT THÚC TÍNH TOÁN ---
+
+    // TÍNH TOÁN LẠI TỔNG TIỀN VÀ SỐ TIỀN CẦN TRẢ
+    final newFinalTotal = state.subtotal - discountAmount - state.commissionDiscount;
+    final newTotalWithDebt = newFinalTotal + state.currentDebt;
+
+    emit(state.copyWith(
+      status: CheckoutStatus.success,
+      appliedVoucher: voucher,
+      discount: discountAmount,
+      amountToPay: newTotalWithDebt.clamp(0, double.infinity),
+    ));
   }
 
   void removeVoucher() {

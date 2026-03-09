@@ -55,6 +55,31 @@ class VoucherRepositoryImpl implements VoucherRepository {
   }
 
   @override
+  Future<Either<Failure, List<VoucherModel>>> getActiveVouchers() async {
+    try {
+      // Lấy toàn bộ để lọc trong memory, tránh lỗi Index Firestore
+      final snapshot = await _firestore
+          .collection('vouchers')
+          .get();
+      
+      final now = DateTime.now();
+      final vouchers = snapshot.docs
+          .map((doc) => VoucherModel.fromSnapshot(doc))
+          .where((v) => v.status == VoucherStatus.active && now.isBefore(v.expiresAt.toDate()))
+          .toList();
+      
+      // Sắp xếp theo ngày hết hạn gần nhất trước
+      vouchers.sort((a, b) => a.expiresAt.compareTo(b.expiresAt));
+          
+      return Right(vouchers);
+    } on FirebaseException catch (e) {
+      return Left(ServerFailure(e.message ?? 'Lỗi Firestore'));
+    } catch (e) {
+      return Left(ServerFailure(e.toString()));
+    }
+  }
+
+  @override
   Future<Either<Failure, VoucherModel>> applyVoucher({
     required String code,
     required String userId,

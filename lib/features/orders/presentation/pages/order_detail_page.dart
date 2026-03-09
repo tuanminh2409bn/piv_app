@@ -77,8 +77,7 @@ class _OrderDetailViewState extends State<OrderDetailView> {
               ..hideCurrentSnackBar()
               ..showSnackBar(SnackBar(
                   content: Text(state.errorMessage!), backgroundColor: AppTheme.errorRed));
-            context.read<OrderDetailCubit>().emit(
-                state.copyWith(status: OrderDetailStatus.success, clearError: true));
+            context.read<OrderDetailCubit>().clearError();
           }
           if (state.status == OrderDetailStatus.voucherError && state.errorMessage != null) {
             ScaffoldMessenger.of(context)
@@ -1261,10 +1260,40 @@ class _OrderItemsList extends StatelessWidget {
                 children: [
                   Text(item.productName,
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(height: 4),
-                  Text(
-                      '${item.quantity} ${item.packaging.toLowerCase().contains('thùng') ? 'Thùng' : item.packaging} (${item.unit} x ${formatter.format(item.price)})',
-                      style: const TextStyle(color: AppTheme.textGrey, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: item.packaging.toLowerCase().contains('thùng') 
+                              ? AppTheme.primaryGreen.withOpacity(0.1) 
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: item.packaging.toLowerCase().contains('thùng') 
+                                ? AppTheme.primaryGreen.withOpacity(0.3) 
+                                : Colors.grey.shade300,
+                          ),
+                        ),
+                        child: Text(
+                          item.packaging.toLowerCase().contains('thùng') ? 'THÙNG' : 'LẺ',
+                          style: TextStyle(
+                            color: item.packaging.toLowerCase().contains('thùng') ? AppTheme.primaryGreen : AppTheme.textGrey,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                            '${item.quantity} ${item.packaging} (${item.unit} x ${formatter.format(item.price)})',
+                            style: const TextStyle(color: AppTheme.textGrey, fontSize: 12),
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),

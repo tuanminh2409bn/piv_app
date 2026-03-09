@@ -96,44 +96,77 @@ class _CreateAgentOrderView extends StatelessWidget {
       builder: (dialogContext) {
         PackagingOptionModel selectedOption = product.packingOptions.first;
         return StatefulBuilder(
-          builder: (context, setState) {
+          builder: (stfContext, stfSetState) {
             return AlertDialog(
-              title: Text('Chọn quy cách cho ${product.name}'),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Text('Chọn mua ${product.name}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    DropdownButtonFormField<PackagingOptionModel>(
-                      value: selectedOption,
-                      isExpanded: true,
-                      items: product.packingOptions.map((option) {
-                        final price = option.getPriceForRole(agentRole);
-                        return DropdownMenuItem(
+                    const Text('Quy cách đóng gói:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 12),
+                    ...product.packingOptions.map((option) {
+                      final bool isRetail = option.quantityPerPackage == 1;
+                      final String typeLabel = isRetail ? 'MUA LẺ' : 'MUA THÙNG';
+                      final String subLabel = isRetail 
+                          ? 'Đơn vị: ${option.unit}' 
+                          : 'Quy cách: ${option.name} (${option.quantityPerPackage} ${option.unit})';
+                      final price = option.getPriceForRole(agentRole);
+                      
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selectedOption == option ? Colors.green : Colors.grey.shade300,
+                            width: selectedOption == option ? 2 : 1,
+                          ),
+                          color: selectedOption == option ? Colors.green.withOpacity(0.05) : Colors.transparent,
+                        ),
+                        child: RadioListTile<PackagingOptionModel>(
                           value: option,
-                            child: Text(
-                              '${option.name} - ${currencyFormatter.format(price)}',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => selectedOption = value);
-                        }
-                      },
-                      decoration: const InputDecoration(
-                        labelText: 'Quy cách',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
+                          groupValue: selectedOption,
+                          activeColor: Colors.green,
+                          onChanged: (value) { if (value != null) stfSetState(() => selectedOption = value); },
+                          title: Text(typeLabel, style: TextStyle(fontWeight: FontWeight.bold, color: selectedOption == option ? Colors.green : Colors.black87, fontSize: 14)),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(subLabel, style: const TextStyle(fontSize: 12)),
+                              Text(currencyFormatter.format(price), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 13)),
+                            ],
+                          ),
+                          isThreeLine: true,
+                        ),
+                      );
+                    }),
                     const SizedBox(height: 16),
+                    const Text('Số lượng đặt:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: quantityController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Số lượng',
-                        border: OutlineInputBorder(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                        prefixIcon: IconButton(
+                            onPressed: () { 
+                              int current = int.tryParse(quantityController.text) ?? 0; 
+                              if(current > 1) stfSetState(() => quantityController.text = (current - 1).toString()); 
+                            }, 
+                            icon: const Icon(Icons.remove_circle_outline)
+                        ),
+                        suffixIcon: IconButton(
+                            onPressed: () { 
+                              int current = int.tryParse(quantityController.text) ?? 0; 
+                              stfSetState(() => quantityController.text = (current + 1).toString()); 
+                            }, 
+                            icon: const Icon(Icons.add_circle_outline)
+                        ),
                       ),
                     ),
                   ],
@@ -142,9 +175,13 @@ class _CreateAgentOrderView extends StatelessWidget {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('HỦY'),
+                  child: const Text('HỦY', style: TextStyle(color: Colors.grey)),
                 ),
                 ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                   onPressed: () {
                     final quantity = int.tryParse(quantityController.text) ?? 0;
                     if (quantity > 0) {
@@ -163,7 +200,7 @@ class _CreateAgentOrderView extends StatelessWidget {
                       Navigator.of(dialogContext).pop(cartItem);
                     }
                   },
-                  child: const Text('THÊM'),
+                  child: const Text('XÁC NHẬN', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             );
@@ -220,10 +257,10 @@ class _CreateAgentOrderView extends StatelessWidget {
     return InkWell(
       onTap: () async {
         if (agent != null && agent.addresses.isNotEmpty) {
-          final selected = await Navigator.of(context).push(
+          final selected = await Navigator.of(context).push<AddressModel?>(
               AddressSelectionPage.route(
                   addresses: agent.addresses,
-                  selectedAddressId: address?.id
+                  selectedAddress: address
               )
           );
           if (selected != null && selected is AddressModel && context.mounted) {

@@ -28,6 +28,7 @@ class CheckoutState extends Equatable {
   final String? newOrderId;
   final String? placeOrderForUserId;
   final UserModel? placeOrderForAgent;
+  final List<VoucherModel> availableVouchers; // <<< THÊM MỚI
 
   // --- THÊM CÁC TRƯỜNG MỚI CHO CÔNG NỢ ---
   final double currentDebt;
@@ -49,6 +50,7 @@ class CheckoutState extends Equatable {
     this.newOrderId,
     this.placeOrderForUserId,
     this.placeOrderForAgent,
+    this.availableVouchers = const [], // <<< THÊM MỚI
     // --- KHỞI TẠO GIÁ TRỊ MẶC ĐỊNH ---
     this.currentDebt = 0.0,
     this.amountToPay = 0.0,
@@ -68,6 +70,7 @@ class CheckoutState extends Equatable {
     status, addresses, selectedAddress, errorMessage,
     checkoutItems, subtotal, shippingFee, discount, appliedVoucher,
     commissionDiscount, paymentMethod, newOrderId, placeOrderForUserId, placeOrderForAgent,
+    availableVouchers, // <<< THÊM MỚI
     // --- THÊM PROPS MỚI ---
     currentDebt, amountToPay,
     // --------------------
@@ -92,6 +95,7 @@ class CheckoutState extends Equatable {
     String? placeOrderForUserId,
     UserModel? placeOrderForAgent,
     bool clearPlaceOrderForAgent = false,
+    List<VoucherModel>? availableVouchers, // <<< THÊM MỚI
     // --- THÊM CÁC THAM SỐ MỚI ---
     double? currentDebt,
     double? amountToPay,
@@ -112,6 +116,7 @@ class CheckoutState extends Equatable {
       newOrderId: newOrderId ?? this.newOrderId,
       placeOrderForUserId: placeOrderForUserId ?? this.placeOrderForUserId,
       placeOrderForAgent: clearPlaceOrderForAgent ? null : placeOrderForAgent ?? this.placeOrderForAgent,
+      availableVouchers: availableVouchers ?? this.availableVouchers, // <<< THÊM MỚI
       // --- CẬP NHẬT CÁC TRƯỜNG MỚI ---
       currentDebt: currentDebt ?? this.currentDebt,
       amountToPay: amountToPay ?? this.amountToPay,

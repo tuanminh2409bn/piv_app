@@ -13,14 +13,14 @@ class AddressSelectionPage extends StatelessWidget {
     this.selectedAddressId,
   });
 
-  static PageRoute<AddressModel?> route({
+  static Route<AddressModel?> route({
     required List<AddressModel> addresses,
-    String? selectedAddressId,
+    AddressModel? selectedAddress,
   }) {
     return MaterialPageRoute<AddressModel?>(
       builder: (_) => AddressSelectionPage(
         addresses: addresses,
-        selectedAddressId: selectedAddressId,
+        selectedAddressId: selectedAddress?.id,
       ),
     );
   }

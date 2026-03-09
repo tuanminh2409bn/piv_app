@@ -322,32 +322,81 @@ class ProductDetailView extends StatelessWidget {
   }
 
   Widget _buildPackagingChips(BuildContext context, List<PackagingOptionModel> options, PackagingOptionModel? selectedOption) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
+    return Column(
       children: options.map((option) {
         final isSelected = selectedOption == option;
-        return ChoiceChip(
-          label: Text(option.name),
-          selected: isSelected,
-          onSelected: (bool selected) {
-            if (selected) {
-              context.read<ProductDetailCubit>().selectPackagingOption(option);
-            }
-          },
-          selectedColor: AppTheme.primaryGreen,
-          labelStyle: TextStyle(
-            color: isSelected ? Colors.white : AppTheme.textDark,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          ),
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color: isSelected ? Colors.transparent : Colors.grey.shade300,
+        final bool isRetail = option.quantityPerPackage == 1;
+        final String title = isRetail ? 'MUA LẺ' : 'MUA THEO THÙNG';
+        final String subtitle = isRetail 
+            ? 'Đơn vị tính: ${option.unit}' 
+            : 'Quy cách: ${option.name} (${option.quantityPerPackage} ${option.unit})';
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12.0),
+          child: InkWell(
+            onTap: () => context.read<ProductDetailCubit>().selectPackagingOption(option),
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isSelected ? AppTheme.primaryGreen.withValues(alpha: 0.05) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade200,
+                  width: isSelected ? 2 : 1,
+                ),
+                boxShadow: isSelected 
+                    ? [BoxShadow(color: AppTheme.primaryGreen.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 4))] 
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppTheme.primaryGreen : Colors.grey.shade100,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isRetail ? Icons.shopping_bag_outlined : Icons.inventory_2_outlined,
+                      color: isSelected ? Colors.white : AppTheme.textGrey,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: isSelected ? AppTheme.primaryGreen : AppTheme.textGrey,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: AppTheme.textDark,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (isSelected)
+                    const Icon(Icons.check_circle, color: AppTheme.primaryGreen),
+                ],
+              ),
             ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         );
       }).toList(),
     );
@@ -504,7 +553,22 @@ class ProductDetailView extends StatelessWidget {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: canAddToCart
-                        ? () => _showBuyNowDialog(context, product, userRole, quantity)
+                        ? () {
+                            if (selectedOption != null) {
+                              final item = CartItemModel(
+                                productId: product.id,
+                                productName: product.name,
+                                imageUrl: product.imageUrl,
+                                price: selectedOption.getPriceForRole(userRole),
+                                itemUnitName: selectedOption.unit,
+                                quantity: quantity,
+                                quantityPerPackage: selectedOption.quantityPerPackage,
+                                caseUnitName: selectedOption.name,
+                                categoryId: product.categoryId,
+                              );
+                              Navigator.of(context).push(CheckoutPage.route(buyNowItems: [item]));
+                            }
+                          }
                         : null,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -656,46 +720,4 @@ class _QuantityInputState extends State<_QuantityInput> {
   }
 }
 
-Future<void> _showBuyNowDialog(BuildContext context, ProductModel product, String userRole, int quantity) async {
-  if (product.packingOptions.isEmpty) return;
-  PackagingOptionModel? selectedOption = product.packingOptions.first;
-
-  showDialog<PackagingOptionModel>(
-    context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setState) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Xác nhận mua ngay'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<PackagingOptionModel>(
-              value: selectedOption,
-              isExpanded: true,
-              items: product.packingOptions.map((o) => DropdownMenuItem(value: o, child: Text(o.name))).toList(),
-              onChanged: (v) => setState(() => selectedOption = v),
-              decoration: const InputDecoration(labelText: 'Quy cách', border: OutlineInputBorder()),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('HỦY')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, selectedOption),
-            child: const Text('MUA'),
-          ),
-        ],
-      ),
-    ),
-  ).then((option) {
-    if (option != null) {
-      final item = CartItemModel(
-        productId: product.id, productName: product.name, imageUrl: product.imageUrl,
-        price: option.getPriceForRole(userRole), itemUnitName: option.unit,
-        quantity: quantity, quantityPerPackage: option.quantityPerPackage,
-        caseUnitName: option.name, categoryId: product.categoryId,
-      );
-      Navigator.of(context).push(CheckoutPage.route(buyNowItems: [item]));
-    }
-  });
-}
+// _showBuyNowDialog đã được loại bỏ.

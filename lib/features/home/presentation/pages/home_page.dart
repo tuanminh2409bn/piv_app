@@ -572,60 +572,105 @@ class _FeaturedProductCard extends StatelessWidget {
       context: context,
       builder: (dialogContext) {
         if (product.packingOptions.isEmpty) {
-          return AlertDialog(title: const Text('Thông báo'), content: const Text('Sản phẩm này chưa có quy cách đóng gói.'), actions: [TextButton(onPressed: ()=> Navigator.of(dialogContext).pop(), child: const Text('Đóng'))]);
+          return AlertDialog(
+            title: const Text('Thông báo'), 
+            content: const Text('Sản phẩm này chưa có quy cách đóng gói.'), 
+            actions: [TextButton(onPressed: ()=> Navigator.of(dialogContext).pop(), child: const Text('Đóng'))]
+          );
         }
-        PackagingOptionModel selectedOption = product.packingOptions.first;
+
+        // --- TỰ ĐỘNG THÊM QUY CÁCH LẺ NẾU CHƯA CÓ ---
+        List<PackagingOptionModel> finalOptions = List.from(product.packingOptions);
+        bool hasRetail = finalOptions.any((opt) => opt.quantityPerPackage == 1);
+        if (!hasRetail && finalOptions.isNotEmpty) {
+          final caseOption = finalOptions.first;
+          final retailOption = PackagingOptionModel(
+            name: 'Lẻ ${caseOption.unit}',
+            quantityPerPackage: 1,
+            unit: caseOption.unit,
+            prices: caseOption.prices,
+          );
+          finalOptions.insert(0, retailOption);
+        }
+
+        // Ưu tiên chọn THÙNG làm mặc định
+        PackagingOptionModel selectedOption = finalOptions.firstWhere(
+          (opt) => opt.quantityPerPackage > 1,
+          orElse: () => finalOptions.first,
+        );
+
         final quantityController = TextEditingController(text: '1');
         return StatefulBuilder(
           builder: (stfContext, stfSetState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: Text('Chọn quy cách cho ${product.name}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              title: Text('Chọn mua ${product.name}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               content: SingleChildScrollView( 
                   child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    DropdownButtonFormField<PackagingOptionModel>(
-                      value: selectedOption,
-                      isExpanded: true,
-                      items: product.packingOptions.map((option) {
-                        final price = option.getPriceForRole(userRole);
-                        return DropdownMenuItem(
+                    const Text('Quy cách đóng gói:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 12),
+                    ...finalOptions.map((option) {
+                      final bool isRetail = option.quantityPerPackage == 1;
+                      final String typeLabel = isRetail ? 'MUA LẺ' : 'MUA THÙNG';
+                      final String subLabel = isRetail 
+                          ? 'Đơn vị: ${option.unit}' 
+                          : 'Quy cách: ${option.name} (${option.quantityPerPackage} ${option.unit})';
+                      final price = option.getPriceForRole(userRole);
+                      
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selectedOption == option ? AppTheme.primaryGreen : Colors.grey.shade300,
+                            width: selectedOption == option ? 2 : 1,
+                          ),
+                          color: selectedOption == option ? AppTheme.primaryGreen.withValues(alpha: 0.05) : Colors.transparent,
+                        ),
+                        child: RadioListTile<PackagingOptionModel>(
                           value: option,
-                          child: Text('${option.name} - ${currencyFormatter.format(price)}', overflow: TextOverflow.ellipsis),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) stfSetState(() => selectedOption = value);
-                      },
-                      decoration: InputDecoration(
-                        labelText: 'Quy cách',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      ),
-                    ),
+                          groupValue: selectedOption,
+                          activeColor: AppTheme.primaryGreen,
+                          onChanged: (value) { if (value != null) stfSetState(() => selectedOption = value); },
+                          title: Text(typeLabel, style: TextStyle(fontWeight: FontWeight.bold, color: selectedOption == option ? AppTheme.primaryGreen : AppTheme.textDark, fontSize: 14)),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(subLabel, style: const TextStyle(fontSize: 12)),
+                              Text(currencyFormatter.format(price), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 13)),
+                            ],
+                          ),
+                          isThreeLine: true,
+                        ),
+                      );
+                    }),
                     const SizedBox(height: 16),
+                    const Text('Số lượng đặt:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: quantityController,
                       keyboardType: TextInputType.number,
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                       decoration: InputDecoration(
-                        labelText: 'Số lượng',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
                         prefixIcon: IconButton(
                             onPressed: () {
                               int current = int.tryParse(quantityController.text) ?? 0;
-                              if(current > 1) quantityController.text = (current - 1).toString();
+                              if(current > 1) stfSetState(() => quantityController.text = (current - 1).toString());
                             },
-                            icon: const Icon(Icons.remove)
+                            icon: const Icon(Icons.remove_circle_outline)
                         ),
                         suffixIcon: IconButton(
                             onPressed: () {
                               int current = int.tryParse(quantityController.text) ?? 0;
-                              quantityController.text = (current + 1).toString();
+                              stfSetState(() => quantityController.text = (current + 1).toString());
                             },
-                            icon: const Icon(Icons.add)
+                            icon: const Icon(Icons.add_circle_outline)
                         ),
                       ),
                     ),
@@ -633,8 +678,13 @@ class _FeaturedProductCard extends StatelessWidget {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.of(dialogContext).pop(null), child: const Text('Hủy')),
+                TextButton(onPressed: () => Navigator.of(dialogContext).pop(null), child: const Text('Hủy', style: TextStyle(color: AppTheme.textGrey))),
                 ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryGreen,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  ),
                   onPressed: () {
                     final quantity = int.tryParse(quantityController.text) ?? 0;
                     if (quantity > 0) {
@@ -652,7 +702,7 @@ class _FeaturedProductCard extends StatelessWidget {
                       ));
                     }
                   },
-                  child: const Text('XÁC NHẬN'),
+                  child: const Text('XÁC NHẬN', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             );

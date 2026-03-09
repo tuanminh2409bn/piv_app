@@ -49,16 +49,54 @@ class ProductDetailCubit extends Cubit<ProductDetailState> {
         emit(state.copyWith(status: ProductDetailStatus.error, errorMessage: failure.message));
       },
           (product) {
-        developer.log('ProductDetailCubit: Fetched Product Data: ${product.name}', name: 'ProductDetailCubit'); // Giảm log
+        developer.log('ProductDetailCubit: Fetched Product Data: ${product.name}', name: 'ProductDetailCubit');
+
+        // --- TỰ ĐỘNG THÊM QUY CÁCH LẺ NẾU CHƯA CÓ ---
+        List<PackagingOptionModel> finalOptions = List.from(product.packingOptions);
+        bool hasRetail = finalOptions.any((opt) => opt.quantityPerPackage == 1);
+        
+        if (!hasRetail && finalOptions.isNotEmpty) {
+          final caseOption = finalOptions.first;
+          final retailOption = PackagingOptionModel(
+            name: 'Lẻ ${caseOption.unit}',
+            quantityPerPackage: 1,
+            unit: caseOption.unit,
+            prices: caseOption.prices,
+          );
+          finalOptions.insert(0, retailOption); // Thêm vào đầu danh sách
+        }
+
+        // Tạo bản sao ProductModel với danh sách options đã cập nhật
+        final updatedProduct = ProductModel(
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          imageUrl: product.imageUrl,
+          categoryId: product.categoryId,
+          isFeatured: product.isFeatured,
+          createdAt: product.createdAt,
+          attributes: product.attributes,
+          packingOptions: finalOptions,
+          productType: product.productType,
+          isPrivate: product.isPrivate,
+          ownerAgentId: product.ownerAgentId,
+        );
 
         PackagingOptionModel? defaultOption;
-        if (product.packingOptions.isNotEmpty) {
-          defaultOption = product.packingOptions.first;
+        if (finalOptions.isNotEmpty) {
+          // Ưu tiên chọn THÙNG làm mặc định (quy cách có quantityPerPackage lớn nhất hoặc > 1)
+          try {
+            defaultOption = finalOptions.firstWhere(
+              (opt) => opt.quantityPerPackage > 1
+            );
+          } catch (_) {
+            defaultOption = finalOptions.first;
+          }
         }
 
         emit(state.copyWith(
           status: ProductDetailStatus.success,
-          product: product,
+          product: updatedProduct,
           selectedPackagingOption: defaultOption,
         ));
       },

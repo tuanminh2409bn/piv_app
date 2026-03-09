@@ -36,6 +36,8 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
   late final TextEditingController _maxDiscountAmountController;
   late final TextEditingController _maxUsesController;
   late final TextEditingController _expiresAtController;
+  late final TextEditingController _buyQuantityController;
+  late final TextEditingController _getQuantityController;
 
   DiscountType _discountType = DiscountType.fixedAmount;
   DateTime _expiresAt = DateTime.now().add(const Duration(days: 30));
@@ -45,14 +47,14 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
     super.initState();
     final v = widget.voucher;
 
-    // --- SỬA ĐỔI: Sử dụng CurrencyInputFormatter.formatNumber ---
     _codeController = TextEditingController(text: v?.id ?? '');
     _descriptionController = TextEditingController(text: v?.description ?? '');
     _discountValueController = TextEditingController(text: CurrencyInputFormatter.formatNumber(v?.discountValue) ?? '');
-    _minOrderValueController = TextEditingController(text: CurrencyInputFormatter.formatNumber(v?.minOrderValue ?? 0)); // Mặc định 0
+    _minOrderValueController = TextEditingController(text: CurrencyInputFormatter.formatNumber(v?.minOrderValue ?? 0));
     _maxDiscountAmountController = TextEditingController(text: CurrencyInputFormatter.formatNumber(v?.maxDiscountAmount) ?? '');
-    _maxUsesController = TextEditingController(text: CurrencyInputFormatter.formatNumber(v?.maxUses ?? 1)); // Mặc định 1
-    // --- KẾT THÚC SỬA ĐỔI ---
+    _maxUsesController = TextEditingController(text: CurrencyInputFormatter.formatNumber(v?.maxUses ?? 1));
+    _buyQuantityController = TextEditingController(text: v?.buyQuantity?.toString() ?? '');
+    _getQuantityController = TextEditingController(text: v?.getQuantity?.toString() ?? '');
     _expiresAtController = TextEditingController(text: DateFormat('dd/MM/yyyy').format(v?.expiresAt.toDate() ?? _expiresAt));
 
     if (v != null) {
@@ -63,55 +65,56 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
 
   @override
   void dispose() {
-    // ... dispose controllers giữ nguyên ...
     _codeController.dispose();
     _descriptionController.dispose();
     _discountValueController.dispose();
     _minOrderValueController.dispose();
     _maxDiscountAmountController.dispose();
     _maxUsesController.dispose();
+    _buyQuantityController.dispose();
+    _getQuantityController.dispose();
     _expiresAtController.dispose();
     super.dispose();
   }
 
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
-      // --- SỬA ĐỔI: Sử dụng CurrencyInputFormatter.parse ---
       final discountValueNum = CurrencyInputFormatter.parse(_discountValueController.text);
       final minOrderValueNum = CurrencyInputFormatter.parse(_minOrderValueController.text);
       final maxDiscountAmountNum = CurrencyInputFormatter.parse(_maxDiscountAmountController.text);
       final maxUsesNum = CurrencyInputFormatter.parse(_maxUsesController.text);
+      final buyQtyNum = int.tryParse(_buyQuantityController.text);
+      final getQtyNum = int.tryParse(_getQuantityController.text);
 
-      // Kiểm tra parse thành công cho các trường bắt buộc
-      if (discountValueNum == null || minOrderValueNum == null || maxUsesNum == null) {
+      if (_discountType != DiscountType.buyXGetY && discountValueNum == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Vui lòng kiểm tra lại các giá trị số đã nhập.'), backgroundColor: Colors.orange,)
-        );
-        return;
-      }
-      // Kiểm tra parse cho maxDiscountAmount nếu là percentage
-      if (_discountType == DiscountType.percentage && _maxDiscountAmountController.text.isNotEmpty && maxDiscountAmountNum == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Giá trị giảm tối đa không hợp lệ.'), backgroundColor: Colors.orange,)
+            const SnackBar(content: Text('Vui lòng kiểm tra lại giá trị giảm giá.'), backgroundColor: Colors.orange,)
         );
         return;
       }
 
+      if (_discountType == DiscountType.buyXGetY && (buyQtyNum == null || getQtyNum == null)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Vui lòng nhập đầy đủ số lượng mua và tặng.'), backgroundColor: Colors.orange,)
+        );
+        return;
+      }
 
       context.read<VoucherManagementCubit>().saveVoucher(
-        id: widget.voucher?.id, // Giữ nguyên ID nếu sửa
-        code: _codeController.text.trim().toUpperCase(), // Tự viết hoa mã
+        id: widget.voucher?.id, 
+        code: _codeController.text.trim().toUpperCase(), 
         description: _descriptionController.text.trim(),
         discountType: _discountType,
-        discountValue: discountValueNum.toDouble(), // Chuyển num thành double
-        minOrderValue: minOrderValueNum.toDouble(),
+        discountValue: discountValueNum?.toDouble() ?? 0.0,
+        minOrderValue: minOrderValueNum?.toDouble() ?? 0.0,
         maxDiscountAmount: _discountType == DiscountType.percentage
-            ? maxDiscountAmountNum?.toDouble() // Có thể null
+            ? maxDiscountAmountNum?.toDouble() 
             : null,
-        maxUses: maxUsesNum.toInt(), // Chuyển num thành int
+        maxUses: maxUsesNum?.toInt() ?? 0,
         expiresAt: _expiresAt,
+        buyQuantity: _discountType == DiscountType.buyXGetY ? buyQtyNum : null,
+        getQuantity: _discountType == DiscountType.buyXGetY ? getQtyNum : null,
       );
-      // --- KẾT THÚC SỬA ĐỔI ---
       Navigator.of(context).pop();
     }
   }
@@ -162,46 +165,74 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
                 items: const [
                   DropdownMenuItem(value: DiscountType.fixedAmount, child: Text('Số tiền cố định (VNĐ)')),
                   DropdownMenuItem(value: DiscountType.percentage, child: Text('Theo phần trăm (%)')),
+                  DropdownMenuItem(value: DiscountType.buyXGetY, child: Text('Mua X thùng tặng Y thùng')),
                 ],
                 onChanged: (value) {
                   if (value != null) {
                     setState(() {
                       _discountType = value;
-                      // Xóa giá trị maxDiscountAmount nếu chuyển sang fixedAmount
-                      if (_discountType == DiscountType.fixedAmount) {
-                        _maxDiscountAmountController.clear();
+                      if (_discountType != DiscountType.percentage) _maxDiscountAmountController.clear();
+                      if (_discountType != DiscountType.buyXGetY) {
+                        _buyQuantityController.clear();
+                        _getQuantityController.clear();
+                      } else {
+                        _discountValueController.text = '0';
                       }
                     });
                   }
                 },
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _discountValueController,
-                decoration: InputDecoration(
-                  labelText: _discountType == DiscountType.percentage ? 'Phần trăm giảm (%)' : 'Số tiền giảm (VNĐ)',
-                  suffixText: _discountType == DiscountType.percentage ? '%' : 'VNĐ',
+              if (_discountType == DiscountType.buyXGetY) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _buyQuantityController,
+                        decoration: const InputDecoration(labelText: 'Mua số lượng (thùng)', suffixText: 'thùng'),
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        validator: (value) => (value?.isEmpty ?? true) ? 'Bắt buộc' : null,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _getQuantityController,
+                        decoration: const InputDecoration(labelText: 'Tặng số lượng (thùng)', suffixText: 'thùng'),
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        validator: (value) => (value?.isEmpty ?? true) ? 'Bắt buộc' : null,
+                      ),
+                    ),
+                  ],
                 ),
-                // --- SỬA ĐỔI: Thêm keyboardType và inputFormatters ---
-                keyboardType: const TextInputType.numberWithOptions(decimal: false),
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  CurrencyInputFormatter(),
-                ],
-                // --- KẾT THÚC SỬA ĐỔI ---
-                validator: (value) {
-                  if (value == null || value.isEmpty) return 'Không được để trống';
-                  final parsedValue = CurrencyInputFormatter.parse(value);
-                  if (parsedValue == null) return 'Giá trị không hợp lệ';
-                  if (_discountType == DiscountType.percentage && (parsedValue <= 0 || parsedValue > 100)) {
-                    return 'Phần trăm phải từ 1 đến 100';
-                  }
-                  if (_discountType == DiscountType.fixedAmount && parsedValue <= 0) {
-                    return 'Số tiền phải lớn hơn 0';
-                  }
-                  return null;
-                },
-              ),
+              ] else ...[
+                TextFormField(
+                  controller: _discountValueController,
+                  decoration: InputDecoration(
+                    labelText: _discountType == DiscountType.percentage ? 'Phần trăm giảm (%)' : 'Số tiền giảm (VNĐ)',
+                    suffixText: _discountType == DiscountType.percentage ? '%' : 'VNĐ',
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    CurrencyInputFormatter(),
+                  ],
+                  validator: (value) {
+                    if (value == null || value.isEmpty) return 'Không được để trống';
+                    final parsedValue = CurrencyInputFormatter.parse(value);
+                    if (parsedValue == null) return 'Giá trị không hợp lệ';
+                    if (_discountType == DiscountType.percentage && (parsedValue <= 0 || parsedValue > 100)) {
+                      return 'Phần trăm phải từ 1 đến 100';
+                    }
+                    if (_discountType == DiscountType.fixedAmount && parsedValue <= 0) {
+                      return 'Số tiền phải lớn hơn 0';
+                    }
+                    return null;
+                  },
+                ),
+              ],
               // Chỉ hiển thị maxDiscountAmount khi loại là percentage
               if (_discountType == DiscountType.percentage) ...[
                 const SizedBox(height: 16),

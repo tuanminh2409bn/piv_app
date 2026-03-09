@@ -242,8 +242,45 @@ class CartView extends StatelessWidget {
                           )
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(item.caseUnitName, style: const TextStyle(color: AppTheme.textGrey, fontSize: 13)),
+                      const SizedBox(height: 6),
+                      // Nhãn Quy cách (Thùng/Lẻ)
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: item.quantityPerPackage > 1 
+                                  ? AppTheme.primaryGreen.withValues(alpha: 0.1) 
+                                  : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: item.quantityPerPackage > 1 
+                                    ? AppTheme.primaryGreen.withValues(alpha: 0.3) 
+                                    : Colors.grey.shade300,
+                              ),
+                            ),
+                            child: Text(
+                              item.quantityPerPackage > 1 ? 'MUA THÙNG' : 'MUA LẺ',
+                              style: TextStyle(
+                                color: item.quantityPerPackage > 1 ? AppTheme.primaryGreen : AppTheme.textGrey,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              item.quantityPerPackage > 1 
+                                  ? '${item.caseUnitName} (${item.quantityPerPackage} ${item.itemUnitName})'
+                                  : 'Đơn vị: ${item.itemUnitName}',
+                              style: const TextStyle(color: AppTheme.textGrey, fontSize: 12),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 12),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
