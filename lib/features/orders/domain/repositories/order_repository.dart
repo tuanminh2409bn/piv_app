@@ -3,6 +3,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/commission_model.dart';
+import 'package:piv_app/data/models/order_item_model.dart';
 import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/data/models/payment_info_model.dart';
 
@@ -23,7 +24,7 @@ abstract class OrderRepository {
   Future<Either<Failure, Unit>> confirmOrderPayment(String orderId);
   Future<Either<Failure, PaymentInfoModel>> getPaymentInfo();
   Future<Either<Failure, Unit>> notifyPaymentMade(String orderId);
-  Future<Either<Failure, Unit>> updateOrderStatusToShipped(String orderId, DateTime shippingDate);
+  Future<Either<Failure, Unit>> updateOrderStatusToShipped(String orderId, DateTime shippingDate, List<OrderItemModel> confirmedItems);
   Future<Either<Failure, String>> createOrder(OrderModel order, {bool clearCart = true});
   Stream<List<OrderModel>> watchUserOrders(String userId);
 }

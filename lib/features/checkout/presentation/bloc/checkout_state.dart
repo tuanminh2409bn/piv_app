@@ -62,7 +62,7 @@ class CheckoutState extends Equatable {
   double get finalTotal => (subtotal + shippingFee - discount - commissionDiscount).clamp(0, double.infinity);
 
   // Tổng tiền cần thanh toán (bao gồm cả công nợ)
-  double get totalWithDebt => (finalTotal + currentDebt).clamp(0, double.infinity);
+  double get totalWithDebt => finalTotal + currentDebt;
   // ------------------------------------------
 
   @override

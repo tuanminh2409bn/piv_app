@@ -98,7 +98,7 @@ class NotificationService {
     );
 
     await _localNotifications.initialize(
-      initializationSettings,
+      settings: initializationSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
         if (response.payload != null && response.payload!.isNotEmpty) {
           try {
@@ -160,10 +160,10 @@ class NotificationService {
     );
 
     await _localNotifications.show(
-      Random().nextInt(100000),
-      title,
-      body,
-      notificationDetails,
+      id: Random().nextInt(100000),
+      title: title,
+      body: body,
+      notificationDetails: notificationDetails,
       payload: jsonEncode(data),
     );
   }

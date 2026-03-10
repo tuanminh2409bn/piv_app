@@ -80,6 +80,7 @@ service cloud.firestore {
         'status', 
         'paymentStatus', 
         'shippingDate', 
+        'items', // <<< THÊM MỚI: Cho phép sửa số lượng thực giao
         'completedAt', 
         'cancelledAt',
         'updatedAt'

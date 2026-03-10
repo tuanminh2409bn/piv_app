@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
+import 'package:piv_app/core/theme/app_theme.dart';
+import 'package:piv_app/data/models/order_item_model.dart';
 import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_orders_cubit.dart';
@@ -272,9 +274,8 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
                     onChanged: (String? newStatus) {
                       if (newStatus != null && newStatus != order.status) {
                          if (newStatus == 'shipped') {
-                          _showShippingDatePicker(context, orderId: order.id!);
-                      } else {
-                         _showStatusChangeConfirmationDialog(
+                           _showShippingDatePicker(context, order: order);
+                         } else {                         _showStatusChangeConfirmationDialog(
                          context,
                          orderId: order.id!,
                          newStatus: newStatus,
@@ -299,23 +300,215 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
     );
   }
 
-  void _showShippingDatePicker(BuildContext context, {required String orderId}) async {
+  void _showShippingDatePicker(BuildContext context, {required OrderModel order}) async {
     final DateTime? pickedDate = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
-      firstDate: DateTime.now().subtract(const Duration(days: 1)), // Cho phép chọn ngày hôm qua
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
       lastDate: DateTime.now().add(const Duration(days: 30)),
       locale: const Locale('vi', 'VN'),
       helpText: 'CHỌN NGÀY GIAO DỰ KIẾN',
     );
 
     if (pickedDate != null && context.mounted) {
-      // --- BẮT ĐẦU SỬA LỖI ---
-      // Chuẩn hóa ngày về UTC để tránh lỗi múi giờ.
-      // Thao tác này tạo một đối tượng DateTime mới với cùng ngày/tháng/năm nhưng múi giờ là UTC.
       final utcDate = DateTime.utc(pickedDate.year, pickedDate.month, pickedDate.day);
-      context.read<AdminOrdersCubit>().updateOrderStatusToShipped(orderId, utcDate);
-      // --- KẾT THÚC SỬA LỖI ---
+      
+      showDialog(
+        context: context,
+        builder: (dialogContext) {
+          List<OrderItemModel> confirmedItems = List.from(order.items);
+          
+          return StatefulBuilder(
+            builder: (stfContext, stfSetState) {
+              return AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                title: Column(
+                  children: [
+                    const Text('Xác nhận trả hàng', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                    const SizedBox(height: 4),
+                    Text('Đơn hàng: #${order.id!.substring(0,8).toUpperCase()}', style: const TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.normal)),
+                  ],
+                ),
+                content: SizedBox(
+                  width: MediaQuery.of(context).size.width * 0.9,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Nút Trả đủ hàng
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: () {
+                              stfSetState(() {
+                                for (int i = 0; i < confirmedItems.length; i++) {
+                                  confirmedItems[i] = confirmedItems[i].copyWith(
+                                    confirmedQuantity: confirmedItems[i].quantity,
+                                    confirmedLooseQuantity: 0,
+                                  );
+                                }
+                              });
+                            },
+                            icon: const Icon(Icons.done_all, size: 18),
+                            label: const Text('TRẢ ĐỦ HÀNG', style: TextStyle(fontWeight: FontWeight.bold)),
+                            style: TextButton.styleFrom(foregroundColor: AppTheme.primaryGreen),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...confirmedItems.asMap().entries.map((entry) {
+                          int index = entry.key;
+                          final item = entry.value;
+                          final bool isCase = item.quantityPerPackage > 1;
+                          
+                          return Container(
+                            key: ValueKey(item.productId),
+                            margin: const EdgeInsets.only(bottom: 16),                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(item.productName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.blueGrey)),
+                                const SizedBox(height: 12),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 2.0),
+                                      child: Icon(Icons.shopping_cart_outlined, size: 16, color: Colors.grey),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: RichText(
+                                        text: TextSpan(
+                                          style: const TextStyle(color: Colors.grey, fontSize: 13, fontFamily: 'Roboto'),
+                                          children: [
+                                            const TextSpan(text: 'Khách đặt: '),
+                                            TextSpan(
+                                              text: '${item.quantity} ${item.packaging}',
+                                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextFormField(
+                                        initialValue: item.confirmedQuantity > 0 ? item.confirmedQuantity.toString() : item.quantity.toString(),
+                                        keyboardType: TextInputType.number,
+                                        decoration: InputDecoration(
+                                          labelText: isCase ? 'Số thùng' : 'Số thực giao',
+                                          isDense: true,
+                                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                        ),
+                                        onChanged: (value) {
+                                          final val = int.tryParse(value) ?? 0;
+                                          stfSetState(() {
+                                            confirmedItems[index] = item.copyWith(confirmedQuantity: val);
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                    if (isCase) ...[
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: TextFormField(
+                                          initialValue: item.confirmedLooseQuantity.toString(),
+                                          keyboardType: TextInputType.number,
+                                          decoration: InputDecoration(
+                                            labelText: 'Số lẻ (${item.unit})',
+                                            isDense: true,
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                          ),
+                                          onChanged: (value) {
+                                            final val = int.tryParse(value) ?? 0;
+                                            stfSetState(() {
+                                              confirmedItems[index] = item.copyWith(confirmedLooseQuantity: val);
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                if (isCase) 
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8.0, left: 4),
+                                    child: Text(
+                                      'Tổng quy đổi: ${(confirmedItems[index].confirmedQuantity * item.quantityPerPackage) + confirmedItems[index].confirmedLooseQuantity} ${item.unit}',
+                                      style: TextStyle(fontSize: 12, color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontStyle: FontStyle.italic),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+                actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                actions: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(stfContext).pop(),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: BorderSide(color: Colors.grey.shade400),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'HỦY', 
+                              style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            context.read<AdminOrdersCubit>().updateOrderStatusToShipped(order.id!, utcDate, confirmedItems);
+                            Navigator.of(stfContext).pop();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primaryGreen,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 4,
+                            shadowColor: AppTheme.primaryGreen.withValues(alpha: 0.3),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'XÁC NHẬN', 
+                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
     }
   }
 

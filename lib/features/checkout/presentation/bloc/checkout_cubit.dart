@@ -134,6 +134,12 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       debtAmount: currentAgentDebt,
       paidAmount: paidAmountForThisOrder,
       remainingDebt: remainingDebtAfterOrder,
+      legalInfo: CustomerLegalInfo(
+        displayName: agent.displayName,
+        idCardOrTaxId: agent.idCardOrTaxId,
+        phoneNumber: agent.phoneNumber,
+        currentAddress: agent.currentAddress,
+      ),
     );
 
     final result = await _orderRepository.createOrder(
@@ -189,6 +195,12 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       paidAmount: state.amountToPay,
       remainingDebt: remainingDebt,
       appliedVoucherCode: state.appliedVoucher?.id,
+      legalInfo: CustomerLegalInfo(
+        displayName: authState.user.displayName,
+        idCardOrTaxId: authState.user.idCardOrTaxId,
+        phoneNumber: authState.user.phoneNumber,
+        currentAddress: authState.user.currentAddress,
+      ),
     );
 
     final result = await _orderRepository.createOrder(

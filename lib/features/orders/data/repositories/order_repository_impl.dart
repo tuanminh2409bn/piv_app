@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/commission_model.dart';
+import 'package:piv_app/data/models/order_item_model.dart';
 import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/orders/domain/repositories/order_repository.dart';
@@ -330,11 +331,12 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
-  Future<Either<Failure, Unit>> updateOrderStatusToShipped(String orderId, DateTime shippingDate) async {
+  Future<Either<Failure, Unit>> updateOrderStatusToShipped(String orderId, DateTime shippingDate, List<OrderItemModel> confirmedItems) async {
     try {
       await _firestore.collection('orders').doc(orderId).update({
         'status': 'shipped',
         'shippingDate': Timestamp.fromDate(shippingDate),
+        'items': confirmedItems.map((e) => e.toMap()).toList(),
       });
       return const Right(unit);
     } on FirebaseException catch (e) {

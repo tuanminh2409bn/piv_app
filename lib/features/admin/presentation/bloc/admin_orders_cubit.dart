@@ -2,6 +2,7 @@
 
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:piv_app/data/models/order_item_model.dart';
 import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/orders/domain/repositories/order_repository.dart';
@@ -99,8 +100,8 @@ class AdminOrdersCubit extends Cubit<AdminOrdersState> {
     );
   }
 
-  Future<void> updateOrderStatusToShipped(String orderId, DateTime shippingDate) async {
-    final result = await _orderRepository.updateOrderStatusToShipped(orderId, shippingDate);
+  Future<void> updateOrderStatusToShipped(String orderId, DateTime shippingDate, List<OrderItemModel> confirmedItems) async {
+    final result = await _orderRepository.updateOrderStatusToShipped(orderId, shippingDate, confirmedItems);
     result.fold(
           (failure) {
         emit(state.copyWith(status: AdminOrdersStatus.error, errorMessage: failure.message));

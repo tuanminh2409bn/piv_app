@@ -542,9 +542,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
           
           _buildSummaryRow('Tiền hàng', currencyFormatter.format(state.finalTotal), isBold: true),
           
-          if (state.currentDebt > 0) ...[
+          if (state.currentDebt != 0) ...[
              const SizedBox(height: 8),
-             _buildSummaryRow('Công nợ cũ', '+${currencyFormatter.format(state.currentDebt)}', valueColor: AppTheme.errorRed),
+             _buildSummaryRow(
+               state.currentDebt > 0 ? 'Công nợ cũ' : 'Dư nợ hiện tại', 
+               '${state.currentDebt > 0 ? '+' : ''}${currencyFormatter.format(state.currentDebt)}', 
+               valueColor: state.currentDebt > 0 ? AppTheme.errorRed : AppTheme.primaryGreen
+             ),
              Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Divider(color: Colors.grey[200], height: 1),
@@ -603,10 +607,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   Widget _buildBottomBar(BuildContext context, CheckoutState state, NumberFormat currencyFormatter) {
-    final bool canPlaceOrder = state.selectedAddress != null && 
-        (state.checkoutItems.isNotEmpty || state.currentDebt > 0) &&
+    final bool canPlaceOrder = state.selectedAddress != null &&
+        (state.checkoutItems.isNotEmpty || state.currentDebt != 0) &&
         state.status != CheckoutStatus.placingOrder;
-
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
       decoration: BoxDecoration(

@@ -3,6 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:screenshot/screenshot.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/core/theme/app_theme.dart';
 import 'package:piv_app/core/theme/nature_background_painter.dart';
@@ -10,6 +16,7 @@ import 'package:piv_app/data/models/address_model.dart';
 import 'package:piv_app/data/models/order_item_model.dart';
 import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/data/models/payment_info_model.dart';
+import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/orders/presentation/bloc/order_detail_cubit.dart';
@@ -47,6 +54,7 @@ class _OrderDetailViewState extends State<OrderDetailView> {
   late TextEditingController amountController;
   late TextEditingController voucherController;
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+  final ScreenshotController screenshotController = ScreenshotController();
 
   @override
   void initState() {
@@ -60,6 +68,144 @@ class _OrderDetailViewState extends State<OrderDetailView> {
     amountController.dispose();
     voucherController.dispose();
     super.dispose();
+  }
+
+  Future<void> _captureAndSaveScreenshot({
+    required OrderModel order, 
+    required OrderDetailState state, 
+    UserModel? currentUser
+  }) async {
+    try {
+      // Hiển thị thông báo đang xử lý
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đang tạo ảnh chất lượng cao, vui lòng đợi...'), duration: Duration(seconds: 2)),
+        );
+      }
+
+      // Tự xây dựng một widget hoàn chỉnh để chụp (Phiên bản chuyên nghiệp, không vệt đen)
+      final captureWidget = Container(
+        width: 500, // Chiều ngang 500px khớp với targetSize để không bị vệt đen
+        color: AppTheme.backgroundLight,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header (Gọn gàng, căn giữa)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [AppTheme.primaryGreen, AppTheme.secondaryGreen],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'PIV APP - CHI TIẾT ĐƠN HÀNG', 
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                    textAlign: ui.TextAlign.center,
+                    maxLines: 1,
+                  ),
+                  const SizedBox(height: 8),
+                  Text('Mã đơn: #${order.id?.substring(0, 8).toUpperCase()}', 
+                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 2),
+                  Text('Ngày đặt: ${DateFormat('dd/MM/yyyy HH:mm').format(order.createdAt?.toDate() ?? DateTime.now())}', 
+                      style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                ],
+              ),
+            ),
+            
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildStatusCard(context, order),
+                  const SizedBox(height: 16),
+                  
+                  if (order.legalInfo != null) ...[
+                    _buildInfoCard(context, 'Thông tin pháp lý', Icons.gavel, _LegalInfo(legalInfo: order.legalInfo!)),
+                    const SizedBox(height: 16),
+                  ],
+
+                  _buildInfoCard(context, 'Địa chỉ nhận hàng', Icons.location_on, _AddressInfo(address: order.shippingAddress)),
+                  const SizedBox(height: 16),
+
+                  _buildInfoCard(context, 'Sản phẩm', Icons.shopping_bag, _OrderItemsList(items: order.items, isForPrinting: true)),
+                  const SizedBox(height: 16),
+
+                  _buildInfoCard(
+                    context, 
+                    'Thanh toán', 
+                    Icons.receipt_long, 
+                    _PaymentSummary(
+                      order: order, 
+                      totalAmountToHandle: (order.finalTotal + order.debtAmount - state.voucherDiscount).clamp(0, double.infinity).toDouble(), 
+                      voucherDiscount: state.voucherDiscount
+                    )
+                  ),
+                  
+                  const SizedBox(height: 32),
+                  const Center(child: Text('--- Bản xác nhận pháp lý từ PIV APP ---', 
+                      style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic, fontSize: 10))),
+                  const SizedBox(height: 10),
+                  Text('Xuất lúc: ${DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now())}', 
+                      style: const TextStyle(color: Colors.grey, fontSize: 9)),
+                  const SizedBox(height: 50),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+
+      // SỬ DỤNG targetSize để khớp khít chiều ngang và cho phép chiều dọc dài vô tận
+      final Uint8List imageBytes = await screenshotController.captureFromWidget(
+        Material(
+          color: AppTheme.backgroundLight,
+          child: Directionality(
+            textDirection: ui.TextDirection.ltr,
+            child: MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                size: const Size(500, 20000), // Khung hình dọc 20.000px cực lớn
+                padding: EdgeInsets.zero,
+              ),
+              child: SingleChildScrollView( // Dùng SingleChildScrollView để bao trọn nội dung dài
+                child: captureWidget,
+              ),
+            ),
+          ),
+        ),
+        targetSize: const Size(500, 20000), 
+        pixelRatio: 2.0,
+        delay: const Duration(seconds: 1),
+      );
+
+      final result = await ImageGallerySaverPlus.saveImage(
+        imageBytes,
+        quality: 100,
+        name: "PIV_Order_Full_${order.id?.substring(0, 8)}",
+      );
+
+      if (result != null && result['isSuccess'] == true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã lưu ảnh toàn bộ đơn hàng (Full) vào máy!'), backgroundColor: Colors.green),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi khi chụp ảnh: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   @override
@@ -122,109 +268,121 @@ class _OrderDetailViewState extends State<OrderDetailView> {
 
           return Stack(
             children: [
-              CustomScrollView(
-                slivers: [
-                  _buildSliverAppBar(context, order),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Form(
-                        key: formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildStatusCard(context, order),
-                            const SizedBox(height: 16),
-
-                            if (currentUser != null && order.status == 'pending_approval') ...[
-                              _buildDebtInfoCard(context, currentUser.debtAmount.toDouble()),
+              Screenshot(
+                controller: screenshotController,
+                child: CustomScrollView(
+                  slivers: [
+                    _buildSliverAppBar(context, order, currentUser),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Form(
+                          key: formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildStatusCard(context, order),
                               const SizedBox(height: 16),
-                            ],
 
-                            if (order.shippingDate != null) ...[
+                              if (currentUser != null && order.status == 'pending_approval') ...[
+                                _buildDebtInfoCard(context, currentUser.debtAmount.toDouble()),
+                                const SizedBox(height: 16),
+                              ],
+
+                              if (order.shippingDate != null) ...[
+                                _buildInfoCard(
+                                    context,
+                                    'Thông tin giao hàng',
+                                    Icons.local_shipping_outlined,
+                                    _ShippingInfo(shippingDate: order.shippingDate!.toDate())),
+                                const SizedBox(height: 16),
+                              ],
+
+                              if (order.paymentStatus == 'unpaid' &&
+                                  order.status != 'pending_approval') ...[
+                                // Nếu là chủ đơn hàng (Khách hàng) -> Hiện mã QR
+                                if (currentUser?.id == order.userId && state.paymentInfo != null) ...[
+                                  _buildInfoCard(
+                                      context,
+                                      'Thông tin thanh toán',
+                                      Icons.qr_code_scanner,
+                                      _PaymentQrInfo(paymentInfo: state.paymentInfo!, order: order)),
+                                ]
+                                // Nếu là Nhân viên/Admin -> Chỉ hiện thông báo
+                                else if (currentUser?.id != order.userId) ...[
+                                  _buildInfoCard(
+                                      context,
+                                      'Thông tin thanh toán',
+                                      Icons.info_outline,
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                'Khách hàng chưa thực hiện thanh toán/chuyển khoản.',
+                                                style: TextStyle(
+                                                    color: Colors.orange.shade800,
+                                                    fontWeight: FontWeight.w500,
+                                                    fontStyle: FontStyle.italic),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )),
+                                ],
+                                const SizedBox(height: 16),
+                              ],
+
                               _buildInfoCard(
                                   context,
-                                  'Thông tin giao hàng',
-                                  Icons.local_shipping_outlined,
-                                  _ShippingInfo(shippingDate: order.shippingDate!.toDate())),
+                                  'Địa chỉ nhận hàng',
+                                  Icons.location_on_outlined,
+                                  _AddressInfo(address: order.shippingAddress)),
                               const SizedBox(height: 16),
-                            ],
 
-                            if (order.paymentStatus == 'unpaid' &&
-                                order.status != 'pending_approval') ...[
-                              // Nếu là chủ đơn hàng (Khách hàng) -> Hiện mã QR
-                              if (currentUser?.id == order.userId && state.paymentInfo != null) ...[
+                              if (order.legalInfo != null) ...[
                                 _buildInfoCard(
                                     context,
-                                    'Thông tin thanh toán',
-                                    Icons.qr_code_scanner,
-                                    _PaymentQrInfo(paymentInfo: state.paymentInfo!, order: order)),
-                              ]
-                              // Nếu là Nhân viên/Admin -> Chỉ hiện thông báo
-                              else if (currentUser?.id != order.userId) ...[
-                                _buildInfoCard(
-                                    context,
-                                    'Thông tin thanh toán',
-                                    Icons.info_outline,
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                      child: Row(
-                                        children: [
-                                          const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              'Khách hàng chưa thực hiện thanh toán/chuyển khoản.',
-                                              style: TextStyle(
-                                                  color: Colors.orange.shade800,
-                                                  fontWeight: FontWeight.w500,
-                                                  fontStyle: FontStyle.italic),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    )),
+                                    'Thông tin pháp lý khách hàng',
+                                    Icons.gavel_outlined,
+                                    _LegalInfo(legalInfo: order.legalInfo!)),
+                                const SizedBox(height: 16),
                               ],
+
+                              _buildInfoCard(context, 'Sản phẩm', Icons.shopping_bag_outlined,
+                                  _OrderItemsList(items: order.items)),
                               const SizedBox(height: 16),
+
+                              _buildInfoCard(
+                                  context,
+                                  'Thanh toán',
+                                  Icons.receipt_long_outlined,
+                                  _PaymentSummary(
+                                      order: order,
+                                      totalAmountToHandle: totalAmountToHandle,
+                                      voucherDiscount: state.voucherDiscount)),
+
+                              if (order.status == 'pending_approval') ...[
+                                const SizedBox(height: 16),
+                                _VoucherSection(voucherController: voucherController),
+                                const SizedBox(height: 16),
+                                _ApprovalPaymentInputSection(
+                                    amountController: amountController,
+                                    totalAmount: totalAmountToHandle,
+                                    numberFormatter: numberFormatter),
+                              ],
+
+                              const SizedBox(height: 100), // Bottom padding for BottomBar
                             ],
-
-                            _buildInfoCard(
-                                context,
-                                'Địa chỉ nhận hàng',
-                                Icons.location_on_outlined,
-                                _AddressInfo(address: order.shippingAddress)),
-                            const SizedBox(height: 16),
-
-                            _buildInfoCard(context, 'Sản phẩm', Icons.shopping_bag_outlined,
-                                _OrderItemsList(items: order.items)),
-                            const SizedBox(height: 16),
-
-                            _buildInfoCard(
-                                context,
-                                'Thanh toán',
-                                Icons.receipt_long_outlined,
-                                _PaymentSummary(
-                                    order: order,
-                                    totalAmountToHandle: totalAmountToHandle,
-                                    voucherDiscount: state.voucherDiscount)),
-
-                            if (order.status == 'pending_approval') ...[
-                              const SizedBox(height: 16),
-                              _VoucherSection(voucherController: voucherController),
-                              const SizedBox(height: 16),
-                              _ApprovalPaymentInputSection(
-                                  amountController: amountController,
-                                  totalAmount: totalAmountToHandle,
-                                  numberFormatter: numberFormatter),
-                            ],
-
-                            const SizedBox(height: 100), // Bottom padding for BottomBar
-                          ],
-                        ),
-                      ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0),
+                          ),
+                        ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               // Đã phục hồi Logic BottomBar
               _BottomBar(amountController: amountController, formKey: formKey),
@@ -235,12 +393,28 @@ class _OrderDetailViewState extends State<OrderDetailView> {
     );
   }
 
-  Widget _buildSliverAppBar(BuildContext context, OrderModel order) {
+  Widget _buildSliverAppBar(BuildContext context, OrderModel order, UserModel? currentUser) {
     return SliverAppBar(
       expandedHeight: 120.0,
       pinned: true,
       backgroundColor: AppTheme.primaryGreen,
       leading: const BackButton(color: Colors.white),
+      actions: [
+        if (currentUser?.isAdmin == true || currentUser?.isAccountant == true)
+          BlocBuilder<OrderDetailCubit, OrderDetailState>(
+            builder: (context, state) {
+              return IconButton(
+                icon: const Icon(Icons.download_rounded, color: Colors.white),
+                tooltip: 'Tải ảnh toàn bộ đơn hàng',
+                onPressed: () => _captureAndSaveScreenshot(
+                  order: order, 
+                  state: state, 
+                  currentUser: currentUser
+                ),
+              );
+            }
+          ),
+      ],
       flexibleSpace: FlexibleSpaceBar(
         centerTitle: true,
         title: Text(
@@ -344,28 +518,32 @@ class _OrderDetailViewState extends State<OrderDetailView> {
   }
 
   Widget _buildDebtInfoCard(BuildContext context, double debtAmount) {
+    if (debtAmount == 0) return const SizedBox.shrink();
+    
     final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    final isNegative = debtAmount < 0;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.orange.shade50,
+        color: isNegative ? Colors.green.shade50 : Colors.orange.shade50,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.shade200),
+        border: Border.all(color: isNegative ? Colors.green.shade200 : Colors.orange.shade200),
       ),
       child: Row(
         children: [
-          Icon(Icons.warning_amber_rounded, color: Colors.orange.shade800),
+          Icon(isNegative ? Icons.info_outline : Icons.warning_amber_rounded, color: isNegative ? Colors.green.shade800 : Colors.orange.shade800),
           const SizedBox(width: 12),
           Expanded(
             child: Text.rich(
               TextSpan(
-                text: 'Công nợ hiện tại: ',
+                text: isNegative ? 'Dư nợ hiện tại: ' : 'Công nợ hiện tại: ',
                 children: [
                   TextSpan(
                       text: formatter.format(debtAmount),
                       style: const TextStyle(fontWeight: FontWeight.bold)),
                 ],
-                style: TextStyle(color: Colors.orange.shade900),
+                style: TextStyle(color: isNegative ? Colors.green.shade900 : Colors.orange.shade900),
               ),
             ),
           ),
@@ -393,12 +571,24 @@ class _PaymentSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     final bool isDebtPaymentOnly = order.items.isEmpty && order.debtAmount > 0;
-    final double estimatedRemainingDebt = (order.finalTotal +
+    
+    // Tính tổng tiền thực giao dựa trên confirmedSubtotal
+    final double confirmedTotal = order.items.fold(0.0, (sum, item) => sum + item.confirmedSubtotal);
+    final double confirmedFinalTotal = (confirmedTotal + order.shippingFee - order.discount - order.commissionDiscount).clamp(0, double.infinity);
+    
+    // Nếu đơn hàng đã giao (shipped), dùng confirmedFinalTotal để tính nợ dự kiến
+    final double baseTotalForDebt = (order.status == 'shipped' || order.status == 'completed') 
+        ? confirmedFinalTotal 
+        : order.finalTotal;
+
+    final double estimatedRemainingDebt = (baseTotalForDebt +
             order.debtAmount -
             order.paidAmount -
             voucherDiscount)
-        .clamp(0, double.infinity)
         .toDouble();
+
+    // Chênh lệch do trả hàng (nếu có)
+    final double returnAdjustment = order.finalTotal - confirmedFinalTotal;
 
     return Column(
       children: [
@@ -417,11 +607,21 @@ class _PaymentSummary extends StatelessWidget {
           ],
           const Divider(height: 24),
           _row('Tiền hàng đơn này', formatter.format(order.finalTotal), isBold: true),
+          
+          if (order.status == 'shipped' && returnAdjustment > 0) ...[
+            const SizedBox(height: 8),
+            _row('Điều chỉnh hàng trả', '- ${formatter.format(returnAdjustment)}',
+                color: Colors.blue.shade700, isBold: false),
+            const SizedBox(height: 4),
+            _row('Thành tiền thực giao', formatter.format(confirmedFinalTotal), 
+                isBold: true, color: AppTheme.primaryGreen),
+          ],
           const SizedBox(height: 8),
         ],
-        if (order.debtAmount > 0)
-          _row('Công nợ trước đơn', '+ ${formatter.format(order.debtAmount)}',
-              color: Colors.red.shade700),
+        if (order.debtAmount != 0)
+          _row(order.debtAmount > 0 ? 'Công nợ trước đơn' : 'Dư nợ trước đơn', 
+              '${order.debtAmount > 0 ? '+' : ''} ${formatter.format(order.debtAmount)}',
+              color: order.debtAmount > 0 ? Colors.red.shade700 : Colors.green.shade700),
         const Divider(height: 24),
         if (isDebtPaymentOnly) ...[
           _row('Số tiền thanh toán nợ', formatter.format(order.paidAmount),
@@ -435,12 +635,12 @@ class _PaymentSummary extends StatelessWidget {
             isBold: true, color: Colors.blue.shade700),
         const SizedBox(height: 8),
         _row(
-          'Công nợ còn lại (dự kiến)',
+          order.status == 'shipped' ? 'Công nợ dự kiến sau giao' : 'Công nợ còn lại (dự kiến)',
           formatter.format(order.status == 'pending_approval'
               ? estimatedRemainingDebt
-              : order.remainingDebt),
+              : (order.status == 'shipped' ? estimatedRemainingDebt : order.remainingDebt)),
           isBold: true,
-          color: (order.status == 'pending_approval'
+          color: (order.status == 'pending_approval' || order.status == 'shipped'
                       ? estimatedRemainingDebt
                       : order.remainingDebt) >
                   0
@@ -971,92 +1171,32 @@ class _PaymentQrInfo extends StatefulWidget {
 }
 
 class _PaymentQrInfoState extends State<_PaymentQrInfo> {
-  int _selectedAccountIndex = 0; // 0: Công ty, 1: Cá nhân 1, 2: Cá nhân 2
-
   // --- THÔNG TIN TÀI KHOẢN ---
-  // Để quét ra số tiền tự động, cả 3 tài khoản đều dùng cơ chế VietQR động
-  List<Map<String, String>> get _accounts => [
-    {
-      'type': 'COMPANY',
-      'label': 'TÀI KHOẢN CÔNG TY',
-      'bank': 'Techcombank',
-      'holder': 'CONG TY TNHH MTV PIV',
-      'number': '1948883383',
-      'bankId': 'TCB', 
-    },
-    {
-      'type': 'PERSONAL',
-      'label': 'TÀI KHOẢN CÁ NHÂN 1',
-      'bank': 'VPBank', 
-      'holder': 'LUONG MAI NAM',
-      'number': '999888777666', 
-      'bankId': 'VPB',
-    },
-    {
-      'type': 'PERSONAL',
-      'label': 'TÀI KHOẢN CÁ NHÂN 2',
-      'bank': 'MB Bank',
-      'holder': 'LUONG MAI NAM',
-      'number': '0327284001',
-      'bankId': 'MB',
-    },
-  ];
+  // Sử dụng tài khoản công ty Techcombank làm mặc định duy nhất
+  final Map<String, String> _companyAccount = {
+    'type': 'COMPANY',
+    'label': 'TÀI KHOẢN CÔNG TY',
+    'bank': 'Techcombank',
+    'holder': 'CONG TY TNHH MTV PIV',
+    'number': '1948883383',
+    'bankId': 'TCB',
+  };
 
   @override
   Widget build(BuildContext context) {
     final shortOrderId = widget.order.id?.substring(0, 8).toUpperCase() ?? 'DONHANG';
     final paymentContent = 'PIV DH $shortOrderId';
     final amount = widget.order.finalTotal;
-    
-    final selectedAcc = _accounts[_selectedAccountIndex];
-    final bool isCompany = selectedAcc['type'] == 'COMPANY';
 
-    // Tạo link VietQR động cho tất cả các tài khoản
+    const bool isCompany = true;
+
+    // Tạo link VietQR động cho tài khoản công ty
     // template 'compact2' hiển thị mã QR kèm logo ngân hàng gọn đẹp
-    final qrUrl = 'https://img.vietqr.io/image/${selectedAcc['bankId']}-${selectedAcc['number']}-compact2.png?amount=${amount.toInt()}&addInfo=${Uri.encodeComponent(paymentContent)}&accountName=${Uri.encodeComponent(selectedAcc['holder']!)}';
+    final qrUrl = 'https://img.vietqr.io/image/${_companyAccount['bankId']}-${_companyAccount['number']}-compact2.png?amount=${amount.toInt()}&addInfo=${Uri.encodeComponent(paymentContent)}&accountName=${Uri.encodeComponent(_companyAccount['holder']!)}';
 
     return Column(
       children: [
-        const Text('Chọn tài khoản chuyển khoản:', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark)),
-        const SizedBox(height: 12),
-        
-        // --- NÚT CHỌN TÀI KHOẢN ---
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: List.generate(_accounts.length, (index) {
-              final acc = _accounts[index];
-              final isSelected = _selectedAccountIndex == index;
-              final isAccCompany = acc['type'] == 'COMPANY';
-
-              return Padding(
-                padding: const EdgeInsets.only(right: 8.0),
-                child: ChoiceChip(
-                  label: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(acc['label']!, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : (isAccCompany ? AppTheme.primaryGreen : Colors.blue))),
-                      Text(acc['bank']!, style: TextStyle(fontSize: 12, color: isSelected ? Colors.white : Colors.black87)),
-                    ],
-                  ),
-                  selected: isSelected,
-                  onSelected: (bool selected) {
-                    if (selected) setState(() => _selectedAccountIndex = index);
-                  },
-                  selectedColor: isAccCompany ? AppTheme.primaryGreen : Colors.blue,
-                  backgroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: isAccCompany ? AppTheme.primaryGreen : Colors.blue, width: 1.5),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  showCheckmark: false,
-                ),
-              );
-            }),
-          ),
-        ),
-
+        const Text('Thông tin tài khoản chuyển khoản:', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark)),
         const SizedBox(height: 24),
 
         // --- KHUNG HIỂN THỊ MÃ QR ---
@@ -1065,10 +1205,10 @@ class _PaymentQrInfoState extends State<_PaymentQrInfo> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: isCompany ? AppTheme.primaryGreen.withValues(alpha: 0.2) : Colors.blue.withValues(alpha: 0.2), width: 2),
+            border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.2), width: 2),
             boxShadow: [
               BoxShadow(
-                color: (isCompany ? AppTheme.primaryGreen : Colors.blue).withValues(alpha: 0.08),
+                color: AppTheme.primaryGreen.withValues(alpha: 0.08),
                 blurRadius: 30,
                 spreadRadius: 5,
                 offset: const Offset(0, 10),
@@ -1077,27 +1217,27 @@ class _PaymentQrInfoState extends State<_PaymentQrInfo> {
           ),
           child: Column(
             children: [
-              // Badge phân biệt loại tài khoản
+              // Badge phân biệt loại tài khoản (Công ty)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
-                  color: isCompany ? AppTheme.primaryGreen : Colors.blue,
+                  color: AppTheme.primaryGreen,
                   borderRadius: BorderRadius.circular(30),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(isCompany ? Icons.business : Icons.person, color: Colors.white, size: 14),
+                    const Icon(Icons.business, color: Colors.white, size: 14),
                     const SizedBox(width: 6),
                     Text(
-                      selectedAcc['label']!,
+                      _companyAccount['label']!,
                       style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Ảnh QR
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
@@ -1119,19 +1259,19 @@ class _PaymentQrInfoState extends State<_PaymentQrInfo> {
                   ))),
                 ),
               ),
-              
+
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 8),
-              
+
               // Thông tin văn bản bên dưới QR
-              Text(selectedAcc['holder']!, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1)),
+              Text(_companyAccount['holder']!, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1)),
               const SizedBox(height: 4),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('${selectedAcc['bank']} - ', style: const TextStyle(fontSize: 15, color: Colors.grey)),
-                  SelectableText(selectedAcc['number']!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                  Text('${_companyAccount['bank']} - ', style: const TextStyle(fontSize: 15, color: Colors.grey)),
+                  SelectableText(_companyAccount['number']!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
                 ],
               ),
             ],
@@ -1195,6 +1335,45 @@ class _PaymentQrInfoState extends State<_PaymentQrInfo> {
   }
 }
 
+class _LegalInfo extends StatelessWidget {
+  final CustomerLegalInfo legalInfo;
+  const _LegalInfo({required this.legalInfo});
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (legalInfo.displayName != null)
+           _infoRow('Tên khách hàng:', legalInfo.displayName!),
+        if (legalInfo.idCardOrTaxId != null)
+           _infoRow('MST/CCCD:', legalInfo.idCardOrTaxId!),
+        if (legalInfo.phoneNumber != null)
+           _infoRow('Số điện thoại:', legalInfo.phoneNumber!),
+        if (legalInfo.currentAddress != null)
+           _infoRow('Địa chỉ pháp lý:', legalInfo.currentAddress!),
+      ],
+    );
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(label, style: const TextStyle(color: AppTheme.textGrey, fontSize: 13)),
+          ),
+          Expanded(
+            child: Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ShippingInfo extends StatelessWidget {
   final DateTime shippingDate;
   const _ShippingInfo({required this.shippingDate});
@@ -1227,81 +1406,135 @@ class _AddressInfo extends StatelessWidget {
 
 class _OrderItemsList extends StatelessWidget {
   final List<OrderItemModel> items;
-  const _OrderItemsList({required this.items});
+  final bool isForPrinting;
+  const _OrderItemsList({required this.items, this.isForPrinting = false});
   @override
   Widget build(BuildContext context) {
     final formatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+
+    if (isForPrinting) {
+      return Column(
+        children: items.asMap().entries.map((entry) {
+          final index = entry.key;
+          final item = entry.value;
+          return Column(
+            children: [
+              _buildItemRow(item, formatter),
+              if (index < items.length - 1) const Divider(height: 24),
+            ],
+          );
+        }).toList(),
+      );
+    }
+
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: items.length,
       separatorBuilder: (_, __) => const Divider(height: 24),
       itemBuilder: (context, index) {
-        final item = items[index];
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(item.imageUrl,
+        return _buildItemRow(items[index], formatter);
+      },
+    );
+  }
+
+  Widget _buildItemRow(OrderItemModel item, NumberFormat formatter) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.network(item.imageUrl,
+              width: 60,
+              height: 60,
+              fit: BoxFit.cover,
+              errorBuilder: (c, e, s) => Container(
                   width: 60,
                   height: 60,
-                  fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) => Container(
-                      width: 60,
-                      height: 60,
-                      color: Colors.grey.shade200,
-                      child: const Icon(Icons.image, color: Colors.grey))),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                  color: Colors.grey.shade200,
+                  child: const Icon(Icons.image, color: Colors.grey))),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(item.productName,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              const SizedBox(height: 6),
+              Row(
                 children: [
-                  Text(item.productName,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: item.packaging.toLowerCase().contains('thùng') 
-                              ? AppTheme.primaryGreen.withOpacity(0.1) 
-                              : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                            color: item.packaging.toLowerCase().contains('thùng') 
-                                ? AppTheme.primaryGreen.withOpacity(0.3) 
-                                : Colors.grey.shade300,
-                          ),
-                        ),
-                        child: Text(
-                          item.packaging.toLowerCase().contains('thùng') ? 'THÙNG' : 'LẺ',
-                          style: TextStyle(
-                            color: item.packaging.toLowerCase().contains('thùng') ? AppTheme.primaryGreen : AppTheme.textGrey,
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: item.packaging.toLowerCase().contains('thùng') 
+                          ? AppTheme.primaryGreen.withOpacity(0.1) 
+                          : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: item.packaging.toLowerCase().contains('thùng') 
+                            ? AppTheme.primaryGreen.withOpacity(0.3) 
+                            : Colors.grey.shade300,
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
+                    ),
+                    child: Text(
+                      item.packaging.toLowerCase().contains('thùng') ? 'THÙNG' : 'LẺ',
+                      style: TextStyle(
+                        color: item.packaging.toLowerCase().contains('thùng') ? AppTheme.primaryGreen : AppTheme.textGrey,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
                             '${item.quantity} ${item.packaging} (${item.unit} x ${formatter.format(item.price)})',
                             style: const TextStyle(color: AppTheme.textGrey, fontSize: 12),
                             overflow: TextOverflow.ellipsis),
-                      ),
-                    ],
+                        if ((item.confirmedQuantity * item.quantityPerPackage + item.confirmedLooseQuantity) < (item.quantity * item.quantityPerPackage))
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2.0),
+                            child: Text(
+                              'Thực giao: ${item.confirmedQuantity} ${item.packaging}${item.confirmedLooseQuantity > 0 ? ' + ${item.confirmedLooseQuantity} ${item.unit}' : ''}',
+                              style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 11),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-            ),
+            ],
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
             Text(formatter.format(item.subtotal),
-                style: const TextStyle(fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  decoration: (item.confirmedQuantity * item.quantityPerPackage + item.confirmedLooseQuantity) < (item.quantity * item.quantityPerPackage)
+                      ? TextDecoration.lineThrough
+                      : null,
+                  color: (item.confirmedQuantity * item.quantityPerPackage + item.confirmedLooseQuantity) < (item.quantity * item.quantityPerPackage)
+                      ? Colors.grey
+                      : Colors.black,
+                  fontSize: (item.confirmedQuantity * item.quantityPerPackage + item.confirmedLooseQuantity) < (item.quantity * item.quantityPerPackage)
+                      ? 11
+                      : 14,
+                )),
+            if ((item.confirmedQuantity * item.quantityPerPackage + item.confirmedLooseQuantity) < (item.quantity * item.quantityPerPackage))
+              Text(
+                formatter.format(item.confirmedSubtotal),
+                style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+              ),
           ],
-        );
-      },
+        ),
+      ],
     );
   }
 }

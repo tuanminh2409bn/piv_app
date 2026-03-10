@@ -53,6 +53,39 @@ class PlacedByInfo extends Equatable {
   List<Object?> get props => [userId, role];
 }
 
+class CustomerLegalInfo extends Equatable {
+  final String? displayName;
+  final String? idCardOrTaxId;
+  final String? phoneNumber;
+  final String? currentAddress;
+
+  const CustomerLegalInfo({
+    this.displayName,
+    this.idCardOrTaxId,
+    this.phoneNumber,
+    this.currentAddress,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'displayName': displayName,
+    'idCardOrTaxId': idCardOrTaxId,
+    'phoneNumber': phoneNumber,
+    'currentAddress': currentAddress,
+  };
+
+  factory CustomerLegalInfo.fromMap(Map<String, dynamic> map) {
+    return CustomerLegalInfo(
+      displayName: map['displayName'] as String?,
+      idCardOrTaxId: map['idCardOrTaxId'] as String?,
+      phoneNumber: map['phoneNumber'] as String?,
+      currentAddress: map['currentAddress'] as String?,
+    );
+  }
+
+  @override
+  List<Object?> get props => [displayName, idCardOrTaxId, phoneNumber, currentAddress];
+}
+
 class OrderModel extends Equatable {
   final String? id;
   final String userId;
@@ -79,6 +112,7 @@ class OrderModel extends Equatable {
   final double paidAmount;
   final double remainingDebt;
   final String? appliedVoucherCode;
+  final CustomerLegalInfo? legalInfo;
 
 
   const OrderModel({
@@ -107,7 +141,24 @@ class OrderModel extends Equatable {
     this.paidAmount = 0.0,
     this.remainingDebt = 0.0,
     this.appliedVoucherCode,
+    this.legalInfo,
   });
+
+  // Tổng tiền hàng thực tế sau khi công ty xác nhận số lượng giao
+  double get confirmedSubtotal => items.fold(0, (sum, item) => sum + item.confirmedSubtotal);
+
+  // Tổng tiền đơn hàng thực tế (đã trừ voucher và chiết khấu)
+  double get confirmedFinalTotal {
+    // Nếu chưa xác nhận (confirmedSubtotal == 0 hoặc chưa giao), dùng finalTotal gốc
+    if (confirmedSubtotal <= 0) return finalTotal;
+    
+    // Tính toán lại dựa trên tỷ lệ hoặc tính lại từ đầu
+    // Để đơn giản và chính xác: confirmedSubtotal - discount - commissionDiscount
+    return (confirmedSubtotal - discount - commissionDiscount).clamp(0, double.infinity);
+  }
+
+  // Số tiền chênh lệch cần hoàn lại/trừ vào công nợ (Tiền đặt - Tiền thực giao)
+  double get refundAmount => (finalTotal - confirmedFinalTotal).clamp(0, double.infinity);
 
   OrderModel copyWith({
     String? id,
@@ -129,12 +180,14 @@ class OrderModel extends Equatable {
     Timestamp? approvedAt,
     Timestamp? rejectedAt,
     String? rejectionReason,
+    Timestamp? shippingDate, // <<< THÊM VÀO ĐÂY
     ReturnInfo? returnInfo,
     double? debtAmount,
     double? paidAmount,
     double? remainingDebt,
     String? appliedVoucherCode,
     bool forceAppliedVoucherCodeToNull = false,
+    CustomerLegalInfo? legalInfo,
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -156,11 +209,13 @@ class OrderModel extends Equatable {
       approvedAt: approvedAt ?? this.approvedAt,
       rejectedAt: rejectedAt ?? this.rejectedAt,
       rejectionReason: rejectionReason ?? this.rejectionReason,
+      shippingDate: shippingDate ?? this.shippingDate, // <<< VÀ ĐÂY
       returnInfo: returnInfo ?? this.returnInfo,
       debtAmount: debtAmount ?? this.debtAmount,
       paidAmount: paidAmount ?? this.paidAmount,
       remainingDebt: remainingDebt ?? this.remainingDebt,
       appliedVoucherCode: forceAppliedVoucherCodeToNull ? null : (appliedVoucherCode ?? this.appliedVoucherCode),
+      legalInfo: legalInfo ?? this.legalInfo,
     );
   }
 
@@ -168,7 +223,7 @@ class OrderModel extends Equatable {
   List<Object?> get props => [
     id, userId, items, shippingAddress, subtotal, shippingFee, discount, total,
     paymentMethod, paymentStatus, status, createdAt, salesRepId, commissionDiscount, finalTotal,
-    placedBy, approvedAt, rejectedAt, rejectionReason, shippingDate, returnInfo, debtAmount, paidAmount, remainingDebt, appliedVoucherCode
+    placedBy, approvedAt, rejectedAt, rejectionReason, shippingDate, returnInfo, debtAmount, paidAmount, remainingDebt, appliedVoucherCode, legalInfo
   ];
 
   Map<String, dynamic> toMap() {
@@ -197,6 +252,7 @@ class OrderModel extends Equatable {
       'paidAmount': paidAmount,
       'remainingDebt': remainingDebt,
       'appliedVoucherCode': appliedVoucherCode,
+      'legalInfo': legalInfo?.toMap(),
     };
   }
 
@@ -237,6 +293,9 @@ class OrderModel extends Equatable {
       paidAmount: (data['paidAmount'] as num?)?.toDouble() ?? 0.0,
       remainingDebt: (data['remainingDebt'] as num?)?.toDouble() ?? 0.0,
       appliedVoucherCode: data['appliedVoucherCode'] as String?,
+      legalInfo: data['legalInfo'] != null
+          ? CustomerLegalInfo.fromMap(data['legalInfo'] as Map<String, dynamic>)
+          : null,
     );
   }
 }
