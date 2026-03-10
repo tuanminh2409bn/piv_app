@@ -3,9 +3,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_debt_approval_page.dart';
+import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:intl/intl.dart';
 
 // --- BẮT ĐẦU PHẦN MỚI: Currency Formatter ---
@@ -14,28 +17,47 @@ class CurrencyInputFormatter extends TextInputFormatter {
 
   @override
   TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue,
-      TextEditingValue newValue,
-      ) {
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     if (newValue.text.isEmpty) {
       return newValue.copyWith(text: '');
     }
 
-    final cleanText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (cleanText.isEmpty) {
-      return const TextEditingValue(
-        text: '',
-        selection: TextSelection.collapsed(offset: 0),
+    if (newValue.text == '-') {
+      return newValue.copyWith(
+        text: '-',
+        selection: const TextSelection.collapsed(offset: 1),
       );
     }
 
-    final number = int.parse(cleanText);
-    final formattedText = _formatter.format(number);
+    // Lấy dấu trừ nếu có
+    final bool isNegative = newValue.text.startsWith('-');
+    final cleanText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
 
-    return newValue.copyWith(
-      text: formattedText,
-      selection: TextSelection.collapsed(offset: formattedText.length),
-    );
+    if (cleanText.isEmpty) {
+      return isNegative
+          ? newValue.copyWith(
+              text: '-', selection: const TextSelection.collapsed(offset: 1))
+          : const TextEditingValue(
+              text: '', selection: TextSelection.collapsed(offset: 0));
+    }
+
+    try {
+      final number = int.parse(cleanText);
+      String formattedText = _formatter.format(number);
+
+      if (isNegative) {
+        formattedText = '-$formattedText';
+      }
+
+      return newValue.copyWith(
+        text: formattedText,
+        selection: TextSelection.collapsed(offset: formattedText.length),
+      );
+    } catch (e) {
+      return oldValue;
+    }
   }
 }
 // --- KẾT THÚC PHẦN MỚI ---
@@ -78,15 +100,16 @@ class AdminDebtManagementPage extends StatelessWidget {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: debtController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: false),
-                  // SỬ DỤNG FORMATTER MỚI
+                  keyboardType: const TextInputType.numberWithOptions(
+                      decimal: false, signed: true),
                   inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
                     CurrencyInputFormatter(),
                   ],
                   decoration: const InputDecoration(
                     labelText: 'Số tiền công nợ mới',
                     suffixText: 'đ',
+                    helperText: 'Nhập dấu trừ (-) nếu Công ty nợ Khách',
+                    helperMaxLines: 2,
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -106,9 +129,12 @@ class AdminDebtManagementPage extends StatelessWidget {
             ElevatedButton(
               onPressed: () {
                 if (formKey.currentState!.validate()) {
-                  // Chuyển đổi chuỗi đã định dạng về số
-                  final cleanValue = debtController.text.replaceAll('.', '');
-                  final newDebtAmount = double.tryParse(cleanValue) ?? 0.0;
+                  // Chuyển đổi chuỗi đã định dạng về số (giữ lại dấu trừ)
+                  final String text = debtController.text;
+                  final bool isNegative = text.startsWith('-');
+                  final String cleanValue = text.replaceAll(RegExp(r'[^0-9]'), '');
+                  double newDebtAmount = double.tryParse(cleanValue) ?? 0.0;
+                  if (isNegative) newDebtAmount = -newDebtAmount;
 
                   cubit.updateUserDebt(
                     userId: user.id,
@@ -128,12 +154,49 @@ class AdminDebtManagementPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    final currentUser = (context.read<AuthBloc>().state as AuthAuthenticated).user;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Quản lý Công nợ'),
+        actions: [
+          if (currentUser.isAdmin)
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('debtUpdateRequests')
+                  .where('status', isEqualTo: 'pending')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                final hasPending = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
+                return Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.approval_rounded),
+                      tooltip: 'Duyệt yêu cầu',
+                      onPressed: () => Navigator.of(context).push(AdminDebtApprovalPage.route()),
+                    ),
+                    if (hasPending)
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+        ],
       ),
-      body: BlocConsumer<AdminUsersCubit, AdminUsersState>( // Sửa thành BlocConsumer
+      body: BlocConsumer<AdminUsersCubit, AdminUsersState>(
+ // Sửa thành BlocConsumer
         listener: (context, state) {
           if (state.status == AdminUsersStatus.success && state.errorMessage != null) {
             ScaffoldMessenger.of(context)

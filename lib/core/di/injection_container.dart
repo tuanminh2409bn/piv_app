@@ -92,6 +92,7 @@ import 'package:piv_app/features/returns/presentation/bloc/admin_returns_cubit.d
 import 'package:piv_app/features/profile/presentation/bloc/debt_payment_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_discount_settings_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_discount_requests_cubit.dart';
+import 'package:piv_app/features/admin/presentation/bloc/debt_approval_cubit.dart';
 
 final sl = GetIt.instance;
 
@@ -189,4 +190,5 @@ Future<void> initializeDependencies() async {
   sl.registerFactory(() => NotificationCubit(notificationRepository: sl(), authBloc: sl()));
   sl.registerFactory(() => CreateReturnRequestCubit(returnRepository: sl(), settingsRepository: sl()));
   sl.registerFactory(() => AdminReturnsCubit(returnRepository: sl()));
+  sl.registerFactory(() => DebtApprovalCubit(adminRepository: sl()));
 }

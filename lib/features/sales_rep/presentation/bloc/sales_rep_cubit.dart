@@ -11,6 +11,7 @@ class SalesRepCubit extends Cubit<SalesRepState> {
   final AdminRepository _adminRepository;
   final AuthBloc _authBloc;
   StreamSubscription? _authSubscription;
+  StreamSubscription? _agentsSubscription;
   String _currentSalesRepId = '';
 
   SalesRepCubit({
@@ -22,9 +23,10 @@ class SalesRepCubit extends Cubit<SalesRepState> {
     _authSubscription = _authBloc.stream.listen((authState) {
       if (authState is AuthAuthenticated && authState.user.isSalesRep) {
         _currentSalesRepId = authState.user.id;
-        fetchMyAgents();
+        _watchMyAgents();
       } else if (authState is AuthUnauthenticated) {
         _currentSalesRepId = '';
+        _agentsSubscription?.cancel();
         emit(const SalesRepState());
       }
     });
@@ -32,31 +34,36 @@ class SalesRepCubit extends Cubit<SalesRepState> {
     final initialAuthState = _authBloc.state;
     if (initialAuthState is AuthAuthenticated && initialAuthState.user.isSalesRep) {
       _currentSalesRepId = initialAuthState.user.id;
-      fetchMyAgents();
+      _watchMyAgents();
     }
   }
 
-  Future<void> fetchMyAgents() async {
+  void _watchMyAgents() {
     if (_currentSalesRepId.isEmpty) return;
-    if (state.status != SalesRepStatus.success) {
-      emit(state.copyWith(status: SalesRepStatus.loading));
-    }
-    final result = await _adminRepository.getAgentsBySalesRepId(_currentSalesRepId);
-    result.fold(
-          (failure) => emit(state.copyWith(status: SalesRepStatus.error, errorMessage: failure.message)),
-          (agents) {
-            final activeAgents = agents.where((a) => a.status == 'active').toList();
-            emit(state.copyWith(status: SalesRepStatus.success, myAgents: activeAgents));
-          },
+    emit(state.copyWith(status: SalesRepStatus.loading));
+    _agentsSubscription?.cancel();
+    _agentsSubscription = _adminRepository.watchAgentsBySalesRepId(_currentSalesRepId).listen(
+      (agents) {
+        final activeAgents = agents.where((a) => a.status == 'active').toList();
+        emit(state.copyWith(status: SalesRepStatus.success, myAgents: activeAgents));
+      },
+      onError: (error) {
+        emit(state.copyWith(status: SalesRepStatus.error, errorMessage: error.toString()));
+      },
     );
+  }
+
+  Future<void> fetchMyAgents() async {
+    // Không cần làm gì vì _watchMyAgents đã xử lý
   }
 
   Future<void> updateAgentDebt({
     required String agentId,
     required double newDebtAmount,
   }) async {
-    // Kiểm tra để chắc chắn rằng NVKD đã đăng nhập
-    if (_currentSalesRepId.isEmpty) {
+    // Lấy thông tin người dùng đang đăng nhập
+    final authState = _authBloc.state;
+    if (authState is! AuthAuthenticated) {
       emit(state.copyWith(
         status: SalesRepStatus.error,
         errorMessage: 'Lỗi xác thực người dùng.',
@@ -64,27 +71,76 @@ class SalesRepCubit extends Cubit<SalesRepState> {
       return;
     }
 
-    final result = await _adminRepository.updateUserDebt(
-      userId: agentId,
-      newDebtAmount: newDebtAmount,
-      updatedBy: _currentSalesRepId, // Truyền ID của NVKD hiện tại
-    );
+    final currentUser = authState.user;
+    emit(state.copyWith(status: SalesRepStatus.loading));
 
-    result.fold(
-          (failure) {
+    if (currentUser.isAdmin) {
+      // Admin cập nhật trực tiếp
+      final result = await _adminRepository.updateUserDebt(
+        userId: agentId,
+        newDebtAmount: newDebtAmount,
+        updatedBy: currentUser.id,
+      );
+
+      result.fold(
+            (failure) {
+          emit(state.copyWith(
+            status: SalesRepStatus.error,
+            errorMessage: 'Cập nhật công nợ thất bại: ${failure.message}',
+          ));
+          emit(state.copyWith(status: SalesRepStatus.success));
+        },
+            (_) => fetchMyAgents(),
+      );
+    } else {
+      // Sales Rep / Accountant gửi yêu cầu phê duyệt
+      final targetUser = state.myAgents.firstWhere(
+        (u) => u.id == agentId,
+        orElse: () => UserModel.empty,
+      );
+
+      if (targetUser.isEmpty) {
         emit(state.copyWith(
           status: SalesRepStatus.error,
-          errorMessage: 'Cập nhật công nợ thất bại: ${failure.message}',
+          errorMessage: 'Không tìm thấy thông tin đại lý.',
         ));
         emit(state.copyWith(status: SalesRepStatus.success));
-      },
-          (_) => fetchMyAgents(),
-    );
+        return;
+      }
+
+      final result = await _adminRepository.createDebtUpdateRequest(
+        userId: agentId,
+        userName: targetUser.displayName ?? targetUser.email ?? 'Ẩn danh',
+        oldDebtAmount: targetUser.debtAmount,
+        newDebtAmount: newDebtAmount,
+        requestedBy: currentUser.id,
+        requestedByName: currentUser.displayName ?? currentUser.email ?? 'Nhân viên',
+      );
+
+      result.fold(
+            (failure) {
+          emit(state.copyWith(
+            status: SalesRepStatus.error,
+            errorMessage: 'Gửi yêu cầu thất bại: ${failure.message}',
+          ));
+          emit(state.copyWith(status: SalesRepStatus.success));
+        },
+            (_) {
+          emit(state.copyWith(
+            status: SalesRepStatus.success,
+            errorMessage: 'Yêu cầu cập nhật công nợ đã được gửi tới Admin phê duyệt.',
+          ));
+          // Sau khi gửi yêu cầu, cập nhật lại trạng thái thành công để tắt loading
+          emit(state.copyWith(status: SalesRepStatus.success));
+        },
+      );
+    }
   }
 
   @override
   Future<void> close() {
     _authSubscription?.cancel();
+    _agentsSubscription?.cancel();
     return super.close();
   }
 }

@@ -80,7 +80,7 @@ service cloud.firestore {
         'status', 
         'paymentStatus', 
         'shippingDate', 
-        'items', // <<< THÊM MỚI: Cho phép sửa số lượng thực giao
+        'items', 
         'completedAt', 
         'cancelledAt',
         'updatedAt'
@@ -110,21 +110,17 @@ service cloud.firestore {
              request.resource.data.referralPromptPending == false &&
              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['salesRepId', 'referrerId', 'status', 'referralPromptPending', 'updatedAt'])
            ) ||
-                      (
-                        isSalesRep() &&
-                        resource.data.salesRepId == request.auth.uid &&
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['debtAmount'])
-                      ) ||
-                      (
-                        isSalesRep() &&
-                        resource.data.salesRepId == request.auth.uid &&
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['useGeneralPrice'])
-                      );
+           (
+             isSalesRep() &&
+             resource.data.salesRepId == request.auth.uid &&
+             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['useGeneralPrice'])
+           );
                       
-                 match /notifications/{notificationId} {        allow read, update: if request.auth.uid == userId;
+      match /notifications/{notificationId} {
+        allow read, update: if request.auth.uid == userId;
       }
       
-    match /special_prices/{priceId} {
+      match /special_prices/{priceId} {
         allow read: if request.auth != null && (request.auth.uid == userId || isStaff());
         allow write: if isAdmin();
       }
@@ -156,9 +152,9 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
-    match /carts/{userId}/{documents=**} {
-        allow read, write: if isUser(userId);
-    }
+  match /carts/{userId}/{documents=**} {
+      allow read, write: if isUser(userId);
+  }
   match /vouchers/{voucherId} {
       allow read: if isSignedIn();
       allow create: if isAdmin() || 
@@ -186,11 +182,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    match /spin_history/{historyId} {
-      allow read: if isAdmin() || isSalesRep() || isAccountant() ||
-                      (isAgent() && resource.data.userId == request.auth.uid);
-      allow write: if false;
-    }
+  match /spin_history/{historyId} {
+    allow read: if isAdmin() || isSalesRep() || isAccountant() ||
+                    (isAgent() && resource.data.userId == request.auth.uid);
+    allow write: if false;
+  }
 
   match /orders/{orderId} {
       allow read: if isSignedIn() && 
@@ -244,6 +240,17 @@ service cloud.firestore {
   match /manualNotifications/{notificationId} {
       allow read: if isAdmin();
       allow write, delete: if false; 
+    }
+
+  match /debtUpdateRequests/{requestId} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update, delete: if isAdmin();
+    }
+
+  match /debtTransactions/{transactionId} {
+      allow read: if isStaff() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
     }
   }
 }

@@ -78,6 +78,16 @@ class NotificationCubit extends Cubit<NotificationState> {
     }
   }
 
+  /// Đánh dấu tất cả thông báo là đã đọc.
+  Future<void> markAllAsRead() async {
+    if (_currentUserId == null) return;
+    try {
+      await _notificationRepository.markAllAsRead(_currentUserId!);
+    } catch (e) {
+      print('Lỗi khi đánh dấu tất cả đã đọc: $e');
+    }
+  }
+
   @override
   Future<void> close() {
     // Đảm bảo hủy tất cả các stream subscriptions khi Cubit bị đóng

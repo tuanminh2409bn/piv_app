@@ -18,6 +18,7 @@ import 'package:piv_app/features/notifications/presentation/pages/notification_l
 import 'package:piv_app/features/orders/presentation/pages/order_detail_page.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
 import 'package:piv_app/features/returns/presentation/pages/admin_return_request_loader_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_debt_approval_page.dart';
 import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/sales_commitment_page.dart';
@@ -230,6 +231,10 @@ class NotificationService {
       case 'commitment_completed':
         final commitmentId = data['commitmentId'];
         navigator.push(CommitmentHistoryPage.route(commitmentId: commitmentId));
+        break;
+      case 'debt_update_request':
+      case 'debt_update_response':
+        navigator.push(AdminDebtApprovalPage.route());
         break;
       default:
         developer.log('Loại thông báo không xác định: $type. Mở trang thông báo.', name: "NotificationService");

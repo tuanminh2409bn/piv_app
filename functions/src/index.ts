@@ -2282,5 +2282,107 @@ export const sendBirthdayGreetings = onSchedule({
     }
   } catch (error) {
     logger.error("Lỗi khi thực hiện gửi lời chúc sinh nhật:", error);
-  }
-});
+    }
+    });
+
+    // ===================================================================
+    // FUNCTION 29: THÔNG BÁO CHO ADMIN KHI CÓ YÊU CẦU CẬP NHẬT CÔNG NỢ
+    // ===================================================================
+    export const onDebtUpdateRequestCreated = onDocumentCreated(
+    {
+        document: "debtUpdateRequests/{requestId}",
+        region: "asia-southeast1",
+    },
+    async (event) => {
+        const snapshot = event.data;
+        if (!snapshot) return;
+
+        const data = snapshot.data();
+        const userName = data.userName;
+        const requestedByName = data.requestedByName;
+        const oldDebt = data.oldDebtAmount;
+        const newDebt = data.newDebtAmount;
+
+        const title = "🔔 Yêu cầu cập nhật CÔNG NỢ mới";
+        const body = `${requestedByName} yêu cầu thay đổi công nợ cho "${userName}" từ ${oldDebt} -> ${newDebt}.`;
+        const type = "debt_update_request";
+
+        // Tìm tất cả Admin để gửi thông báo
+        const adminSnapshot = await db.collection("users")
+            .where("role", "==", "admin")
+            .where("status", "==", "active")
+            .get();
+
+        const adminTokens: string[] = [];
+        const adminIds: string[] = [];
+
+        adminSnapshot.forEach((doc) => {
+            const adminData = doc.data();
+            if (adminData.fcmToken) {
+                adminTokens.push(adminData.fcmToken);
+            }
+            adminIds.push(doc.id);
+        });
+
+        if (adminTokens.length > 0) {
+            await sendPushNotification(adminTokens, title, body, {type, requestId: event.params.requestId});
+        }
+
+        // Lưu vào Firestore cho từng Admin
+        const savePromises = adminIds.map((adminId) => 
+            saveNotificationToFirestore(adminId, title, body, type, {requestId: event.params.requestId})
+        );
+        await Promise.all(savePromises);
+
+        logger.info(`Đã thông báo cho ${adminIds.length} Admin về yêu cầu công nợ mới.`);
+    }
+    );
+
+    // ===================================================================
+    // FUNCTION 30: THÔNG BÁO CHO NGƯỜI YÊU CẦU KHI ADMIN XỬ LÝ CÔNG NỢ
+    // ===================================================================
+    export const onDebtUpdateRequestUpdated = onDocumentUpdated(
+    {
+        document: "debtUpdateRequests/{requestId}",
+        region: "asia-southeast1",
+    },
+    async (event) => {
+        const afterSnapshot = event.data?.after;
+        const beforeSnapshot = event.data?.before;
+        if (!afterSnapshot || !beforeSnapshot) return;
+
+        const afterData = afterSnapshot.data();
+        const beforeData = beforeSnapshot.data();
+
+        if (afterData.status === beforeData.status) return;
+
+        const userName = afterData.userName;
+        const requesterId = afterData.requestedBy;
+        const newStatus = afterData.status;
+
+        let title = "";
+        let body = "";
+        const type = "debt_update_response";
+
+        if (newStatus === "approved") {
+            title = "✅ Yêu cầu công nợ đã được DUYỆT";
+            body = `Yêu cầu cập nhật công nợ cho "${userName}" của bạn đã được Admin phê duyệt.`;
+        } else if (newStatus === "rejected") {
+            title = "❌ Yêu cầu công nợ bị TỪ CHỐI";
+            const reason = afterData.reason ? ` Lý do: ${afterData.reason}` : "";
+            body = `Yêu cầu cập nhật công nợ cho "${userName}" đã bị từ chối.${reason}`;
+        } else {
+            return;
+        }
+
+        // Gửi thông báo cho người yêu cầu
+        const requesterDoc = await db.collection("users").doc(requesterId).get();
+        if (requesterDoc.exists) {
+            const token = requesterDoc.data()?.fcmToken;
+            if (token) {
+                await sendPushNotification([token], title, body, {type, requestId: event.params.requestId});
+            }
+            await saveNotificationToFirestore(requesterId, title, body, type, {requestId: event.params.requestId});
+        }
+    }
+    );

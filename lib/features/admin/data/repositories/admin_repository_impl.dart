@@ -9,6 +9,7 @@ import 'dart:developer' as developer;
 import 'package:piv_app/features/admin/data/models/quick_order_item_model.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/admin/data/models/discount_policy_model.dart';
+import 'package:piv_app/features/admin/data/models/debt_update_request_model.dart';
 
 class AdminRepositoryImpl implements AdminRepository {
   final FirebaseFirestore _firestore;
@@ -43,6 +44,20 @@ class AdminRepositoryImpl implements AdminRepository {
     } catch (e) {
       return Left(ServerFailure('Lỗi không xác định khi tải danh sách người dùng: ${e.toString()}'));
     }
+  }
+
+  @override
+  Stream<List<UserModel>> watchAllUsers() {
+    return _firestore
+        .collection('users')
+        .orderBy('email')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => UserModel.fromJson(doc.data()))
+          .where((user) => user.role != 'guest')
+          .toList();
+    });
   }
 
   // ... (Toàn bộ các hàm còn lại trong file này được giữ nguyên) ...
@@ -83,6 +98,20 @@ class AdminRepositoryImpl implements AdminRepository {
     } catch (e) {
       return Left(ServerFailure('Lỗi không xác định khi tải danh sách đại lý: ${e.toString()}'));
     }
+  }
+
+  @override
+  Stream<List<UserModel>> watchAgentsBySalesRepId(String salesRepId) {
+    return _firestore
+        .collection('users')
+        .where('salesRepId', isEqualTo: salesRepId)
+        .orderBy('displayName')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => UserModel.fromJson(doc.data()))
+          .toList();
+    });
   }
 
   @override
@@ -233,15 +262,159 @@ class AdminRepositoryImpl implements AdminRepository {
         final snapshot = await transaction.get(userRef);
         if (!snapshot.exists) throw Exception("User does not exist!");
 
+        final double oldDebt = (snapshot.data()?['debtAmount'] as num?)?.toDouble() ?? 0.0;
+
         // 1. Cập nhật debtAmount trong User
         transaction.update(userRef, {'debtAmount': newDebtAmount});
 
-        // 2. Tạo bản ghi DebtHistory (nếu cần thiết, tuỳ yêu cầu)
-        // Hiện tại chỉ update field debtAmount theo yêu cầu cơ bản.
+        // 2. Tạo bản ghi DebtHistory / Transaction
+        final debtTransactionRef = _firestore.collection('debtTransactions').doc();
+        transaction.set(debtTransactionRef, {
+          'userId': userId,
+          'amount': newDebtAmount - oldDebt,
+          'previousDebt': oldDebt,
+          'newDebt': newDebtAmount,
+          'type': 'debt_adjustment',
+          'updatedById': updatedBy,
+          'createdAt': FieldValue.serverTimestamp(),
+          'notes': 'Admin điều chỉnh trực tiếp',
+        });
       });
       return const Right(null);
     } catch (e) {
       return Left(ServerFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> createDebtUpdateRequest({
+    required String userId,
+    required String userName,
+    required double oldDebtAmount,
+    required double newDebtAmount,
+    required String requestedBy,
+    required String requestedByName,
+  }) async {
+    try {
+      // KIỂM TRA YÊU CẦU TRÙNG LẶP (Pending)
+      final existingRequests = await _firestore
+          .collection('debtUpdateRequests')
+          .where('userId', isEqualTo: userId)
+          .where('status', isEqualTo: 'pending')
+          .limit(1)
+          .get();
+
+      if (existingRequests.docs.isNotEmpty) {
+        final data = existingRequests.docs.first.data();
+        final String prevRequesterId = data['requestedBy'];
+        final String prevRequesterName = data['requestedByName'] ?? 'Nhân viên khác';
+
+        if (prevRequesterId == requestedBy) {
+          return Left(ServerFailure(
+              'Bạn đã gửi một yêu cầu sửa công nợ cho khách hàng này trước đó và đang chờ Admin duyệt.'));
+        } else {
+          return Left(ServerFailure(
+              'Nhân viên $prevRequesterName đã gửi yêu cầu sửa công nợ cho khách hàng này và đang chờ Admin duyệt.'));
+        }
+      }
+
+      await _firestore.collection('debtUpdateRequests').add({
+        'userId': userId,
+        'userName': userName,
+        'oldDebtAmount': oldDebtAmount,
+        'newDebtAmount': newDebtAmount,
+        'requestedBy': requestedBy,
+        'requestedByName': requestedByName,
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return const Right(null);
+    } catch (e) {
+      return Left(ServerFailure(
+          'Lỗi khi gửi yêu cầu cập nhật công nợ: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Stream<List<DebtUpdateRequestModel>> getPendingDebtUpdateRequests() {
+    return _firestore
+        .collection('debtUpdateRequests')
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => DebtUpdateRequestModel.fromSnapshot(doc)).toList();
+    });
+  }
+
+  @override
+  Future<Either<Failure, void>> approveDebtUpdateRequest({
+    required String requestId,
+    required String adminId,
+  }) async {
+    try {
+      final requestRef = _firestore.collection('debtUpdateRequests').doc(requestId);
+      
+      await _firestore.runTransaction((transaction) async {
+        final requestDoc = await transaction.get(requestRef);
+        if (!requestDoc.exists) throw Exception("Yêu cầu không tồn tại!");
+        
+        final requestData = requestDoc.data()!;
+        if (requestData['status'] != 'pending') throw Exception("Yêu cầu đã được xử lý!");
+
+        final String userId = requestData['userId'];
+        final double newDebtAmount = (requestData['newDebtAmount'] as num).toDouble();
+        final double oldDebtAmount = (requestData['oldDebtAmount'] as num).toDouble();
+        final String requestedByName = requestData['requestedByName'];
+
+        final userRef = _firestore.collection('users').doc(userId);
+        
+        // 1. Cập nhật User
+        transaction.update(userRef, {'debtAmount': newDebtAmount});
+
+        // 2. Cập nhật trạng thái yêu cầu
+        transaction.update(requestRef, {
+          'status': 'approved',
+          'reviewedBy': adminId,
+          'reviewedAt': FieldValue.serverTimestamp(),
+        });
+
+        // 3. Ghi log giao dịch công nợ
+        final debtTransactionRef = _firestore.collection('debtTransactions').doc();
+        transaction.set(debtTransactionRef, {
+          'userId': userId,
+          'amount': newDebtAmount - oldDebtAmount,
+          'previousDebt': oldDebtAmount,
+          'newDebt': newDebtAmount,
+          'type': 'debt_adjustment',
+          'updatedById': adminId,
+          'createdAt': FieldValue.serverTimestamp(),
+          'notes': 'Duyệt yêu cầu từ $requestedByName',
+        });
+      });
+      
+      return const Right(null);
+    } catch (e) {
+      return Left(ServerFailure('Lỗi khi duyệt yêu cầu: ${e.toString()}'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> rejectDebtUpdateRequest({
+    required String requestId,
+    required String adminId,
+    required String reason,
+  }) async {
+    try {
+      await _firestore.collection('debtUpdateRequests').doc(requestId).update({
+        'status': 'rejected',
+        'reviewedBy': adminId,
+        'reviewedAt': FieldValue.serverTimestamp(),
+        'reason': reason,
+      });
+      return const Right(null);
+    } catch (e) {
+      return Left(ServerFailure('Lỗi khi từ chối yêu cầu: ${e.toString()}'));
     }
   }
 

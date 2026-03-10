@@ -14,6 +14,7 @@ import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commi
 import 'package:piv_app/features/sales_commitment/presentation/pages/sales_commitment_page.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/commitment_history_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/price_approval_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_debt_approval_page.dart';
 
 class NotificationListPage extends StatelessWidget {
   const NotificationListPage({super.key});
@@ -90,6 +91,11 @@ class NotificationListPage extends StatelessWidget {
         Navigator.of(context).push(CommitmentHistoryPage.route(commitmentId: commitmentId));
         break;
 
+      case 'debt_update_request':
+      case 'debt_update_response':
+        Navigator.of(context).push(AdminDebtApprovalPage.route());
+        break;
+
       // Các loại thông báo khác không cần điều hướng (chỉ cần xem)
       default:
         print('Không có hành động điều hướng cho loại thông báo: $type');
@@ -103,6 +109,22 @@ class NotificationListPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Thông báo'),
         centerTitle: true,
+        actions: [
+          BlocBuilder<NotificationCubit, NotificationState>(
+            builder: (context, state) {
+              if (state is NotificationLoaded && state.unreadCount > 0) {
+                return TextButton(
+                  onPressed: () => context.read<NotificationCubit>().markAllAsRead(),
+                  child: const Text(
+                    'Đọc tất cả',
+                    style: TextStyle(color: Colors.blue),
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+        ],
       ),
       body: BlocBuilder<NotificationCubit, NotificationState>(
         builder: (context, state) {

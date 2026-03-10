@@ -12,28 +12,47 @@ class CurrencyInputFormatter extends TextInputFormatter {
 
   @override
   TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue,
-      TextEditingValue newValue,
-      ) {
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     if (newValue.text.isEmpty) {
       return newValue.copyWith(text: '');
     }
 
-    final cleanText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (cleanText.isEmpty) {
-      return const TextEditingValue(
-        text: '',
-        selection: TextSelection.collapsed(offset: 0),
+    if (newValue.text == '-') {
+      return newValue.copyWith(
+        text: '-',
+        selection: const TextSelection.collapsed(offset: 1),
       );
     }
 
-    final number = int.parse(cleanText);
-    final formattedText = _formatter.format(number);
+    // Lấy dấu trừ nếu có
+    final bool isNegative = newValue.text.startsWith('-');
+    final cleanText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
 
-    return newValue.copyWith(
-      text: formattedText,
-      selection: TextSelection.collapsed(offset: formattedText.length),
-    );
+    if (cleanText.isEmpty) {
+      return isNegative
+          ? newValue.copyWith(
+              text: '-', selection: const TextSelection.collapsed(offset: 1))
+          : const TextEditingValue(
+              text: '', selection: TextSelection.collapsed(offset: 0));
+    }
+
+    try {
+      final number = int.parse(cleanText);
+      String formattedText = _formatter.format(number);
+
+      if (isNegative) {
+        formattedText = '-$formattedText';
+      }
+
+      return newValue.copyWith(
+        text: formattedText,
+        selection: TextSelection.collapsed(offset: formattedText.length),
+      );
+    } catch (e) {
+      return oldValue;
+    }
   }
 }
 // --- KẾT THÚC PHẦN MỚI ---
@@ -46,13 +65,25 @@ class SalesRepDebtManagementPage extends StatelessWidget {
     return Scaffold(
       body: BlocConsumer<SalesRepCubit, SalesRepState>(
         listener: (context, state) {
-          if (state.status == SalesRepStatus.error && state.errorMessage != null) {
+          if (state.status == SalesRepStatus.error &&
+              state.errorMessage != null) {
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(
                 SnackBar(
                   content: Text(state.errorMessage!),
                   backgroundColor: Colors.red,
+                ),
+              );
+          } else if (state.status == SalesRepStatus.success &&
+              state.errorMessage != null &&
+              state.errorMessage!.contains('Yêu cầu')) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(state.errorMessage!),
+                  backgroundColor: Colors.green,
                 ),
               );
           }
@@ -121,15 +152,16 @@ class SalesRepDebtManagementPage extends StatelessWidget {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: debtController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: false),
-                  // SỬ DỤNG FORMATTER MỚI
+                  keyboardType: const TextInputType.numberWithOptions(
+                      decimal: false, signed: true),
                   inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
                     CurrencyInputFormatter(),
                   ],
                   decoration: const InputDecoration(
                     labelText: 'Số tiền công nợ mới',
                     suffixText: 'đ',
+                    helperText: 'Nhập dấu trừ (-) nếu Công ty nợ Khách',
+                    helperMaxLines: 2,
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -149,9 +181,12 @@ class SalesRepDebtManagementPage extends StatelessWidget {
             ElevatedButton(
               onPressed: () {
                 if (formKey.currentState!.validate()) {
-                  // Chuyển đổi chuỗi đã định dạng về số
-                  final cleanValue = debtController.text.replaceAll('.', '');
-                  final newDebtAmount = double.tryParse(cleanValue) ?? 0.0;
+                  // Chuyển đổi chuỗi đã định dạng về số (giữ lại dấu trừ)
+                  final String text = debtController.text;
+                  final bool isNegative = text.startsWith('-');
+                  final String cleanValue = text.replaceAll(RegExp(r'[^0-9]'), '');
+                  double newDebtAmount = double.tryParse(cleanValue) ?? 0.0;
+                  if (isNegative) newDebtAmount = -newDebtAmount;
 
                   cubit.updateAgentDebt(
                     agentId: user.id,

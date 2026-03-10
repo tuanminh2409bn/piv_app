@@ -3,4 +3,5 @@ import 'package:piv_app/features/notifications/data/models/notification_model.da
 abstract class NotificationRepository {
   Stream<List<NotificationModel>> getUserNotifications(String userId);
   Future<void> markAsRead(String userId, String notificationId);
+  Future<void> markAllAsRead(String userId);
 }

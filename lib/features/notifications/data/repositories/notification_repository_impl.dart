@@ -38,4 +38,21 @@ class NotificationRepositoryImpl implements NotificationRepository {
         .doc(notificationId)
         .update({'isRead': true});
   }
-}
+
+  @override
+  Future<void> markAllAsRead(String userId) async {
+    final batch = _firestore.batch();
+    final unreadNotifications = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('notifications')
+        .where('isRead', isEqualTo: false)
+        .get();
+
+    for (var doc in unreadNotifications.docs) {
+      batch.update(doc.reference, {'isRead': true});
+    }
+
+    await batch.commit();
+  }
+  }

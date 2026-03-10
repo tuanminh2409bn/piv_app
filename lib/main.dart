@@ -59,7 +59,7 @@ Future<void> main() async {
     // Thêm phần này cho Android Edge-to-Edge:
     systemNavigationBarColor: Colors.transparent, 
     systemNavigationBarDividerColor: Colors.transparent,
-    systemNavigationBarIconBrightness: Brightness.dark, 
+    systemNavigationBarIconBrightness: Brightness.dark,
   ));
   
   // Bắt buộc kích hoạt chế độ Edge-to-Edge trên Android 10+
