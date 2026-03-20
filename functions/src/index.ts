@@ -1,22 +1,22 @@
 // functions/src/index.ts
 
-import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https";
-import { onSchedule } from "firebase-functions/v2/scheduler";
-import { onDocumentCreated, onDocumentUpdated, onDocumentDeleted, FirestoreEvent } from "firebase-functions/v2/firestore";
-import { Change } from "firebase-functions";
+import {onCall, HttpsError, CallableRequest} from "firebase-functions/v2/https";
+import {onSchedule} from "firebase-functions/v2/scheduler";
+import {onDocumentCreated, onDocumentUpdated, onDocumentDeleted, FirestoreEvent} from "firebase-functions/v2/firestore";
+import {Change} from "firebase-functions";
 import * as logger from "firebase-functions/logger";
 import * as admin from "firebase-admin";
-import { QueryDocumentSnapshot } from "firebase-admin/firestore";
-import { format } from "date-fns-tz";
+import {QueryDocumentSnapshot} from "firebase-admin/firestore";
+import {format} from "date-fns-tz";
 
 admin.initializeApp();
 const db = admin.firestore();
 const VoucherStatus = {
-  pendingApproval: 'pending_approval',
-  active: 'active',
-  rejected: 'rejected',
-  pendingDeletion: 'pending_deletion',
-  inactive: 'inactive',
+  pendingApproval: "pending_approval",
+  active: "active",
+  rejected: "rejected",
+  pendingDeletion: "pending_deletion",
+  inactive: "inactive",
 };
 
 // ===================================================================
@@ -73,11 +73,11 @@ const sendPushNotification = async (
       failureCount: response.failureCount,
     });
     if (response.failureCount > 0) {
-        response.responses.forEach((resp, idx) => {
-            if (!resp.success) {
-                logger.error(`Lỗi gửi đến token: ${validTokens[idx]}`, resp.error);
-            }
-        });
+      response.responses.forEach((resp, idx) => {
+        if (!resp.success) {
+          logger.error(`Lỗi gửi đến token: ${validTokens[idx]}`, resp.error);
+        }
+      });
     }
   } catch (error) {
     logger.error("Lỗi nghiêm trọng khi gửi thông báo:", error, {data});
@@ -118,18 +118,18 @@ const saveNotificationToFirestore = async (
  * Lấy danh sách người nhận (gồm token và ID) cho một nhóm vai trò.
  */
 const getRecipientsByRoles = async (roles: string[]): Promise<{ id: string; token?: string }[]> => {
-    const snapshot = await db.collection("users")
-      .where("status", "==", "active")
-      .where("role", "in", roles)
-      .get();
+  const snapshot = await db.collection("users")
+    .where("status", "==", "active")
+    .where("role", "in", roles)
+    .get();
 
-    if (snapshot.empty) {
-        return [];
-    }
-    return snapshot.docs.map((doc) => ({
-        id: doc.id,
-        token: doc.data().fcmToken as string | undefined,
-    }));
+  if (snapshot.empty) {
+    return [];
+  }
+  return snapshot.docs.map((doc) => ({
+    id: doc.id,
+    token: doc.data().fcmToken as string | undefined,
+  }));
 };
 
 // ===================================================================
@@ -150,273 +150,273 @@ interface AgentPolicy {
 }
 
 export const calculateOrderDiscount = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
-    const callerId = request.auth.uid;
-    const { items: orderItems, agentId } = request.data;
+  if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
+  const callerId = request.auth.uid;
+  const {items: orderItems, agentId} = request.data;
 
-    if (!orderItems || !Array.isArray(orderItems)) {
-        throw new HttpsError("invalid-argument", "Missing 'items' array.");
+  if (!orderItems || !Array.isArray(orderItems)) {
+    throw new HttpsError("invalid-argument", "Missing 'items' array.");
+  }
+
+  try {
+    // 1. Xác định User mục tiêu
+    if (agentId && typeof agentId === "string") {
+      const callerDoc = await db.collection("users").doc(callerId).get();
+      const callerRole = callerDoc.data()?.role;
+      if (!callerRole || !["admin", "sales_rep", "accountant"].includes(callerRole)) {
+        throw new HttpsError("permission-denied", "Permission denied.");
+      }
+    }
+    const targetUserId = agentId || callerId;
+    const userDoc = await db.collection("users").doc(targetUserId).get();
+    if (!userDoc.exists) {
+      throw new HttpsError("not-found", `User ${targetUserId} not found.`);
+    }
+    const userData = userDoc.data()!;
+
+    // Nếu đang chạy chương trình cam kết doanh số, KHÔNG tính chiết khấu đơn hàng
+    if (userData.activeRewardProgram === "sales_target") return {discount: 0};
+
+    // 2. Phân loại và tính tổng tiền theo nhóm sản phẩm
+    const productIds: string[] = orderItems.map((item: { productId: string }) => item.productId);
+    if (productIds.length === 0) return {discount: 0};
+
+    const productsSnapshot = await db.collection("products").where(admin.firestore.FieldPath.documentId(), "in", productIds).get();
+    const productsMap = new Map<string, any>();
+    productsSnapshot.forEach((doc) => productsMap.set(doc.id, doc.data()));
+
+    let foliarTotalValue = 0;
+    let rootTotalValue = 0;
+
+    for (const item of orderItems) {
+      const productInfo = productsMap.get(item.productId);
+      if (productInfo) {
+        const itemValue = Number(item.subtotal) || 0;
+        if (productInfo.productType === "foliar_fertilizer") foliarTotalValue += itemValue;
+        else if (productInfo.productType === "root_fertilizer") rootTotalValue += itemValue;
+      }
     }
 
-    try {
-        // 1. Xác định User mục tiêu
-        if (agentId && typeof agentId === "string") {
-            const callerDoc = await db.collection("users").doc(callerId).get();
-            const callerRole = callerDoc.data()?.role;
-            if (!callerRole || !["admin", "sales_rep", "accountant"].includes(callerRole)) {
-                throw new HttpsError("permission-denied", "Permission denied.");
-            }
+    let totalDiscount = 0;
+
+    // 3. Kiểm tra Cấu hình Chiết khấu RIÊNG LẺ (Custom Discount)
+    // Cấu trúc mong đợi: customDiscount: { enabled: boolean, policy: AgentPolicy }
+    const customDiscount = userData.customDiscount;
+    const isCustomEnabled = customDiscount && (customDiscount.enabled === true || customDiscount.enabled === "true");
+
+    if (isCustomEnabled) {
+      logger.info(`Processing CUSTOM DISCOUNT for user ${targetUserId}.`, {config: customDiscount});
+      const policy = customDiscount.policy as AgentPolicy | undefined;
+
+      if (policy) {
+        // Tính chiết khấu Phân Bón Lá (Custom)
+        if (foliarTotalValue > 0 && policy.foliar?.tiers) {
+          const sortedTiers = policy.foliar.tiers.sort((a, b) => b.minAmount - a.minAmount);
+          const matchedTier = sortedTiers.find((tier) => foliarTotalValue >= tier.minAmount);
+          if (matchedTier) {
+            const amount = foliarTotalValue * matchedTier.rate;
+            totalDiscount += amount;
+            logger.info(`Custom Foliar: Val=${foliarTotalValue}, Rate=${matchedTier.rate}, Disc=${amount}`);
+          }
         }
-        const targetUserId = agentId || callerId;
-        const userDoc = await db.collection("users").doc(targetUserId).get();
-        if (!userDoc.exists) {
-            throw new HttpsError("not-found", `User ${targetUserId} not found.`);
+        // Tính chiết khấu Phân Bón Gốc (Custom)
+        if (rootTotalValue > 0 && policy.root?.tiers) {
+          const sortedTiers = policy.root.tiers.sort((a, b) => b.minAmount - a.minAmount);
+          const matchedTier = sortedTiers.find((tier) => rootTotalValue >= tier.minAmount);
+          if (matchedTier) {
+            const amount = rootTotalValue * matchedTier.rate;
+            totalDiscount += amount;
+            logger.info(`Custom Root: Val=${rootTotalValue}, Rate=${matchedTier.rate}, Disc=${amount}`);
+          }
         }
-        const userData = userDoc.data()!;
-        
-        // Nếu đang chạy chương trình cam kết doanh số, KHÔNG tính chiết khấu đơn hàng
-        if (userData.activeRewardProgram === "sales_target") return {discount: 0};
-
-        // 2. Phân loại và tính tổng tiền theo nhóm sản phẩm
-        const productIds: string[] = orderItems.map((item: { productId: string }) => item.productId);
-        if (productIds.length === 0) return {discount: 0};
-        
-        const productsSnapshot = await db.collection("products").where(admin.firestore.FieldPath.documentId(), "in", productIds).get();
-        const productsMap = new Map<string, any>();
-        productsSnapshot.forEach((doc) => productsMap.set(doc.id, doc.data()));
-
-        let foliarTotalValue = 0;
-        let rootTotalValue = 0;
-
-        for (const item of orderItems) {
-            const productInfo = productsMap.get(item.productId);
-            if (productInfo) {
-                const itemValue = Number(item.subtotal) || 0;
-                if (productInfo.productType === "foliar_fertilizer") foliarTotalValue += itemValue;
-                else if (productInfo.productType === "root_fertilizer") rootTotalValue += itemValue;
-            }
-        }
-
-        let totalDiscount = 0;
-
-        // 3. Kiểm tra Cấu hình Chiết khấu RIÊNG LẺ (Custom Discount)
-        // Cấu trúc mong đợi: customDiscount: { enabled: boolean, policy: AgentPolicy }
-        const customDiscount = userData.customDiscount;
-        const isCustomEnabled = customDiscount && (customDiscount.enabled === true || customDiscount.enabled === "true");
-
-        if (isCustomEnabled) {
-            logger.info(`Processing CUSTOM DISCOUNT for user ${targetUserId}.`, { config: customDiscount });
-            const policy = customDiscount.policy as AgentPolicy | undefined;
-
-            if (policy) {
-                // Tính chiết khấu Phân Bón Lá (Custom)
-                if (foliarTotalValue > 0 && policy.foliar?.tiers) {
-                    const sortedTiers = policy.foliar.tiers.sort((a, b) => b.minAmount - a.minAmount);
-                    const matchedTier = sortedTiers.find(tier => foliarTotalValue >= tier.minAmount);
-                    if (matchedTier) {
-                        const amount = foliarTotalValue * matchedTier.rate;
-                        totalDiscount += amount;
-                        logger.info(`Custom Foliar: Val=${foliarTotalValue}, Rate=${matchedTier.rate}, Disc=${amount}`);
-                    }
-                }
-                // Tính chiết khấu Phân Bón Gốc (Custom)
-                if (rootTotalValue > 0 && policy.root?.tiers) {
-                    const sortedTiers = policy.root.tiers.sort((a, b) => b.minAmount - a.minAmount);
-                    const matchedTier = sortedTiers.find(tier => rootTotalValue >= tier.minAmount);
-                    if (matchedTier) {
-                        const amount = rootTotalValue * matchedTier.rate;
-                        totalDiscount += amount;
-                        logger.info(`Custom Root: Val=${rootTotalValue}, Rate=${matchedTier.rate}, Disc=${amount}`);
-                    }
-                }
-                logger.info(`Applied CUSTOM TIERED discount for user ${targetUserId}. Total: ${totalDiscount}`);
-                return { discount: totalDiscount, appliedPolicy: 'custom_tiered' };
-            } else {
-                logger.warn(`User ${targetUserId} has customDiscount enabled but NO policy data.`);
-                // Nếu bật enabled nhưng không có policy, có thể fallback hoặc trả về 0. 
-                // Ở đây ta return 0 để an toàn, tránh fallback nhầm sang Global.
-                return { discount: 0, appliedPolicy: 'custom_tiered_error' };
-            }
-        } else {
-             logger.info(`Custom Discount Skipped for user ${targetUserId} (Enabled: ${customDiscount?.enabled}). Fallback to Global.`);
-        }
-
-        // 4. Nếu không có riêng lẻ -> Dùng Cấu hình CHUNG (Global Policy)
-        const userRole = userData.role;
-        if (userRole === "agent_1" || userRole === "agent_2") {
-            // Lấy cấu hình từ Firestore: settings/discount_policy
-            const policyDoc = await db.collection("settings").doc("discount_policy").get();
-            let policyData = policyDoc.data();
-
-            // FALLBACK: Nếu chưa có cấu hình trong DB, dùng mặc định (như code cũ) để hệ thống không chết
-            if (!policyData) {
-                logger.warn("Missing settings/discount_policy. Using hardcoded fallback.");
-                policyData = {
-                    agent_1: {
-                        foliar: { tiers: [{ minAmount: 100000000, rate: 0.10 }, { minAmount: 50000000, rate: 0.07 }, { minAmount: 30000000, rate: 0.05 }, { minAmount: 10000000, rate: 0.03 }] },
-                        root: { tiers: [{ minAmount: 100000000, rate: 0.05 }, { minAmount: 50000000, rate: 0.03 }] }
-                    },
-                    agent_2: {
-                        foliar: { tiers: [{ minAmount: 50000000, rate: 0.10 }, { minAmount: 30000000, rate: 0.08 }, { minAmount: 10000000, rate: 0.06 }, { minAmount: 3000000, rate: 0.04 }] },
-                        root: { tiers: [{ minAmount: 50000000, rate: 0.05 }, { minAmount: 30000000, rate: 0.03 }] }
-                    }
-                };
-            }
-
-            const agentPolicy = policyData[userRole] as AgentPolicy | undefined;
-            if (agentPolicy) {
-                // Tính chiết khấu Phân Bón Lá
-                if (foliarTotalValue > 0 && agentPolicy.foliar?.tiers) {
-                    // Sắp xếp giảm dần theo minAmount để lấy mốc cao nhất thỏa mãn
-                    const sortedTiers = agentPolicy.foliar.tiers.sort((a, b) => b.minAmount - a.minAmount);
-                    const matchedTier = sortedTiers.find(tier => foliarTotalValue >= tier.minAmount);
-                    if (matchedTier) {
-                        totalDiscount += foliarTotalValue * matchedTier.rate;
-                    }
-                }
-                // Tính chiết khấu Phân Bón Gốc
-                if (rootTotalValue > 0 && agentPolicy.root?.tiers) {
-                    const sortedTiers = agentPolicy.root.tiers.sort((a, b) => b.minAmount - a.minAmount);
-                    const matchedTier = sortedTiers.find(tier => rootTotalValue >= tier.minAmount);
-                    if (matchedTier) {
-                        totalDiscount += rootTotalValue * matchedTier.rate;
-                    }
-                }
-            }
-        }
-
-        return { discount: totalDiscount, appliedPolicy: 'global' };
-    } catch (error) {
-        logger.error("Error in calculateOrderDiscount:", error);
-        if (error instanceof HttpsError) throw error;
-        throw new HttpsError("internal", "Error calculating discount.", error);
+        logger.info(`Applied CUSTOM TIERED discount for user ${targetUserId}. Total: ${totalDiscount}`);
+        return {discount: totalDiscount, appliedPolicy: "custom_tiered"};
+      } else {
+        logger.warn(`User ${targetUserId} has customDiscount enabled but NO policy data.`);
+        // Nếu bật enabled nhưng không có policy, có thể fallback hoặc trả về 0.
+        // Ở đây ta return 0 để an toàn, tránh fallback nhầm sang Global.
+        return {discount: 0, appliedPolicy: "custom_tiered_error"};
+      }
+    } else {
+      logger.info(`Custom Discount Skipped for user ${targetUserId} (Enabled: ${customDiscount?.enabled}). Fallback to Global.`);
     }
+
+    // 4. Nếu không có riêng lẻ -> Dùng Cấu hình CHUNG (Global Policy)
+    const userRole = userData.role;
+    if (userRole === "agent_1" || userRole === "agent_2") {
+      // Lấy cấu hình từ Firestore: settings/discount_policy
+      const policyDoc = await db.collection("settings").doc("discount_policy").get();
+      let policyData = policyDoc.data();
+
+      // FALLBACK: Nếu chưa có cấu hình trong DB, dùng mặc định (như code cũ) để hệ thống không chết
+      if (!policyData) {
+        logger.warn("Missing settings/discount_policy. Using hardcoded fallback.");
+        policyData = {
+          agent_1: {
+            foliar: {tiers: [{minAmount: 100000000, rate: 0.10}, {minAmount: 50000000, rate: 0.07}, {minAmount: 30000000, rate: 0.05}, {minAmount: 10000000, rate: 0.03}]},
+            root: {tiers: [{minAmount: 100000000, rate: 0.05}, {minAmount: 50000000, rate: 0.03}]},
+          },
+          agent_2: {
+            foliar: {tiers: [{minAmount: 50000000, rate: 0.10}, {minAmount: 30000000, rate: 0.08}, {minAmount: 10000000, rate: 0.06}, {minAmount: 3000000, rate: 0.04}]},
+            root: {tiers: [{minAmount: 50000000, rate: 0.05}, {minAmount: 30000000, rate: 0.03}]},
+          },
+        };
+      }
+
+      const agentPolicy = policyData[userRole] as AgentPolicy | undefined;
+      if (agentPolicy) {
+        // Tính chiết khấu Phân Bón Lá
+        if (foliarTotalValue > 0 && agentPolicy.foliar?.tiers) {
+          // Sắp xếp giảm dần theo minAmount để lấy mốc cao nhất thỏa mãn
+          const sortedTiers = agentPolicy.foliar.tiers.sort((a, b) => b.minAmount - a.minAmount);
+          const matchedTier = sortedTiers.find((tier) => foliarTotalValue >= tier.minAmount);
+          if (matchedTier) {
+            totalDiscount += foliarTotalValue * matchedTier.rate;
+          }
+        }
+        // Tính chiết khấu Phân Bón Gốc
+        if (rootTotalValue > 0 && agentPolicy.root?.tiers) {
+          const sortedTiers = agentPolicy.root.tiers.sort((a, b) => b.minAmount - a.minAmount);
+          const matchedTier = sortedTiers.find((tier) => rootTotalValue >= tier.minAmount);
+          if (matchedTier) {
+            totalDiscount += rootTotalValue * matchedTier.rate;
+          }
+        }
+      }
+    }
+
+    return {discount: totalDiscount, appliedPolicy: "global"};
+  } catch (error) {
+    logger.error("Error in calculateOrderDiscount:", error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Error calculating discount.", error);
+  }
 });
 
 // ===================================================================
 // FUNCTION 2: GỬI THÔNG BÁO KHI CÓ SẢN PHẨM MỚI
 // ===================================================================
 export const onProductCreated = onDocumentCreated(
-    {document: "products/{productId}", region: "asia-southeast1"},
-    async (event) => {
-        const product = event.data?.data();
-        const productId = event.params.productId;
-        if (!product) return;
+  {document: "products/{productId}", region: "asia-southeast1"},
+  async (event) => {
+    const product = event.data?.data();
+    const productId = event.params.productId;
+    if (!product) return;
 
-        const recipients = await getRecipientsByRoles(["agent_1", "agent_2", "admin"]);
-        if (recipients.length === 0) return;
+    const recipients = await getRecipientsByRoles(["agent_1", "agent_2", "admin"]);
+    if (recipients.length === 0) return;
 
-        const formattedPrice = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(product.price);
-        const title = "🌟 Có sản phẩm mới!";
-        const body = `Sản phẩm "${product.name}" giá ${formattedPrice} vừa được ra mắt. Xem ngay!`;
-        const type = "new_product";
-        const dataPayload = {
-            type,
-            productId,
-            payload: JSON.stringify({id: productId, name: product.name}),
-        };
+    const formattedPrice = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(product.price);
+    const title = "🌟 Có sản phẩm mới!";
+    const body = `Sản phẩm "${product.name}" giá ${formattedPrice} vừa được ra mắt. Xem ngay!`;
+    const type = "new_product";
+    const dataPayload = {
+      type,
+      productId,
+      payload: JSON.stringify({id: productId, name: product.name}),
+    };
 
-        const tokens = recipients.map((r) => r.token);
-        await sendPushNotification(tokens, title, body, dataPayload);
+    const tokens = recipients.map((r) => r.token);
+    await sendPushNotification(tokens, title, body, dataPayload);
 
-        const savePromises = recipients.map((r) => saveNotificationToFirestore(r.id, title, body, type, {productId}));
-        await Promise.all(savePromises);
-    });
+    const savePromises = recipients.map((r) => saveNotificationToFirestore(r.id, title, body, type, {productId}));
+    await Promise.all(savePromises);
+  });
 
 // ===================================================================
 // FUNCTION 3: XỬ LÝ KHI THÔNG TIN USER THAY ĐỔI
 // ===================================================================
 export const onUserUpdate = onDocumentUpdated(
-    {document: "users/{userId}", region: "asia-southeast1"},
-    async (event) => {
-        const before = event.data?.before.data();
-        const after = event.data?.after.data();
-        if (!before || !after) return;
+  {document: "users/{userId}", region: "asia-southeast1"},
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!before || !after) return;
 
-        const updatedUserId = event.params.userId;
-        const updatedUserName = after.displayName ?? "Người dùng";
+    const updatedUserId = event.params.userId;
+    const updatedUserName = after.displayName ?? "Người dùng";
 
-        if (before.status === "pending_approval" && after.status === "active") {
-            const title1 = "✅ Tài khoản đã được duyệt!";
-            const body1 = `Chúc mừng ${updatedUserName}! Tài khoản của bạn đã được kích hoạt.`;
-            const type1 = "account_approved";
-            if (after.fcmToken) {
-                await sendPushNotification([after.fcmToken], title1, body1, {type: type1, userId: updatedUserId});
-            }
-            await saveNotificationToFirestore(updatedUserId, title1, body1, type1, {userId: updatedUserId});
+    if (before.status === "pending_approval" && after.status === "active") {
+      const title1 = "✅ Tài khoản đã được duyệt!";
+      const body1 = `Chúc mừng ${updatedUserName}! Tài khoản của bạn đã được kích hoạt.`;
+      const type1 = "account_approved";
+      if (after.fcmToken) {
+        await sendPushNotification([after.fcmToken], title1, body1, {type: type1, userId: updatedUserId});
+      }
+      await saveNotificationToFirestore(updatedUserId, title1, body1, type1, {userId: updatedUserId});
 
-            const admins = await getRecipientsByRoles(["admin"]);
-            if (admins.length > 0) {
-                const title2 = "👤 Tài khoản đã được duyệt";
-                const body2 = `Tài khoản của "${updatedUserName}" đã được kích hoạt.`;
-                const type2 = "account_management";
-                const adminTokens = admins.map((r) => r.token);
-                await sendPushNotification(adminTokens, title2, body2, {type: type2, userId: updatedUserId});
-                const savePromises = admins.map((r) => saveNotificationToFirestore(r.id, title2, body2, type2, {userId: updatedUserId}));
-                await Promise.all(savePromises);
-            }
+      const admins = await getRecipientsByRoles(["admin"]);
+      if (admins.length > 0) {
+        const title2 = "👤 Tài khoản đã được duyệt";
+        const body2 = `Tài khoản của "${updatedUserName}" đã được kích hoạt.`;
+        const type2 = "account_management";
+        const adminTokens = admins.map((r) => r.token);
+        await sendPushNotification(adminTokens, title2, body2, {type: type2, userId: updatedUserId});
+        const savePromises = admins.map((r) => saveNotificationToFirestore(r.id, title2, body2, type2, {userId: updatedUserId}));
+        await Promise.all(savePromises);
+      }
 
-            if (after.salesRepId) {
-                const salesRepDoc = await db.collection("users").doc(after.salesRepId).get();
-                if (salesRepDoc.exists) {
-                    const salesRepData = salesRepDoc.data()!;
-                    const title3 = "🎉 Đại lý mới được duyệt!";
-                    const body3 = `Tài khoản của đại lý "${updatedUserName}" mà bạn quản lý đã được kích hoạt.`;
-                    const type3 = "agent_approved";
-                    if (salesRepData.fcmToken) {
-                        await sendPushNotification([salesRepData.fcmToken], title3, body3, {type: type3, agentId: updatedUserId});
-                    }
-                    await saveNotificationToFirestore(after.salesRepId, title3, body3, type3, {agentId: updatedUserId});
-                }
-            }
+      if (after.salesRepId) {
+        const salesRepDoc = await db.collection("users").doc(after.salesRepId).get();
+        if (salesRepDoc.exists) {
+          const salesRepData = salesRepDoc.data()!;
+          const title3 = "🎉 Đại lý mới được duyệt!";
+          const body3 = `Tài khoản của đại lý "${updatedUserName}" mà bạn quản lý đã được kích hoạt.`;
+          const type3 = "agent_approved";
+          if (salesRepData.fcmToken) {
+            await sendPushNotification([salesRepData.fcmToken], title3, body3, {type: type3, agentId: updatedUserId});
+          }
+          await saveNotificationToFirestore(after.salesRepId, title3, body3, type3, {agentId: updatedUserId});
         }
+      }
+    }
 
-        if (before.role !== after.role) {
-            const wasAgent = before.role === "agent_1" || before.role === "agent_2";
-            const isNowStaff = ["admin", "sales_rep", "accountant"].includes(after.role);
-            const wasStaff = ["admin", "sales_rep", "accountant"].includes(before.role);
-            const isNowAgent = after.role === "agent_1" || after.role === "agent_2";
+    if (before.role !== after.role) {
+      const wasAgent = before.role === "agent_1" || before.role === "agent_2";
+      const isNowStaff = ["admin", "sales_rep", "accountant"].includes(after.role);
+      const wasStaff = ["admin", "sales_rep", "accountant"].includes(before.role);
+      const isNowAgent = after.role === "agent_1" || after.role === "agent_2";
 
-            if (before.role === "sales_rep") {
-                 const agentsSnapshot = await db.collection("users").where("salesRepId", "==", updatedUserId).get();
-                 if (!agentsSnapshot.empty) {
-                    const batch = db.batch();
-                    agentsSnapshot.forEach((doc) => {
-                        batch.update(doc.ref, {
-                            salesRepId: admin.firestore.FieldValue.delete(),
-                            referrerId: admin.firestore.FieldValue.delete(),
-                        });
-                    });
-                    await batch.commit();
-                 }
-            }
-            if (wasAgent && isNowStaff) {
-                await db.collection("users").doc(updatedUserId).update({
-                    salesRepId: admin.firestore.FieldValue.delete(),
-                    referrerId: admin.firestore.FieldValue.delete(),
-                });
-            }
-            if (wasStaff && isNowAgent) {
-                await db.collection("users").doc(updatedUserId).update({
-                    referralPromptPending: true,
-                });
-            }
+      if (before.role === "sales_rep") {
+        const agentsSnapshot = await db.collection("users").where("salesRepId", "==", updatedUserId).get();
+        if (!agentsSnapshot.empty) {
+          const batch = db.batch();
+          agentsSnapshot.forEach((doc) => {
+            batch.update(doc.ref, {
+              salesRepId: admin.firestore.FieldValue.delete(),
+              referrerId: admin.firestore.FieldValue.delete(),
+            });
+          });
+          await batch.commit();
         }
+      }
+      if (wasAgent && isNowStaff) {
+        await db.collection("users").doc(updatedUserId).update({
+          salesRepId: admin.firestore.FieldValue.delete(),
+          referrerId: admin.firestore.FieldValue.delete(),
+        });
+      }
+      if (wasStaff && isNowAgent) {
+        await db.collection("users").doc(updatedUserId).update({
+          referralPromptPending: true,
+        });
+      }
+    }
 
-        if (before.status !== "suspended" && after.status === "suspended" && before.role === "sales_rep") {
-             const agentsSnapshot = await db.collection("users").where("salesRepId", "==", updatedUserId).get();
-             if (!agentsSnapshot.empty) {
-                const batch = db.batch();
-                agentsSnapshot.forEach((doc) => {
-                    batch.update(doc.ref, {
-                        salesRepId: admin.firestore.FieldValue.delete(),
-                        referrerId: admin.firestore.FieldValue.delete(),
-                    });
-                });
-                await batch.commit();
-             }
-        }
-    });
+    if (before.status !== "suspended" && after.status === "suspended" && before.role === "sales_rep") {
+      const agentsSnapshot = await db.collection("users").where("salesRepId", "==", updatedUserId).get();
+      if (!agentsSnapshot.empty) {
+        const batch = db.batch();
+        agentsSnapshot.forEach((doc) => {
+          batch.update(doc.ref, {
+            salesRepId: admin.firestore.FieldValue.delete(),
+            referrerId: admin.firestore.FieldValue.delete(),
+          });
+        });
+        await batch.commit();
+      }
+    }
+  });
 
 // ===================================================================
 // FUNCTION 4: GỬI THÔNG BÁO KHI CÓ HOA HỒNG
@@ -487,813 +487,920 @@ export const onUserUpdate = onDocumentUpdated(
 // FUNCTION 5: KHI TẠO ĐƠN HÀNG MỚI
 // ===================================================================
 export const onOrderCreated = onDocumentCreated(
-    {document: "orders/{orderId}", region: "asia-southeast1"},
-    async (event) => {
-        const orderData = event.data?.data();
-        const orderId = event.params.orderId;
-        if (!orderData) return;
+  {document: "orders/{orderId}", region: "asia-southeast1"},
+  async (event) => {
+    const orderData = event.data?.data();
+    const orderId = event.params.orderId;
+    if (!orderData) return;
 
-        const {userId, salesRepId, shippingAddress, total, placedBy, status} = orderData;
-        const userName = shippingAddress?.recipientName ?? "Quý khách";
-        const orderIdShort = orderId.substring(0, 8).toUpperCase();
-        const formattedTotal = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(total);
+    const {userId, salesRepId, shippingAddress, total, placedBy, status} = orderData;
+    const userName = shippingAddress?.recipientName ?? "Quý khách";
+    const orderIdShort = orderId.substring(0, 8).toUpperCase();
+    const formattedTotal = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(total);
 
-        if (status === "pending_approval" && placedBy) {
-            const agentDoc = await db.collection("users").doc(userId).get();
-            if (agentDoc.exists) {
-                const placerName = (await db.collection("users").doc(placedBy.userId).get()).data()?.displayName ?? "Cấp trên";
-                const title = "🔔 Bạn có đơn hàng mới cần phê duyệt";
-                const body = `${placerName} vừa tạo một đơn hàng hộ cho bạn trị giá ${formattedTotal}. Vui lòng xác nhận.`;
-                const type = "order_approval_request";
-                const token = agentDoc.data()?.fcmToken;
-                if (token) {
-                    await sendPushNotification([token], title, body, {type, orderId});
-                }
-                await saveNotificationToFirestore(userId, title, body, type, {orderId});
-            }
-            return;
+    if (status === "pending_approval" && placedBy) {
+      const agentDoc = await db.collection("users").doc(userId).get();
+      if (agentDoc.exists) {
+        const placerName = (await db.collection("users").doc(placedBy.userId).get()).data()?.displayName ?? "Cấp trên";
+        const title = "🔔 Bạn có đơn hàng mới cần phê duyệt";
+        const body = `${placerName} vừa tạo một đơn hàng hộ cho bạn trị giá ${formattedTotal}. Vui lòng xác nhận.`;
+        const type = "order_approval_request";
+        const token = agentDoc.data()?.fcmToken;
+        if (token) {
+          await sendPushNotification([token], title, body, {type, orderId});
         }
+        await saveNotificationToFirestore(userId, title, body, type, {orderId});
+      }
+      return;
+    }
 
-        const recipients = new Map<string, { id: string; token?: string }>();
-        const userDoc = await db.collection("users").doc(userId).get();
-        if (userDoc.exists) recipients.set(userId, {id: userId, token: userDoc.data()?.fcmToken});
-        if (salesRepId) {
-            const salesRepDoc = await db.collection("users").doc(salesRepId).get();
-            if (salesRepDoc.exists) recipients.set(salesRepId, {id: salesRepId, token: salesRepDoc.data()?.fcmToken});
+    const recipients = new Map<string, { id: string; token?: string }>();
+    const userDoc = await db.collection("users").doc(userId).get();
+    if (userDoc.exists) recipients.set(userId, {id: userId, token: userDoc.data()?.fcmToken});
+    if (salesRepId) {
+      const salesRepDoc = await db.collection("users").doc(salesRepId).get();
+      if (salesRepDoc.exists) recipients.set(salesRepId, {id: salesRepId, token: salesRepDoc.data()?.fcmToken});
+    }
+    const staff = await getRecipientsByRoles(["admin", "accountant"]);
+    staff.forEach((s) => recipients.set(s.id, s));
+
+    for (const recipient of recipients.values()) {
+      let title = "";
+      let body = "";
+      let type = "";
+      const role = (await db.collection("users").doc(recipient.id).get()).data()?.role;
+
+      if (recipient.id === userId) {
+        title = "🎉 Đặt hàng thành công!";
+        body = `Đơn hàng #${orderIdShort} của bạn đã được tiếp nhận.`;
+        type = "order_status";
+      } else if (recipient.id === salesRepId) {
+        title = "📈 Có đơn hàng mới!";
+        body = `Đại lý "${userName}" của bạn vừa đặt đơn hàng #${orderIdShort}.`;
+        type = "new_order_for_rep";
+      } else if (role === "admin" || role === "accountant") {
+        title = "🔔 Có đơn hàng mới";
+        body = `Đại lý "${userName}" vừa tạo đơn hàng #${orderIdShort}.`;
+        type = "new_order_for_admin";
+      }
+      if (title && body && type) {
+        if (recipient.token) {
+          await sendPushNotification([recipient.token], title, body, {type, orderId});
         }
-        const staff = await getRecipientsByRoles(["admin", "accountant"]);
-        staff.forEach((s) => recipients.set(s.id, s));
-
-        for (const recipient of recipients.values()) {
-            let title = "";
-            let body = "";
-            let type = "";
-            const role = (await db.collection("users").doc(recipient.id).get()).data()?.role;
-
-            if (recipient.id === userId) {
-                title = "🎉 Đặt hàng thành công!";
-                body = `Đơn hàng #${orderIdShort} của bạn đã được tiếp nhận.`;
-                type = "order_status";
-            } else if (recipient.id === salesRepId) {
-                title = "📈 Có đơn hàng mới!";
-                body = `Đại lý "${userName}" của bạn vừa đặt đơn hàng #${orderIdShort}.`;
-                type = "new_order_for_rep";
-            } else if (role === "admin" || role === "accountant") {
-                title = "🔔 Có đơn hàng mới";
-                body = `Đại lý "${userName}" vừa tạo đơn hàng #${orderIdShort}.`;
-                type = "new_order_for_admin";
-            }
-            if (title && body && type) {
-                if (recipient.token) {
-                    await sendPushNotification([recipient.token], title, body, {type, orderId});
-                }
-                await saveNotificationToFirestore(recipient.id, title, body, type, {orderId});
-            }
-        }
-    });
+        await saveNotificationToFirestore(recipient.id, title, body, type, {orderId});
+      }
+    }
+  });
 
 // ===================================================================
 // FUNCTION 6: KHI CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG
 // ===================================================================
 export const onOrderStatusUpdate = onDocumentUpdated(
-    {document: "orders/{orderId}", region: "asia-southeast1"},
-    async (event) => {
-        const beforeData = event.data?.before.data();
-        const afterData = event.data?.after.data();
-        if (!beforeData || !afterData || beforeData.status === afterData.status) return;
+  {document: "orders/{orderId}", region: "asia-southeast1"},
+  async (event) => {
+    const beforeData = event.data?.before.data();
+    const afterData = event.data?.after.data();
+    if (!beforeData || !afterData || beforeData.status === afterData.status) return;
 
-        const orderId = event.params.orderId;
-        const {userId, total, status: newStatus, salesRepId, shippingAddress, placedBy, shippingDate, appliedVoucherCode, discount, commissionDiscount, paidAmount, items} = afterData;
-        const oldStatus = beforeData.status;
+    const orderId = event.params.orderId;
+    const {userId, total, status: newStatus, salesRepId, shippingAddress, placedBy, shippingDate, appliedVoucherCode, discount, commissionDiscount, paidAmount, items} = afterData;
+    const oldStatus = beforeData.status;
 
-        if (newStatus === "completed" && oldStatus !== "completed") {
-            // --- TÍNH TOÁN LẠI TỔNG GIÁ TRỊ THỰC TẾ DỰA TRÊN SỐ LƯỢNG XÁC NHẬN ---
-            let confirmedSubtotal = 0;
-            if (items && Array.isArray(items)) {
-                for (const item of items) {
-                    const price = Number(item.price) || 0;
-                    const qtyPerPkg = Number(item.quantityPerPackage) || 1;
-                    const confirmedQty = Number(item.confirmedQuantity) || 0;
-                    const confirmedLooseQty = Number(item.confirmedLooseQuantity) || 0;
-                    
-                    // Tổng số đơn vị lẻ thực giao = (Số thùng * Quy cách) + Số lẻ
-                    const totalUnits = (confirmedQty * qtyPerPkg) + confirmedLooseQty;
-                    confirmedSubtotal += (price * totalUnits);
-                }
-            }
-            
-            // Tính toán lại tổng đơn thực tế (confirmedSubtotal - discount - commissionDiscount)
-            // Lưu ý: voucher (discount) và chiết khấu đại lý vẫn giữ nguyên theo đơn hàng gốc
-            const actualTotal = Math.max(0, confirmedSubtotal - (discount || 0) - (commissionDiscount || 0));
-            // -----------------------------------------------------------------------
+    if (newStatus === "completed" && oldStatus !== "completed") {
+      // --- TÍNH TOÁN LẠI TỔNG GIÁ TRỊ THỰC TẾ DỰA TRÊN SỐ LƯỢNG XÁC NHẬN ---
+      let confirmedSubtotal = 0;
+      if (items && Array.isArray(items)) {
+        for (const item of items) {
+          const price = Number(item.price) || 0;
+          const qtyPerPkg = Number(item.quantityPerPackage) || 1;
+          const confirmedQty = Number(item.confirmedQuantity) || 0;
+          const confirmedLooseQty = Number(item.confirmedLooseQuantity) || 0;
 
-            if (appliedVoucherCode && typeof appliedVoucherCode === "string" && appliedVoucherCode.length > 0 && discount > 0) {
-                const voucherRef = db.collection("vouchers").doc(appliedVoucherCode);
-                try {
-                    await voucherRef.update({
-                        usedCount: admin.firestore.FieldValue.increment(1)
-                    });
-                    logger.info(`Incremented usedCount for voucher ${appliedVoucherCode} due to order ${orderId} completion.`);
-                } catch (voucherError) {
-                    logger.error(`Failed to increment usedCount for voucher ${appliedVoucherCode}:`, voucherError);
-                }
-            }
-
-            if (salesRepId && items && Array.isArray(items) && items.length > 0) {
-                try {
-                    const productIds: string[] = items.map((item: any) => item.productId);
-                    const productChunks = [];
-                    for (let i = 0; i < productIds.length; i += 10) {
-                        productChunks.push(productIds.slice(i, i + 10));
-                    }
-
-                    let foliarTotalValue = 0;
-                    let rootTotalValue = 0;
-                    const productsMap = new Map<string, any>();
-                    for (const chunk of productChunks) {
-                        const snapshot = await db.collection("products")
-                            .where(admin.firestore.FieldPath.documentId(), "in", chunk)
-                            .get();
-                        snapshot.forEach(doc => productsMap.set(doc.id, doc.data()));
-                    }
-                    
-                    for (const item of items) {
-                        const productInfo = productsMap.get(item.productId);
-                        if (productInfo) {
-                            const price = Number(item.price) || 0;
-                            const qtyPerPkg = Number(item.quantityPerPackage) || 1;
-                            const confirmedQty = Number(item.confirmedQuantity) || 0;
-                            const confirmedLooseQty = Number(item.confirmedLooseQuantity) || 0;
-                            
-                            const totalUnits = (confirmedQty * qtyPerPkg) + confirmedLooseQty;
-                            const itemValue = price * totalUnits; // Tính theo thực tế trả hàng
-
-                            if (productInfo.productType === "foliar_fertilizer") {
-                                foliarTotalValue += itemValue;
-                            } else {
-                                rootTotalValue += itemValue;
-                            }
-                        }
-                    }
-
-                    const commissionFromFoliar = calculateCommissionForFoliar(foliarTotalValue);
-                    const commissionFromRoot = calculateCommissionForRoot(rootTotalValue);
-                    const totalCommission = commissionFromFoliar + commissionFromRoot;
-
-                    if (totalCommission > 0) {
-                        await db.collection("commissions").add({
-                            salesRepId: salesRepId,
-                            orderId: orderId,
-                            amount: totalCommission,
-                            details: {
-                                foliarSales: foliarTotalValue,
-                                foliarCommission: commissionFromFoliar,
-                                rootSales: rootTotalValue,
-                                rootCommission: commissionFromRoot
-                            },
-                            status: "pending",
-                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                            orderTotal: actualTotal, // Lưu tổng tiền thực tế
-                        });
-                    }
-                } catch (commError) {
-                    logger.error(`Error calculating commission for order ${orderId}:`, commError);
-                }
-            }
-
-            // Logic cam kết doanh số và vòng quay... (giữ nguyên nhưng dùng actualTotal nếu cần)
-            
-            // --- CẬP NHẬT CÔNG NỢ DỰA TRÊN GIÁ TRỊ THỰC GIAO ---
-            const debtAmountToAdd = actualTotal - (paidAmount || 0);
-
-            if (debtAmountToAdd !== 0) {
-                const userRef = db.collection("users").doc(userId);
-                const transactionId = `purchase_${orderId}`;
-                const debtTransactionRef = db.collection("debtTransactions").doc(transactionId);
-
-                try {
-                    await db.runTransaction(async (transaction) => {
-                        const debtDoc = await transaction.get(debtTransactionRef);
-                        if (debtDoc.exists) return;
-
-                        const userDoc = await transaction.get(userRef);
-                        if (!userDoc.exists) throw new Error(`User ${userId} not found!`);
-
-                        const currentDebt = (userDoc.data()?.debtAmount as number) || 0;
-                        const newDebt = currentDebt + debtAmountToAdd;
-
-                        transaction.update(userRef, { debtAmount: newDebt });
-
-                        const description = debtAmountToAdd > 0 
-                            ? `Mua đơn hàng #${orderId.substring(0, 8).toUpperCase()} (Thực giao: ${actualTotal})`
-                            : `Điều chỉnh công nợ đơn hàng #${orderId.substring(0, 8).toUpperCase()} (Giao thiếu hàng)`;
-
-                        transaction.set(debtTransactionRef, {
-                            userId: userId,
-                            amount: debtAmountToAdd,
-                            type: debtAmountToAdd > 0 ? "order_purchase" : "debt_adjustment",
-                            description: description,
-                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                            orderId: orderId,
-                            metadata: {
-                                originalTotal: total,
-                                actualTotal: actualTotal,
-                                paidAmount: paidAmount || 0
-                            }
-                        });
-                    });
-                } catch (debtError) {
-                    logger.error(`Failed to record debt for order ${orderId}:`, debtError);
-                }
-            }
+          // Tổng số đơn vị lẻ thực giao = (Số thùng * Quy cách) + Số lẻ
+          const totalUnits = (confirmedQty * qtyPerPkg) + confirmedLooseQty;
+          confirmedSubtotal += (price * totalUnits);
         }
+      }
 
-        const userName = shippingAddress?.recipientName ?? "Khách hàng";
-        const orderIdShort = orderId.substring(0, 8).toUpperCase();
-        const formattedTotal = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(total);
+      // Tính toán lại tổng đơn thực tế (confirmedSubtotal - discount - commissionDiscount)
+      // Lưu ý: voucher (discount) và chiết khấu đại lý vẫn giữ nguyên theo đơn hàng gốc
+      const actualTotal = Math.max(0, confirmedSubtotal - (discount || 0) - (commissionDiscount || 0));
+      // -----------------------------------------------------------------------
 
-        if (oldStatus === "pending_approval" && placedBy?.userId) {
-            const placerDoc = await db.collection("users").doc(placedBy.userId).get();
-            if (placerDoc.exists) {
-                const placerData = placerDoc.data()!;
-                let title = "";
-                let body = "";
-                const type = "order_approval_result";
-                if (newStatus === "pending") {
-                    title = "✅ Đơn hàng đã được phê duyệt";
-                    body = `Đại lý "${userName}" đã đồng ý đơn hàng #${orderIdShort} bạn tạo hộ.`;
-                } else if (newStatus === "rejected") {
-                    title = "❌ Đơn hàng đã bị từ chối";
-                    body = `Đại lý "${userName}" đã từ chối đơn hàng #${orderIdShort} bạn tạo hộ.`;
-                }
-                if (title && body) {
-                    if (placerData.fcmToken) {
-                        await sendPushNotification([placerData.fcmToken], title, body, {type, orderId});
-                    }
-                    await saveNotificationToFirestore(placedBy.userId, title, body, type, {orderId});
-                }
+      if (appliedVoucherCode && typeof appliedVoucherCode === "string" && appliedVoucherCode.length > 0 && discount > 0) {
+        const voucherRef = db.collection("vouchers").doc(appliedVoucherCode);
+        try {
+          await voucherRef.update({
+            usedCount: admin.firestore.FieldValue.increment(1),
+          });
+          logger.info(`Incremented usedCount for voucher ${appliedVoucherCode} due to order ${orderId} completion.`);
+        } catch (voucherError) {
+          logger.error(`Failed to increment usedCount for voucher ${appliedVoucherCode}:`, voucherError);
+        }
+      }
+
+      if (salesRepId && items && Array.isArray(items) && items.length > 0) {
+        try {
+          const productIds: string[] = items.map((item: any) => item.productId);
+          const productChunks = [];
+          for (let i = 0; i < productIds.length; i += 10) {
+            productChunks.push(productIds.slice(i, i + 10));
+          }
+
+          let foliarTotalValue = 0;
+          let rootTotalValue = 0;
+          const productsMap = new Map<string, any>();
+          for (const chunk of productChunks) {
+            const snapshot = await db.collection("products")
+              .where(admin.firestore.FieldPath.documentId(), "in", chunk)
+              .get();
+            snapshot.forEach((doc) => productsMap.set(doc.id, doc.data()));
+          }
+
+          for (const item of items) {
+            const productInfo = productsMap.get(item.productId);
+            if (productInfo) {
+              const price = Number(item.price) || 0;
+              const qtyPerPkg = Number(item.quantityPerPackage) || 1;
+              const confirmedQty = Number(item.confirmedQuantity) || 0;
+              const confirmedLooseQty = Number(item.confirmedLooseQuantity) || 0;
+
+              const totalUnits = (confirmedQty * qtyPerPkg) + confirmedLooseQty;
+              const itemValue = price * totalUnits; // Tính theo thực tế trả hàng
+
+              if (productInfo.productType === "foliar_fertilizer") {
+                foliarTotalValue += itemValue;
+              } else {
+                rootTotalValue += itemValue;
+              }
             }
+          }
+
+          const commissionFromFoliar = calculateCommissionForFoliar(foliarTotalValue);
+          const commissionFromRoot = calculateCommissionForRoot(rootTotalValue);
+          const totalCommission = commissionFromFoliar + commissionFromRoot;
+
+          if (totalCommission > 0) {
+            await db.collection("commissions").add({
+              salesRepId: salesRepId,
+              orderId: orderId,
+              amount: totalCommission,
+              details: {
+                foliarSales: foliarTotalValue,
+                foliarCommission: commissionFromFoliar,
+                rootSales: rootTotalValue,
+                rootCommission: commissionFromRoot,
+              },
+              status: "pending",
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              orderTotal: actualTotal, // Lưu tổng tiền thực tế
+            });
+          }
+        } catch (commError) {
+          logger.error(`Error calculating commission for order ${orderId}:`, commError);
         }
+      }
 
-        let notificationTitle: string | null = null;
-        let notificationBody: string | null = null;
-        const type = "order_status_general";
+      // Logic cam kết doanh số và vòng quay... (giữ nguyên nhưng dùng actualTotal nếu cần)
 
-        switch (newStatus) {
-            case "processing":
-                notificationTitle = "✅ Đơn hàng đã được xác nhận";
-                notificationBody = `Đơn hàng #${orderIdShort} của bạn trị giá ${formattedTotal} đang được chuẩn bị.`;
-                break;
-            case "shipped":
-                notificationTitle = "🚚 Đơn hàng đang được giao";
-                const dateStr = shippingDate?.toDate ? format(shippingDate.toDate(), "dd/MM/yyyy", {timeZone: "Asia/Ho_Chi_Minh"}) : null;
-                
-                let itemsSummary = "";
-                if (items && Array.isArray(items)) {
-                    itemsSummary = "\nChi tiết hàng giao:";
-                    for (const item of items) {
-                        const confirmedQty = Number(item.confirmedQuantity) || 0;
-                        const confirmedLooseQty = Number(item.confirmedLooseQuantity) || 0;
-                        const unit = item.unit || "sản phẩm";
-                        const pkg = item.packaging || "Thùng";
-                        
-                        let qtyDesc = "";
-                        if (confirmedQty > 0 && confirmedLooseQty > 0) {
-                            qtyDesc = `${confirmedQty} ${pkg} và ${confirmedLooseQty} ${unit}`;
-                        } else if (confirmedQty > 0) {
-                            qtyDesc = `${confirmedQty} ${pkg}`;
-                        } else if (confirmedLooseQty > 0) {
-                            qtyDesc = `${confirmedLooseQty} ${unit}`;
-                        } else {
-                            qtyDesc = "Đang cập nhật";
-                        }
-                        
-                        itemsSummary += `\n- ${item.productName}: ${qtyDesc}`;
-                    }
-                }
+      // --- CẬP NHẬT CÔNG NỢ DỰA TRÊN GIÁ TRỊ THỰC GIAO ---
+      const debtAmountToAdd = actualTotal - (paidAmount || 0);
 
-                notificationBody = `Đơn hàng #${orderIdShort} đang được vận chuyển${dateStr ? `, dự kiến giao ngày ${dateStr}` : ""}.${itemsSummary}`;
-                break;
-            case "completed":
-                notificationTitle = "✨ Đơn hàng đã hoàn thành";
-                notificationBody = `Đơn hàng #${orderIdShort} của bạn đã giao thành công.`;
-                break;
-            case "cancelled":
-                notificationTitle = "❌ Đơn hàng đã bị hủy";
-                notificationBody = `Đơn hàng #${orderIdShort} của bạn đã bị hủy.`;
-                break;
+      if (debtAmountToAdd !== 0) {
+        const userRef = db.collection("users").doc(userId);
+        const transactionId = `purchase_${orderId}`;
+        const debtTransactionRef = db.collection("debtTransactions").doc(transactionId);
+
+        try {
+          await db.runTransaction(async (transaction) => {
+            const debtDoc = await transaction.get(debtTransactionRef);
+            if (debtDoc.exists) return;
+
+            const userDoc = await transaction.get(userRef);
+            if (!userDoc.exists) throw new Error(`User ${userId} not found!`);
+
+            const currentDebt = (userDoc.data()?.debtAmount as number) || 0;
+            const newDebt = currentDebt + debtAmountToAdd;
+
+            transaction.update(userRef, {debtAmount: newDebt});
+
+            const description = debtAmountToAdd > 0 ?
+              `Mua đơn hàng #${orderId.substring(0, 8).toUpperCase()} (Thực giao: ${actualTotal})` :
+              `Điều chỉnh công nợ đơn hàng #${orderId.substring(0, 8).toUpperCase()} (Giao thiếu hàng)`;
+
+            transaction.set(debtTransactionRef, {
+              userId: userId,
+              amount: debtAmountToAdd,
+              type: debtAmountToAdd > 0 ? "order_purchase" : "debt_adjustment",
+              description: description,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              orderId: orderId,
+              metadata: {
+                originalTotal: total,
+                actualTotal: actualTotal,
+                paidAmount: paidAmount || 0,
+              },
+            });
+          });
+        } catch (debtError) {
+          logger.error(`Failed to record debt for order ${orderId}:`, debtError);
         }
+      }
+    }
 
-        if (notificationTitle && notificationBody) {
-            const recipientIds = new Set<string>([userId, salesRepId].filter((id): id is string => !!id));
-            const staff = await getRecipientsByRoles(["admin", "accountant"]);
-            staff.forEach((s) => recipientIds.add(s.id));
+    const userName = shippingAddress?.recipientName ?? "Khách hàng";
+    const orderIdShort = orderId.substring(0, 8).toUpperCase();
+    const formattedTotal = new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(total);
 
-            const usersSnapshot = await db.collection("users").where(admin.firestore.FieldPath.documentId(), "in", Array.from(recipientIds)).get();
-            const tokensToSend = usersSnapshot.docs.map((doc) => doc.data().fcmToken as string).filter((token) => token);
-
-            if (tokensToSend.length > 0) {
-                await sendPushNotification(tokensToSend, notificationTitle, notificationBody, {type, orderId});
-            }
-
-            const savePromises = Array.from(recipientIds).map((id) =>
-                saveNotificationToFirestore(id, notificationTitle!, notificationBody!, type, {orderId})
-            );
-            await Promise.all(savePromises);
+    if (oldStatus === "pending_approval" && placedBy?.userId) {
+      const placerDoc = await db.collection("users").doc(placedBy.userId).get();
+      if (placerDoc.exists) {
+        const placerData = placerDoc.data()!;
+        let title = "";
+        let body = "";
+        const type = "order_approval_result";
+        if (newStatus === "pending") {
+          title = "✅ Đơn hàng đã được phê duyệt";
+          body = `Đại lý "${userName}" đã đồng ý đơn hàng #${orderIdShort} bạn tạo hộ.`;
+        } else if (newStatus === "rejected") {
+          title = "❌ Đơn hàng đã bị từ chối";
+          body = `Đại lý "${userName}" đã từ chối đơn hàng #${orderIdShort} bạn tạo hộ.`;
         }
-    });
+        if (title && body) {
+          if (placerData.fcmToken) {
+            await sendPushNotification([placerData.fcmToken], title, body, {type, orderId});
+          }
+          await saveNotificationToFirestore(placedBy.userId, title, body, type, {orderId});
+        }
+      }
+    }
+
+    let notificationTitle: string | null = null;
+    let notificationBody: string | null = null;
+    const type = "order_status_general";
+
+    switch (newStatus) {
+    case "processing":
+      notificationTitle = "✅ Đơn hàng đã được xác nhận";
+      notificationBody = `Đơn hàng #${orderIdShort} của bạn trị giá ${formattedTotal} đang được chuẩn bị.`;
+      break;
+    case "shipped":
+      notificationTitle = "🚚 Đơn hàng đang được giao";
+      const dateStr = shippingDate?.toDate ? format(shippingDate.toDate(), "dd/MM/yyyy", {timeZone: "Asia/Ho_Chi_Minh"}) : null;
+
+      let itemsSummary = "";
+      if (items && Array.isArray(items)) {
+        itemsSummary = "\nChi tiết hàng giao:";
+        for (const item of items) {
+          const confirmedQty = Number(item.confirmedQuantity) || 0;
+          const confirmedLooseQty = Number(item.confirmedLooseQuantity) || 0;
+          const unit = item.unit || "sản phẩm";
+          const pkg = item.packaging || "Thùng";
+
+          let qtyDesc = "";
+          if (confirmedQty > 0 && confirmedLooseQty > 0) {
+            qtyDesc = `${confirmedQty} ${pkg} và ${confirmedLooseQty} ${unit}`;
+          } else if (confirmedQty > 0) {
+            qtyDesc = `${confirmedQty} ${pkg}`;
+          } else if (confirmedLooseQty > 0) {
+            qtyDesc = `${confirmedLooseQty} ${unit}`;
+          } else {
+            qtyDesc = "Đang cập nhật";
+          }
+
+          itemsSummary += `\n- ${item.productName}: ${qtyDesc}`;
+        }
+      }
+
+      notificationBody = `Đơn hàng #${orderIdShort} đang được vận chuyển${dateStr ? `, dự kiến giao ngày ${dateStr}` : ""}.${itemsSummary}`;
+      break;
+    case "completed":
+      notificationTitle = "✨ Đơn hàng đã hoàn thành";
+      notificationBody = `Đơn hàng #${orderIdShort} của bạn đã giao thành công.`;
+      break;
+    case "cancelled":
+      notificationTitle = "❌ Đơn hàng đã bị hủy";
+      notificationBody = `Đơn hàng #${orderIdShort} của bạn đã bị hủy.`;
+      break;
+    }
+
+    if (notificationTitle && notificationBody) {
+      const recipientIds = new Set<string>([userId, salesRepId].filter((id): id is string => !!id));
+      const staff = await getRecipientsByRoles(["admin", "accountant"]);
+      staff.forEach((s) => recipientIds.add(s.id));
+
+      const usersSnapshot = await db.collection("users").where(admin.firestore.FieldPath.documentId(), "in", Array.from(recipientIds)).get();
+      const tokensToSend = usersSnapshot.docs.map((doc) => doc.data().fcmToken as string).filter((token) => token);
+
+      if (tokensToSend.length > 0) {
+        await sendPushNotification(tokensToSend, notificationTitle, notificationBody, {type, orderId});
+      }
+
+      const savePromises = Array.from(recipientIds).map((id) =>
+        saveNotificationToFirestore(id, notificationTitle!, notificationBody!, type, {orderId})
+      );
+      await Promise.all(savePromises);
+    }
+  });
 
 // ===================================================================
 // FUNCTION 7: GỬI THÔNG BÁO KHI CÓ BÀI VIẾT MỚI
 // ===================================================================
 export const onNewsArticleCreated = onDocumentCreated(
-    {document: "newsArticles/{articleId}", region: "asia-southeast1"},
-    async (event) => {
-        const article = event.data?.data();
-        const articleId = event.params.articleId;
-        if (!article) return;
-        const recipients = await getRecipientsByRoles(["agent_1", "agent_2", "admin"]);
-        if (recipients.length === 0) return;
+  {document: "newsArticles/{articleId}", region: "asia-southeast1"},
+  async (event) => {
+    const article = event.data?.data();
+    const articleId = event.params.articleId;
+    if (!article) return;
+    const recipients = await getRecipientsByRoles(["agent_1", "agent_2", "admin"]);
+    if (recipients.length === 0) return;
 
-        const title = `📰 Tin Tức Mới: ${article.title}`;
-        const body = article.summary ?? "Có một bài viết mới đang chờ bạn khám phá!";
-        const type = "new_article";
+    const title = `📰 Tin Tức Mới: ${article.title}`;
+    const body = article.summary ?? "Có một bài viết mới đang chờ bạn khám phá!";
+    const type = "new_article";
 
-        await sendPushNotification(recipients.map((r) => r.token), title, body, {
-            type,
-            articleId,
-            payload: JSON.stringify({id: articleId}),
-        });
+    await sendPushNotification(recipients.map((r) => r.token), title, body, {
+      type,
+      articleId,
+      payload: JSON.stringify({id: articleId}),
+    });
 
-        const savePromises = recipients.map((r) => saveNotificationToFirestore(r.id, title, body, type, {articleId}));
-        await Promise.all(savePromises);
-    }
+    const savePromises = recipients.map((r) => saveNotificationToFirestore(r.id, title, body, type, {articleId}));
+    await Promise.all(savePromises);
+  }
 );
 
 // ===================================================================
 // FUNCTION 8: GỬI THÔNG BÁO THỦ CÔNG
 // ===================================================================
 export const sendManualNotification = onCall(
-    {region: "asia-southeast1"},
-    async (request: CallableRequest) => {
-        if (!request.auth) throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
-        const senderId = request.auth.uid;
-        const senderDoc = await db.collection("users").doc(senderId).get();
-        const senderRole = senderDoc.data()?.role;
+  {region: "asia-southeast1"},
+  async (request: CallableRequest) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
+    const senderId = request.auth.uid;
+    const senderDoc = await db.collection("users").doc(senderId).get();
+    const senderRole = senderDoc.data()?.role;
 
-        if (!["admin", "accountant", "sales_rep"].includes(senderRole)) {
-            throw new HttpsError("permission-denied", "Bạn không có quyền thực hiện hành động này.");
-        }
-        
-        // userIds: Danh sách ID cụ thể (mới thêm)
-        // salesRepId: Gửi theo nhóm sales (cũ)
-        const {title, body, salesRepId, userIds} = request.data;
-        logger.info(`sendManualNotification called by ${senderRole}. Title: ${title}`);
+    if (!["admin", "accountant", "sales_rep"].includes(senderRole)) {
+      throw new HttpsError("permission-denied", "Bạn không có quyền thực hiện hành động này.");
+    }
 
-        if (!title || !body) {
-            throw new HttpsError("invalid-argument", "Vui lòng nhập đầy đủ tiêu đề và nội dung.");
-        }
+    // userIds: Danh sách ID cụ thể (mới thêm)
+    // salesRepId: Gửi theo nhóm sales (cũ)
+    const {title, body, salesRepId, userIds} = request.data;
+    logger.info(`sendManualNotification called by ${senderRole}. Title: ${title}`);
 
-        let recipients: {id: string, token?: string, name: string}[] = [];
-        let targetType = "all";
+    if (!title || !body) {
+      throw new HttpsError("invalid-argument", "Vui lòng nhập đầy đủ tiêu đề và nội dung.");
+    }
 
-        // LOGIC LỌC NGƯỜI DÙNG
-        let baseQuery = db.collection("users")
-            .where("status", "==", "active")
-            .where("role", "in", ["agent_1", "agent_2"]);
+    let recipients: {id: string, token?: string, name: string}[] = [];
+    let targetType = "all";
 
-        // Nếu là NVKD, CHỈ được gửi cho đại lý của mình
-        if (senderRole === "sales_rep") {
-            baseQuery = baseQuery.where("salesRepId", "==", senderId);
-        }
+    // LOGIC LỌC NGƯỜI DÙNG
+    let baseQuery = db.collection("users")
+      .where("status", "==", "active")
+      .where("role", "in", ["agent_1", "agent_2"]);
 
-        // TRƯỜNG HỢP 1: Gửi cho danh sách cụ thể
-        if (userIds && Array.isArray(userIds) && userIds.length > 0) {
-            targetType = "specific_users";
-            
-            const chunks = [];
-            for (let i = 0; i < userIds.length; i += 10) {
-                chunks.push(userIds.slice(i, i + 10));
+    // Nếu là NVKD, CHỈ được gửi cho đại lý của mình
+    if (senderRole === "sales_rep") {
+      baseQuery = baseQuery.where("salesRepId", "==", senderId);
+    }
+
+    // TRƯỜNG HỢP 1: Gửi cho danh sách cụ thể
+    if (userIds && Array.isArray(userIds) && userIds.length > 0) {
+      targetType = "specific_users";
+
+      const chunks = [];
+      for (let i = 0; i < userIds.length; i += 10) {
+        chunks.push(userIds.slice(i, i + 10));
+      }
+
+      for (const chunk of chunks) {
+        // Với NVKD, cần đảm bảo các user này thuộc quyền quản lý của họ
+        // Firestore không hỗ trợ 'in' kết hợp với 'salesRepId' nếu không có index phức tạp
+        // Cách đơn giản: Query theo ID, sau đó filter thủ công ở code nếu là sales_rep
+        const snapshot = await db.collection("users")
+          .where(admin.firestore.FieldPath.documentId(), "in", chunk)
+          .get();
+
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          // FILTER QUAN TRỌNG CHO NVKD
+          if (senderRole === "sales_rep" && data.salesRepId !== senderId) {
+            return; // Bỏ qua user không thuộc quyền quản lý
+          }
+          if (data.status === "active") { // Chỉ gửi cho active
+            recipients.push({
+              id: doc.id,
+              token: data.fcmToken as string | undefined,
+              name: data.displayName || "Khách hàng",
+            });
+          }
+        });
+      }
+    }
+    // TRƯỜNG HỢP 2: Gửi theo nhóm Sales Rep (Chỉ Admin/Kế toán mới chọn cái này)
+    else if (salesRepId && typeof salesRepId === "string") {
+      if (senderRole === "sales_rep" && salesRepId !== senderId) {
+        throw new HttpsError("permission-denied", "NVKD không thể gửi cho nhóm của người khác.");
+      }
+      targetType = "sales_rep_group";
+      if (senderRole !== "sales_rep") {
+        // Nếu Admin gửi cho nhóm Sales Rep cụ thể
+        baseQuery = baseQuery.where("salesRepId", "==", salesRepId);
+      }
+      // Nếu là Sales Rep, baseQuery đã có sẵn filter salesRepId ở trên rồi
+
+      const snapshot = await baseQuery.get();
+      recipients = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        token: doc.data().fcmToken as string | undefined,
+        name: doc.data().displayName || "Khách hàng",
+      }));
+    }
+    // TRƯỜNG HỢP 3: Gửi cho tất cả (Admin/Kế toán: Toàn bộ hệ thống. NVKD: Toàn bộ đại lý của mình)
+    else {
+      if (senderRole === "sales_rep") {
+        logger.info("Sales Rep sending to ALL their agents.");
+      } else {
+        logger.info("Admin/Accountant sending to ALL agents.");
+      }
+      const snapshot = await baseQuery.get();
+      recipients = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        token: doc.data().fcmToken as string | undefined,
+        name: doc.data().displayName || "Khách hàng",
+      }));
+    }
+
+    if (recipients.length === 0) {
+      return {success: true, message: "Không tìm thấy người dùng nào phù hợp để gửi."};
+    }
+
+    const type = "manual_notification";
+
+    // Gửi FCM
+    await sendPushNotification(recipients.map((r) => r.token), title, body, {
+      type,
+      payload: JSON.stringify({sentAt: new Date().toISOString()}),
+    });
+
+    // Lưu thông báo vào Firestore của từng user
+    const savePromises = recipients.map((r) => saveNotificationToFirestore(r.id, title, body, type, {}));
+    await Promise.all(savePromises);
+
+    // Lưu lịch sử gửi
+    let recipientNamesForHistory: string[] = [];
+    if (targetType === "specific_users") {
+      recipientNamesForHistory = recipients.map((r) => r.name);
+    }
+
+    await db.collection("manualNotifications").add({
+      title, body, sentBy: senderId,
+      senderRole: senderRole, // Lưu role người gửi
+      target: {
+        type: targetType,
+        ids: targetType === "specific_users" ? userIds : null,
+        salesRepId: salesRepId ?? (senderRole === "sales_rep" ? senderId : null),
+        recipientNames: recipientNamesForHistory,
+      },
+      recipientCount: recipients.length,
+      sentAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return {success: true, message: `Đã gửi thông báo thành công đến ${recipients.length} người dùng.`};
+  }
+);
+
+// ===================================================================
+// FUNCTION 8.1: ĐIỀU CHỈNH GIÁ SẢN PHẨM HÀNG LOẠT
+// ===================================================================
+export const adjustProductPrices = onCall(
+  {region: "asia-southeast1"},
+  async (request: CallableRequest) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
+    const senderId = request.auth.uid;
+    const senderDoc = await db.collection("users").doc(senderId).get();
+    const senderRole = senderDoc.data()?.role;
+
+    if (senderRole !== "admin") {
+      throw new HttpsError("permission-denied", "Chỉ Admin mới có quyền thực hiện hành động này.");
+    }
+
+    const {adjustmentType, adjustmentValue, productTarget, agentTarget} = request.data;
+
+    if (!adjustmentType || adjustmentValue === undefined || !productTarget || !agentTarget) {
+      throw new HttpsError("invalid-argument", "Thiếu tham số yêu cầu.");
+    }
+
+    let productsQuery: admin.firestore.Query = db.collection("products");
+    if (productTarget === "foliar_fertilizer") {
+      productsQuery = productsQuery.where("productType", "==", "foliar_fertilizer");
+    } else if (productTarget === "root_fertilizer") {
+      productsQuery = productsQuery.where("productType", "==", "root_fertilizer");
+    }
+
+    const snapshot = await productsQuery.get();
+    if (snapshot.empty) {
+      return {success: true, message: "Không tìm thấy sản phẩm nào phù hợp để điều chỉnh.", count: 0};
+    }
+
+    const batch = db.batch();
+    let updatedCount = 0;
+
+    snapshot.forEach((doc) => {
+      const product = doc.data();
+      const packingOptions = product.packingOptions as any[];
+      if (!packingOptions || !Array.isArray(packingOptions)) return;
+
+      let hasChange = false;
+      const newPackingOptions = packingOptions.map((option) => {
+        const prices = option.prices || {};
+        const newPrices = {...prices};
+
+        const rolesToUpdate = agentTarget === "all" ? ["agent_1", "agent_2"] : [agentTarget];
+
+        rolesToUpdate.forEach((role) => {
+          if (prices[role] !== undefined) {
+            const oldPrice = Number(prices[role]);
+            let newPrice = oldPrice;
+            if (adjustmentType === "percentage") {
+              newPrice = oldPrice * (1 + adjustmentValue / 100);
+            } else if (adjustmentType === "amount") {
+              newPrice = oldPrice + adjustmentValue;
             }
-
-            for (const chunk of chunks) {
-                // Với NVKD, cần đảm bảo các user này thuộc quyền quản lý của họ
-                // Firestore không hỗ trợ 'in' kết hợp với 'salesRepId' nếu không có index phức tạp
-                // Cách đơn giản: Query theo ID, sau đó filter thủ công ở code nếu là sales_rep
-                const snapshot = await db.collection("users")
-                    .where(admin.firestore.FieldPath.documentId(), "in", chunk)
-                    .get();
-                
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    // FILTER QUAN TRỌNG CHO NVKD
-                    if (senderRole === "sales_rep" && data.salesRepId !== senderId) {
-                        return; // Bỏ qua user không thuộc quyền quản lý
-                    }
-                    if (data.status === 'active') { // Chỉ gửi cho active
-                        recipients.push({
-                            id: doc.id, 
-                            token: data.fcmToken as string | undefined,
-                            name: data.displayName || "Khách hàng"
-                        });
-                    }
-                });
-            }
-        } 
-        // TRƯỜNG HỢP 2: Gửi theo nhóm Sales Rep (Chỉ Admin/Kế toán mới chọn cái này)
-        else if (salesRepId && typeof salesRepId === "string") {
-            if (senderRole === "sales_rep" && salesRepId !== senderId) {
-                 throw new HttpsError("permission-denied", "NVKD không thể gửi cho nhóm của người khác.");
-            }
-            targetType = "sales_rep_group";
-            if (senderRole !== "sales_rep") {
-                 // Nếu Admin gửi cho nhóm Sales Rep cụ thể
-                 baseQuery = baseQuery.where("salesRepId", "==", salesRepId);
-            }
-            // Nếu là Sales Rep, baseQuery đã có sẵn filter salesRepId ở trên rồi
-            
-            const snapshot = await baseQuery.get();
-            recipients = snapshot.docs.map((doc) => ({
-                id: doc.id, 
-                token: doc.data().fcmToken as string | undefined,
-                name: doc.data().displayName || "Khách hàng"
-            }));
-        }
-        // TRƯỜNG HỢP 3: Gửi cho tất cả (Admin/Kế toán: Toàn bộ hệ thống. NVKD: Toàn bộ đại lý của mình)
-        else {
-            if (senderRole === "sales_rep") {
-                logger.info("Sales Rep sending to ALL their agents.");
-            } else {
-                logger.info("Admin/Accountant sending to ALL agents.");
-            }
-            const snapshot = await baseQuery.get();
-            recipients = snapshot.docs.map((doc) => ({
-                id: doc.id, 
-                token: doc.data().fcmToken as string | undefined,
-                name: doc.data().displayName || "Khách hàng"
-            }));
-        }
-
-        if (recipients.length === 0) {
-            return {success: true, message: "Không tìm thấy người dùng nào phù hợp để gửi."};
-        }
-        
-        const type = "manual_notification";
-
-        // Gửi FCM
-        await sendPushNotification(recipients.map((r) => r.token), title, body, {
-            type,
-            payload: JSON.stringify({sentAt: new Date().toISOString()}),
+            newPrices[role] = Math.max(0, Math.round(newPrice));
+            hasChange = true;
+          }
         });
 
-        // Lưu thông báo vào Firestore của từng user
-        const savePromises = recipients.map((r) => saveNotificationToFirestore(r.id, title, body, type, {}));
-        await Promise.all(savePromises);
+        return {...option, prices: newPrices};
+      });
 
-        // Lưu lịch sử gửi
-        let recipientNamesForHistory: string[] = [];
-        if (targetType === "specific_users") {
-            recipientNamesForHistory = recipients.map(r => r.name);
+      if (hasChange) {
+        batch.update(doc.ref, {packingOptions: newPackingOptions});
+        updatedCount++;
+      }
+    });
+
+    if (updatedCount > 0) {
+      await batch.commit();
+
+      // Gửi thông báo
+      const typeText = adjustmentType === "percentage" ? `${adjustmentValue}%` : `${new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(adjustmentValue)}`;
+      const actionText = adjustmentValue >= 0 ? "nâng" : "hạ";
+      const targetText = productTarget === "all" ? "toàn bộ mặt hàng" : (productTarget === "foliar_fertilizer" ? "phân bón lá" : "phân bón gốc");
+      const agentText = agentTarget === "all" ? "toàn bộ đại lý" : (agentTarget === "agent_1" ? "đại lý cấp 1" : "đại lý cấp 2");
+
+      const title = "🔔 Thông báo điều chỉnh giá sản phẩm";
+      const body = `Hệ thống vừa ${actionText} giá ${typeText.replace("-", "")} cho ${targetText} của ${agentText}. Vui lòng kiểm tra lại bảng giá mới.`;
+      const type = "price_adjustment";
+      const dataPayload = {type, productTarget, agentTarget};
+
+      // Xác định người nhận
+      const rolesToNotify = ["admin", "accountant", "sales_rep"];
+      if (agentTarget === "all") {
+        rolesToNotify.push("agent_1", "agent_2");
+      } else {
+        rolesToNotify.push(agentTarget);
+      }
+
+      const recipients = await getRecipientsByRoles(rolesToNotify);
+      if (recipients.length > 0) {
+        const tokens = recipients.map((r) => r.token).filter((t): t is string => !!t);
+        if (tokens.length > 0) {
+          await sendPushNotification(tokens, title, body, dataPayload);
         }
-
-        await db.collection("manualNotifications").add({
-            title, body, sentBy: senderId,
-            senderRole: senderRole, // Lưu role người gửi
-            target: {
-                type: targetType,
-                ids: targetType === 'specific_users' ? userIds : null,
-                salesRepId: salesRepId ?? (senderRole === 'sales_rep' ? senderId : null),
-                recipientNames: recipientNamesForHistory,
-            },
-            recipientCount: recipients.length,
-            sentAt: admin.firestore.FieldValue.serverTimestamp(),
-         });
-         
-        return {success: true, message: `Đã gửi thông báo thành công đến ${recipients.length} người dùng.`};
+        const savePromises = recipients.map((r) => saveNotificationToFirestore(r.id, title, body, type, dataPayload));
+        await Promise.all(savePromises);
+      }
     }
+
+    return {success: true, message: `Đã điều chỉnh giá cho ${updatedCount} sản phẩm.`, count: updatedCount};
+  }
 );
 
 // ===================================================================
 // FUNCTION 9: NVKD DUYỆT ĐẠI LÝ (Không thay đổi)
 // ===================================================================
 export const approveAgentBySalesRep = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
-    const salesRepId = request.auth.uid;
-    const salesRepDoc = await db.collection("users").doc(salesRepId).get();
-    if (salesRepDoc.data()?.role !== 'sales_rep') {
-        throw new HttpsError("permission-denied", "Chỉ Nhân viên kinh doanh mới có quyền thực hiện.");
-    }
-    const {agentId, roleToSet} = request.data;
-    if (!agentId || !roleToSet || !['agent_1', 'agent_2'].includes(roleToSet)) {
-        throw new HttpsError("invalid-argument", "Thiếu hoặc sai thông tin đại lý.");
-    }
-    const agentRef = db.collection("users").doc(agentId);
-    const agentDoc = await agentRef.get();
-    if (!agentDoc.exists || agentDoc.data()?.status !== 'pending_approval') {
-         throw new HttpsError("not-found", "Không tìm thấy đại lý đang chờ duyệt hợp lệ.");
-    }
-    await agentRef.update({status: 'active', role: roleToSet, salesRepId: salesRepId});
-    return { success: true, message: "Duyệt đại lý thành công!" };
+  if (!request.auth) throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
+  const salesRepId = request.auth.uid;
+  const salesRepDoc = await db.collection("users").doc(salesRepId).get();
+  if (salesRepDoc.data()?.role !== "sales_rep") {
+    throw new HttpsError("permission-denied", "Chỉ Nhân viên kinh doanh mới có quyền thực hiện.");
+  }
+  const {agentId, roleToSet} = request.data;
+  if (!agentId || !roleToSet || !["agent_1", "agent_2"].includes(roleToSet)) {
+    throw new HttpsError("invalid-argument", "Thiếu hoặc sai thông tin đại lý.");
+  }
+  const agentRef = db.collection("users").doc(agentId);
+  const agentDoc = await agentRef.get();
+  if (!agentDoc.exists || agentDoc.data()?.status !== "pending_approval") {
+    throw new HttpsError("not-found", "Không tìm thấy đại lý đang chờ duyệt hợp lệ.");
+  }
+  await agentRef.update({status: "active", role: roleToSet, salesRepId: salesRepId});
+  return {success: true, message: "Duyệt đại lý thành công!"};
 });
 
 // ===================================================================
 // FUNCTION 10: TẠO MỘT CAM KẾT DOANH THU MỚI (CHỜ DUYỆT)
 // ===================================================================
 export const createSalesCommitment = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
-    const userId = request.auth.uid;
-    const {targetAmount, startDate, endDate} = request.data;
-    if (!targetAmount || !startDate || !endDate) {
-        throw new HttpsError("invalid-argument", "Missing required fields.");
+  if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
+  const userId = request.auth.uid;
+  const {targetAmount, startDate, endDate} = request.data;
+  if (!targetAmount || !startDate || !endDate) {
+    throw new HttpsError("invalid-argument", "Missing required fields.");
+  }
+  try {
+    const userRef = db.collection("users").doc(userId);
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) throw new HttpsError("not-found", "User not found.");
+    const userData = userDoc.data()!;
+    if (!["agent_1", "agent_2"].includes(userData.role)) {
+      throw new HttpsError("permission-denied", "Only agents can create a sales commitment.");
     }
-    try {
-        const userRef = db.collection("users").doc(userId);
-        const userDoc = await userRef.get();
-        if (!userDoc.exists) throw new HttpsError("not-found", "User not found.");
-        const userData = userDoc.data()!;
-        if (!["agent_1", "agent_2"].includes(userData.role)) {
-             throw new HttpsError("permission-denied", "Only agents can create a sales commitment.");
-        }
-        
-        // Tạo cam kết với trạng thái chờ duyệt
-        const commitmentId = await db.runTransaction(async (transaction) => {
-            const commitmentRef = db.collection("sales_commitments").doc();
-            transaction.set(commitmentRef, {
-                userId: userId,
-                userDisplayName: userData.displayName,
-                userRole: userData.role,
-                targetAmount: Number(targetAmount),
-                currentAmount: 0,
-                startDate: admin.firestore.Timestamp.fromDate(new Date(startDate)),
-                endDate: admin.firestore.Timestamp.fromDate(new Date(endDate)),
-                status: "pending_approval", // <--- THAY ĐỔI
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
-            // KHÔNG cập nhật activeRewardProgram ngay lập tức
-            return commitmentRef.id;
-        });
 
-        // Gửi thông báo cho Admin, Kế toán và NVKD phụ trách
-        const tokens: string[] = [];
-        const staffIds: string[] = [];
-        
-        // 1. Tìm Admin và Kế toán
-        const staffQuery = db.collection("users").where("role", "in", ["admin", "accountant"]);
-        const staffSnapshot = await staffQuery.get();
-        staffSnapshot.forEach(doc => {
-            const data = doc.data();
-            staffIds.push(doc.id);
-            if (data.fcmToken) tokens.push(data.fcmToken);
-        });
+    // Tạo cam kết với trạng thái chờ duyệt
+    const commitmentId = await db.runTransaction(async (transaction) => {
+      const commitmentRef = db.collection("sales_commitments").doc();
+      transaction.set(commitmentRef, {
+        userId: userId,
+        userDisplayName: userData.displayName,
+        userRole: userData.role,
+        targetAmount: Number(targetAmount),
+        currentAmount: 0,
+        startDate: admin.firestore.Timestamp.fromDate(new Date(startDate)),
+        endDate: admin.firestore.Timestamp.fromDate(new Date(endDate)),
+        status: "pending_approval", // <--- THAY ĐỔI
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      // KHÔNG cập nhật activeRewardProgram ngay lập tức
+      return commitmentRef.id;
+    });
 
-        // 2. Tìm NVKD phụ trách (nếu có)
-        if (userData.salesRepId) {
-            const repDoc = await db.collection("users").doc(userData.salesRepId).get();
-            if (repDoc.exists) {
-                 const repData = repDoc.data();
-                 if (!staffIds.includes(userData.salesRepId)) staffIds.push(userData.salesRepId);
-                 if (repData && repData.fcmToken) tokens.push(repData.fcmToken);
-            }
-        }
+    // Gửi thông báo cho Admin, Kế toán và NVKD phụ trách
+    const tokens: string[] = [];
+    const staffIds: string[] = [];
 
-        const title = "🔔 Đăng ký cam kết mới";
-        const body = `${userData.displayName} vừa đăng ký cam kết doanh thu. Vui lòng kiểm tra và duyệt.`;
-        const type = "commitment_approval_request";
+    // 1. Tìm Admin và Kế toán
+    const staffQuery = db.collection("users").where("role", "in", ["admin", "accountant"]);
+    const staffSnapshot = await staffQuery.get();
+    staffSnapshot.forEach((doc) => {
+      const data = doc.data();
+      staffIds.push(doc.id);
+      if (data.fcmToken) tokens.push(data.fcmToken);
+    });
 
-        // Gửi Push Notification
-        if (tokens.length > 0) {
-            const uniqueTokens = [...new Set(tokens)];
-            await sendPushNotification(uniqueTokens, title, body, {type, commitmentId});
-        }
-
-        // Lưu thông báo vào Firestore cho từng nhân viên
-        const savePromises = staffIds.map(sid => 
-            saveNotificationToFirestore(sid, title, body, type, {commitmentId})
-        );
-        await Promise.all(savePromises);
-
-        return { success: true, message: "Đã gửi yêu cầu đăng ký. Vui lòng chờ duyệt." };
-    } catch (error) {
-        if (error instanceof HttpsError) throw error;
-        throw new HttpsError("internal", "Failed to create sales commitment.", error);
+    // 2. Tìm NVKD phụ trách (nếu có)
+    if (userData.salesRepId) {
+      const repDoc = await db.collection("users").doc(userData.salesRepId).get();
+      if (repDoc.exists) {
+        const repData = repDoc.data();
+        if (!staffIds.includes(userData.salesRepId)) staffIds.push(userData.salesRepId);
+        if (repData && repData.fcmToken) tokens.push(repData.fcmToken);
+      }
     }
+
+    const title = "🔔 Đăng ký cam kết mới";
+    const body = `${userData.displayName} vừa đăng ký cam kết doanh thu. Vui lòng kiểm tra và duyệt.`;
+    const type = "commitment_approval_request";
+
+    // Gửi Push Notification
+    if (tokens.length > 0) {
+      const uniqueTokens = [...new Set(tokens)];
+      await sendPushNotification(uniqueTokens, title, body, {type, commitmentId});
+    }
+
+    // Lưu thông báo vào Firestore cho từng nhân viên
+    const savePromises = staffIds.map((sid) =>
+      saveNotificationToFirestore(sid, title, body, type, {commitmentId})
+    );
+    await Promise.all(savePromises);
+
+    return {success: true, message: "Đã gửi yêu cầu đăng ký. Vui lòng chờ duyệt."};
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Failed to create sales commitment.", error);
+  }
 });
 
 // ===================================================================
 // FUNCTION 11: THIẾT LẬP CHI TIẾT CAM KẾT & DUYỆT (BỞI ADMIN/NVKD)
 // ===================================================================
 export const setSalesCommitmentDetails = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
-    const setterId = request.auth.uid;
-    const {commitmentId, detailsText} = request.data;
-    if (!commitmentId || !detailsText) throw new HttpsError("invalid-argument", "Missing required fields.");
-    try {
-        const setterDoc = await db.collection("users").doc(setterId).get();
-        const setterData = setterDoc.data();
-        if (!setterDoc.exists || !setterData || !["admin", "sales_rep", "accountant"].includes(setterData.role)) {
-            throw new HttpsError("permission-denied", "You do not have permission.");
-        }
-
-        const commitmentRef = db.collection("sales_commitments").doc(commitmentId);
-        const commitmentDoc = await commitmentRef.get();
-        if (!commitmentDoc.exists) throw new HttpsError("not-found", "Commitment not found.");
-        const commitmentData = commitmentDoc.data()!;
-        const agentId = commitmentData.userId;
-
-        await db.runTransaction(async (transaction) => {
-             // 1. Cập nhật thông tin phần thưởng và Active cam kết
-             transaction.update(commitmentRef, {
-                status: "active", // <--- ACTIVE TẠI ĐÂY
-                commitmentDetails: {
-                    text: detailsText,
-                    setByUserId: setterId,
-                    setByUserName: setterData.displayName ?? "Không rõ",
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                },
-             });
-
-             // 2. Cập nhật User
-             const agentRef = db.collection("users").doc(agentId);
-             transaction.update(agentRef, {activeRewardProgram: "sales_target"});
-        });
-
-        // 3. Gửi thông báo cho Đại lý
-        const agentDoc = await db.collection("users").doc(agentId).get();
-        if (agentDoc.exists) {
-            const title = "🎉 Cam kết của bạn đã được DUYỆT!";
-            const body = `Công ty đã xác nhận: "${detailsText}". Chương trình bắt đầu tính từ bây giờ!`;
-            const type = "commitment_approved"; // <--- TYPE MỚI
-            const token = agentDoc.data()?.fcmToken;
-            if (token) {
-                await sendPushNotification([token], title, body, {type, commitmentId});
-            }
-            await saveNotificationToFirestore(agentId, title, body, type, {commitmentId});
-        }
-        
-        return { success: true, message: "Đã duyệt và thiết lập cam kết thành công." };
-    } catch (error) {
-        if (error instanceof HttpsError) throw error;
-        throw new HttpsError("internal", "Failed to set commitment details.", error);
+  if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
+  const setterId = request.auth.uid;
+  const {commitmentId, detailsText} = request.data;
+  if (!commitmentId || !detailsText) throw new HttpsError("invalid-argument", "Missing required fields.");
+  try {
+    const setterDoc = await db.collection("users").doc(setterId).get();
+    const setterData = setterDoc.data();
+    if (!setterDoc.exists || !setterData || !["admin", "sales_rep", "accountant"].includes(setterData.role)) {
+      throw new HttpsError("permission-denied", "You do not have permission.");
     }
+
+    const commitmentRef = db.collection("sales_commitments").doc(commitmentId);
+    const commitmentDoc = await commitmentRef.get();
+    if (!commitmentDoc.exists) throw new HttpsError("not-found", "Commitment not found.");
+    const commitmentData = commitmentDoc.data()!;
+    const agentId = commitmentData.userId;
+
+    await db.runTransaction(async (transaction) => {
+      // 1. Cập nhật thông tin phần thưởng và Active cam kết
+      transaction.update(commitmentRef, {
+        status: "active", // <--- ACTIVE TẠI ĐÂY
+        commitmentDetails: {
+          text: detailsText,
+          setByUserId: setterId,
+          setByUserName: setterData.displayName ?? "Không rõ",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+      });
+
+      // 2. Cập nhật User
+      const agentRef = db.collection("users").doc(agentId);
+      transaction.update(agentRef, {activeRewardProgram: "sales_target"});
+    });
+
+    // 3. Gửi thông báo cho Đại lý
+    const agentDoc = await db.collection("users").doc(agentId).get();
+    if (agentDoc.exists) {
+      const title = "🎉 Cam kết của bạn đã được DUYỆT!";
+      const body = `Công ty đã xác nhận: "${detailsText}". Chương trình bắt đầu tính từ bây giờ!`;
+      const type = "commitment_approved"; // <--- TYPE MỚI
+      const token = agentDoc.data()?.fcmToken;
+      if (token) {
+        await sendPushNotification([token], title, body, {type, commitmentId});
+      }
+      await saveNotificationToFirestore(agentId, title, body, type, {commitmentId});
+    }
+
+    return {success: true, message: "Đã duyệt và thiết lập cam kết thành công."};
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Failed to set commitment details.", error);
+  }
 });
 
 // ===================================================================
 // FUNCTION 12: VÒNG QUAY MAY MẮN (Không thay đổi)
 // ===================================================================
 export const grantDailyLoginSpin = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
-    if (!request.auth) {
-        throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
+  }
+  const userId = request.auth.uid;
+  const userRef = db.collection("users").doc(userId);
+
+  const todayInVietnam = new Date();
+  const todayStr = format(todayInVietnam, "yyyy-MM-dd", {timeZone: "Asia/Ho_Chi_Minh"});
+
+  try {
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) {
+      throw new HttpsError("not-found", "Không tìm thấy người dùng.");
     }
-    const userId = request.auth.uid;
-    const userRef = db.collection("users").doc(userId);
+    const userData = userDoc.data()!;
 
-    const todayInVietnam = new Date();
-    const todayStr = format(todayInVietnam, "yyyy-MM-dd", { timeZone: "Asia/Ho_Chi_Minh" });
-
-    try {
-        const userDoc = await userRef.get();
-        if (!userDoc.exists) {
-            throw new HttpsError("not-found", "Không tìm thấy người dùng.");
-        }
-        const userData = userDoc.data()!;
-
-        if (userData.lastDailySpin === todayStr) {
-            return { success: false, message: "Hôm nay bạn đã nhận lượt quay rồi." };
-        }
-
-        // --- THAY ĐỔI: Lọc các chiến dịch trong code thay vì dùng array-contains ---
-        const campaignQuery = db.collection("lucky_wheel_campaigns")
-            .where("isActive", "==", true)
-            .where("startDate", "<=", admin.firestore.Timestamp.now())
-            .where("endDate", ">=", admin.firestore.Timestamp.now());
-
-        const activeCampaignsSnapshot = await campaignQuery.get();
-
-        const dailyLoginCampaignDoc = activeCampaignsSnapshot.docs.find(doc => {
-            const campaign = doc.data();
-            return Array.isArray(campaign.rules) && campaign.rules.some(rule => rule.type === "DAILY_LOGIN");
-        });
-
-        if (!dailyLoginCampaignDoc) {
-            return { success: false, message: "Hiện không có chương trình tặng lượt quay hàng ngày." };
-        }
-        // --- KẾT THÚC THAY ĐỔI ---
-
-        await userRef.update({
-            spinCount: admin.firestore.FieldValue.increment(1),
-            lastDailySpin: todayStr,
-        });
-
-        logger.info(`Granted daily spin for user ${userId} for date ${todayStr}`);
-        return { success: true, message: "Bạn nhận được 1 lượt quay miễn phí!" };
-    } catch (error) {
-        logger.error("Error in grantDailyLoginSpin:", error);
-        throw new HttpsError("internal", "Lỗi khi nhận lượt quay hàng ngày.", error);
+    if (userData.lastDailySpin === todayStr) {
+      return {success: false, message: "Hôm nay bạn đã nhận lượt quay rồi."};
     }
+
+    // --- THAY ĐỔI: Lọc các chiến dịch trong code thay vì dùng array-contains ---
+    const campaignQuery = db.collection("lucky_wheel_campaigns")
+      .where("isActive", "==", true)
+      .where("startDate", "<=", admin.firestore.Timestamp.now())
+      .where("endDate", ">=", admin.firestore.Timestamp.now());
+
+    const activeCampaignsSnapshot = await campaignQuery.get();
+
+    const dailyLoginCampaignDoc = activeCampaignsSnapshot.docs.find((doc) => {
+      const campaign = doc.data();
+      return Array.isArray(campaign.rules) && campaign.rules.some((rule) => rule.type === "DAILY_LOGIN");
+    });
+
+    if (!dailyLoginCampaignDoc) {
+      return {success: false, message: "Hiện không có chương trình tặng lượt quay hàng ngày."};
+    }
+    // --- KẾT THÚC THAY ĐỔI ---
+
+    await userRef.update({
+      spinCount: admin.firestore.FieldValue.increment(1),
+      lastDailySpin: todayStr,
+    });
+
+    logger.info(`Granted daily spin for user ${userId} for date ${todayStr}`);
+    return {success: true, message: "Bạn nhận được 1 lượt quay miễn phí!"};
+  } catch (error) {
+    logger.error("Error in grantDailyLoginSpin:", error);
+    throw new HttpsError("internal", "Lỗi khi nhận lượt quay hàng ngày.", error);
+  }
 });
 
 export const spinTheWheel = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
-    if (!request.auth) {
-        throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
-    }
-    const userId = request.auth.uid;
-    const userRef = db.collection("users").doc(userId);
-    logger.info(`[spinTheWheel] User ${userId} started a spin.`);
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
+  }
+  const userId = request.auth.uid;
+  const userRef = db.collection("users").doc(userId);
+  logger.info(`[spinTheWheel] User ${userId} started a spin.`);
 
-    try {
-        let winningReward: any;
+  try {
+    let winningReward: any;
 
-        await db.runTransaction(async (transaction) => {
-            logger.info(`[spinTheWheel] Starting transaction for user ${userId}.`);
-            const userDoc = await transaction.get(userRef);
-            if (!userDoc.exists) {
-                throw new HttpsError("not-found", "Không tìm thấy người dùng.");
-            }
-            const userData = userDoc.data()!;
+    await db.runTransaction(async (transaction) => {
+      logger.info(`[spinTheWheel] Starting transaction for user ${userId}.`);
+      const userDoc = await transaction.get(userRef);
+      if (!userDoc.exists) {
+        throw new HttpsError("not-found", "Không tìm thấy người dùng.");
+      }
+      const userData = userDoc.data()!;
 
-            // --- ĐÂY LÀ TRUY VẤN CẦN INDEX MỚI ---
-            const campaignQuery = db.collection("lucky_wheel_campaigns")
-                .where("isActive", "==", true)
-                .where("wheelConfig.appliesToRole", "array-contains", userData.role)
-                .where("startDate", "<=", admin.firestore.Timestamp.now())
-                .limit(1);
-            // ------------------------------------
+      // --- ĐÂY LÀ TRUY VẤN CẦN INDEX MỚI ---
+      const campaignQuery = db.collection("lucky_wheel_campaigns")
+        .where("isActive", "==", true)
+        .where("wheelConfig.appliesToRole", "array-contains", userData.role)
+        .where("startDate", "<=", admin.firestore.Timestamp.now())
+        .limit(1);
+      // ------------------------------------
 
-            const campaignSnapshot = await transaction.get(campaignQuery);
+      const campaignSnapshot = await transaction.get(campaignQuery);
 
-            logger.info(`[spinTheWheel] Fetched user data, current spin count: ${userData.spinCount || 0}.`);
-            if (!userData.spinCount || userData.spinCount <= 0) {
-                throw new HttpsError("failed-precondition", "Bạn đã hết lượt quay.");
-            }
+      logger.info(`[spinTheWheel] Fetched user data, current spin count: ${userData.spinCount || 0}.`);
+      if (!userData.spinCount || userData.spinCount <= 0) {
+        throw new HttpsError("failed-precondition", "Bạn đã hết lượt quay.");
+      }
 
-            if (campaignSnapshot.empty) {
-                // Thêm một kiểm tra endDate để có thông báo rõ ràng hơn
-                const expiredCampaignQuery = db.collection("lucky_wheel_campaigns")
-                    .where("isActive", "==", true)
-                    .where("wheelConfig.appliesToRole", "array-contains", userData.role)
-                    .where("endDate", "<", admin.firestore.Timestamp.now())
-                    .limit(1);
-                const expiredSnapshot = await transaction.get(expiredCampaignQuery);
-                if (!expiredSnapshot.empty) {
-                     throw new HttpsError("not-found", "Chương trình vòng quay đã kết thúc.");
-                }
-                throw new HttpsError("not-found", "Không có chương trình vòng quay nào dành cho bạn lúc này.");
-            }
-            const campaignDoc = campaignSnapshot.docs[0];
-            const campaign = campaignDoc.data();
-            const rewards = campaign.wheelConfig.rewards;
-            logger.info(`[spinTheWheel] Found active campaign: ${campaign.name} (${campaignDoc.id}).`);
-
-            if (!rewards || !Array.isArray(rewards) || rewards.length === 0) {
-                throw new HttpsError("internal", "Cấu hình phần thưởng của chiến dịch bị lỗi.");
-            }
-            const totalProbability = rewards.reduce((sum: number, reward: any) => sum + (reward.probability || 0), 0);
-            if (totalProbability === 0) {
-                 throw new HttpsError("internal", "Tổng tỷ lệ phần thưởng bằng 0.");
-            }
-            let randomPoint = Math.random() * totalProbability;
-
-            let chosenReward = null;
-            for (const reward of rewards) {
-                if (randomPoint < reward.probability) {
-                    chosenReward = reward;
-                    break;
-                }
-                randomPoint -= reward.probability;
-            }
-            if (!chosenReward) {
-                chosenReward = rewards.find((r:any) => r.type === "NO_PRIZE") || rewards[rewards.length - 1];
-            }
-
-            winningReward = chosenReward;
-            logger.info(`[spinTheWheel] User ${userId} won reward: "${winningReward.name}".`);
-
-            transaction.update(userRef, {
-                spinCount: admin.firestore.FieldValue.increment(-1),
-            });
-            logger.info(`[spinTheWheel] Decrementing spin count for user ${userId}.`);
-
-            const historyRef = db.collection("spin_history").doc();
-            transaction.set(historyRef, {
-                userId: userId,
-                userDisplayName: userData.displayName,
-                campaignId: campaignDoc.id,
-                campaignName: campaign.name,
-                rewardName: winningReward.name,
-                spunAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
-            logger.info(`[spinTheWheel] Logged spin history for user ${userId}.`);
-        });
-
-        return { success: true, reward: winningReward };
-
-    } catch (error) {
-        logger.error(`[spinTheWheel] CRITICAL ERROR for user ${userId}:`, error);
-        if (error instanceof HttpsError) {
-          throw error;
+      if (campaignSnapshot.empty) {
+        // Thêm một kiểm tra endDate để có thông báo rõ ràng hơn
+        const expiredCampaignQuery = db.collection("lucky_wheel_campaigns")
+          .where("isActive", "==", true)
+          .where("wheelConfig.appliesToRole", "array-contains", userData.role)
+          .where("endDate", "<", admin.firestore.Timestamp.now())
+          .limit(1);
+        const expiredSnapshot = await transaction.get(expiredCampaignQuery);
+        if (!expiredSnapshot.empty) {
+          throw new HttpsError("not-found", "Chương trình vòng quay đã kết thúc.");
         }
-        throw new HttpsError("internal", "Đã có lỗi xảy ra khi quay thưởng.", error);
+        throw new HttpsError("not-found", "Không có chương trình vòng quay nào dành cho bạn lúc này.");
+      }
+      const campaignDoc = campaignSnapshot.docs[0];
+      const campaign = campaignDoc.data();
+      const rewards = campaign.wheelConfig.rewards;
+      logger.info(`[spinTheWheel] Found active campaign: ${campaign.name} (${campaignDoc.id}).`);
+
+      if (!rewards || !Array.isArray(rewards) || rewards.length === 0) {
+        throw new HttpsError("internal", "Cấu hình phần thưởng của chiến dịch bị lỗi.");
+      }
+      const totalProbability = rewards.reduce((sum: number, reward: any) => sum + (reward.probability || 0), 0);
+      if (totalProbability === 0) {
+        throw new HttpsError("internal", "Tổng tỷ lệ phần thưởng bằng 0.");
+      }
+      let randomPoint = Math.random() * totalProbability;
+
+      let chosenReward = null;
+      for (const reward of rewards) {
+        if (randomPoint < reward.probability) {
+          chosenReward = reward;
+          break;
+        }
+        randomPoint -= reward.probability;
+      }
+      if (!chosenReward) {
+        chosenReward = rewards.find((r:any) => r.type === "NO_PRIZE") || rewards[rewards.length - 1];
+      }
+
+      winningReward = chosenReward;
+      logger.info(`[spinTheWheel] User ${userId} won reward: "${winningReward.name}".`);
+
+      transaction.update(userRef, {
+        spinCount: admin.firestore.FieldValue.increment(-1),
+      });
+      logger.info(`[spinTheWheel] Decrementing spin count for user ${userId}.`);
+
+      const historyRef = db.collection("spin_history").doc();
+      transaction.set(historyRef, {
+        userId: userId,
+        userDisplayName: userData.displayName,
+        campaignId: campaignDoc.id,
+        campaignName: campaign.name,
+        rewardName: winningReward.name,
+        spunAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      logger.info(`[spinTheWheel] Logged spin history for user ${userId}.`);
+    });
+
+    return {success: true, reward: winningReward};
+  } catch (error) {
+    logger.error(`[spinTheWheel] CRITICAL ERROR for user ${userId}:`, error);
+    if (error instanceof HttpsError) {
+      throw error;
     }
+    throw new HttpsError("internal", "Đã có lỗi xảy ra khi quay thưởng.", error);
+  }
 });
 
 // ===================================================================
@@ -1323,7 +1430,7 @@ export const deleteUserAccount = onCall(
     if (!userDoc.exists) {
       logger.warn(`Người dùng ${uid} yêu cầu xóa nhưng không tìm thấy document trong Firestore. Chỉ xóa trong Auth.`);
       await auth.deleteUser(uid);
-      return { success: true, message: "Tài khoản không có dữ liệu, đã xóa thành công." };
+      return {success: true, message: "Tài khoản không có dữ liệu, đã xóa thành công."};
     }
 
     const userData = userDoc.data()!;
@@ -1397,93 +1504,93 @@ export const deleteUserAccount = onCall(
 // --- THAY ĐỔI: FUNCTION 14: KHI YÊU CẦU ĐỔI TRẢ MỚI ĐƯỢC TẠO ---
 // ===================================================================
 export const onReturnRequestCreated = onDocumentCreated(
-    {document: "returnRequests/{requestId}", region: "asia-southeast1"},
-    async (event) => {
-        const requestData = event.data?.data();
-        const requestId = event.params.requestId;
-        if (!requestData) return;
-        await db.collection("orders").doc(requestData.orderId).update({
-            returnInfo: {returnRequestId: requestId, returnStatus: "pending_approval"},
-        });
-        const staff = await getRecipientsByRoles(["admin", "accountant"]);
-        if (staff.length === 0) return;
+  {document: "returnRequests/{requestId}", region: "asia-southeast1"},
+  async (event) => {
+    const requestData = event.data?.data();
+    const requestId = event.params.requestId;
+    if (!requestData) return;
+    await db.collection("orders").doc(requestData.orderId).update({
+      returnInfo: {returnRequestId: requestId, returnStatus: "pending_approval"},
+    });
+    const staff = await getRecipientsByRoles(["admin", "accountant"]);
+    if (staff.length === 0) return;
 
-        const title = "📬 Có yêu cầu đổi/trả mới";
-        const body = `Đại lý "${requestData.userDisplayName}" vừa gửi yêu cầu đổi/trả cho đơn #${requestData.orderId.substring(0, 8).toUpperCase()}.`;
-        const type = "new_return_request";
-        const dataPayload = { type, returnRequestId: requestId, orderId: requestData.orderId };
+    const title = "📬 Có yêu cầu đổi/trả mới";
+    const body = `Đại lý "${requestData.userDisplayName}" vừa gửi yêu cầu đổi/trả cho đơn #${requestData.orderId.substring(0, 8).toUpperCase()}.`;
+    const type = "new_return_request";
+    const dataPayload = {type, returnRequestId: requestId, orderId: requestData.orderId};
 
-        const tokens = staff.map((r) => r.token).filter((t): t is string => !!t);
-        if (tokens.length > 0) {
-            await sendPushNotification(tokens, title, body, dataPayload);
-        }
-
-        const savePromises = staff.map((r) => saveNotificationToFirestore(r.id, title, body, type, dataPayload));
-        await Promise.all(savePromises);
+    const tokens = staff.map((r) => r.token).filter((t): t is string => !!t);
+    if (tokens.length > 0) {
+      await sendPushNotification(tokens, title, body, dataPayload);
     }
+
+    const savePromises = staff.map((r) => saveNotificationToFirestore(r.id, title, body, type, dataPayload));
+    await Promise.all(savePromises);
+  }
 );
 
 // ===================================================================
 // --- THAY ĐỔI: FUNCTION 15: KHI YÊU CẦU ĐỔI TRẢ ĐƯỢC CẬP NHẬT ---
 // ===================================================================
 export const onReturnRequestUpdated = onDocumentUpdated(
-    {document: "returnRequests/{requestId}", region: "asia-southeast1"},
-    async (event) => {
-        const afterData = event.data?.after.data();
-        if (!afterData) return;
+  {document: "returnRequests/{requestId}", region: "asia-southeast1"},
+  async (event) => {
+    const afterData = event.data?.after.data();
+    if (!afterData) return;
 
-        const {userId, orderId, status: newStatus, adminNotes} = afterData;
-        const requestId = event.params.requestId;
-        await db.collection("orders").doc(orderId).update({
-            returnInfo: {returnRequestId: requestId, returnStatus: newStatus},
-        });
-        const userDoc = await db.collection("users").doc(userId).get();
-        if (!userDoc.exists) return;
+    const {userId, orderId, status: newStatus, adminNotes} = afterData;
+    const requestId = event.params.requestId;
+    await db.collection("orders").doc(orderId).update({
+      returnInfo: {returnRequestId: requestId, returnStatus: newStatus},
+    });
+    const userDoc = await db.collection("users").doc(userId).get();
+    if (!userDoc.exists) return;
 
-        let title = "";
-        let body = "";
-        const type = "return_request_status_update";
-        const shortOrderId = orderId.substring(0, 8).toUpperCase();
-        switch (newStatus) {
-            case "approved":
-                title = "✅ Yêu cầu đổi/trả đã được duyệt";
-                body = `Yêu cầu đổi/trả cho đơn hàng #${shortOrderId} của bạn đã được duyệt. Công ty sẽ liên hệ để xử lý.`;
-                break;
-            case "rejected":
-                title = "❌ Yêu cầu đổi/trả bị từ chối";
-                body = `Yêu cầu đổi/trả cho đơn hàng #${shortOrderId} đã bị từ chối. Lý do: ${adminNotes ?? "Không có"}`;
-                break;
-            case "completed":
-                title = "✨ Yêu cầu đổi/trả đã hoàn thành";
-                body = `Quá trình đổi/trả cho đơn hàng #${shortOrderId} của bạn đã được xử lý xong.`;
-                break;
-            default: return;
-        }
-
-        const token = userDoc.data()?.fcmToken;
-        const dataPayload = {type, returnRequestId: requestId, orderId};
-        if (token) {
-            await sendPushNotification([token], title, body, dataPayload);
-        }
-        await saveNotificationToFirestore(userId, title, body, type, dataPayload);
-
-        // --- MỚI: Thông báo cho Kế toán khi Admin duyệt (Approved) ---
-        if (newStatus === "approved") {
-             const accountants = await getRecipientsByRoles(["accountant"]);
-             if (accountants.length > 0) {
-                 const acTitle = "⚡ Đơn đổi trả đã được DUYỆT";
-                 const acBody = `Admin đã duyệt đơn đổi trả #${shortOrderId}. Vui lòng kiểm tra và hoàn tất xử lý.`;
-                 const acType = "return_request_approved_for_accountant"; 
-                 const acPayload = { type: acType, returnRequestId: requestId, orderId };
-                 
-                 const acTokens = accountants.map(a => a.token).filter((t): t is string => !!t);
-                 if (acTokens.length > 0) await sendPushNotification(acTokens, acTitle, acBody, acPayload);
-                 
-                 const acPromises = accountants.map(a => saveNotificationToFirestore(a.id, acTitle, acBody, acType, acPayload));
-                 await Promise.all(acPromises);
-             }
-        }
+    let title = "";
+    let body = "";
+    const type = "return_request_status_update";
+    const shortOrderId = orderId.substring(0, 8).toUpperCase();
+    switch (newStatus) {
+    case "approved":
+      title = "✅ Yêu cầu đổi/trả đã được duyệt";
+      body = `Yêu cầu đổi/trả cho đơn hàng #${shortOrderId} của bạn đã được duyệt. Công ty sẽ liên hệ để xử lý.`;
+      break;
+    case "rejected":
+      title = "❌ Yêu cầu đổi/trả bị từ chối";
+      body = `Yêu cầu đổi/trả cho đơn hàng #${shortOrderId} đã bị từ chối. Lý do: ${adminNotes ?? "Không có"}`;
+      break;
+    case "completed":
+      title = "✨ Yêu cầu đổi/trả đã hoàn thành";
+      body = `Quá trình đổi/trả cho đơn hàng #${shortOrderId} của bạn đã được xử lý xong.`;
+      break;
+    default: return;
     }
+
+    const token = userDoc.data()?.fcmToken;
+    const dataPayload = {type, returnRequestId: requestId, orderId};
+    if (token) {
+      await sendPushNotification([token], title, body, dataPayload);
+    }
+    await saveNotificationToFirestore(userId, title, body, type, dataPayload);
+
+    // --- MỚI: Thông báo cho Kế toán khi Admin duyệt (Approved) ---
+    if (newStatus === "approved") {
+      const accountants = await getRecipientsByRoles(["accountant"]);
+      if (accountants.length > 0) {
+        const acTitle = "⚡ Đơn đổi trả đã được DUYỆT";
+        const acBody = `Admin đã duyệt đơn đổi trả #${shortOrderId}. Vui lòng kiểm tra và hoàn tất xử lý.`;
+        const acType = "return_request_approved_for_accountant";
+        const acPayload = {type: acType, returnRequestId: requestId, orderId};
+
+        const acTokens = accountants.map((a) => a.token).filter((t): t is string => !!t);
+        if (acTokens.length > 0) await sendPushNotification(acTokens, acTitle, acBody, acPayload);
+
+        const acPromises = accountants.map((a) => saveNotificationToFirestore(a.id, acTitle, acBody, acType, acPayload));
+        await Promise.all(acPromises);
+      }
+    }
+  }
 );
 
 // ===================================================================
@@ -1499,10 +1606,10 @@ export const onReturnRequestCompleted = onDocumentUpdated(
     }
 
     const change: Change<QueryDocumentSnapshot> | undefined = event.data;
-        if (!change) {
-          logger.warn("Event data (change object) is missing for onReturnRequestCompleted.");
-          return;
-        }
+    if (!change) {
+      logger.warn("Event data (change object) is missing for onReturnRequestCompleted.");
+      return;
+    }
     const beforeData = change.before.data();
     const afterData = change.after.data();
 
@@ -1549,7 +1656,7 @@ export const onReturnRequestCompleted = onDocumentUpdated(
 
           // 2. Ghi lại một giao dịch công nợ để đối soát
           const debtTransactionRef = db.collection("debtTransactions").doc();
-          
+
           let description = "";
           if (penaltyFee > 0 && refundAmount > 0) {
             description = `Hoàn trả đơn hàng #${orderId.substring(0, 8).toUpperCase()} (Trị giá: ${refundAmount}, Phạt: ${penaltyFee})`;
@@ -1568,9 +1675,9 @@ export const onReturnRequestCompleted = onDocumentUpdated(
             orderId: orderId,
             returnRequestId: requestId,
             metadata: {
-                penaltyFee: penaltyFee,
-                refundAmount: refundAmount
-            }
+              penaltyFee: penaltyFee,
+              refundAmount: refundAmount,
+            },
           });
         });
 
@@ -1591,634 +1698,624 @@ export const onReturnRequestCompleted = onDocumentUpdated(
 // --- FUNCTION 17: KHI VOUCHER ĐƯỢC TẠO ---
 // ===================================================================
 export const onVoucherCreated = onDocumentCreated(
-    { document: "vouchers/{voucherId}", region: "asia-southeast1" },
-    async (event) => {
-        const voucherData = event.data?.data();
-        const voucherId = event.params.voucherId;
-        // Chỉ thông báo nếu voucher mới tạo cần duyệt
-        if (!voucherData || voucherData.status !== VoucherStatus.pendingApproval) {
-            logger.info(`Voucher ${voucherId} created with status ${voucherData?.status}, no notification needed.`);
-            return;
-        }
-
-        const { createdBy } = voucherData;
-        if (!createdBy) {
-            logger.warn(`Voucher ${voucherId} is missing 'createdBy' field.`);
-            return;
-        }
-
-        try {
-            // Lấy tên NVKD
-            const creatorDoc = await db.collection("users").doc(createdBy).get();
-            const creatorName = creatorDoc.data()?.displayName ?? createdBy;
-
-            // Lấy danh sách Admin
-            const admins = await getRecipientsByRoles(["admin"]);
-            if (admins.length === 0) {
-                logger.info("No admins found to notify about new voucher.");
-                return;
-            }
-
-            // Chuẩn bị thông báo
-            const title = "🔔 Yêu cầu duyệt voucher mới";
-            const body = `NVKD "${creatorName}" vừa tạo voucher "${voucherId}" và đang chờ bạn duyệt.`;
-            const type = "voucher_approval_request"; // Loại thông báo mới
-            const dataPayload = { type, voucherId };
-
-            // Gửi và lưu thông báo cho từng Admin
-            const tokens = admins.map((r) => r.token);
-            await sendPushNotification(tokens, title, body, dataPayload);
-
-            const savePromises = admins.map((admin) =>
-                saveNotificationToFirestore(admin.id, title, body, type, dataPayload)
-            );
-            await Promise.all(savePromises);
-
-            logger.info(`Sent voucher creation notification for ${voucherId} to ${admins.length} admins.`);
-
-        } catch (error) {
-            logger.error(`Error processing voucher creation notification for ${voucherId}:`, error);
-        }
+  {document: "vouchers/{voucherId}", region: "asia-southeast1"},
+  async (event) => {
+    const voucherData = event.data?.data();
+    const voucherId = event.params.voucherId;
+    // Chỉ thông báo nếu voucher mới tạo cần duyệt
+    if (!voucherData || voucherData.status !== VoucherStatus.pendingApproval) {
+      logger.info(`Voucher ${voucherId} created with status ${voucherData?.status}, no notification needed.`);
+      return;
     }
+
+    const {createdBy} = voucherData;
+    if (!createdBy) {
+      logger.warn(`Voucher ${voucherId} is missing 'createdBy' field.`);
+      return;
+    }
+
+    try {
+      // Lấy tên NVKD
+      const creatorDoc = await db.collection("users").doc(createdBy).get();
+      const creatorName = creatorDoc.data()?.displayName ?? createdBy;
+
+      // Lấy danh sách Admin
+      const admins = await getRecipientsByRoles(["admin"]);
+      if (admins.length === 0) {
+        logger.info("No admins found to notify about new voucher.");
+        return;
+      }
+
+      // Chuẩn bị thông báo
+      const title = "🔔 Yêu cầu duyệt voucher mới";
+      const body = `NVKD "${creatorName}" vừa tạo voucher "${voucherId}" và đang chờ bạn duyệt.`;
+      const type = "voucher_approval_request"; // Loại thông báo mới
+      const dataPayload = {type, voucherId};
+
+      // Gửi và lưu thông báo cho từng Admin
+      const tokens = admins.map((r) => r.token);
+      await sendPushNotification(tokens, title, body, dataPayload);
+
+      const savePromises = admins.map((admin) =>
+        saveNotificationToFirestore(admin.id, title, body, type, dataPayload)
+      );
+      await Promise.all(savePromises);
+
+      logger.info(`Sent voucher creation notification for ${voucherId} to ${admins.length} admins.`);
+    } catch (error) {
+      logger.error(`Error processing voucher creation notification for ${voucherId}:`, error);
+    }
+  }
 );
 
 // ===================================================================
 // --- FUNCTION 18: KHI VOUCHER ĐƯỢC CẬP NHẬT ---
 // ===================================================================
 export const onVoucherUpdated = onDocumentUpdated(
-    { document: "vouchers/{voucherId}", region: "asia-southeast1" },
-    async (event) => {
-        // Kiểm tra xem event.data có tồn tại không
-        if (!event.data) {
-          logger.warn(`Event data is missing for onVoucherUpdated, voucherId: ${event.params.voucherId}.`);
+  {document: "vouchers/{voucherId}", region: "asia-southeast1"},
+  async (event) => {
+    // Kiểm tra xem event.data có tồn tại không
+    if (!event.data) {
+      logger.warn(`Event data is missing for onVoucherUpdated, voucherId: ${event.params.voucherId}.`);
+      return;
+    }
+    const beforeData = event.data?.before.data();
+    const afterData = event.data?.after.data();
+    const voucherId = event.params.voucherId;
+
+    // Bỏ qua nếu không có dữ liệu hoặc status không đổi
+    if (!beforeData || !afterData || beforeData.status === afterData.status) {
+      logger.info(`Voucher ${voucherId} status unchanged (${afterData?.status}), skipping notification.`);
+      return;
+    }
+
+    const oldStatus = beforeData.status;
+    const newStatus = afterData.status;
+    const createdBy = afterData.createdBy; // ID của NVKD
+
+    // Lấy lý do từ chối từ history entry gần nhất có action phù hợp
+    const rejectionEntry = (afterData.history as any[])
+      ?.slice().reverse() // Đảo ngược để tìm từ cuối lên
+      .find((h) => h.action === "rejected" || h.action === "deletion_rejected");
+    const rejectionNotes = rejectionEntry?.notes ?? ""; // Lấy trường 'notes' (ĐÃ SỬA)
+
+    if (!createdBy) {
+      logger.warn(`Voucher ${voucherId} is missing 'createdBy' field during update.`);
+      return;
+    }
+
+    try {
+      // --- Trường hợp 1: NVKD gửi yêu cầu (Sửa hoặc Yêu cầu Xóa) -> Thông báo Admin ---
+      if ( (newStatus === VoucherStatus.pendingApproval && oldStatus !== VoucherStatus.pendingApproval) ||
+                 (newStatus === VoucherStatus.pendingDeletion && oldStatus !== VoucherStatus.pendingDeletion) ) {
+        const creatorDoc = await db.collection("users").doc(createdBy).get();
+        const creatorName = creatorDoc.data()?.displayName ?? createdBy;
+        const admins = await getRecipientsByRoles(["admin"]);
+        if (admins.length === 0) {
+          logger.info(`No admins found to notify about voucher update request for ${voucherId}.`);
           return;
         }
-        const beforeData = event.data?.before.data();
-        const afterData = event.data?.after.data();
-        const voucherId = event.params.voucherId;
 
-        // Bỏ qua nếu không có dữ liệu hoặc status không đổi
-        if (!beforeData || !afterData || beforeData.status === afterData.status) {
-            logger.info(`Voucher ${voucherId} status unchanged (${afterData?.status}), skipping notification.`);
-            return;
+        const actionText = newStatus === VoucherStatus.pendingApproval ? "sửa" : "xóa";
+        const title = `🔔 Yêu cầu duyệt ${actionText} voucher`;
+        const body = `NVKD "${creatorName}" vừa yêu cầu ${actionText} voucher "${voucherId}" và đang chờ bạn duyệt.`;
+        const type = "voucher_approval_request"; // Dùng chung type cho dễ
+        const dataPayload = {type, voucherId};
+
+        const tokens = admins.map((r) => r.token);
+        await sendPushNotification(tokens, title, body, dataPayload);
+
+        const savePromises = admins.map((admin) =>
+          saveNotificationToFirestore(admin.id, title, body, type, dataPayload)
+        );
+        await Promise.all(savePromises);
+        logger.info(`Sent voucher ${actionText} request notification for ${voucherId} to ${admins.length} admins.`);
+        return; // Kết thúc xử lý cho trường hợp này
+      }
+
+      // --- Trường hợp 2: Admin phản hồi (Duyệt/Từ chối Tạo/Sửa, Từ chối Xóa) -> Thông báo NVKD ---
+      let title = "";
+      let body = "";
+      let type = "voucher_status_update"; // Loại thông báo chung
+
+      // Admin duyệt tạo/sửa
+      if (oldStatus === VoucherStatus.pendingApproval && newStatus === VoucherStatus.active) {
+        title = `✅ Voucher "${voucherId}" đã được duyệt`;
+        body = `Voucher "${voucherId}" bạn tạo/sửa đã được phê duyệt và đang hoạt động.`;
+      }
+      // Admin từ chối tạo/sửa
+      else if (oldStatus === VoucherStatus.pendingApproval && newStatus === VoucherStatus.rejected) {
+        title = `❌ Voucher "${voucherId}" bị từ chối`;
+        body = `Yêu cầu tạo/sửa voucher "${voucherId}" đã bị từ chối.` + (rejectionNotes ? ` Lý do: ${rejectionNotes}` : "");
+        type = "voucher_rejected";
+      }
+      // Admin từ chối xóa (voucher quay lại trạng thái cũ)
+      else if (oldStatus === VoucherStatus.pendingDeletion && newStatus !== VoucherStatus.pendingDeletion) { // newStatus có thể là active, pending_approval, rejected...
+        title = `↩️ Yêu cầu xóa voucher "${voucherId}" bị từ chối`;
+        body = `Admin đã từ chối yêu cầu xóa voucher "${voucherId}".` + (rejectionNotes ? ` Lý do: ${rejectionNotes}` : "");
+        type = "voucher_deletion_rejected";
+      }
+
+      // Gửi thông báo nếu có nội dung
+      if (title && body) {
+        const creatorDoc = await db.collection("users").doc(createdBy).get();
+        if (!creatorDoc.exists) {
+          logger.warn(`Creator NVKD ${createdBy} not found for voucher ${voucherId}. Cannot send notification.`);
+          return;
         }
+        const creatorToken = creatorDoc.data()?.fcmToken as string | undefined;
+        const dataPayload = {type, voucherId};
 
-        const oldStatus = beforeData.status;
-        const newStatus = afterData.status;
-        const createdBy = afterData.createdBy; // ID của NVKD
-
-        // Lấy lý do từ chối từ history entry gần nhất có action phù hợp
-        const rejectionEntry = (afterData.history as any[])
-                                 ?.slice().reverse() // Đảo ngược để tìm từ cuối lên
-                                 .find(h => h.action === 'rejected' || h.action === 'deletion_rejected');
-        const rejectionNotes = rejectionEntry?.notes ?? ""; // Lấy trường 'notes' (ĐÃ SỬA)
-
-        if (!createdBy) {
-            logger.warn(`Voucher ${voucherId} is missing 'createdBy' field during update.`);
-            return;
+        if (creatorToken) {
+          await sendPushNotification([creatorToken], title, body, dataPayload);
         }
-
-        try {
-            // --- Trường hợp 1: NVKD gửi yêu cầu (Sửa hoặc Yêu cầu Xóa) -> Thông báo Admin ---
-            if ( (newStatus === VoucherStatus.pendingApproval && oldStatus !== VoucherStatus.pendingApproval) ||
-                 (newStatus === VoucherStatus.pendingDeletion && oldStatus !== VoucherStatus.pendingDeletion) )
-            {
-                const creatorDoc = await db.collection("users").doc(createdBy).get();
-                const creatorName = creatorDoc.data()?.displayName ?? createdBy;
-                const admins = await getRecipientsByRoles(["admin"]);
-                if (admins.length === 0) {
-                     logger.info(`No admins found to notify about voucher update request for ${voucherId}.`);
-                     return;
-                }
-
-                const actionText = newStatus === VoucherStatus.pendingApproval ? "sửa" : "xóa";
-                const title = `🔔 Yêu cầu duyệt ${actionText} voucher`;
-                const body = `NVKD "${creatorName}" vừa yêu cầu ${actionText} voucher "${voucherId}" và đang chờ bạn duyệt.`;
-                const type = "voucher_approval_request"; // Dùng chung type cho dễ
-                const dataPayload = { type, voucherId };
-
-                const tokens = admins.map((r) => r.token);
-                await sendPushNotification(tokens, title, body, dataPayload);
-
-                const savePromises = admins.map((admin) =>
-                    saveNotificationToFirestore(admin.id, title, body, type, dataPayload)
-                );
-                await Promise.all(savePromises);
-                logger.info(`Sent voucher ${actionText} request notification for ${voucherId} to ${admins.length} admins.`);
-                return; // Kết thúc xử lý cho trường hợp này
-            }
-
-            // --- Trường hợp 2: Admin phản hồi (Duyệt/Từ chối Tạo/Sửa, Từ chối Xóa) -> Thông báo NVKD ---
-            let title = "";
-            let body = "";
-            let type = "voucher_status_update"; // Loại thông báo chung
-
-            // Admin duyệt tạo/sửa
-            if (oldStatus === VoucherStatus.pendingApproval && newStatus === VoucherStatus.active) {
-                title = `✅ Voucher "${voucherId}" đã được duyệt`;
-                body = `Voucher "${voucherId}" bạn tạo/sửa đã được phê duyệt và đang hoạt động.`;
-            }
-            // Admin từ chối tạo/sửa
-            else if (oldStatus === VoucherStatus.pendingApproval && newStatus === VoucherStatus.rejected) {
-                title = `❌ Voucher "${voucherId}" bị từ chối`;
-                body = `Yêu cầu tạo/sửa voucher "${voucherId}" đã bị từ chối.` + (rejectionNotes ? ` Lý do: ${rejectionNotes}` : "");
-                type = "voucher_rejected";
-            }
-            // Admin từ chối xóa (voucher quay lại trạng thái cũ)
-            else if (oldStatus === VoucherStatus.pendingDeletion && newStatus !== VoucherStatus.pendingDeletion) { // newStatus có thể là active, pending_approval, rejected...
-                 title = `↩️ Yêu cầu xóa voucher "${voucherId}" bị từ chối`;
-                 body = `Admin đã từ chối yêu cầu xóa voucher "${voucherId}".` + (rejectionNotes ? ` Lý do: ${rejectionNotes}` : "");
-                 type = "voucher_deletion_rejected";
-            }
-
-            // Gửi thông báo nếu có nội dung
-            if (title && body) {
-                const creatorDoc = await db.collection("users").doc(createdBy).get();
-                 if (!creatorDoc.exists) {
-                     logger.warn(`Creator NVKD ${createdBy} not found for voucher ${voucherId}. Cannot send notification.`);
-                     return;
-                 }
-                const creatorToken = creatorDoc.data()?.fcmToken as string | undefined;
-                const dataPayload = { type, voucherId };
-
-                if (creatorToken) {
-                    await sendPushNotification([creatorToken], title, body, dataPayload);
-                }
-                await saveNotificationToFirestore(createdBy, title, body, type, dataPayload);
-                logger.info(`Sent voucher status update notification ('${type}') for ${voucherId} to NVKD ${createdBy}.`);
-            } else {
-                 logger.info(`No specific Admin->NVKD notification triggered for voucher ${voucherId} status change from ${oldStatus} to ${newStatus}.`);
-            }
-
-        } catch (error) {
-            logger.error(`Error processing voucher update notification for ${voucherId}:`, error);
-        }
+        await saveNotificationToFirestore(createdBy, title, body, type, dataPayload);
+        logger.info(`Sent voucher status update notification ('${type}') for ${voucherId} to NVKD ${createdBy}.`);
+      } else {
+        logger.info(`No specific Admin->NVKD notification triggered for voucher ${voucherId} status change from ${oldStatus} to ${newStatus}.`);
+      }
+    } catch (error) {
+      logger.error(`Error processing voucher update notification for ${voucherId}:`, error);
     }
+  }
 );
 
 // ===================================================================
 // --- FUNCTION 19: KHI VOUCHER BỊ XÓA (THÔNG BÁO CHO NVKD) ---
 // ===================================================================
 export const onVoucherDeleted = onDocumentDeleted(
-    { document: "vouchers/{voucherId}", region: "asia-southeast1" },
-    async (event: FirestoreEvent<QueryDocumentSnapshot | undefined>) => {
-        const deletedData = event.data?.data(); // Dữ liệu của voucher *trước khi* bị xóa
-        const voucherId = event.params.voucherId;
+  {document: "vouchers/{voucherId}", region: "asia-southeast1"},
+  async (event: FirestoreEvent<QueryDocumentSnapshot | undefined>) => {
+    const deletedData = event.data?.data(); // Dữ liệu của voucher *trước khi* bị xóa
+    const voucherId = event.params.voucherId;
 
-        // Bỏ qua nếu không lấy được dữ liệu cũ (hiếm khi xảy ra)
-        if (!deletedData) {
-             logger.warn(`Could not get data for deleted voucher ${voucherId}. Skipping notification.`);
-             return;
-        }
-
-        const createdBy = deletedData.createdBy; // ID của NVKD đã tạo voucher
-        const lastHistoryEntry = (deletedData.history as any[])?.slice(-1)[0]; // Lấy entry cuối cùng trong lịch sử
-
-        // Kiểm tra xem voucher có đang ở trạng thái chờ xóa không
-        // VÀ hành động cuối cùng có phải là 'approved_deletion' không (hành động ta sẽ thêm ở client)
-        if ( createdBy &&
-             deletedData.status === VoucherStatus.pendingDeletion && // Phải đang chờ xóa
-             lastHistoryEntry?.action === 'approved_deletion' // Hành động cuối phải là admin duyệt xóa
-            )
-        {
-             try {
-                // Lấy thông tin NVKD để gửi thông báo
-                const creatorDoc = await db.collection("users").doc(createdBy).get();
-                 if (!creatorDoc.exists) {
-                     logger.warn(`Creator NVKD ${createdBy} not found for deleted voucher ${voucherId}. Cannot send notification.`);
-                     return;
-                 }
-                const creatorToken = creatorDoc.data()?.fcmToken as string | undefined;
-
-                // Chuẩn bị thông báo
-                const title = `🗑️ Voucher "${voucherId}" đã được xóa`;
-                const body = `Yêu cầu xóa voucher "${voucherId}" của bạn đã được Admin phê duyệt thành công.`;
-                const type = "voucher_deleted"; // Type mới
-                const dataPayload = { type, voucherId };
-
-                // Gửi thông báo đẩy nếu có token
-                if (creatorToken) {
-                    await sendPushNotification([creatorToken], title, body, dataPayload);
-                }
-                // Luôn lưu thông báo vào Firestore
-                await saveNotificationToFirestore(createdBy, title, body, type, dataPayload);
-                logger.info(`Sent voucher deletion notification for ${voucherId} to NVKD ${createdBy}.`);
-
-             } catch (error) {
-                 logger.error(`Error sending voucher deletion notification for ${voucherId}:`, error);
-             }
-        } else {
-             logger.info(`Voucher ${voucherId} deleted, but conditions for notification not met (status: ${deletedData.status}, last action: ${lastHistoryEntry?.action}).`);
-        }
+    // Bỏ qua nếu không lấy được dữ liệu cũ (hiếm khi xảy ra)
+    if (!deletedData) {
+      logger.warn(`Could not get data for deleted voucher ${voucherId}. Skipping notification.`);
+      return;
     }
+
+    const createdBy = deletedData.createdBy; // ID của NVKD đã tạo voucher
+    const lastHistoryEntry = (deletedData.history as any[])?.slice(-1)[0]; // Lấy entry cuối cùng trong lịch sử
+
+    // Kiểm tra xem voucher có đang ở trạng thái chờ xóa không
+    // VÀ hành động cuối cùng có phải là 'approved_deletion' không (hành động ta sẽ thêm ở client)
+    if ( createdBy &&
+             deletedData.status === VoucherStatus.pendingDeletion && // Phải đang chờ xóa
+             lastHistoryEntry?.action === "approved_deletion" // Hành động cuối phải là admin duyệt xóa
+    ) {
+      try {
+        // Lấy thông tin NVKD để gửi thông báo
+        const creatorDoc = await db.collection("users").doc(createdBy).get();
+        if (!creatorDoc.exists) {
+          logger.warn(`Creator NVKD ${createdBy} not found for deleted voucher ${voucherId}. Cannot send notification.`);
+          return;
+        }
+        const creatorToken = creatorDoc.data()?.fcmToken as string | undefined;
+
+        // Chuẩn bị thông báo
+        const title = `🗑️ Voucher "${voucherId}" đã được xóa`;
+        const body = `Yêu cầu xóa voucher "${voucherId}" của bạn đã được Admin phê duyệt thành công.`;
+        const type = "voucher_deleted"; // Type mới
+        const dataPayload = {type, voucherId};
+
+        // Gửi thông báo đẩy nếu có token
+        if (creatorToken) {
+          await sendPushNotification([creatorToken], title, body, dataPayload);
+        }
+        // Luôn lưu thông báo vào Firestore
+        await saveNotificationToFirestore(createdBy, title, body, type, dataPayload);
+        logger.info(`Sent voucher deletion notification for ${voucherId} to NVKD ${createdBy}.`);
+      } catch (error) {
+        logger.error(`Error sending voucher deletion notification for ${voucherId}:`, error);
+      }
+    } else {
+      logger.info(`Voucher ${voucherId} deleted, but conditions for notification not met (status: ${deletedData.status}, last action: ${lastHistoryEntry?.action}).`);
+    }
+  }
 );
 // ===================================================================
 // FUNCTION 20: YÊU CẦU HỦY CAM KẾT (ADMIN/KẾ TOÁN/NVKD)
 // ===================================================================
 export const requestCancelCommitment = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
-    const requesterId = request.auth.uid;
-    const {commitmentId, reason} = request.data;
+  if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
+  const requesterId = request.auth.uid;
+  const {commitmentId, reason} = request.data;
 
-    if (!commitmentId || !reason) throw new HttpsError("invalid-argument", "Missing required fields.");
+  if (!commitmentId || !reason) throw new HttpsError("invalid-argument", "Missing required fields.");
 
-    try {
-        const requesterDoc = await db.collection("users").doc(requesterId).get();
-        if (!requesterDoc.exists) throw new HttpsError("not-found", "User not found.");
-        const requesterData = requesterDoc.data()!;
-        const requesterRole = requesterData.role;
+  try {
+    const requesterDoc = await db.collection("users").doc(requesterId).get();
+    if (!requesterDoc.exists) throw new HttpsError("not-found", "User not found.");
+    const requesterData = requesterDoc.data()!;
+    const requesterRole = requesterData.role;
 
-        if (!["admin", "accountant", "sales_rep"].includes(requesterRole)) {
-            throw new HttpsError("permission-denied", "You do not have permission.");
-        }
-
-        const commitmentRef = db.collection("sales_commitments").doc(commitmentId);
-        const commitmentDoc = await commitmentRef.get();
-        if (!commitmentDoc.exists) throw new HttpsError("not-found", "Commitment not found.");
-        const commitmentData = commitmentDoc.data()!;
-        const customerId = commitmentData.userId;
-
-        if (requesterRole === "admin") {
-            // Admin cancels immediately
-            await commitmentRef.update({
-                status: "cancelled",
-                cancellationReason: reason,
-                cancelledBy: requesterId,
-                cancelledByName: requesterData.displayName || "Admin", // <--- THÊM MỚI
-                cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
-
-             // Notify Customer
-            const customerDoc = await db.collection("users").doc(customerId).get();
-            if (customerDoc.exists) {
-                const token = customerDoc.data()?.fcmToken;
-                const title = "⚠️ Cam kết đã bị hủy";
-                const body = `Chương trình cam kết của bạn đã bị hủy bởi Admin. Lý do: ${reason}`;
-                const type = "commitment_cancelled";
-                if (token) await sendPushNotification([token], title, body, {type, commitmentId});
-                await saveNotificationToFirestore(customerId, title, body, type, {commitmentId});
-            }
-
-            return { success: true, message: "Cam kết đã được hủy thành công." };
-
-        } else {
-            // Accountant/Sales Rep requests cancellation
-            await commitmentRef.update({
-                status: "pending_cancellation",
-                cancellationRequest: {
-                    requesterId: requesterId,
-                    requesterName: requesterData.displayName || "Staff",
-                    requesterRole: requesterRole,
-                    reason: reason,
-                    requestedAt: admin.firestore.FieldValue.serverTimestamp(),
-                }
-            });
-
-            // Notify Admin
-            const adminQuery = db.collection("users").where("role", "==", "admin");
-            const adminSnapshot = await adminQuery.get();
-            
-            const adminTokens: string[] = [];
-            const adminIds: string[] = [];
-            
-            adminSnapshot.forEach(doc => {
-                const data = doc.data();
-                adminIds.push(doc.id);
-                if (data.fcmToken) adminTokens.push(data.fcmToken);
-            });
-
-            const title = "⚠️ Yêu cầu HỦY cam kết";
-            const body = `${requesterData.displayName} yêu cầu hủy cam kết của khách hàng. Lý do: ${reason}`;
-            const type = "commitment_approval_request"; // Dùng chung type để mở trang AdminCommitmentsPage
-
-            if (adminTokens.length > 0) {
-                await sendPushNotification(adminTokens, title, body, {type, commitmentId});
-            }
-            
-            const savePromises = adminIds.map(aid => 
-                saveNotificationToFirestore(aid, title, body, type, {commitmentId})
-            );
-            await Promise.all(savePromises);
-            
-            return { success: true, message: "Đã gửi yêu cầu hủy cam kết tới Admin." };
-        }
-
-    } catch (error) {
-        if (error instanceof HttpsError) throw error;
-        throw new HttpsError("internal", "Failed to process cancellation.", error);
+    if (!["admin", "accountant", "sales_rep"].includes(requesterRole)) {
+      throw new HttpsError("permission-denied", "You do not have permission.");
     }
+
+    const commitmentRef = db.collection("sales_commitments").doc(commitmentId);
+    const commitmentDoc = await commitmentRef.get();
+    if (!commitmentDoc.exists) throw new HttpsError("not-found", "Commitment not found.");
+    const commitmentData = commitmentDoc.data()!;
+    const customerId = commitmentData.userId;
+
+    if (requesterRole === "admin") {
+      // Admin cancels immediately
+      await commitmentRef.update({
+        status: "cancelled",
+        cancellationReason: reason,
+        cancelledBy: requesterId,
+        cancelledByName: requesterData.displayName || "Admin", // <--- THÊM MỚI
+        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Notify Customer
+      const customerDoc = await db.collection("users").doc(customerId).get();
+      if (customerDoc.exists) {
+        const token = customerDoc.data()?.fcmToken;
+        const title = "⚠️ Cam kết đã bị hủy";
+        const body = `Chương trình cam kết của bạn đã bị hủy bởi Admin. Lý do: ${reason}`;
+        const type = "commitment_cancelled";
+        if (token) await sendPushNotification([token], title, body, {type, commitmentId});
+        await saveNotificationToFirestore(customerId, title, body, type, {commitmentId});
+      }
+
+      return {success: true, message: "Cam kết đã được hủy thành công."};
+    } else {
+      // Accountant/Sales Rep requests cancellation
+      await commitmentRef.update({
+        status: "pending_cancellation",
+        cancellationRequest: {
+          requesterId: requesterId,
+          requesterName: requesterData.displayName || "Staff",
+          requesterRole: requesterRole,
+          reason: reason,
+          requestedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+      });
+
+      // Notify Admin
+      const adminQuery = db.collection("users").where("role", "==", "admin");
+      const adminSnapshot = await adminQuery.get();
+
+      const adminTokens: string[] = [];
+      const adminIds: string[] = [];
+
+      adminSnapshot.forEach((doc) => {
+        const data = doc.data();
+        adminIds.push(doc.id);
+        if (data.fcmToken) adminTokens.push(data.fcmToken);
+      });
+
+      const title = "⚠️ Yêu cầu HỦY cam kết";
+      const body = `${requesterData.displayName} yêu cầu hủy cam kết của khách hàng. Lý do: ${reason}`;
+      const type = "commitment_approval_request"; // Dùng chung type để mở trang AdminCommitmentsPage
+
+      if (adminTokens.length > 0) {
+        await sendPushNotification(adminTokens, title, body, {type, commitmentId});
+      }
+
+      const savePromises = adminIds.map((aid) =>
+        saveNotificationToFirestore(aid, title, body, type, {commitmentId})
+      );
+      await Promise.all(savePromises);
+
+      return {success: true, message: "Đã gửi yêu cầu hủy cam kết tới Admin."};
+    }
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Failed to process cancellation.", error);
+  }
 });
 
 // ===================================================================
 // FUNCTION 21: ADMIN DUYỆT YÊU CẦU HỦY
 // ===================================================================
 export const approveCancelCommitment = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
-    const adminId = request.auth.uid;
-    const {commitmentId} = request.data;
+  if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
+  const adminId = request.auth.uid;
+  const {commitmentId} = request.data;
 
-    try {
-        const adminDoc = await db.collection("users").doc(adminId).get();
-        if (!adminDoc.exists || adminDoc.data()?.role !== "admin") {
-            throw new HttpsError("permission-denied", "Only Admin can approve cancellation.");
-        }
-
-        const commitmentRef = db.collection("sales_commitments").doc(commitmentId);
-        const commitmentDoc = await commitmentRef.get();
-        if (!commitmentDoc.exists) throw new HttpsError("not-found", "Commitment not found.");
-        
-        const data = commitmentDoc.data()!;
-        const requestDetails = data.cancellationRequest;
-        const customerId = data.userId;
-        const adminName = adminDoc.data()?.displayName || "Admin";
-
-        await commitmentRef.update({
-            status: "cancelled",
-            cancelledBy: adminId, // Approved by Admin
-            cancelledByName: adminName, // <--- THÊM MỚI
-            cancellationReason: requestDetails?.reason || "Admin approved", // <--- COPY REASON
-            cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        // Notify Customer
-        const customerDoc = await db.collection("users").doc(customerId).get();
-        if (customerDoc.exists) {
-            const token = customerDoc.data()?.fcmToken;
-            const title = "⚠️ Cam kết đã bị hủy";
-            const body = `Chương trình cam kết của bạn đã bị hủy sau khi xem xét. Lý do: ${requestDetails?.reason || "Admin approved"}`;
-            const type = "commitment_cancelled";
-            if (token) await sendPushNotification([token], title, body, {type, commitmentId});
-            await saveNotificationToFirestore(customerId, title, body, type, {commitmentId});
-        }
-
-        return { success: true, message: "Đã duyệt hủy cam kết." };
-
-    } catch (error) {
-        if (error instanceof HttpsError) throw error;
-        throw new HttpsError("internal", "Failed to approve cancellation.", error);
+  try {
+    const adminDoc = await db.collection("users").doc(adminId).get();
+    if (!adminDoc.exists || adminDoc.data()?.role !== "admin") {
+      throw new HttpsError("permission-denied", "Only Admin can approve cancellation.");
     }
+
+    const commitmentRef = db.collection("sales_commitments").doc(commitmentId);
+    const commitmentDoc = await commitmentRef.get();
+    if (!commitmentDoc.exists) throw new HttpsError("not-found", "Commitment not found.");
+
+    const data = commitmentDoc.data()!;
+    const requestDetails = data.cancellationRequest;
+    const customerId = data.userId;
+    const adminName = adminDoc.data()?.displayName || "Admin";
+
+    await commitmentRef.update({
+      status: "cancelled",
+      cancelledBy: adminId, // Approved by Admin
+      cancelledByName: adminName, // <--- THÊM MỚI
+      cancellationReason: requestDetails?.reason || "Admin approved", // <--- COPY REASON
+      cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Notify Customer
+    const customerDoc = await db.collection("users").doc(customerId).get();
+    if (customerDoc.exists) {
+      const token = customerDoc.data()?.fcmToken;
+      const title = "⚠️ Cam kết đã bị hủy";
+      const body = `Chương trình cam kết của bạn đã bị hủy sau khi xem xét. Lý do: ${requestDetails?.reason || "Admin approved"}`;
+      const type = "commitment_cancelled";
+      if (token) await sendPushNotification([token], title, body, {type, commitmentId});
+      await saveNotificationToFirestore(customerId, title, body, type, {commitmentId});
+    }
+
+    return {success: true, message: "Đã duyệt hủy cam kết."};
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Failed to approve cancellation.", error);
+  }
 });
 
 // ===================================================================
 // FUNCTION 22: ADMIN TỪ CHỐI YÊU CẦU HỦY (KHÔI PHỤC)
 // ===================================================================
 export const rejectCancelCommitment = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
-    const adminId = request.auth.uid;
-    const {commitmentId} = request.data;
+  if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
+  const adminId = request.auth.uid;
+  const {commitmentId} = request.data;
 
-    try {
-        const adminDoc = await db.collection("users").doc(adminId).get();
-        if (!adminDoc.exists || adminDoc.data()?.role !== "admin") {
-            throw new HttpsError("permission-denied", "Only Admin can reject cancellation.");
-        }
-
-        const commitmentRef = db.collection("sales_commitments").doc(commitmentId);
-        
-        // Remove cancellationRequest and set status back to active
-        await commitmentRef.update({
-            status: "active",
-            cancellationRequest: admin.firestore.FieldValue.delete(),
-        });
-
-        return { success: true, message: "Đã từ chối hủy, cam kết tiếp tục hoạt động." };
-
-    } catch (error) {
-        if (error instanceof HttpsError) throw error;
-        throw new HttpsError("internal", "Failed to reject cancellation.", error);
+  try {
+    const adminDoc = await db.collection("users").doc(adminId).get();
+    if (!adminDoc.exists || adminDoc.data()?.role !== "admin") {
+      throw new HttpsError("permission-denied", "Only Admin can reject cancellation.");
     }
+
+    const commitmentRef = db.collection("sales_commitments").doc(commitmentId);
+
+    // Remove cancellationRequest and set status back to active
+    await commitmentRef.update({
+      status: "active",
+      cancellationRequest: admin.firestore.FieldValue.delete(),
+    });
+
+    return {success: true, message: "Đã từ chối hủy, cam kết tiếp tục hoạt động."};
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Failed to reject cancellation.", error);
+  }
 });
 
 // ===================================================================
 // FUNCTION 23: TỰ ĐỘNG HỦY CAM KẾT HẾT HẠN (CRON JOB)
 // ===================================================================
 export const checkExpiredSalesCommitments = onSchedule({
-    schedule: "every day 00:00", // Run daily at midnight
-    timeZone: "Asia/Ho_Chi_Minh",
-    region: "asia-southeast1",
+  schedule: "every day 00:00", // Run daily at midnight
+  timeZone: "Asia/Ho_Chi_Minh",
+  region: "asia-southeast1",
 }, async (event) => {
-    logger.info("Running checkExpiredSalesCommitments...");
-    const now = admin.firestore.Timestamp.now();
+  logger.info("Running checkExpiredSalesCommitments...");
+  const now = admin.firestore.Timestamp.now();
 
-    try {
-        // Find active commitments that have passed their endDate
-        const snapshot = await db.collection("sales_commitments")
-            .where("status", "in", ["active", "pending_cancellation"])
-            .where("endDate", "<", now)
-            .get();
+  try {
+    // Find active commitments that have passed their endDate
+    const snapshot = await db.collection("sales_commitments")
+      .where("status", "in", ["active", "pending_cancellation"])
+      .where("endDate", "<", now)
+      .get();
 
-        if (snapshot.empty) {
-            logger.info("No expired commitments found.");
-            return;
-        }
-
-        const batch = db.batch();
-        const notifications: Promise<any>[] = [];
-
-        for (const doc of snapshot.docs) {
-            const data = doc.data();
-            // Double check if target not met (though logic says if met, it becomes 'completed')
-            if (data.currentAmount < data.targetAmount) {
-                batch.update(doc.ref, {
-                    status: "expired",
-                    expiredAt: now
-                });
-
-                // Prepare notification
-                const userId = data.userId;
-                const notifPromise = db.collection("users").doc(userId).get().then(async userDoc => {
-                    if (userDoc.exists) {
-                         const token = userDoc.data()?.fcmToken;
-                         const title = "⏰ Cam kết đã hết hạn";
-                         const body = "Rất tiếc, thời gian cam kết đã hết và bạn chưa đạt mục tiêu.";
-                         const type = "commitment_expired";
-                         if (token) await sendPushNotification([token], title, body, {type, commitmentId: doc.id});
-                         await saveNotificationToFirestore(userId, title, body, type, {commitmentId: doc.id});
-                    }
-                });
-                notifications.push(notifPromise);
-            }
-        }
-
-        await batch.commit();
-        await Promise.all(notifications);
-        logger.info(`Expired ${snapshot.size} commitments.`);
-
-    } catch (error) {
-        logger.error("Error in checkExpiredSalesCommitments:", error);
+    if (snapshot.empty) {
+      logger.info("No expired commitments found.");
+      return;
     }
+
+    const batch = db.batch();
+    const notifications: Promise<any>[] = [];
+
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      // Double check if target not met (though logic says if met, it becomes 'completed')
+      if (data.currentAmount < data.targetAmount) {
+        batch.update(doc.ref, {
+          status: "expired",
+          expiredAt: now,
+        });
+
+        // Prepare notification
+        const userId = data.userId;
+        const notifPromise = db.collection("users").doc(userId).get().then(async (userDoc) => {
+          if (userDoc.exists) {
+            const token = userDoc.data()?.fcmToken;
+            const title = "⏰ Cam kết đã hết hạn";
+            const body = "Rất tiếc, thời gian cam kết đã hết và bạn chưa đạt mục tiêu.";
+            const type = "commitment_expired";
+            if (token) await sendPushNotification([token], title, body, {type, commitmentId: doc.id});
+            await saveNotificationToFirestore(userId, title, body, type, {commitmentId: doc.id});
+          }
+        });
+        notifications.push(notifPromise);
+      }
+    }
+
+    await batch.commit();
+    await Promise.all(notifications);
+    logger.info(`Expired ${snapshot.size} commitments.`);
+  } catch (error) {
+    logger.error("Error in checkExpiredSalesCommitments:", error);
+  }
 });
 // ===================================================================
 // SECTION: PRIVATE HELPER FUNCTIONS (Không thay đổi)
 // ===================================================================
 
 function calculateCommissionForFoliar(total: number): number {
-    let rate = 0;
-    if (total >= 100000000) rate = 0.05;      // 5% nếu > 100tr
-    else if (total >= 50000000) rate = 0.04; // 4% nếu > 50tr
-    else if (total >= 30000000) rate = 0.03; // 3% nếu > 30tr
-    else if (total >= 10000000) rate = 0.02; // 2% nếu > 10tr
-    else rate = 0.01;                        // 1% cho đơn nhỏ
-    return total * rate;
+  let rate = 0;
+  if (total >= 100000000) rate = 0.05; // 5% nếu > 100tr
+  else if (total >= 50000000) rate = 0.04; // 4% nếu > 50tr
+  else if (total >= 30000000) rate = 0.03; // 3% nếu > 30tr
+  else if (total >= 10000000) rate = 0.02; // 2% nếu > 10tr
+  else rate = 0.01; // 1% cho đơn nhỏ
+  return total * rate;
 }
 
 function calculateCommissionForRoot(total: number): number {
-    let rate = 0;
-    if (total >= 50000000) rate = 0.03;      // 3% nếu > 50tr
-    else if (total >= 30000000) rate = 0.02; // 2% nếu > 30tr
-    else rate = 0.01;                        // 1% mặc định
-    return total * rate;
+  let rate = 0;
+  if (total >= 50000000) rate = 0.03; // 3% nếu > 50tr
+  else if (total >= 30000000) rate = 0.02; // 2% nếu > 30tr
+  else rate = 0.01; // 1% mặc định
+  return total * rate;
 }
 
 // ===================================================================
 // FUNCTION 24: KHI YÊU CẦU DUYỆT GIÁ ĐƯỢC TẠO
 // ===================================================================
 export const onPriceRequestCreated = onDocumentCreated(
-    { document: "price_requests/{requestId}", region: "asia-southeast1" },
-    async (event) => {
-        const request = event.data?.data();
-        const requestId = event.params.requestId;
-        if (!request) return;
+  {document: "price_requests/{requestId}", region: "asia-southeast1"},
+  async (event) => {
+    const request = event.data?.data();
+    const requestId = event.params.requestId;
+    if (!request) return;
 
-        const admins = await getRecipientsByRoles(["admin"]);
-        if (admins.length === 0) return;
+    const admins = await getRecipientsByRoles(["admin"]);
+    if (admins.length === 0) return;
 
-        const title = "🏷️ Yêu cầu duyệt giá mới";
-        const body = `${request.requesterName} muốn thay đổi giá cho đại lý "${request.agentName}".`;
-        const type = "price_approval"; // Dẫn đến màn hình duyệt giá
-        const payload = { type, requestId };
+    const title = "🏷️ Yêu cầu duyệt giá mới";
+    const body = `${request.requesterName} muốn thay đổi giá cho đại lý "${request.agentName}".`;
+    const type = "price_approval"; // Dẫn đến màn hình duyệt giá
+    const payload = {type, requestId};
 
-        const tokens = admins.map((r) => r.token);
-        await sendPushNotification(tokens, title, body, payload);
+    const tokens = admins.map((r) => r.token);
+    await sendPushNotification(tokens, title, body, payload);
 
-        const savePromises = admins.map((admin) =>
-            saveNotificationToFirestore(admin.id, title, body, type, payload)
-        );
-        await Promise.all(savePromises);
-    }
+    const savePromises = admins.map((admin) =>
+      saveNotificationToFirestore(admin.id, title, body, type, payload)
+    );
+    await Promise.all(savePromises);
+  }
 );
 
 // ===================================================================
 // FUNCTION 25: KHI YÊU CẦU DUYỆT GIÁ ĐƯỢC CẬP NHẬT (DUYỆT/TỪ CHỐI)
 // ===================================================================
 export const onPriceRequestUpdated = onDocumentUpdated(
-    { document: "price_requests/{requestId}", region: "asia-southeast1" },
-    async (event) => {
-        const after = event.data?.after.data();
-        const before = event.data?.before.data();
-        if (!after || !before || after.status === before.status) return;
+  {document: "price_requests/{requestId}", region: "asia-southeast1"},
+  async (event) => {
+    const after = event.data?.after.data();
+    const before = event.data?.before.data();
+    if (!after || !before || after.status === before.status) return;
 
-        const requesterId = after.requesterId;
-        const status = after.status;
-        const agentName = after.agentName;
+    const requesterId = after.requesterId;
+    const status = after.status;
+    const agentName = after.agentName;
 
-        let title = "";
-        let body = "";
-        let type = "price_approved"; // Dẫn đến màn hình cấu hình giá
+    let title = "";
+    let body = "";
+    let type = "price_approved"; // Dẫn đến màn hình cấu hình giá
 
-        if (status === "approved") {
-            title = "✅ Yêu cầu thay đổi giá được duyệt";
-            body = `Admin đã duyệt yêu cầu thay đổi giá cho đại lý "${agentName}".`;
-        } else if (status === "rejected") {
-            title = "❌ Yêu cầu thay đổi giá bị từ chối";
-            body = `Yêu cầu cho đại lý "${agentName}" bị từ chối. Lý do: ${after.rejectionReason ?? "Không có"}.`;
-            type = "price_rejected";
-        }
-
-        if (title && requesterId) {
-            const userDoc = await db.collection("users").doc(requesterId).get();
-            if (userDoc.exists) {
-                const token = userDoc.data()?.fcmToken;
-                const payload = { type, agentId: after.agentId }; // Dẫn về màn hình AgentSpecialPricePage
-
-                if (token) await sendPushNotification([token], title, body, payload);
-                await saveNotificationToFirestore(requesterId, title, body, type, payload);
-            }
-        }
+    if (status === "approved") {
+      title = "✅ Yêu cầu thay đổi giá được duyệt";
+      body = `Admin đã duyệt yêu cầu thay đổi giá cho đại lý "${agentName}".`;
+    } else if (status === "rejected") {
+      title = "❌ Yêu cầu thay đổi giá bị từ chối";
+      body = `Yêu cầu cho đại lý "${agentName}" bị từ chối. Lý do: ${after.rejectionReason ?? "Không có"}.`;
+      type = "price_rejected";
     }
+
+    if (title && requesterId) {
+      const userDoc = await db.collection("users").doc(requesterId).get();
+      if (userDoc.exists) {
+        const token = userDoc.data()?.fcmToken;
+        const payload = {type, agentId: after.agentId}; // Dẫn về màn hình AgentSpecialPricePage
+
+        if (token) await sendPushNotification([token], title, body, payload);
+        await saveNotificationToFirestore(requesterId, title, body, type, payload);
+      }
+    }
+  }
 );
 
 // ===================================================================
 // FUNCTION 26: KHI YÊU CẦU CHIẾT KHẤU MỚI ĐƯỢC TẠO
 // ===================================================================
 export const onDiscountRequestCreated = onDocumentCreated(
-    {document: "discount_requests/{requestId}", region: "asia-southeast1"},
-    async (event) => {
-        const requestData = event.data?.data();
-        const requestId = event.params.requestId;
-        if (!requestData) return;
+  {document: "discount_requests/{requestId}", region: "asia-southeast1"},
+  async (event) => {
+    const requestData = event.data?.data();
+    const requestId = event.params.requestId;
+    if (!requestData) return;
 
-        // Chỉ xử lý nếu trạng thái là pending
-        if (requestData.status !== "pending") return;
+    // Chỉ xử lý nếu trạng thái là pending
+    if (requestData.status !== "pending") return;
 
-        const requesterName = requestData.requesterName ?? "Nhân viên";
-        const agentName = requestData.agentName ?? "Đại lý";
-        const isDisabling = requestData.customDiscount && requestData.customDiscount.enabled === false;
+    const requesterName = requestData.requesterName ?? "Nhân viên";
+    const agentName = requestData.agentName ?? "Đại lý";
+    const isDisabling = requestData.customDiscount && requestData.customDiscount.enabled === false;
 
-        // Gửi cho Admin
-        const admins = await getRecipientsByRoles(["admin"]);
-        if (admins.length === 0) return;
+    // Gửi cho Admin
+    const admins = await getRecipientsByRoles(["admin"]);
+    if (admins.length === 0) return;
 
-        const title = isDisabling ? "⚠️ Yêu cầu XÓA chiết khấu riêng" : "🔔 Yêu cầu duyệt chiết khấu mới";
-        const body = isDisabling 
-            ? `${requesterName} yêu cầu đại lý "${agentName}" quay về mức chiết khấu hệ thống.`
-            : `${requesterName} vừa gửi yêu cầu cấu hình chiết khấu cho đại lý "${agentName}".`;
-        const type = "discount_approval_request"; // Dẫn đến màn hình duyệt Discount
-        const dataPayload = { type, requestId, agentId: requestData.agentId };
+    const title = isDisabling ? "⚠️ Yêu cầu XÓA chiết khấu riêng" : "🔔 Yêu cầu duyệt chiết khấu mới";
+    const body = isDisabling ?
+      `${requesterName} yêu cầu đại lý "${agentName}" quay về mức chiết khấu hệ thống.` :
+      `${requesterName} vừa gửi yêu cầu cấu hình chiết khấu cho đại lý "${agentName}".`;
+    const type = "discount_approval_request"; // Dẫn đến màn hình duyệt Discount
+    const dataPayload = {type, requestId, agentId: requestData.agentId};
 
-        const tokens = admins.map((r) => r.token);
-        await sendPushNotification(tokens, title, body, dataPayload);
+    const tokens = admins.map((r) => r.token);
+    await sendPushNotification(tokens, title, body, dataPayload);
 
-        const savePromises = admins.map((r) => saveNotificationToFirestore(r.id, title, body, type, dataPayload));
-        await Promise.all(savePromises);
-    }
+    const savePromises = admins.map((r) => saveNotificationToFirestore(r.id, title, body, type, dataPayload));
+    await Promise.all(savePromises);
+  }
 );
 
 // ===================================================================
 // FUNCTION 27: KHI YÊU CẦU CHIẾT KHẤU ĐƯỢC CẬP NHẬT (DUYỆT/TỪ CHỐI)
 // ===================================================================
 export const onDiscountRequestUpdated = onDocumentUpdated(
-    {document: "discount_requests/{requestId}", region: "asia-southeast1"},
-    async (event) => {
-        const beforeData = event.data?.before.data();
-        const afterData = event.data?.after.data();
-        const requestId = event.params.requestId;
+  {document: "discount_requests/{requestId}", region: "asia-southeast1"},
+  async (event) => {
+    const beforeData = event.data?.before.data();
+    const afterData = event.data?.after.data();
+    const requestId = event.params.requestId;
 
-        if (!beforeData || !afterData || beforeData.status === afterData.status) return;
+    if (!beforeData || !afterData || beforeData.status === afterData.status) return;
 
-        const requesterId = afterData.requesterId;
-        const agentName = afterData.agentName ?? "Đại lý";
-        const newStatus = afterData.status;
+    const requesterId = afterData.requesterId;
+    const agentName = afterData.agentName ?? "Đại lý";
+    const newStatus = afterData.status;
 
-        if (!requesterId) return;
+    if (!requesterId) return;
 
-        let title = "";
-        let body = "";
-        const type = "discount_request_status_update";
+    let title = "";
+    let body = "";
+    const type = "discount_request_status_update";
 
-        if (newStatus === "approved") {
-            title = "✅ Yêu cầu chiết khấu đã được DUYỆT";
-            body = `Cấu hình chiết khấu cho đại lý "${agentName}" đã được Admin phê duyệt và áp dụng.`;
-        } else if (newStatus === "rejected") {
-            title = "❌ Yêu cầu chiết khấu bị TỪ CHỐI";
-            const reason = afterData.rejectionReason ? ` Lý do: ${afterData.rejectionReason}` : "";
-            body = `Yêu cầu cấu hình cho đại lý "${agentName}" đã bị từ chối.${reason}`;
-        } else {
-            return;
-        }
-
-        // Gửi thông báo cho người yêu cầu (NVKD/Kế toán)
-        const userDoc = await db.collection("users").doc(requesterId).get();
-        if (userDoc.exists) {
-            const token = userDoc.data()?.fcmToken;
-            const dataPayload = { type, requestId, agentId: afterData.agentId };
-            
-            if (token) {
-                await sendPushNotification([token], title, body, dataPayload);
-            }
-            await saveNotificationToFirestore(requesterId, title, body, type, dataPayload);
-        }
+    if (newStatus === "approved") {
+      title = "✅ Yêu cầu chiết khấu đã được DUYỆT";
+      body = `Cấu hình chiết khấu cho đại lý "${agentName}" đã được Admin phê duyệt và áp dụng.`;
+    } else if (newStatus === "rejected") {
+      title = "❌ Yêu cầu chiết khấu bị TỪ CHỐI";
+      const reason = afterData.rejectionReason ? ` Lý do: ${afterData.rejectionReason}` : "";
+      body = `Yêu cầu cấu hình cho đại lý "${agentName}" đã bị từ chối.${reason}`;
+    } else {
+      return;
     }
+
+    // Gửi thông báo cho người yêu cầu (NVKD/Kế toán)
+    const userDoc = await db.collection("users").doc(requesterId).get();
+    if (userDoc.exists) {
+      const token = userDoc.data()?.fcmToken;
+      const dataPayload = {type, requestId, agentId: afterData.agentId};
+
+      if (token) {
+        await sendPushNotification([token], title, body, dataPayload);
+      }
+      await saveNotificationToFirestore(requesterId, title, body, type, dataPayload);
+    }
+  }
 );
 
 // ===================================================================
@@ -2274,7 +2371,7 @@ export const sendBirthdayGreetings = onSchedule({
       const type = "birthday_greeting";
 
       if (user.token) {
-        await sendPushNotification([user.token], title, body, { type });
+        await sendPushNotification([user.token], title, body, {type});
       }
 
       await saveNotificationToFirestore(user.id, title, body, type, {});
@@ -2282,107 +2379,107 @@ export const sendBirthdayGreetings = onSchedule({
     }
   } catch (error) {
     logger.error("Lỗi khi thực hiện gửi lời chúc sinh nhật:", error);
-    }
+  }
+});
+
+// ===================================================================
+// FUNCTION 29: THÔNG BÁO CHO ADMIN KHI CÓ YÊU CẦU CẬP NHẬT CÔNG NỢ
+// ===================================================================
+export const onDebtUpdateRequestCreated = onDocumentCreated(
+  {
+    document: "debtUpdateRequests/{requestId}",
+    region: "asia-southeast1",
+  },
+  async (event) => {
+    const snapshot = event.data;
+    if (!snapshot) return;
+
+    const data = snapshot.data();
+    const userName = data.userName;
+    const requestedByName = data.requestedByName;
+    const oldDebt = data.oldDebtAmount;
+    const newDebt = data.newDebtAmount;
+
+    const title = "🔔 Yêu cầu cập nhật CÔNG NỢ mới";
+    const body = `${requestedByName} yêu cầu thay đổi công nợ cho "${userName}" từ ${oldDebt} -> ${newDebt}.`;
+    const type = "debt_update_request";
+
+    // Tìm tất cả Admin để gửi thông báo
+    const adminSnapshot = await db.collection("users")
+      .where("role", "==", "admin")
+      .where("status", "==", "active")
+      .get();
+
+    const adminTokens: string[] = [];
+    const adminIds: string[] = [];
+
+    adminSnapshot.forEach((doc) => {
+      const adminData = doc.data();
+      if (adminData.fcmToken) {
+        adminTokens.push(adminData.fcmToken);
+      }
+      adminIds.push(doc.id);
     });
 
-    // ===================================================================
-    // FUNCTION 29: THÔNG BÁO CHO ADMIN KHI CÓ YÊU CẦU CẬP NHẬT CÔNG NỢ
-    // ===================================================================
-    export const onDebtUpdateRequestCreated = onDocumentCreated(
-    {
-        document: "debtUpdateRequests/{requestId}",
-        region: "asia-southeast1",
-    },
-    async (event) => {
-        const snapshot = event.data;
-        if (!snapshot) return;
-
-        const data = snapshot.data();
-        const userName = data.userName;
-        const requestedByName = data.requestedByName;
-        const oldDebt = data.oldDebtAmount;
-        const newDebt = data.newDebtAmount;
-
-        const title = "🔔 Yêu cầu cập nhật CÔNG NỢ mới";
-        const body = `${requestedByName} yêu cầu thay đổi công nợ cho "${userName}" từ ${oldDebt} -> ${newDebt}.`;
-        const type = "debt_update_request";
-
-        // Tìm tất cả Admin để gửi thông báo
-        const adminSnapshot = await db.collection("users")
-            .where("role", "==", "admin")
-            .where("status", "==", "active")
-            .get();
-
-        const adminTokens: string[] = [];
-        const adminIds: string[] = [];
-
-        adminSnapshot.forEach((doc) => {
-            const adminData = doc.data();
-            if (adminData.fcmToken) {
-                adminTokens.push(adminData.fcmToken);
-            }
-            adminIds.push(doc.id);
-        });
-
-        if (adminTokens.length > 0) {
-            await sendPushNotification(adminTokens, title, body, {type, requestId: event.params.requestId});
-        }
-
-        // Lưu vào Firestore cho từng Admin
-        const savePromises = adminIds.map((adminId) => 
-            saveNotificationToFirestore(adminId, title, body, type, {requestId: event.params.requestId})
-        );
-        await Promise.all(savePromises);
-
-        logger.info(`Đã thông báo cho ${adminIds.length} Admin về yêu cầu công nợ mới.`);
+    if (adminTokens.length > 0) {
+      await sendPushNotification(adminTokens, title, body, {type, requestId: event.params.requestId});
     }
+
+    // Lưu vào Firestore cho từng Admin
+    const savePromises = adminIds.map((adminId) =>
+      saveNotificationToFirestore(adminId, title, body, type, {requestId: event.params.requestId})
     );
+    await Promise.all(savePromises);
 
-    // ===================================================================
-    // FUNCTION 30: THÔNG BÁO CHO NGƯỜI YÊU CẦU KHI ADMIN XỬ LÝ CÔNG NỢ
-    // ===================================================================
-    export const onDebtUpdateRequestUpdated = onDocumentUpdated(
-    {
-        document: "debtUpdateRequests/{requestId}",
-        region: "asia-southeast1",
-    },
-    async (event) => {
-        const afterSnapshot = event.data?.after;
-        const beforeSnapshot = event.data?.before;
-        if (!afterSnapshot || !beforeSnapshot) return;
+    logger.info(`Đã thông báo cho ${adminIds.length} Admin về yêu cầu công nợ mới.`);
+  }
+);
 
-        const afterData = afterSnapshot.data();
-        const beforeData = beforeSnapshot.data();
+// ===================================================================
+// FUNCTION 30: THÔNG BÁO CHO NGƯỜI YÊU CẦU KHI ADMIN XỬ LÝ CÔNG NỢ
+// ===================================================================
+export const onDebtUpdateRequestUpdated = onDocumentUpdated(
+  {
+    document: "debtUpdateRequests/{requestId}",
+    region: "asia-southeast1",
+  },
+  async (event) => {
+    const afterSnapshot = event.data?.after;
+    const beforeSnapshot = event.data?.before;
+    if (!afterSnapshot || !beforeSnapshot) return;
 
-        if (afterData.status === beforeData.status) return;
+    const afterData = afterSnapshot.data();
+    const beforeData = beforeSnapshot.data();
 
-        const userName = afterData.userName;
-        const requesterId = afterData.requestedBy;
-        const newStatus = afterData.status;
+    if (afterData.status === beforeData.status) return;
 
-        let title = "";
-        let body = "";
-        const type = "debt_update_response";
+    const userName = afterData.userName;
+    const requesterId = afterData.requestedBy;
+    const newStatus = afterData.status;
 
-        if (newStatus === "approved") {
-            title = "✅ Yêu cầu công nợ đã được DUYỆT";
-            body = `Yêu cầu cập nhật công nợ cho "${userName}" của bạn đã được Admin phê duyệt.`;
-        } else if (newStatus === "rejected") {
-            title = "❌ Yêu cầu công nợ bị TỪ CHỐI";
-            const reason = afterData.reason ? ` Lý do: ${afterData.reason}` : "";
-            body = `Yêu cầu cập nhật công nợ cho "${userName}" đã bị từ chối.${reason}`;
-        } else {
-            return;
-        }
+    let title = "";
+    let body = "";
+    const type = "debt_update_response";
 
-        // Gửi thông báo cho người yêu cầu
-        const requesterDoc = await db.collection("users").doc(requesterId).get();
-        if (requesterDoc.exists) {
-            const token = requesterDoc.data()?.fcmToken;
-            if (token) {
-                await sendPushNotification([token], title, body, {type, requestId: event.params.requestId});
-            }
-            await saveNotificationToFirestore(requesterId, title, body, type, {requestId: event.params.requestId});
-        }
+    if (newStatus === "approved") {
+      title = "✅ Yêu cầu công nợ đã được DUYỆT";
+      body = `Yêu cầu cập nhật công nợ cho "${userName}" của bạn đã được Admin phê duyệt.`;
+    } else if (newStatus === "rejected") {
+      title = "❌ Yêu cầu công nợ bị TỪ CHỐI";
+      const reason = afterData.reason ? ` Lý do: ${afterData.reason}` : "";
+      body = `Yêu cầu cập nhật công nợ cho "${userName}" đã bị từ chối.${reason}`;
+    } else {
+      return;
     }
-    );
+
+    // Gửi thông báo cho người yêu cầu
+    const requesterDoc = await db.collection("users").doc(requesterId).get();
+    if (requesterDoc.exists) {
+      const token = requesterDoc.data()?.fcmToken;
+      if (token) {
+        await sendPushNotification([token], title, body, {type, requestId: event.params.requestId});
+      }
+      await saveNotificationToFirestore(requesterId, title, body, type, {requestId: event.params.requestId});
+    }
+  }
+);

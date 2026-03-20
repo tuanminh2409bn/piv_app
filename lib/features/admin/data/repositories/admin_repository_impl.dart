@@ -3,6 +3,7 @@
 import 'dart:developer' as developer;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/user_model.dart';
@@ -14,9 +15,13 @@ import 'package:piv_app/features/home/data/models/product_model.dart';
 
 class AdminRepositoryImpl implements AdminRepository {
   final FirebaseFirestore _firestore;
+  final FirebaseFunctions _functions;
 
-  AdminRepositoryImpl({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  AdminRepositoryImpl({
+    FirebaseFirestore? firestore,
+    FirebaseFunctions? functions,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _functions = functions ?? FirebaseFunctions.instanceFor(region: 'asia-southeast1');
 
   @override
   Future<Either<Failure, List<UserModel>>> getAllUsers() async {
@@ -462,6 +467,29 @@ class AdminRepositoryImpl implements AdminRepository {
       return const Right(null);
     } catch (e) {
       return Left(ServerFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Map<String, dynamic>>> adjustProductPrices({
+    required String adjustmentType,
+    required double adjustmentValue,
+    required String productTarget,
+    required String agentTarget,
+  }) async {
+    try {
+      final result = await _functions.httpsCallable('adjustProductPrices').call({
+        'adjustmentType': adjustmentType,
+        'adjustmentValue': adjustmentValue,
+        'productTarget': productTarget,
+        'agentTarget': agentTarget,
+      });
+
+      return Right(Map<String, dynamic>.from(result.data));
+    } on FirebaseFunctionsException catch (e) {
+      return Left(ServerFailure(e.message ?? 'Lỗi khi điều chỉnh giá sản phẩm'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
     }
   }
 }

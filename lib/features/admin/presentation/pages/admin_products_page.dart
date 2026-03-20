@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_products_cubit.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_product_form_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/price_adjustment_page.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 
 class AdminProductsPage extends StatelessWidget {
@@ -16,22 +17,38 @@ class AdminProductsPage extends StatelessWidget {
     // Cung cấp Cubit cho riêng trang này
     return BlocProvider(
       create: (_) => sl<AdminProductsCubit>()..fetchAllProducts(),
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Quản lý Sản phẩm'),
-        ),
-        // Trang này sẽ có nút FloatingActionButton riêng
-        floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            Navigator.of(context).push<bool?>(AdminProductFormPage.route()).then((success) {
-              if (success == true) {
-                context.read<AdminProductsCubit>().fetchAllProducts();
-              }
-            });
-          },
-          child: const Icon(Icons.add),
-        ),
-        body: const AdminProductsView(), // Gọi đến View đã được di chuyển
+      child: Builder( // Thêm Builder để lấy context mới bên dưới BlocProvider
+        builder: (context) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Quản lý Sản phẩm'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.price_change_outlined),
+                  tooltip: 'Điều chỉnh giá hàng loạt',
+                  onPressed: () {
+                    Navigator.of(context).push(PriceAdjustmentPage.route()).then((_) {
+                      // Bây giờ context này đã nằm dưới BlocProvider nên sẽ tìm thấy Cubit
+                      context.read<AdminProductsCubit>().fetchAllProducts();
+                    });
+                  },
+                ),
+              ],
+            ),
+            // Trang này sẽ có nút FloatingActionButton riêng
+            floatingActionButton: FloatingActionButton(
+              onPressed: () {
+                Navigator.of(context).push<bool?>(AdminProductFormPage.route()).then((success) {
+                  if (success == true) {
+                    context.read<AdminProductsCubit>().fetchAllProducts();
+                  }
+                });
+              },
+              child: const Icon(Icons.add),
+            ),
+            body: const AdminProductsView(),
+          );
+        },
       ),
     );
   }

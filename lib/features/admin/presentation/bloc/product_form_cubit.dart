@@ -186,6 +186,7 @@ class ProductFormCubit extends Cubit<ProductFormState> {
     // --- THÊM 2 THAM SỐ MỚI ---
     required bool isPrivate,
     required String? ownerAgentId,
+    String? productType,
   }) async {
     emit(state.copyWith(status: ProductFormStatus.submitting));
 
@@ -248,6 +249,7 @@ class ProductFormCubit extends Cubit<ProductFormState> {
       // --- THÊM DỮ LIỆU MỚI VÀO MODEL ---
       isPrivate: isPrivate,
       ownerAgentId: isPrivate ? ownerAgentId : null,
+      productType: productType,
     );
 
     final result = state.isEditing

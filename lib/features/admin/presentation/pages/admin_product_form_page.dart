@@ -50,6 +50,7 @@ class _ProductFormViewState extends State<ProductFormView> {
   // --- THÊM STATE CHO SẢN PHẨM RIÊNG ---
   late bool _isPrivate = false;
   UserModel? _selectedOwnerAgent;
+  String? _productType;
   // --- KẾT THÚC THÊM STATE ---
 
   @override
@@ -81,6 +82,7 @@ class _ProductFormViewState extends State<ProductFormView> {
       // --- THÊM CÁC THAM SỐ CÒN THIẾU ---
       isPrivate: _isPrivate,
       ownerAgentId: _selectedOwnerAgent?.id,
+      productType: _productType,
     );
   }
 
@@ -101,6 +103,7 @@ class _ProductFormViewState extends State<ProductFormView> {
 
         // --- CẬP NHẬT STATE MỚI KHI SỬA ---
         _isPrivate = product.isPrivate;
+        _productType = product.productType;
         // Tìm và gán đại lý đã chọn từ danh sách đã tải
         _selectedOwnerAgent = cubitState.agents.firstWhereOrNull(
                 (agent) => agent.id == product.ownerAgentId
@@ -184,6 +187,20 @@ class _ProductFormViewState extends State<ProductFormView> {
             // --- THÊM MỤC SẢN PHẨM RIÊNG ---
             Text('Phân loại sản phẩm', style: Theme.of(context).textTheme.titleMedium),
             const Divider(),
+            DropdownButtonFormField<String>(
+              value: _productType,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Loại sản phẩm', border: OutlineInputBorder()),
+              hint: const Text('-- Chọn loại --'),
+              items: const [
+                DropdownMenuItem(value: 'foliar_fertilizer', child: Text('Phân bón lá')),
+                DropdownMenuItem(value: 'root_fertilizer', child: Text('Phân bón gốc')),
+              ],
+              onChanged: (String? newValue) {
+                setState(() => _productType = newValue);
+              },
+            ),
+            const SizedBox(height: 16),
             SwitchListTile(
               title: const Text('Sản phẩm riêng tư'),
               subtitle: const Text('Chỉ hiển thị cho một đại lý cụ thể'),

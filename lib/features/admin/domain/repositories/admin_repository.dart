@@ -67,4 +67,11 @@ abstract class AdminRepository {
     required bool enabled,
     required AgentPolicy policy,
   });
+
+  Future<Either<Failure, Map<String, dynamic>>> adjustProductPrices({
+    required String adjustmentType,
+    required double adjustmentValue,
+    required String productTarget,
+    required String agentTarget,
+  });
 }

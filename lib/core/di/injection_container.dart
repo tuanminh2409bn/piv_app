@@ -93,6 +93,7 @@ import 'package:piv_app/features/profile/presentation/bloc/debt_payment_cubit.da
 import 'package:piv_app/features/admin/presentation/bloc/admin_discount_settings_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_discount_requests_cubit.dart';
 import 'package:piv_app/features/admin/presentation/bloc/debt_approval_cubit.dart';
+import 'package:piv_app/features/admin/presentation/bloc/price_adjustment_cubit.dart';
 
 final sl = GetIt.instance;
 
@@ -123,7 +124,7 @@ Future<void> initializeDependencies() async {
   sl.registerLazySingleton<UserProfileRepository>(() => UserProfileRepositoryImpl(firestore: sl()));
   sl.registerLazySingleton<SearchRepository>(() => SearchRepositoryImpl(prefs: sl()));
   sl.registerLazySingleton<OrderRepository>(() => OrderRepositoryImpl(firestore: sl()));
-  sl.registerLazySingleton<AdminRepository>(() => AdminRepositoryImpl(firestore: sl()));
+  sl.registerLazySingleton<AdminRepository>(() => AdminRepositoryImpl(firestore: sl(), functions: sl()));
   sl.registerLazySingleton<StorageRepository>(() => StorageRepository());
   sl.registerLazySingleton<VoucherRepository>(() => VoucherRepositoryImpl(firestore: sl()));
   sl.registerLazySingleton<SalesCommitmentRepository>(() => SalesCommitmentRepositoryImpl(firestore: sl(), functions: sl()));
@@ -191,4 +192,5 @@ Future<void> initializeDependencies() async {
   sl.registerFactory(() => CreateReturnRequestCubit(returnRepository: sl(), settingsRepository: sl()));
   sl.registerFactory(() => AdminReturnsCubit(returnRepository: sl()));
   sl.registerFactory(() => DebtApprovalCubit(adminRepository: sl()));
+  sl.registerFactory(() => PriceAdjustmentCubit(adminRepository: sl()));
 }
