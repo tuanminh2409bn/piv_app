@@ -1,15 +1,16 @@
 // lib/features/admin/data/repositories/admin_repository_impl.dart
 
+import 'dart:developer' as developer;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/user_model.dart';
-import 'package:piv_app/features/admin/domain/repositories/admin_repository.dart';
-import 'dart:developer' as developer;
-import 'package:piv_app/features/admin/data/models/quick_order_item_model.dart';
-import 'package:piv_app/features/home/data/models/product_model.dart';
-import 'package:piv_app/features/admin/data/models/discount_policy_model.dart';
 import 'package:piv_app/features/admin/data/models/debt_update_request_model.dart';
+import 'package:piv_app/features/admin/data/models/discount_policy_model.dart';
+import 'package:piv_app/features/admin/data/models/quick_order_item_model.dart';
+import 'package:piv_app/features/admin/domain/repositories/admin_repository.dart';
+import 'package:piv_app/features/home/data/models/product_model.dart';
 
 class AdminRepositoryImpl implements AdminRepository {
   final FirebaseFirestore _firestore;
@@ -20,10 +21,8 @@ class AdminRepositoryImpl implements AdminRepository {
   @override
   Future<Either<Failure, List<UserModel>>> getAllUsers() async {
     try {
-      final querySnapshot = await _firestore
-          .collection('users')
-          .orderBy('email')
-          .get();
+      final querySnapshot =
+          await _firestore.collection('users').orderBy('email').get();
 
       final allUsers = querySnapshot.docs
           .map((doc) => UserModel.fromJson(doc.data()))
@@ -31,18 +30,22 @@ class AdminRepositoryImpl implements AdminRepository {
 
       // ========== BẮT ĐẦU SỬA ĐỔI ==========
       // Lọc bỏ những người dùng có vai trò là 'guest' ở phía client
-      final nonGuestUsers = allUsers.where((user) => user.role != 'guest').toList();
+      final nonGuestUsers =
+          allUsers.where((user) => user.role != 'guest').toList();
 
-      developer.log('Fetched ${allUsers.length} total users, returning ${nonGuestUsers.length} non-guest users.', name: 'AdminRepository');
+      developer.log(
+          'Fetched ${allUsers.length} total users, returning ${nonGuestUsers.length} non-guest users.',
+          name: 'AdminRepository');
 
       // Trả về danh sách đã được lọc
       return Right(nonGuestUsers);
       // ========== KẾT THÚC SỬA ĐỔI ==========
-
     } on FirebaseException catch (e) {
-      return Left(ServerFailure('Lỗi Firebase khi tải danh sách người dùng: ${e.message}'));
+      return Left(ServerFailure(
+          'Lỗi Firebase khi tải danh sách người dùng: ${e.message}'));
     } catch (e) {
-      return Left(ServerFailure('Lỗi không xác định khi tải danh sách người dùng: ${e.toString()}'));
+      return Left(ServerFailure(
+          'Lỗi không xác định khi tải danh sách người dùng: ${e.toString()}'));
     }
   }
 
@@ -62,23 +65,29 @@ class AdminRepositoryImpl implements AdminRepository {
 
   // ... (Toàn bộ các hàm còn lại trong file này được giữ nguyên) ...
   @override
-  Future<Either<Failure, Unit>> updateUser(String userId, String newRole, String newStatus) async {
+  Future<Either<Failure, Unit>> updateUser(
+      String userId, String newRole, String newStatus) async {
     try {
       await _firestore.collection('users').doc(userId).update({
         'role': newRole,
         'status': newStatus,
       });
-      developer.log('Updated user $userId to role: $newRole, status: $newStatus', name: 'AdminRepository');
+      developer.log(
+          'Updated user $userId to role: $newRole, status: $newStatus',
+          name: 'AdminRepository');
       return const Right(unit);
     } on FirebaseException catch (e) {
-      return Left(ServerFailure('Lỗi Firebase khi cập nhật người dùng: ${e.message}'));
+      return Left(
+          ServerFailure('Lỗi Firebase khi cập nhật người dùng: ${e.message}'));
     } catch (e) {
-      return Left(ServerFailure('Lỗi không xác định khi cập nhật người dùng: ${e.toString()}'));
+      return Left(ServerFailure(
+          'Lỗi không xác định khi cập nhật người dùng: ${e.toString()}'));
     }
   }
 
   @override
-  Future<Either<Failure, List<UserModel>>> getAgentsBySalesRepId(String salesRepId) async {
+  Future<Either<Failure, List<UserModel>>> getAgentsBySalesRepId(
+      String salesRepId) async {
     try {
       final querySnapshot = await _firestore
           .collection('users')
@@ -90,13 +99,16 @@ class AdminRepositoryImpl implements AdminRepository {
           .map((doc) => UserModel.fromJson(doc.data()))
           .toList();
 
-      developer.log('Fetched ${agents.length} agents for Sales Rep ID: $salesRepId.', name: 'AdminRepository');
+      developer.log(
+          'Fetched ${agents.length} agents for Sales Rep ID: $salesRepId.',
+          name: 'AdminRepository');
       return Right(agents);
-
     } on FirebaseException catch (e) {
-      return Left(ServerFailure('Lỗi Firebase khi tải danh sách đại lý: ${e.message}'));
+      return Left(
+          ServerFailure('Lỗi Firebase khi tải danh sách đại lý: ${e.message}'));
     } catch (e) {
-      return Left(ServerFailure('Lỗi không xác định khi tải danh sách đại lý: ${e.toString()}'));
+      return Left(ServerFailure(
+          'Lỗi không xác định khi tải danh sách đại lý: ${e.toString()}'));
     }
   }
 
@@ -115,7 +127,8 @@ class AdminRepositoryImpl implements AdminRepository {
   }
 
   @override
-  Future<Either<Failure, List<UserModel>>> getUsersByIds(List<String> userIds) async {
+  Future<Either<Failure, List<UserModel>>> getUsersByIds(
+      List<String> userIds) async {
     if (userIds.isEmpty) {
       return const Right([]);
     }
@@ -131,12 +144,14 @@ class AdminRepositoryImpl implements AdminRepository {
           .toList();
       return Right(users);
     } catch (e) {
-      return Left(ServerFailure('Lỗi khi tải danh sách người dùng: ${e.toString()}'));
+      return Left(
+          ServerFailure('Lỗi khi tải danh sách người dùng: ${e.toString()}'));
     }
   }
 
   @override
-  Future<Either<Failure, List<UserModel>>> getPendingAgentsBySalesRepId(String salesRepId) async {
+  Future<Either<Failure, List<UserModel>>> getPendingAgentsBySalesRepId(
+      String salesRepId) async {
     try {
       final querySnapshot = await _firestore
           .collection('users')
@@ -149,7 +164,8 @@ class AdminRepositoryImpl implements AdminRepository {
           .toList();
       return Right(users);
     } catch (e) {
-      return Left(ServerFailure('Lỗi khi tải danh sách đại lý chờ duyệt: ${e.toString()}'));
+      return Left(ServerFailure(
+          'Lỗi khi tải danh sách đại lý chờ duyệt: ${e.toString()}'));
     }
   }
 
@@ -162,7 +178,9 @@ class AdminRepositoryImpl implements AdminRepository {
         .orderBy('addedAt', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) => QuickOrderItemModel.fromSnapshot(doc)).toList();
+      return snapshot.docs
+          .map((doc) => QuickOrderItemModel.fromSnapshot(doc))
+          .toList();
     });
   }
 
@@ -243,9 +261,9 @@ class AdminRepositoryImpl implements AdminRepository {
           .toList();
 
       return sortedProducts;
-
     } catch (e) {
-      developer.log('Lỗi khi lấy sản phẩm theo IDs: $e', name: 'AdminRepositoryImpl');
+      developer.log('Lỗi khi lấy sản phẩm theo IDs: $e',
+          name: 'AdminRepositoryImpl');
       rethrow;
     }
   }
@@ -262,13 +280,15 @@ class AdminRepositoryImpl implements AdminRepository {
         final snapshot = await transaction.get(userRef);
         if (!snapshot.exists) throw Exception("User does not exist!");
 
-        final double oldDebt = (snapshot.data()?['debtAmount'] as num?)?.toDouble() ?? 0.0;
+        final double oldDebt =
+            (snapshot.data()?['debtAmount'] as num?)?.toDouble() ?? 0.0;
 
         // 1. Cập nhật debtAmount trong User
         transaction.update(userRef, {'debtAmount': newDebtAmount});
 
         // 2. Tạo bản ghi DebtHistory / Transaction
-        final debtTransactionRef = _firestore.collection('debtTransactions').doc();
+        final debtTransactionRef =
+            _firestore.collection('debtTransactions').doc();
         transaction.set(debtTransactionRef, {
           'userId': userId,
           'amount': newDebtAmount - oldDebt,
@@ -307,7 +327,8 @@ class AdminRepositoryImpl implements AdminRepository {
       if (existingRequests.docs.isNotEmpty) {
         final data = existingRequests.docs.first.data();
         final String prevRequesterId = data['requestedBy'];
-        final String prevRequesterName = data['requestedByName'] ?? 'Nhân viên khác';
+        final String prevRequesterName =
+            data['requestedByName'] ?? 'Nhân viên khác';
 
         if (prevRequesterId == requestedBy) {
           return Left(ServerFailure(
@@ -343,7 +364,9 @@ class AdminRepositoryImpl implements AdminRepository {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) => DebtUpdateRequestModel.fromSnapshot(doc)).toList();
+      return snapshot.docs
+          .map((doc) => DebtUpdateRequestModel.fromSnapshot(doc))
+          .toList();
     });
   }
 
@@ -353,22 +376,26 @@ class AdminRepositoryImpl implements AdminRepository {
     required String adminId,
   }) async {
     try {
-      final requestRef = _firestore.collection('debtUpdateRequests').doc(requestId);
-      
+      final requestRef =
+          _firestore.collection('debtUpdateRequests').doc(requestId);
+
       await _firestore.runTransaction((transaction) async {
         final requestDoc = await transaction.get(requestRef);
         if (!requestDoc.exists) throw Exception("Yêu cầu không tồn tại!");
-        
+
         final requestData = requestDoc.data()!;
-        if (requestData['status'] != 'pending') throw Exception("Yêu cầu đã được xử lý!");
+        if (requestData['status'] != 'pending')
+          throw Exception("Yêu cầu đã được xử lý!");
 
         final String userId = requestData['userId'];
-        final double newDebtAmount = (requestData['newDebtAmount'] as num).toDouble();
-        final double oldDebtAmount = (requestData['oldDebtAmount'] as num).toDouble();
+        final double newDebtAmount =
+            (requestData['newDebtAmount'] as num).toDouble();
+        final double oldDebtAmount =
+            (requestData['oldDebtAmount'] as num).toDouble();
         final String requestedByName = requestData['requestedByName'];
 
         final userRef = _firestore.collection('users').doc(userId);
-        
+
         // 1. Cập nhật User
         transaction.update(userRef, {'debtAmount': newDebtAmount});
 
@@ -380,7 +407,8 @@ class AdminRepositoryImpl implements AdminRepository {
         });
 
         // 3. Ghi log giao dịch công nợ
-        final debtTransactionRef = _firestore.collection('debtTransactions').doc();
+        final debtTransactionRef =
+            _firestore.collection('debtTransactions').doc();
         transaction.set(debtTransactionRef, {
           'userId': userId,
           'amount': newDebtAmount - oldDebtAmount,
@@ -392,7 +420,7 @@ class AdminRepositoryImpl implements AdminRepository {
           'notes': 'Duyệt yêu cầu từ $requestedByName',
         });
       });
-      
+
       return const Right(null);
     } catch (e) {
       return Left(ServerFailure('Lỗi khi duyệt yêu cầu: ${e.toString()}'));
