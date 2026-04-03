@@ -109,12 +109,14 @@ Future<void> initializeDependencies() async {
   sl.registerLazySingleton<SharedPreferences>(() => prefs);
   sl.registerLazySingleton(() => NotificationService());
 
-  try {
-     await GoogleSignIn.instance.initialize(
-       serverClientId: '435533952242-8n673mvm4t37l3i82f5j48hdv4h8uv8m.apps.googleusercontent.com',
-     );
-  } catch (e) {
-    debugPrint('GoogleSignIn initialize error: $e');
+  if (!kIsWeb) {
+    try {
+       await GoogleSignIn.instance.initialize(
+         serverClientId: '435533952242-8n673mvm4t37l3i82f5j48hdv4h8uv8m.apps.googleusercontent.com',
+       );
+    } catch (e) {
+      debugPrint('GoogleSignIn initialize error: $e');
+    }
   }
 
   // Repositories

@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:piv_app/core/utils/platform_utils.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
@@ -16,7 +16,7 @@ class GlassBottomNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isAndroid = Platform.isAndroid;
+    final bool isAndroid = PlatformUtils.isAndroid;
     // Độ dày thanh kính: Cực kỳ mỏng và mảnh mai
     final double barHeight = isAndroid ? 52.0 : 62.0; 
     

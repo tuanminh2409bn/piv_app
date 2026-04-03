@@ -13,6 +13,8 @@ import 'package:piv_app/features/home/domain/repositories/home_repository.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
 import 'package:piv_app/features/wishlist/presentation/bloc/wishlist_cubit.dart';
 import 'package:piv_app/features/wishlist/presentation/widgets/wishlist_button.dart';
+import 'package:piv_app/common/widgets/responsive_wrapper.dart';
+import 'package:piv_app/core/utils/responsive.dart';
 import 'package:intl/intl.dart';
 import 'package:equatable/equatable.dart';
 
@@ -118,181 +120,189 @@ class WishlistView extends StatelessWidget {
 
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
     final double screenWidth = MediaQuery.of(context).size.width;
-    final double childAspectRatio = (screenWidth / 2) / 280;
+    final int crossAxisCount = Responsive.value(context, mobile: 2, tablet: 3, desktop: 4);
+    final double childAspectRatio = Responsive.value(
+      context, 
+      mobile: (screenWidth / 2) / 280,
+      tablet: (screenWidth / 3) / 320,
+      desktop: (1000 / 4) / 350,
+    );
 
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundLight,
-      body: Stack(
-        children: [
-          // Background
-          Positioned.fill(
-            child: CustomPaint(
-              painter: NatureBackgroundPainter(
-                color1: AppTheme.primaryGreen.withValues(alpha: 0.05),
-                color2: AppTheme.secondaryGreen.withValues(alpha: 0.03),
-                accent: AppTheme.accentGold.withValues(alpha: 0.1),
+    return ResponsiveWrapper(
+      child: Scaffold(
+        backgroundColor: AppTheme.backgroundLight,
+        body: Stack(
+          children: [
+            // Background
+            Positioned.fill(
+              child: CustomPaint(
+                painter: NatureBackgroundPainter(
+                  color1: AppTheme.primaryGreen.withValues(alpha: 0.05),
+                  color2: AppTheme.secondaryGreen.withValues(alpha: 0.03),
+                  accent: AppTheme.accentGold.withValues(alpha: 0.1),
+                ),
               ),
             ),
-          ),
 
-          BlocBuilder<WishlistPageCubit, WishlistPageState>(
-            builder: (context, state) {
-              if (state.status == WishlistPageStatus.loading) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (state.status == WishlistPageStatus.error) {
-                return Center(child: Text(state.errorMessage ?? 'Lỗi tải dữ liệu.'));
-              }
-              
-              return CustomScrollView(
-                slivers: [
-                  SliverAppBar(
-                    expandedHeight: 120.0,
-                    pinned: true,
-                    backgroundColor: AppTheme.primaryGreen,
-                    leading: const BackButton(color: Colors.white),
-                    flexibleSpace: FlexibleSpaceBar(
-                      centerTitle: true,
-                      title: const Text('Danh sách yêu thích', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-                      background: Stack(
-                        children: [
-                          Container(
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [AppTheme.primaryGreen, AppTheme.secondaryGreen],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                            ),
-                          ),
-                          Positioned.fill(
-                            child: CustomPaint(
-                              painter: NatureBackgroundPainter(
-                                color1: Colors.white.withValues(alpha: 0.1),
-                                color2: Colors.white.withValues(alpha: 0.05),
-                                accent: AppTheme.accentGold.withValues(alpha: 0.2),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  if (state.wishlistedProducts.isEmpty)
-                    const SliverFillRemaining(
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+            BlocBuilder<WishlistPageCubit, WishlistPageState>(
+              builder: (context, state) {
+                if (state.status == WishlistPageStatus.loading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (state.status == WishlistPageStatus.error) {
+                  return Center(child: Text(state.errorMessage ?? 'Lỗi tải dữ liệu.'));
+                }
+                
+                return CustomScrollView(
+                  slivers: [
+                    SliverAppBar(
+                      expandedHeight: 120.0,
+                      pinned: true,
+                      backgroundColor: AppTheme.primaryGreen,
+                      leading: const BackButton(color: Colors.white),
+                      flexibleSpace: FlexibleSpaceBar(
+                        centerTitle: true,
+                        title: const Text('Danh sách yêu thích', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                        background: Stack(
                           children: [
-                            Icon(Icons.favorite_border, size: 80, color: Colors.grey),
-                            SizedBox(height: 16),
-                            Text('Danh sách yêu thích đang trống', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                            Container(
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [AppTheme.primaryGreen, AppTheme.secondaryGreen],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
+                            ),
+                            Positioned.fill(
+                              child: CustomPaint(
+                                painter: NatureBackgroundPainter(
+                                  color1: Colors.white.withValues(alpha: 0.1),
+                                  color2: Colors.white.withValues(alpha: 0.05),
+                                  accent: AppTheme.accentGold.withValues(alpha: 0.2),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                    )
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsets.all(16.0),
-                      sliver: SliverGrid(
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: childAspectRatio,
+                    ),
+
+                    if (state.wishlistedProducts.isEmpty)
+                      const SliverFillRemaining(
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.favorite_border, size: 80, color: Colors.grey),
+                              SizedBox(height: 16),
+                              Text('Danh sách yêu thích đang trống', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                            ],
+                          ),
                         ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final product = state.wishlistedProducts[index];
-                            final price = product.getPriceForRole(userRole);
-                            
-                            return GestureDetector(
-                              onTap: () => Navigator.of(context).push(ProductDetailPage.route(product.id)),
-                              child: Card(
-                                margin: EdgeInsets.zero,
-                                elevation: 4,
-                                shadowColor: Colors.black.withValues(alpha: 0.05),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                color: Colors.white,
-                                child: Stack(
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        AspectRatio(
-                                          aspectRatio: 1.0,
-                                          child: ClipRRect(
-                                            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                                            child: Image.network(
-                                              product.imageUrl,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) => Container(color: Colors.grey.shade100, child: const Icon(Icons.image, size: 40, color: Colors.grey)),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.all(16.0),
+                        sliver: SliverGrid(
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: crossAxisCount,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: childAspectRatio,
+                          ),
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final product = state.wishlistedProducts[index];
+                              final price = product.getPriceForRole(userRole);
+                              
+                              return GestureDetector(
+                                onTap: () => Navigator.of(context).push(ProductDetailPage.route(product.id)),
+                                child: Card(
+                                  margin: EdgeInsets.zero,
+                                  elevation: 4,
+                                  shadowColor: Colors.black.withValues(alpha: 0.05),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  color: Colors.white,
+                                  child: Stack(
+                                    children: [
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          AspectRatio(
+                                            aspectRatio: 1.0,
+                                            child: ClipRRect(
+                                              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                                              child: Image.network(
+                                                product.imageUrl,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (_, __, ___) => Container(color: Colors.grey.shade100, child: const Icon(Icons.image, size: 40, color: Colors.grey)),
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                        Expanded(
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(10.0),
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Text(
-                                                  product.name,
-                                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, height: 1.2),
-                                                  maxLines: 2,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                                if (canViewPrice)
+                                          Expanded(
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(10.0),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                children: [
                                                   Text(
-                                                    currencyFormatter.format(price),
-                                                    style: TextStyle(
-                                                      color: Theme.of(context).colorScheme.primary,
-                                                      fontWeight: FontWeight.bold,
-                                                      fontSize: 15,
-                                                    ),
-                                                  )
-                                                else
-                                                  const Text(
-                                                    'Liên hệ xem giá',
-                                                    style: TextStyle(color: Colors.grey, fontSize: 12, fontStyle: FontStyle.italic),
+                                                    product.name,
+                                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, height: 1.2),
+                                                    maxLines: 2,
+                                                    overflow: TextOverflow.ellipsis,
                                                   ),
-                                              ],
+                                                  if (canViewPrice)
+                                                    Text(
+                                                      currencyFormatter.format(price),
+                                                      style: TextStyle(
+                                                        color: Theme.of(context).colorScheme.primary,
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 15,
+                                                      ),
+                                                    )
+                                                  else
+                                                    const Text(
+                                                      'Liên hệ xem giá',
+                                                      style: TextStyle(color: Colors.grey, fontSize: 12, fontStyle: FontStyle.italic),
+                                                    ),
+                                                ],
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                    // Wishlist Button Positioned
-                                    Positioned(
-                                      top: 8,
-                                      right: 8,
-                                      child: Container(
-                                        decoration: const BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: Colors.white,
-                                          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
-                                        ),
-                                        child: WishlistButton(productId: product.id),
+                                        ],
                                       ),
-                                    ),
-                                  ],
+                                      // Wishlist Button Positioned
+                                      Positioned(
+                                        top: 8,
+                                        right: 8,
+                                        child: Container(
+                                          decoration: const BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: Colors.white,
+                                            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                                          ),
+                                          child: WishlistButton(productId: product.id),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ).animate().fadeIn(delay: (50 * index).ms).slideY(begin: 0.1, end: 0);
-                          },
-                          childCount: state.wishlistedProducts.length,
+                              ).animate().fadeIn(delay: (50 * index).ms).slideY(begin: 0.1, end: 0);
+                            },
+                            childCount: state.wishlistedProducts.length,
+                          ),
                         ),
                       ),
-                    ),
-                    
-                  SliverToBoxAdapter(child: SizedBox(height: 40 + MediaQuery.of(context).padding.bottom)),
-                ],
-              );
-            },
-          ),
-        ],
+                      
+                    SliverToBoxAdapter(child: SizedBox(height: 40 + MediaQuery.of(context).padding.bottom)),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

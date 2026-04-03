@@ -1,16 +1,13 @@
-// lib/main.dart
+// lib/main_web.dart
 
-import 'package:piv_app/core/utils/platform_utils.dart';
 import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import 'firebase_options.dart';
@@ -40,33 +37,8 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   developer.log("Handling a background message: ${message.messageId}", name: "BackgroundNotification");
 }
 
-Future<void> _requestTrackingPermission() async {
-  if (PlatformUtils.isIOS) {
-    final status = await AppTrackingTransparency.requestTrackingAuthorization();
-    developer.log('App Tracking Transparency status: $status', name: 'ATT');
-  }
-}
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // --- CẤU HÌNH SYSTEM UI (Thanh trạng thái & Thanh điều hướng trong suốt) ---
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.dark,
-    statusBarBrightness: Brightness.light,
-    
-    // Thêm phần này cho Android Edge-to-Edge:
-    systemNavigationBarColor: Colors.transparent, 
-    systemNavigationBarDividerColor: Colors.transparent,
-    systemNavigationBarIconBrightness: Brightness.dark,
-  ));
-  
-  // Bắt buộc kích hoạt chế độ Edge-to-Edge trên Android 10+
-  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  // --------------------------------------------------------
-
-  await _requestTrackingPermission();
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -81,11 +53,11 @@ Future<void> main() async {
   Bloc.observer = di.sl<AppBlocObserver>();
   timeago.setLocaleMessages('vi', timeago.ViMessages());
 
-  runApp(const MyApp());
+  runApp(const MyAppWeb());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyAppWeb extends StatelessWidget {
+  const MyAppWeb({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +71,7 @@ class MyApp extends StatelessWidget {
       ],
       child: MaterialApp(
         navigatorKey: navigatorKey,
-        title: 'Phân Bón PIV',
+        title: 'Phân Bón PIV Web',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         localizationsDelegates: const [
@@ -113,11 +85,12 @@ class MyApp extends StatelessWidget {
         ],
         locale: const Locale('vi', 'VN'),
         builder: (context, child) {
+          // Gỡ bỏ ResponsiveWrapper ở đây để ảnh nền có thể tràn màn hình
           return GestureDetector(
             onTap: () {
               FocusManager.instance.primaryFocus?.unfocus();
             },
-            child: child,
+            child: child!,
           );
         },
         home: const InitialScreenController(),

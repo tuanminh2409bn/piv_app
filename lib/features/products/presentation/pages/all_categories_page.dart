@@ -3,8 +3,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:piv_app/common/widgets/app_network_image.dart';
+import 'package:piv_app/common/widgets/responsive_wrapper.dart';
 import 'package:piv_app/core/theme/app_theme.dart';
-import 'package:piv_app/core/theme/nature_background_painter.dart'; // Import Painter
+import 'package:piv_app/core/theme/nature_background_painter.dart';
+import 'package:piv_app/core/utils/responsive.dart';
 import 'package:piv_app/features/home/presentation/bloc/home_cubit.dart';
 import 'package:piv_app/features/products/presentation/pages/category_products_page.dart';
 import 'package:shimmer/shimmer.dart';
@@ -41,6 +44,22 @@ class AllCategoriesPage extends StatelessWidget {
 
           final topLevelCategories = state.allCategories.where((c) => c.parentId == null).toList();
 
+          // Tính toán số cột: Nếu có 3 danh mục thì dàn thành 3 cột, ngược lại mặc định 4 cột trên Desktop
+          final int crossAxisCount = Responsive.value(
+            context,
+            mobile: 2,
+            desktop: topLevelCategories.length == 3 ? 3 : 4,
+          );
+
+          final double childAspectRatio = Responsive.value(
+            context,
+            mobile: 0.85,
+            desktop: 1.0,
+          );
+
+          final double screenWidth = MediaQuery.of(context).size.width;
+          final double horizontalPadding = screenWidth > 1200 ? (screenWidth - 1200) / 2 + 16 : 16.0;
+
           return CustomScrollView(
             slivers: [
               // 1. SliverAppBar với họa tiết nền
@@ -51,7 +70,7 @@ class AllCategoriesPage extends StatelessWidget {
                 backgroundColor: AppTheme.primaryGreen,
                 flexibleSpace: FlexibleSpaceBar(
                   centerTitle: false,
-                  titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
+                  titlePadding: EdgeInsets.only(left: horizontalPadding > 16.0 ? horizontalPadding + 40 : 16, bottom: 16),
                   title: const Text(
                     'Tất cả Danh mục',
                     style: TextStyle(
@@ -94,27 +113,27 @@ class AllCategoriesPage extends StatelessWidget {
                 )
               else
                 SliverPadding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 16.0),
                   sliver: SliverGrid(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 0.85,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final category = topLevelCategories[index];
-                        return _CategoryCard(category: category, index: index);
-                      },
-                      childCount: topLevelCategories.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                        childAspectRatio: childAspectRatio,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final category = topLevelCategories[index];
+                          return _CategoryCard(category: category, index: index);
+                        },
+                        childCount: topLevelCategories.length,
+                      ),
                     ),
                   ),
-                ),
-                
-               const SliverToBoxAdapter(child: SizedBox(height: 120)), // Padding bottom
-            ],
-          );
+
+                const SliverToBoxAdapter(child: SizedBox(height: 120)), // Padding bottom
+              ],
+            );
         },
       ),
     );
@@ -154,10 +173,10 @@ class _CategoryCard extends StatelessWidget {
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
                 child: Container(
                   color: AppTheme.backgroundLight,
-                  child: Image.network(
-                    category.imageUrl,
+                  child: AppNetworkImage(
+                    imageUrl: category.imageUrl,
                     fit: BoxFit.cover,
-                    errorBuilder: (c, e, s) => Center(
+                    errorWidget: Center(
                       child: Icon(Icons.spa_outlined, size: 40, color: AppTheme.primaryGreen.withValues(alpha: 0.3)),
                     ),
                   ),
@@ -209,40 +228,47 @@ class _ShimmerLoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final int crossAxisCount = Responsive.value(context, mobile: 2, desktop: 4);
+
     return Shimmer.fromColors(
       baseColor: Colors.grey.shade300,
       highlightColor: Colors.grey.shade100,
-      child: CustomScrollView(
-        physics: const NeverScrollableScrollPhysics(),
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 120.0,
-            backgroundColor: Colors.white,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Container(width: 100, height: 20, color: Colors.white),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.all(16.0),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 0.85,
+      child: ResponsiveWrapper(
+        backgroundColor: Colors.transparent,
+        showShadow: false,
+        maxWidth: 1200,
+        child: CustomScrollView(
+          physics: const NeverScrollableScrollPhysics(),
+          slivers: [
+            SliverAppBar(
+              expandedHeight: 120.0,
+              backgroundColor: Colors.white,
+              flexibleSpace: FlexibleSpaceBar(
+                title: Container(width: 100, height: 20, color: Colors.white),
               ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.all(16.0),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: 0.85,
                 ),
-                childCount: 6,
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  childCount: 6,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

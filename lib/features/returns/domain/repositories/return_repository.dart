@@ -1,6 +1,6 @@
 // lib/features/returns/domain/repositories/return_repository.dart
 
-import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'package:dartz/dartz.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/order_model.dart';
@@ -11,7 +11,7 @@ abstract class ReturnRepository {
   Future<Either<Failure, void>> createReturnRequest({
     required OrderModel order,
     required List<ReturnRequestItem> items,
-    required List<File> images,
+    required List<XFile> images,
     required String userNotes,
     required double penaltyFee,
     required double refundAmount,

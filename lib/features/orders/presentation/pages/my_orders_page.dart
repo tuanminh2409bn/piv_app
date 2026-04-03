@@ -10,6 +10,8 @@ import 'package:piv_app/core/theme/nature_background_painter.dart';
 import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/features/orders/presentation/bloc/my_orders_cubit.dart';
 import 'package:piv_app/features/orders/presentation/pages/order_detail_page.dart';
+import 'package:piv_app/common/widgets/responsive_wrapper.dart';
+import 'package:piv_app/core/utils/responsive.dart';
 
 class MyOrdersPage extends StatelessWidget {
   const MyOrdersPage({super.key});
@@ -32,83 +34,109 @@ class MyOrdersView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        backgroundColor: AppTheme.backgroundLight,
-        body: NestedScrollView(
-          headerSliverBuilder: (context, innerBoxIsScrolled) {
-            return [
-              SliverAppBar(
-                expandedHeight: 120.0,
-                floating: false,
-                pinned: true,
-                backgroundColor: AppTheme.primaryGreen,
-                leading: const BackButton(color: Colors.white),
-                flexibleSpace: FlexibleSpaceBar(
-                  centerTitle: true,
-                  title: const Text('Đơn hàng của tôi', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-                  background: Stack(
-                    children: [
-                      Container(
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [AppTheme.primaryGreen, AppTheme.secondaryGreen],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+    return ResponsiveWrapper(
+      child: DefaultTabController(
+        length: 3,
+        child: Scaffold(
+          backgroundColor: AppTheme.backgroundLight,
+          body: NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) {
+              return [
+                SliverAppBar(
+                  expandedHeight: 120.0,
+                  floating: false,
+                  pinned: true,
+                  backgroundColor: AppTheme.primaryGreen,
+                  leading: const BackButton(color: Colors.white),
+                  flexibleSpace: FlexibleSpaceBar(
+                    centerTitle: true,
+                    title: const Text('Đơn hàng của tôi',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18)),
+                    background: Stack(
+                      children: [
+                        Container(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                AppTheme.primaryGreen,
+                                AppTheme.secondaryGreen
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                           ),
                         ),
-                      ),
-                      Positioned.fill(
-                        child: CustomPaint(
-                          painter: NatureBackgroundPainter(
-                            color1: Colors.white.withValues(alpha: 0.1),
-                            color2: Colors.white.withValues(alpha: 0.05),
-                            accent: AppTheme.accentGold.withValues(alpha: 0.2),
+                        Positioned.fill(
+                          child: CustomPaint(
+                            painter: NatureBackgroundPainter(
+                              color1: Colors.white.withValues(alpha: 0.1),
+                              color2: Colors.white.withValues(alpha: 0.05),
+                              accent: AppTheme.accentGold.withValues(alpha: 0.2),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              SliverPersistentHeader(
-                delegate: _SliverAppBarDelegate(
-                  TabBar(
-                    labelColor: AppTheme.primaryGreen,
-                    unselectedLabelColor: AppTheme.textGrey,
-                    indicatorColor: AppTheme.primaryGreen,
-                    indicatorWeight: 3,
-                    labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-                    tabs: [
-                      _buildTabWithBadge(context, 'Chờ duyệt', context.select((MyOrdersCubit cubit) => cubit.state.pendingApprovalOrders.length)),
-                      _buildTabWithBadge(context, 'Đang xử lý', context.select((MyOrdersCubit cubit) => cubit.state.ongoingOrders.length)),
-                      const Tab(text: 'Lịch sử'),
-                    ],
+                SliverPersistentHeader(
+                  delegate: _SliverAppBarDelegate(
+                    TabBar(
+                      labelColor: AppTheme.primaryGreen,
+                      unselectedLabelColor: AppTheme.textGrey,
+                      indicatorColor: AppTheme.primaryGreen,
+                      indicatorWeight: 3,
+                      labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                      tabs: [
+                        _buildTabWithBadge(
+                            context,
+                            'Chờ duyệt',
+                            context.select((MyOrdersCubit cubit) =>
+                                cubit.state.pendingApprovalOrders.length)),
+                        _buildTabWithBadge(
+                            context,
+                            'Đang xử lý',
+                            context.select((MyOrdersCubit cubit) =>
+                                cubit.state.ongoingOrders.length)),
+                        const Tab(text: 'Lịch sử'),
+                      ],
+                    ),
                   ),
+                  pinned: true,
                 ),
-                pinned: true,
-              ),
-            ];
-          },
-          body: BlocBuilder<MyOrdersCubit, MyOrdersState>(
-            builder: (context, state) {
-              if (state.status == MyOrdersStatus.loading && state.ongoingOrders.isEmpty && state.pendingApprovalOrders.isEmpty) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              if (state.status == MyOrdersStatus.error) {
-                return Center(child: Text(state.errorMessage ?? 'Không thể tải đơn hàng.'));
-              }
-
-              return TabBarView(
-                children: [
-                  _OrderListView(orders: state.pendingApprovalOrders, emptyMessage: 'Không có đơn hàng nào cần bạn phê duyệt.'),
-                  _OrderListView(orders: state.ongoingOrders, emptyMessage: 'Không có đơn hàng nào đang được xử lý.'),
-                  _OrderListView(orders: state.completedOrders, emptyMessage: 'Chưa có đơn hàng nào trong lịch sử.'),
-                ],
-              );
+              ];
             },
+            body: BlocBuilder<MyOrdersCubit, MyOrdersState>(
+              builder: (context, state) {
+                if (state.status == MyOrdersStatus.loading &&
+                    state.ongoingOrders.isEmpty &&
+                    state.pendingApprovalOrders.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (state.status == MyOrdersStatus.error) {
+                  return Center(
+                      child: Text(state.errorMessage ?? 'Không thể tải đơn hàng.'));
+                }
+
+                return TabBarView(
+                  children: [
+                    _OrderListView(
+                        orders: state.pendingApprovalOrders,
+                        emptyMessage: 'Không có đơn hàng nào cần bạn phê duyệt.'),
+                    _OrderListView(
+                        orders: state.ongoingOrders,
+                        emptyMessage: 'Không có đơn hàng nào đang được xử lý.'),
+                    _OrderListView(
+                        orders: state.completedOrders,
+                        emptyMessage: 'Chưa có đơn hàng nào trong lịch sử.'),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -137,7 +165,8 @@ class MyOrdersView extends StatelessWidget {
               ),
               child: Text(
                 count.toString(),
-                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
               ),
             ),
           ]
@@ -158,7 +187,8 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => _tabBar.preferredSize.height;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
       color: AppTheme.backgroundLight, // Nền trùng với background app
       child: _tabBar,
@@ -184,22 +214,55 @@ class _OrderListView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.receipt_long_outlined, size: 80, color: Colors.grey.withValues(alpha: 0.3)),
+            Icon(Icons.receipt_long_outlined,
+                size: 80, color: Colors.grey.withValues(alpha: 0.3)),
             const SizedBox(height: 16),
-            Text(emptyMessage, style: const TextStyle(fontSize: 16, color: AppTheme.textGrey), textAlign: TextAlign.center),
+            Text(emptyMessage,
+                style: const TextStyle(fontSize: 16, color: AppTheme.textGrey),
+                textAlign: TextAlign.center),
           ],
         ),
       );
     }
+
+    final bool isDesktop = Responsive.isDesktop(context);
+
+    if (isDesktop) {
+      return RefreshIndicator(
+        onRefresh: () async => context.read<MyOrdersCubit>().fetchMyOrders(),
+        child: GridView.builder(
+          padding: const EdgeInsets.all(16),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            mainAxisExtent: 220,
+          ),
+          itemCount: orders.length,
+          itemBuilder: (context, index) {
+            final order = orders[index];
+            return _OrderCard(order: order)
+                .animate()
+                .fadeIn(delay: (50 * index).ms)
+                .scale(begin: const Offset(0.9, 0.9));
+          },
+        ),
+      );
+    }
+
     return RefreshIndicator(
       onRefresh: () async => context.read<MyOrdersCubit>().fetchMyOrders(),
       child: ListView.separated(
-        padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0 + MediaQuery.of(context).padding.bottom),
+        padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0,
+            16.0 + MediaQuery.of(context).padding.bottom),
         itemCount: orders.length,
         separatorBuilder: (context, index) => const SizedBox(height: 16),
         itemBuilder: (context, index) {
           final order = orders[index];
-          return _OrderCard(order: order).animate().fadeIn(delay: (50 * index).ms).slideY(begin: 0.1, end: 0);
+          return _OrderCard(order: order)
+              .animate()
+              .fadeIn(delay: (50 * index).ms)
+              .slideY(begin: 0.1, end: 0);
         },
       ),
     );
@@ -214,21 +277,33 @@ class _OrderCard extends StatelessWidget {
   (Color, String, String?) _getStatusInfo(OrderModel order) {
     if (order.returnInfo != null) {
       switch (order.returnInfo!.returnStatus) {
-        case 'pending_approval': return (Colors.purple, 'Đang chờ duyệt đổi/trả', null);
-        case 'approved': return (Colors.blue, 'Đã duyệt đổi/trả', 'Công ty sẽ liên hệ');
-        case 'rejected': return (Colors.red, 'Từ chối đổi/trả', 'Xem chi tiết');
-        case 'completed': return (AppTheme.primaryGreen, 'Đã đổi/trả xong', null);
+        case 'pending_approval':
+          return (Colors.purple, 'Đang chờ duyệt đổi/trả', null);
+        case 'approved':
+          return (Colors.blue, 'Đã duyệt đổi/trả', 'Công ty sẽ liên hệ');
+        case 'rejected':
+          return (Colors.red, 'Từ chối đổi/trả', 'Xem chi tiết');
+        case 'completed':
+          return (AppTheme.primaryGreen, 'Đã đổi/trả xong', null);
       }
     }
     switch (order.status) {
-      case 'pending_approval': return (Colors.blue, 'Chờ phê duyệt', null);
-      case 'pending': return (Colors.orange, 'Chờ xử lý', null);
-      case 'processing': return (Colors.cyan, 'Đang xử lý', null);
-      case 'shipped': return (Colors.teal, 'Đang giao', null);
-      case 'completed': return (AppTheme.primaryGreen, 'Hoàn thành', null);
-      case 'cancelled': return (Colors.grey, 'Đã hủy', null);
-      case 'rejected': return (Colors.red, 'Đã từ chối', null);
-      default: return (Colors.grey, 'Không xác định', null);
+      case 'pending_approval':
+        return (Colors.blue, 'Chờ phê duyệt', null);
+      case 'pending':
+        return (Colors.orange, 'Chờ xử lý', null);
+      case 'processing':
+        return (Colors.cyan, 'Đang xử lý', null);
+      case 'shipped':
+        return (Colors.teal, 'Đang giao', null);
+      case 'completed':
+        return (AppTheme.primaryGreen, 'Hoàn thành', null);
+      case 'cancelled':
+        return (Colors.grey, 'Đã hủy', null);
+      case 'rejected':
+        return (Colors.red, 'Đã từ chối', null);
+      default:
+        return (Colors.grey, 'Không xác định', null);
     }
   }
 

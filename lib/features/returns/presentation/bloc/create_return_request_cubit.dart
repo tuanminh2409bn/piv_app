@@ -1,6 +1,5 @@
-//lib/features/returns/domain/entities/create_return_request_cubit.dart
+//lib/features/returns/presentation/bloc/create_return_request_cubit.dart
 
-import 'dart:io';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:image_picker/image_picker.dart';
@@ -53,13 +52,12 @@ class CreateReturnRequestCubit extends Cubit<CreateReturnRequestState> {
     final picker = ImagePicker();
     final pickedFiles = await picker.pickMultiImage(imageQuality: 80);
     if (pickedFiles.isNotEmpty) {
-      final newImages = pickedFiles.map((file) => File(file.path)).toList();
-      emit(state.copyWith(images: [...state.images, ...newImages]));
+      emit(state.copyWith(images: [...state.images, ...pickedFiles]));
     }
   }
 
-  void removeImage(File image) {
-    final currentImages = List<File>.from(state.images);
+  void removeImage(XFile image) {
+    final currentImages = List<XFile>.from(state.images);
     currentImages.remove(image);
     emit(state.copyWith(images: currentImages));
   }

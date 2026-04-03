@@ -1,6 +1,7 @@
 // lib/features/returns/presentation/pages/create_return_request_page.dart
 
-import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:piv_app/common/widgets/platform_image.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -536,7 +537,7 @@ class _CreateReturnRequestViewState extends State<CreateReturnRequestView> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: Image.file(state.images[index],
+                        child: PlatformXImage(file: state.images[index],
                             width: 100, height: 100, fit: BoxFit.cover),
                       ),
                       GestureDetector(

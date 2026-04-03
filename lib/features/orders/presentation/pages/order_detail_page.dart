@@ -6,9 +6,10 @@ import 'package:intl/intl.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
-import 'dart:io';
+import 'package:piv_app/core/utils/platform_utils.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/core/theme/app_theme.dart';
 import 'package:piv_app/core/theme/nature_background_painter.dart';
@@ -185,6 +186,17 @@ class _OrderDetailViewState extends State<OrderDetailView> {
         pixelRatio: 2.0,
         delay: const Duration(seconds: 1),
       );
+
+      if (kIsWeb) {
+        // Web: In a real professional app, we'd use a web-specific download logic
+        // For now, let's just show a snackbar that it's not supported via this plugin on web
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Chức năng tải ảnh đang được tối ưu cho Web.'), backgroundColor: Colors.orange),
+          );
+        }
+        return;
+      }
 
       final result = await ImageGallerySaverPlus.saveImage(
         imageBytes,

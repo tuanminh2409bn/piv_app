@@ -6,7 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/core/theme/app_theme.dart';
-import 'package:piv_app/core/theme/nature_background_painter.dart'; // Import Painter
+import 'package:piv_app/core/theme/nature_background_painter.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/profile/presentation/bloc/profile_cubit.dart';
 import 'package:piv_app/data/models/user_model.dart';
@@ -17,6 +17,8 @@ import 'package:piv_app/features/profile/presentation/pages/qr_scanner_page.dart
 import 'package:piv_app/features/sales_commitment/presentation/pages/sales_commitment_page.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/pages/lucky_wheel_page.dart';
 import 'package:piv_app/features/profile/presentation/pages/debt_payment_page.dart';
+import 'package:piv_app/common/widgets/responsive_wrapper.dart';
+import 'package:piv_app/core/utils/responsive.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // --- HELPER FUNCTION ---
@@ -58,12 +60,14 @@ class ProfileView extends StatelessWidget {
               backgroundColor: AppTheme.errorRed,
               behavior: SnackBarBehavior.floating,
               margin: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ));
         }
       },
       builder: (context, state) {
-        if (state.status == ProfileStatus.loading || state.status == ProfileStatus.initial) {
+        if (state.status == ProfileStatus.loading ||
+            state.status == ProfileStatus.initial) {
           return const Center(child: CircularProgressIndicator());
         }
         if (state.user.isEmpty && state.status != ProfileStatus.loading) {
@@ -75,7 +79,7 @@ class ProfileView extends StatelessWidget {
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () {
-                     context.read<AuthBloc>().add(AuthLogoutRequested());
+                    context.read<AuthBloc>().add(AuthLogoutRequested());
                   },
                   child: const Text('Đăng xuất & Thử lại'),
                 )
@@ -99,52 +103,53 @@ class ProfileView extends StatelessWidget {
             child: CustomScrollView(
               slivers: [
                 _buildSliverAppBar(context, user),
-                
                 SliverToBoxAdapter(
-                  child: Padding(
-                    // Giảm padding xuống còn 10 + safe area
-                    padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 10.0 + MediaQuery.of(context).padding.bottom),
-                    child: Column(
-                      children: [
-                        if (isAgent) ...[
-                           _buildFinancialSection(context, user),
-                           const SizedBox(height: 24),
-                        ],
-                        
-                        _buildSectionTitle(context, 'Quản lý'),
-                        _buildManagementOptions(context, user),
-                        const SizedBox(height: 24),
-
-                        _buildSectionTitle(context, 'Cá nhân'),
-                        _ProfileForm(user: user),
-                        const SizedBox(height: 16),
-                        _AddressSection(addresses: user.addresses),
-                        const SizedBox(height: 24),
-
-                        _buildSectionTitle(context, 'Hỗ trợ'),
-                        _buildLegalAndSupportSection(context),
-                        
-                        if (isAgent) ...[
-                          const SizedBox(height: 24),
-                          _buildSectionTitle(context, 'Vùng nguy hiểm'),
-                          _buildDeleteAccountSection(context, state.status),
-                        ],
-
-                        const SizedBox(height: 32),
-                        
-                        // --- LOGOUT BUTTON ---
-                        _buildLogoutButton(context),
-                        
-                        const SizedBox(height: 40),
-                        Center(
-                          child: Text(
-                            'Phiên bản 1.0.1',
-                            style: TextStyle(color: Colors.grey.withValues(alpha: 0.5), fontSize: 12)
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0),
+                  child: Center(
+                    child: ResponsiveWrapper(
+                      backgroundColor: AppTheme.backgroundLight, // Nền trùng với Scaffold
+                      showShadow: false,
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                            16.0,
+                            16.0,
+                            16.0,
+                            10.0 + MediaQuery.of(context).padding.bottom),
+                        child: Column(
+                          children: [
+                            if (isAgent) ...[
+                              _buildFinancialSection(context, user),
+                              const SizedBox(height: 24),
+                            ],
+                            _buildSectionTitle(context, 'Quản lý'),
+                            _buildManagementOptions(context, user),
+                            const SizedBox(height: 24),
+                            _buildSectionTitle(context, 'Cá nhân'),
+                            _ProfileForm(user: user),
+                            const SizedBox(height: 16),
+                            _AddressSection(addresses: user.addresses),
+                            const SizedBox(height: 24),
+                            _buildSectionTitle(context, 'Hỗ trợ'),
+                            _buildLegalAndSupportSection(context),
+                            if (isAgent) ...[
+                              const SizedBox(height: 24),
+                              _buildSectionTitle(context, 'Vùng nguy hiểm'),
+                              _buildDeleteAccountSection(context, state.status),
+                            ],
+                            const SizedBox(height: 32),
+                            // --- LOGOUT BUTTON ---
+                            _buildLogoutButton(context),
+                            const SizedBox(height: 40),
+                            Center(
+                              child: Text('Phiên bản 1.0.1',
+                                  style: TextStyle(
+                                      color: Colors.grey.withValues(alpha: 0.5),
+                                      fontSize: 12)),
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                        ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -164,9 +169,9 @@ class ProfileView extends StatelessWidget {
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
           children: [
-            // Nền Gradient
+            // Nền Gradient (Luôn full màn hình)
             Container(
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -177,17 +182,17 @@ class ProfileView extends StatelessWidget {
                 ),
               ),
             ),
-            // Họa tiết phủ lên
+            // Họa tiết phủ lên (Full màn hình)
             Positioned.fill(
               child: CustomPaint(
                 painter: NatureBackgroundPainter(
-                  color1: Colors.white.withValues(alpha: 0.1),
-                  color2: Colors.white.withValues(alpha: 0.05),
-                  accent: AppTheme.accentGold.withValues(alpha: 0.2),
+                  color1: Colors.white.withOpacity(0.1),
+                  color2: Colors.white.withOpacity(0.05),
+                  accent: AppTheme.accentGold.withOpacity(0.2),
                 ),
               ),
             ),
-            // Nội dung chính
+            // Nội dung chính (Căn giữa)
             Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -203,19 +208,28 @@ class ProfileView extends StatelessWidget {
                       radius: 36,
                       backgroundColor: Colors.white,
                       child: Text(
-                        user.displayName?.isNotEmpty == true ? user.displayName![0].toUpperCase() : '?',
-                        style: const TextStyle(fontSize: 32, color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
+                        user.displayName?.isNotEmpty == true
+                            ? user.displayName![0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
+                            fontSize: 32,
+                            color: AppTheme.primaryGreen,
+                            fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     user.displayName ?? 'Người dùng',
-                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold),
                   ),
                   Text(
                     user.email ?? '',
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 14),
+                    style: TextStyle(
+                        color: Colors.white.withOpacity(0.8), fontSize: 14),
                   ),
                 ],
               ),
@@ -233,7 +247,7 @@ class ProfileView extends StatelessWidget {
         alignment: Alignment.centerLeft,
         child: Text(
           title.toUpperCase(),
-          style: TextStyle(
+          style: const TextStyle(
             color: AppTheme.textGrey,
             fontSize: 12,
             fontWeight: FontWeight.bold,
@@ -257,7 +271,8 @@ class ProfileView extends StatelessWidget {
           foregroundColor: AppTheme.errorRed,
           side: const BorderSide(color: AppTheme.errorRed),
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
     );
@@ -270,7 +285,8 @@ class ProfileView extends StatelessWidget {
         return AlertDialog(
           title: const Text('Đăng xuất?'),
           content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi tài khoản?'),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           actions: <Widget>[
             TextButton(
               child: const Text('HỦY', style: TextStyle(color: AppTheme.textGrey)),
@@ -280,7 +296,8 @@ class ProfileView extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.errorRed,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
               child: const Text('ĐĂNG XUẤT'),
               onPressed: () {
@@ -302,7 +319,7 @@ class ProfileView extends StatelessWidget {
 
     return Card(
       elevation: 4,
-      shadowColor: Colors.black.withValues(alpha: 0.05),
+      shadowColor: Colors.black.withOpacity(0.05),
       child: Column(
         children: [
           Padding(
@@ -313,7 +330,8 @@ class ProfileView extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Công nợ hiện tại', style: TextStyle(color: AppTheme.textGrey)),
+                    const Text('Công nợ hiện tại',
+                        style: TextStyle(color: AppTheme.textGrey)),
                     const SizedBox(height: 4),
                     Text(
                       currencyFormat.format(debtAmount),
@@ -328,7 +346,8 @@ class ProfileView extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: (hasDebt ? AppTheme.errorRed : AppTheme.primaryGreen).withValues(alpha: 0.1),
+                    color: (hasDebt ? AppTheme.errorRed : AppTheme.primaryGreen)
+                        .withOpacity(0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -341,8 +360,10 @@ class ProfileView extends StatelessWidget {
           ),
           const Divider(height: 1),
           ListTile(
-            title: const Text('Thanh toán Công nợ', style: TextStyle(fontWeight: FontWeight.w600)),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.textGrey),
+            title: const Text('Thanh toán Công nợ',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            trailing: const Icon(Icons.arrow_forward_ios,
+                size: 16, color: AppTheme.textGrey),
             onTap: () => Navigator.of(context).push(DebtPaymentPage.route()),
           ),
         ],
@@ -354,56 +375,95 @@ class ProfileView extends StatelessWidget {
   Widget _buildManagementOptions(BuildContext context, UserModel user) {
     return Card(
       elevation: 2,
-      shadowColor: Colors.black.withValues(alpha: 0.05),
+      shadowColor: Colors.black.withOpacity(0.05),
       child: Column(
         children: [
-          _buildListTile(context, Icons.receipt_long_outlined, 'Đơn hàng của tôi', () => Navigator.of(context).push(MyOrdersPage.route()), Colors.blue),
+          _buildListTile(
+              context,
+              Icons.receipt_long_outlined,
+              'Đơn hàng của tôi',
+              () => Navigator.of(context).push(MyOrdersPage.route()),
+              Colors.blue),
           _buildDivider(),
-          _buildListTile(context, Icons.favorite_border_outlined, 'Danh sách yêu thích', () => Navigator.of(context).push(WishlistPage.route()), Colors.red),
-          
+          _buildListTile(
+              context,
+              Icons.favorite_border_outlined,
+              'Danh sách yêu thích',
+              () => Navigator.of(context).push(WishlistPage.route()),
+              Colors.red),
           if (user.role == 'agent_1' || user.role == 'agent_2') ...[
             _buildDivider(),
-            _buildListTile(context, Icons.military_tech_outlined, 'Chương trình thưởng', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SalesCommitmentPage())), Colors.amber),
+            _buildListTile(
+                context,
+                Icons.military_tech_outlined,
+                'Chương trình thưởng',
+                () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SalesCommitmentPage())),
+                Colors.amber),
             _buildDivider(),
-            _buildListTile(context, Icons.casino_outlined, 'Vòng Quay May Mắn', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LuckyWheelPage())), Colors.purple),
+            _buildListTile(
+                context,
+                Icons.casino_outlined,
+                'Vòng Quay May Mắn',
+                () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const LuckyWheelPage())),
+                Colors.purple),
           ],
-
           if (!user.isAdmin && !user.isSalesRep) ...[
-             _buildDivider(),
-             if (user.salesRepId != null && user.salesRepId!.isNotEmpty)
-                ListTile(
-                  leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.support_agent_outlined, color: Colors.green)),
-                  title: const Text('NVKD phụ trách', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                  subtitle: Text(user.salesRepId ?? '', style: const TextStyle(fontSize: 12)),
-                )
-             else
-                _buildListTile(context, Icons.card_giftcard_outlined, 'Nhập mã giới thiệu', () => _showReferralInputDialog(context), Colors.orange),
+            _buildDivider(),
+            if (user.salesRepId != null && user.salesRepId!.isNotEmpty)
+              ListTile(
+                leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8)),
+                    child: const Icon(Icons.support_agent_outlined,
+                        color: Colors.green)),
+                title: const Text('NVKD phụ trách',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                subtitle: Text(user.salesRepId ?? '',
+                    style: const TextStyle(fontSize: 12)),
+              )
+            else
+              _buildListTile(
+                  context,
+                  Icons.card_giftcard_outlined,
+                  'Nhập mã giới thiệu',
+                  () => _showReferralInputDialog(context),
+                  Colors.orange),
           ]
         ],
       ),
     );
   }
 
-  Widget _buildListTile(BuildContext context, IconData icon, String title, VoidCallback onTap, Color iconColor) {
+  Widget _buildListTile(BuildContext context, IconData icon, String title,
+      VoidCallback onTap, Color iconColor) {
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: iconColor.withValues(alpha: 0.1),
+          color: iconColor.withOpacity(0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(icon, color: iconColor, size: 20),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppTheme.textGrey),
+      title: Text(title,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+      trailing:
+          const Icon(Icons.arrow_forward_ios, size: 14, color: AppTheme.textGrey),
       onTap: onTap,
     );
   }
 
-  Widget _buildDivider() => Divider(height: 1, color: Colors.grey.withValues(alpha: 0.1), indent: 16, endIndent: 16);
+  Widget _buildDivider() => Divider(
+      height: 1,
+      color: Colors.grey.withOpacity(0.1),
+      indent: 16,
+      endIndent: 16);
 
   void _showReferralInputDialog(BuildContext context) {
-    // ... Giữ nguyên logic cũ ...
     final profileCubit = context.read<ProfileCubit>();
     final formKey = GlobalKey<FormState>();
     final codeController = TextEditingController();
@@ -423,15 +483,19 @@ class ProfileView extends StatelessWidget {
                 Expanded(
                   child: TextFormField(
                     controller: codeController,
-                    decoration: const InputDecoration(labelText: 'Mã giới thiệu', border: OutlineInputBorder()),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Vui lòng nhập mã' : null,
+                    decoration: const InputDecoration(
+                        labelText: 'Mã giới thiệu', border: OutlineInputBorder()),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Vui lòng nhập mã'
+                        : null,
                   ),
                 ),
                 const SizedBox(width: 8),
                 IconButton.filledTonal(
                   icon: const Icon(Icons.qr_code_scanner),
                   onPressed: () async {
-                    final scannedCode = await Navigator.of(context).push<String?>(QrScannerPage.route());
+                    final scannedCode = await Navigator.of(context)
+                        .push<String?>(QrScannerPage.route());
                     if (scannedCode != null && scannedCode.isNotEmpty) {
                       codeController.text = scannedCode;
                     }
@@ -441,7 +505,8 @@ class ProfileView extends StatelessWidget {
             ),
           ),
           actions: <Widget>[
-            TextButton(child: const Text('HỦY'), onPressed: () => Navigator.of(context).pop()),
+            TextButton(
+                child: const Text('HỦY'), onPressed: () => Navigator.of(context).pop()),
             ElevatedButton(
               child: const Text('XÁC NHẬN'),
               onPressed: () {
@@ -461,12 +526,24 @@ class ProfileView extends StatelessWidget {
   Widget _buildLegalAndSupportSection(BuildContext context) {
     return Card(
       elevation: 2,
-      shadowColor: Colors.black.withValues(alpha: 0.05),
+      shadowColor: Colors.black.withOpacity(0.05),
       child: Column(
         children: [
-          _buildListTile(context, Icons.description_outlined, 'Điều khoản Dịch vụ', () => _launchURL(context, 'https://tuanminh2409bn.github.io/piv-terms/'), Colors.blueGrey),
+          _buildListTile(
+              context,
+              Icons.description_outlined,
+              'Điều khoản Dịch vụ',
+              () => _launchURL(
+                  context, 'https://tuanminh2409bn.github.io/piv-terms/'),
+              Colors.blueGrey),
           _buildDivider(),
-          _buildListTile(context, Icons.privacy_tip_outlined, 'Chính sách Bảo mật', () => _launchURL(context, 'https://tuanminh2409bn.github.io/piv-privacy/'), Colors.blueGrey),
+          _buildListTile(
+              context,
+              Icons.privacy_tip_outlined,
+              'Chính sách Bảo mật',
+              () => _launchURL(
+                  context, 'https://tuanminh2409bn.github.io/piv-privacy/'),
+              Colors.blueGrey),
         ],
       ),
     );
@@ -475,22 +552,24 @@ class ProfileView extends StatelessWidget {
   // --- DELETE ACCOUNT ---
   Widget _buildDeleteAccountSection(BuildContext context, ProfileStatus status) {
     return Card(
-      color: Colors.red.withValues(alpha: 0.05),
+      color: Colors.red.withOpacity(0.05),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.red.withValues(alpha: 0.2)),
+        side: BorderSide(color: Colors.red.withOpacity(0.2)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row(
               children: [
                 Icon(Icons.warning_amber_rounded, color: AppTheme.errorRed),
-                const SizedBox(width: 8),
-                const Text('Xóa tài khoản vĩnh viễn', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                SizedBox(width: 8),
+                Text('Xóa tài khoản vĩnh viễn',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.black87)),
               ],
             ),
             const SizedBox(height: 8),
@@ -520,15 +599,17 @@ class ProfileView extends StatelessWidget {
   }
 
   void _showDeleteConfirmationDialog(BuildContext context) {
-    // ... Giữ nguyên logic cũ ...
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Cảnh báo!'),
-          content: const Text('Hành động này không thể hoàn tác. Bạn có chắc chắn muốn xóa tài khoản?'),
+          content: const Text(
+              'Hành động này không thể hoàn tác. Bạn có chắc chắn muốn xóa tài khoản?'),
           actions: <Widget>[
-            TextButton(child: const Text('HỦY BỎ'), onPressed: () => Navigator.of(dialogContext).pop()),
+            TextButton(
+                child: const Text('HỦY BỎ'),
+                onPressed: () => Navigator.of(dialogContext).pop()),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed),
               child: const Text('XÓA TÀI KHOẢN'),
@@ -554,7 +635,6 @@ class _ProfileForm extends StatefulWidget {
 }
 
 class _ProfileFormState extends State<_ProfileForm> {
-  // ... (Logic giữ nguyên, chỉ thay đổi UI một chút) ...
   late final TextEditingController _displayNameController;
   final _formKey = GlobalKey<FormState>();
   bool _isEditing = false;
@@ -562,16 +642,21 @@ class _ProfileFormState extends State<_ProfileForm> {
   @override
   void initState() {
     super.initState();
-    _displayNameController = TextEditingController(text: widget.user.displayName);
+    _displayNameController =
+        TextEditingController(text: widget.user.displayName);
   }
+
   @override
-  void dispose() { _displayNameController.dispose(); super.dispose(); }
+  void dispose() {
+    _displayNameController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Card(
       elevation: 2,
-      shadowColor: Colors.black.withValues(alpha: 0.05),
+      shadowColor: Colors.black.withOpacity(0.05),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -582,12 +667,15 @@ class _ProfileFormState extends State<_ProfileForm> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Thông tin cơ bản', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text('Thông tin cơ bản',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   GestureDetector(
                     onTap: () => setState(() => _isEditing = !_isEditing),
                     child: Text(
                       _isEditing ? 'Hủy' : 'Sửa',
-                      style: TextStyle(color: _isEditing ? AppTheme.errorRed : AppTheme.primaryGreen, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                          color: _isEditing ? AppTheme.errorRed : AppTheme.primaryGreen,
+                          fontWeight: FontWeight.bold),
                     ),
                   )
                 ],
@@ -596,14 +684,20 @@ class _ProfileFormState extends State<_ProfileForm> {
               TextFormField(
                 controller: _displayNameController,
                 enabled: _isEditing,
-                decoration: const InputDecoration(labelText: 'Tên hiển thị', prefixIcon: Icon(Icons.person_outline)),
-                validator: (v) => _isEditing && (v == null || v.trim().isEmpty) ? 'Không được để trống' : null,
+                decoration: const InputDecoration(
+                    labelText: 'Tên hiển thị', prefixIcon: Icon(Icons.person_outline)),
+                validator: (v) => _isEditing && (v == null || v.trim().isEmpty)
+                    ? 'Không được để trống'
+                    : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 initialValue: widget.user.email,
                 enabled: false,
-                decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email_outlined), filled: true),
+                decoration: const InputDecoration(
+                    labelText: 'Email',
+                    prefixIcon: Icon(Icons.email_outlined),
+                    filled: true),
               ),
               if (_isEditing) ...[
                 const SizedBox(height: 16),
@@ -616,7 +710,8 @@ class _ProfileFormState extends State<_ProfileForm> {
                           : ElevatedButton(
                               onPressed: () {
                                 if (_formKey.currentState!.validate()) {
-                                  context.read<ProfileCubit>().profileFieldChanged(displayName: _displayNameController.text.trim());
+                                  context.read<ProfileCubit>().profileFieldChanged(
+                                      displayName: _displayNameController.text.trim());
                                   context.read<ProfileCubit>().saveUserProfile();
                                   setState(() => _isEditing = false);
                                 }
@@ -656,7 +751,10 @@ class _AddressSection extends StatelessWidget {
           ],
         ),
         if (addresses.isEmpty)
-          const Padding(padding: EdgeInsets.all(16.0), child: Text('Chưa có địa chỉ nào.', style: TextStyle(color: Colors.grey)))
+          const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text('Chưa có địa chỉ nào.',
+                  style: TextStyle(color: Colors.grey)))
         else
           ListView.separated(
             padding: EdgeInsets.zero,
@@ -664,14 +762,20 @@ class _AddressSection extends StatelessWidget {
             shrinkWrap: true,
             itemCount: addresses.length,
             separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (context, index) => _AddressCard(address: addresses[index]),
+            itemBuilder: (context, index) =>
+                _AddressCard(address: addresses[index]),
           ),
       ],
     );
   }
-  
+
   Widget _buildSectionHeader(BuildContext context, String title) {
-    return Text(title.toUpperCase(), style: TextStyle(color: AppTheme.textGrey, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2));
+    return Text(title.toUpperCase(),
+        style: const TextStyle(
+            color: AppTheme.textGrey,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.2));
   }
 }
 
@@ -686,7 +790,11 @@ class _AddressCard extends StatelessWidget {
       color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: address.isDefault ? AppTheme.primaryGreen : Colors.grey.withValues(alpha: 0.2), width: address.isDefault ? 1.5 : 1),
+        side: BorderSide(
+            color: address.isDefault
+                ? AppTheme.primaryGreen
+                : Colors.grey.withOpacity(0.2),
+            width: address.isDefault ? 1.5 : 1),
       ),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
@@ -695,29 +803,44 @@ class _AddressCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.location_on_outlined, size: 18, color: AppTheme.textGrey),
+                const Icon(Icons.location_on_outlined,
+                    size: 18, color: AppTheme.textGrey),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(address.recipientName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text(address.recipientName,
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
                 ),
                 if (address.isDefault)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(color: AppTheme.primaryGreen.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-                    child: const Text('Mặc định', style: TextStyle(fontSize: 10, color: AppTheme.primaryGreen, fontWeight: FontWeight.bold)),
+                    decoration: BoxDecoration(
+                        color: AppTheme.primaryGreen.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4)),
+                    child: const Text('Mặc định',
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: AppTheme.primaryGreen,
+                            fontWeight: FontWeight.bold)),
                   ),
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert, size: 18, color: AppTheme.textGrey),
                   onSelected: (value) {
-                    if (value == 'edit') _showAddressFormDialog(context, address: address);
+                    if (value == 'edit') {
+                      _showAddressFormDialog(context, address: address);
+                    }
                     if (value == 'delete') _confirmDelete(context);
-                    if (value == 'default') context.read<ProfileCubit>().setDefaultAddress(address.id);
+                    if (value == 'default') {
+                      context.read<ProfileCubit>().setDefaultAddress(address.id);
+                    }
                   },
                   itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
                     if (!address.isDefault)
-                      const PopupMenuItem<String>(value: 'default', child: Text('Đặt làm mặc định')),
+                      const PopupMenuItem<String>(
+                          value: 'default', child: Text('Đặt làm mặc định')),
                     const PopupMenuItem<String>(value: 'edit', child: Text('Sửa')),
-                    const PopupMenuItem<String>(value: 'delete', child: Text('Xóa', style: TextStyle(color: Colors.red))),
+                    const PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Text('Xóa', style: TextStyle(color: Colors.red))),
                   ],
                 ),
               ],
@@ -727,10 +850,12 @@ class _AddressCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(address.phoneNumber, style: const TextStyle(fontSize: 13, color: AppTheme.textGrey)),
+                  Text(address.phoneNumber,
+                      style: const TextStyle(fontSize: 13, color: AppTheme.textGrey)),
                   const SizedBox(height: 4),
                   Text(address.street, style: const TextStyle(fontSize: 14)),
-                  Text('${address.ward}, ${address.city}', style: const TextStyle(fontSize: 14)),
+                  Text('${address.ward}, ${address.city}',
+                      style: const TextStyle(fontSize: 14)),
                 ],
               ),
             ),
@@ -747,7 +872,8 @@ class _AddressCard extends StatelessWidget {
         title: const Text('Xóa địa chỉ?'),
         content: const Text('Bạn có chắc chắn muốn xóa địa chỉ này không?'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Hủy')),
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(), child: const Text('Hủy')),
           TextButton(
             onPressed: () {
               context.read<ProfileCubit>().deleteAddress(address.id);
@@ -772,8 +898,6 @@ void _showAddressFormDialog(BuildContext context, {AddressModel? address}) {
   );
 }
 
-// ... _AddressFormDialog giữ nguyên logic, chỉ cập nhật UI nhẹ (đã viết lại ở dưới cho đầy đủ) ...
-
 class _AddressFormDialog extends StatefulWidget {
   final AddressModel? address;
   const _AddressFormDialog({this.address});
@@ -783,7 +907,11 @@ class _AddressFormDialog extends StatefulWidget {
 
 class _AddressFormDialogState extends State<_AddressFormDialog> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _nameController, _phoneController, _streetController, _wardController, _cityController;
+  late TextEditingController _nameController,
+      _phoneController,
+      _streetController,
+      _wardController,
+      _cityController;
   late bool _isDefault;
   bool get _isEditing => widget.address != null;
 
@@ -791,23 +919,39 @@ class _AddressFormDialogState extends State<_AddressFormDialog> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.address?.recipientName ?? '');
-    _phoneController = TextEditingController(text: widget.address?.phoneNumber ?? '');
+    _phoneController =
+        TextEditingController(text: widget.address?.phoneNumber ?? '');
     _streetController = TextEditingController(text: widget.address?.street ?? '');
     _wardController = TextEditingController(text: widget.address?.ward ?? '');
     _cityController = TextEditingController(text: widget.address?.city ?? '');
     _isDefault = widget.address?.isDefault ?? false;
   }
+
   @override
-  void dispose() { _nameController.dispose(); _phoneController.dispose(); _streetController.dispose(); _wardController.dispose(); _cityController.dispose(); super.dispose(); }
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _streetController.dispose();
+    _wardController.dispose();
+    _cityController.dispose();
+    super.dispose();
+  }
 
   void _onSave() {
     if (_formKey.currentState!.validate()) {
       final newAddress = AddressModel(
-          id: widget.address?.id, recipientName: _nameController.text.trim(), phoneNumber: _phoneController.text.trim(),
-          street: _streetController.text.trim(), ward: _wardController.text.trim(), city: _cityController.text.trim(), isDefault: _isDefault
-      );
-      if (_isEditing) context.read<ProfileCubit>().updateAddress(newAddress);
-      else context.read<ProfileCubit>().addAddress(newAddress);
+          id: widget.address?.id,
+          recipientName: _nameController.text.trim(),
+          phoneNumber: _phoneController.text.trim(),
+          street: _streetController.text.trim(),
+          ward: _wardController.text.trim(),
+          city: _cityController.text.trim(),
+          isDefault: _isDefault);
+      if (_isEditing) {
+        context.read<ProfileCubit>().updateAddress(newAddress);
+      } else {
+        context.read<ProfileCubit>().addAddress(newAddress);
+      }
       Navigator.of(context).pop();
     }
   }
@@ -828,16 +972,30 @@ class _AddressFormDialogState extends State<_AddressFormDialog> {
               _tf(_streetController, 'Số nhà, tên đường'),
               _tf(_wardController, 'Phường/Xã'),
               _tf(_cityController, 'Tỉnh/Thành phố'),
-              SwitchListTile(title: const Text('Đặt làm mặc định'), value: _isDefault, onChanged: (v) => setState(() => _isDefault = v), contentPadding: EdgeInsets.zero),
+              SwitchListTile(
+                  title: const Text('Đặt làm mặc định'),
+                  value: _isDefault,
+                  onChanged: (v) => setState(() => _isDefault = v),
+                  contentPadding: EdgeInsets.zero),
             ],
           ),
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('HỦY')),
+        TextButton(
+            onPressed: () => Navigator.of(context).pop(), child: const Text('HỦY')),
         ElevatedButton(onPressed: _onSave, child: const Text('LƯU')),
       ],
     );
   }
-  Widget _tf(TextEditingController c, String l, {TextInputType? type}) => Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: TextFormField(controller: c, decoration: InputDecoration(labelText: l, border: const OutlineInputBorder()), keyboardType: type, validator: (v) => (v == null || v.trim().isEmpty) ? 'Bắt buộc' : null));
+
+  Widget _tf(TextEditingController c, String l, {TextInputType? type}) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: TextFormField(
+          controller: c,
+          decoration:
+              InputDecoration(labelText: l, border: const OutlineInputBorder()),
+          keyboardType: type,
+          validator: (v) =>
+              (v == null || v.trim().isEmpty) ? 'Bắt buộc' : null));
 }

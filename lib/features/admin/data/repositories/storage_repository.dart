@@ -1,8 +1,8 @@
-import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart' as firebase_storage;
 import 'package:image_picker/image_picker.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:dartz/dartz.dart';
+import 'package:flutter/foundation.dart';
 
 class StorageRepository {
   final firebase_storage.FirebaseStorage _storage;
@@ -15,14 +15,14 @@ class StorageRepository {
         _picker = picker ?? ImagePicker();
 
   /// Chọn ảnh từ thư viện
-  Future<Either<Failure, File>> pickImageFromGallery() async {
+  Future<Either<Failure, XFile>> pickImageFromGallery() async {
     try {
       final pickedFile = await _picker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 80, // Giảm chất lượng ảnh để tối ưu dung lượng
       );
       if (pickedFile != null) {
-        return Right(File(pickedFile.path));
+        return Right(pickedFile);
       } else {
         return Left(ServerFailure('Không có ảnh nào được chọn.'));
       }
@@ -32,17 +32,27 @@ class StorageRepository {
   }
 
   /// Tải ảnh lên Firebase Storage và trả về URL
-  Future<Either<Failure, String>> uploadImage(File imageFile) async {
+  Future<Either<Failure, String>> uploadImage(XFile imageFile) async {
     try {
       // Tạo một tham chiếu duy nhất trên Storage, ví dụ: /product_images/timestamp.jpg
       final String fileName = DateTime.now().millisecondsSinceEpoch.toString();
       final ref = _storage.ref().child('product_images/$fileName');
 
-      // Tải file lên
-      final uploadTask = await ref.putFile(imageFile);
+      firebase_storage.SettableMetadata metadata = firebase_storage.SettableMetadata(
+        contentType: 'image/jpeg',
+      );
+
+      if (kIsWeb) {
+        final bytes = await imageFile.readAsBytes();
+        await ref.putData(bytes, metadata);
+      } else {
+        // Trên mobile, dùng putData với bytes cũng an toàn hơn hoặc putFile
+        final bytes = await imageFile.readAsBytes();
+        await ref.putData(bytes, metadata);
+      }
 
       // Lấy URL để có thể truy cập ảnh
-      final downloadUrl = await uploadTask.ref.getDownloadURL();
+      final downloadUrl = await ref.getDownloadURL();
       return Right(downloadUrl);
     } catch (e) {
       return Left(ServerFailure('Lỗi khi tải ảnh lên: ${e.toString()}'));

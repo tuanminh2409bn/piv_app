@@ -9,6 +9,7 @@ import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/home/data/models/category_model.dart';
 import 'package:piv_app/data/models/user_model.dart';
 import 'package:collection/collection.dart';
+import 'package:piv_app/common/widgets/platform_image.dart';
 
 class AdminProductFormPage extends StatelessWidget {
   final ProductModel? product;
@@ -295,7 +296,7 @@ class _ProductFormViewState extends State<ProductFormView> {
             onTap: () => context.read<ProductFormCubit>().pickImage(),
             borderRadius: BorderRadius.circular(12),
             child: (state.selectedImageFile != null)
-                ? ClipRRect(borderRadius: BorderRadius.circular(11), child: Image.file(state.selectedImageFile!, fit: BoxFit.cover))
+                ? ClipRRect(borderRadius: BorderRadius.circular(11), child: PlatformXImage(file: state.selectedImageFile!, fit: BoxFit.cover))
                 : (state.initialProduct?.imageUrl != null && state.initialProduct!.imageUrl.isNotEmpty)
                 ? ClipRRect(borderRadius: BorderRadius.circular(11), child: Image.network(state.initialProduct!.imageUrl, fit: BoxFit.cover))
                 : Center(

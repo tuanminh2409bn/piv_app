@@ -5,9 +5,8 @@ part of 'create_return_request_cubit.dart';
 enum CreateReturnRequestStatus { initial, loading, success, error, submitting }
 
 class CreateReturnRequestState extends Equatable {
-  // --- THAY ĐỔI CỐT LÕI NẰM Ở ĐÂY ---
   final Map<String, int> returnedItems; // Key: productId, Value: số lượng chai/gói trả
-  final List<File> images;
+  final List<XFile> images;
   final CreateReturnRequestStatus status;
   final String? errorMessage;
   final ReturnPolicyConfigModel? policy;
@@ -25,7 +24,7 @@ class CreateReturnRequestState extends Equatable {
 
   CreateReturnRequestState copyWith({
     Map<String, int>? returnedItems,
-    List<File>? images,
+    List<XFile>? images,
     CreateReturnRequestStatus? status,
     String? errorMessage,
     bool clearError = false,

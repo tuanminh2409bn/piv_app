@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:piv_app/common/widgets/app_network_image.dart';
+import 'package:piv_app/common/widgets/responsive_wrapper.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/core/theme/app_theme.dart';
 import 'package:piv_app/core/theme/nature_background_painter.dart';
+import 'package:piv_app/core/utils/responsive.dart';
 import 'package:piv_app/features/home/data/models/category_model.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/products/presentation/bloc/category_products_cubit.dart';
@@ -53,8 +56,13 @@ class CategoryProductsView extends StatelessWidget {
       if (!authState.user.isGuest && authState.user.status == 'active') canViewPrice = true;
     }
 
-    final screenWidth = MediaQuery.of(context).size.width;
-    final double childAspectRatio = (screenWidth / 2) / 300;
+    final int subCatCrossAxisCount = Responsive.value(context, mobile: 2, desktop: 4);
+    final int prodCrossAxisCount = Responsive.value(context, mobile: 2, desktop: 4);
+    final double prodChildAspectRatio = Responsive.value(
+      context, 
+      mobile: (MediaQuery.of(context).size.width / 2) / 300,
+      desktop: 0.65,
+    );
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundLight,
@@ -82,6 +90,9 @@ class CategoryProductsView extends StatelessWidget {
               final hasSubCategories = state.subCategories.isNotEmpty;
               final hasProducts = state.products.isNotEmpty;
 
+              final double screenWidth = MediaQuery.of(context).size.width;
+              final double horizontalPadding = screenWidth > 1200 ? (screenWidth - 1200) / 2 + 16 : 16.0;
+
               return CustomScrollView(
                 slivers: [
                   SliverAppBar(
@@ -91,7 +102,7 @@ class CategoryProductsView extends StatelessWidget {
                     leading: const BackButton(color: Colors.white),
                     flexibleSpace: FlexibleSpaceBar(
                       centerTitle: false,
-                      titlePadding: const EdgeInsets.only(left: 56, bottom: 16),
+                      titlePadding: EdgeInsets.only(left: horizontalPadding > 16.0 ? horizontalPadding + 40 : 56, bottom: 16),
                       title: Text(
                         state.currentCategory?.name ?? 'Danh mục',
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
@@ -123,12 +134,12 @@ class CategoryProductsView extends StatelessWidget {
 
                   // --- DANH MỤC CON (Nâng cấp to và đẹp như danh mục cha) ---
                   if (hasSubCategories) ...[
-                    _buildSectionTitle('DANH MỤC CON'),
+                    _buildSectionTitle('DANH MỤC CON', horizontalPadding),
                     SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
                       sliver: SliverGrid(
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2, // Đổi từ 3 sang 2 cột cho To
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: subCatCrossAxisCount,
                           crossAxisSpacing: 16,
                           mainAxisSpacing: 16,
                           childAspectRatio: 0.85, // Đồng bộ tỷ lệ với danh mục cha
@@ -143,15 +154,15 @@ class CategoryProductsView extends StatelessWidget {
 
                   // --- SẢN PHẨM ---
                   if (hasProducts) ...[
-                    _buildSectionTitle('SẢN PHẨM'),
+                    _buildSectionTitle('SẢN PHẨM', horizontalPadding),
                     SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
                       sliver: SliverGrid(
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
+                          crossAxisCount: prodCrossAxisCount,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
-                          childAspectRatio: childAspectRatio,
+                          childAspectRatio: prodChildAspectRatio,
                         ),
                         delegate: SliverChildBuilderDelegate(
                           (context, index) => _ProductCard(
@@ -175,10 +186,10 @@ class CategoryProductsView extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionTitle(String title, double horizontalPadding) {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+        padding: EdgeInsets.fromLTRB(horizontalPadding, 24, horizontalPadding, 12),
         child: Text(
           title,
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppTheme.textGrey, letterSpacing: 1.2),
@@ -300,11 +311,11 @@ class _ProductCard extends StatelessWidget {
                 children: [
                   ClipRRect(
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                    child: Image.network(
-                      product.imageUrl,
+                    child: AppNetworkImage(
+                      imageUrl: product.imageUrl,
                       fit: BoxFit.cover,
                       width: double.infinity,
-                      errorBuilder: (_, __, ___) => Container(color: Colors.grey.shade100, child: const Icon(Icons.image, size: 40, color: Colors.grey)),
+                      errorWidget: Container(color: Colors.grey.shade100, child: const Icon(Icons.image, size: 40, color: Colors.grey)),
                     ),
                   ),
                   if (product.isPrivate)

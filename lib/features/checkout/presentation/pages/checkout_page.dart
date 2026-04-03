@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/core/theme/app_theme.dart';
@@ -13,7 +12,7 @@ import 'package:piv_app/features/checkout/presentation/bloc/checkout_cubit.dart'
 import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 import 'address_selection_page.dart';
 import 'package:piv_app/features/orders/presentation/pages/order_success_page.dart';
-
+import 'package:piv_app/common/widgets/responsive_wrapper.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 
 class CheckoutPage extends StatefulWidget {
@@ -60,78 +59,80 @@ class _CheckoutPageState extends State<CheckoutPage> {
   Widget build(BuildContext context) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
 
-    return BlocConsumer<CheckoutCubit, CheckoutState>(
-      listener: (context, state) {
-        if (state.status == CheckoutStatus.orderSuccess && state.newOrderId != null) {
-          Navigator.of(context).pushReplacement(OrderSuccessPage.route(orderId: state.newOrderId!));
-        }
-        if (state.status == CheckoutStatus.error && state.errorMessage != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.errorMessage!), backgroundColor: AppTheme.errorRed),
-          );
-        }
-        
-        // Tự động điền số tiền cần thanh toán
-        final totalStr = currencyFormatter.format(state.amountToPay).replaceAll(RegExp(r'[^0-9]'), '');
-        if (amountController.text.replaceAll('.', '') != totalStr) {
-           amountController.text = NumberFormat.decimalPattern('vi_VN').format(state.amountToPay);
-        }
-      },
-      builder: (context, state) {
-        if (state.status == CheckoutStatus.loading && state.checkoutItems.isEmpty) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
-        }
+    return ResponsiveWrapper(
+      child: BlocConsumer<CheckoutCubit, CheckoutState>(
+        listener: (context, state) {
+          if (state.status == CheckoutStatus.orderSuccess && state.newOrderId != null) {
+            Navigator.of(context).pushReplacement(OrderSuccessPage.route(orderId: state.newOrderId!));
+          }
+          if (state.status == CheckoutStatus.error && state.errorMessage != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.errorMessage!), backgroundColor: AppTheme.errorRed),
+            );
+          }
+          
+          // Tự động điền số tiền cần thanh toán
+          final totalStr = currencyFormatter.format(state.amountToPay).replaceAll(RegExp(r'[^0-9]'), '');
+          if (amountController.text.replaceAll('.', '') != totalStr) {
+             amountController.text = NumberFormat.decimalPattern('vi_VN').format(state.amountToPay);
+          }
+        },
+        builder: (context, state) {
+          if (state.status == CheckoutStatus.loading && state.checkoutItems.isEmpty) {
+            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          }
 
-        return Scaffold(
-          backgroundColor: AppTheme.backgroundLight,
-          appBar: AppBar(
-            title: Text(widget.onBehalfOfAgent != null ? 'Đặt hàng hộ' : 'Xác nhận đơn hàng'),
-            elevation: 0,
-            backgroundColor: Colors.white,
-            foregroundColor: AppTheme.textDark,
-          ),
-          body: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionTitle('Địa chỉ nhận hàng'),
-                      _buildAddressSection(context, state),
-                      const SizedBox(height: 20),
-                      
-                      _buildSectionTitle('Sản phẩm đã chọn'),
-                      _buildOrderItems(state),
-                      const SizedBox(height: 20),
-                      
-                      _buildSectionTitle('Khuyến mãi'),
-                      _buildVoucherSection(context, state),
-                      const SizedBox(height: 20),
-                      
-                      _buildSectionTitle('Phương thức thanh toán'),
-                      _buildPaymentMethodSection(context, state),
-                      const SizedBox(height: 20),
-                      
-                      _buildSectionTitle('Chi tiết thanh toán'),
-                      _buildOrderSummary(context, state, currencyFormatter),
-                      const SizedBox(height: 20),
-                      
-                      if (widget.onBehalfOfAgent == null) ...[
-                        _buildSectionTitle('Số tiền thanh toán ngay'),
-                        _buildPaymentInputSection(context, state, currencyFormatter),
-                        const SizedBox(height: 32),
+          return Scaffold(
+            backgroundColor: AppTheme.backgroundLight,
+            appBar: AppBar(
+              title: Text(widget.onBehalfOfAgent != null ? 'Đặt hàng hộ' : 'Xác nhận đơn hàng'),
+              elevation: 0,
+              backgroundColor: Colors.white,
+              foregroundColor: AppTheme.textDark,
+            ),
+            body: Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionTitle('Địa chỉ nhận hàng'),
+                        _buildAddressSection(context, state),
+                        const SizedBox(height: 20),
+                        
+                        _buildSectionTitle('Sản phẩm đã chọn'),
+                        _buildOrderItems(state),
+                        const SizedBox(height: 20),
+                        
+                        _buildSectionTitle('Khuyến mãi'),
+                        _buildVoucherSection(context, state),
+                        const SizedBox(height: 20),
+                        
+                        _buildSectionTitle('Phương thức thanh toán'),
+                        _buildPaymentMethodSection(context, state),
+                        const SizedBox(height: 20),
+                        
+                        _buildSectionTitle('Chi tiết thanh toán'),
+                        _buildOrderSummary(context, state, currencyFormatter),
+                        const SizedBox(height: 20),
+                        
+                        if (widget.onBehalfOfAgent == null) ...[
+                          _buildSectionTitle('Số tiền thanh toán ngay'),
+                          _buildPaymentInputSection(context, state, currencyFormatter),
+                          const SizedBox(height: 32),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
-              ),
-              _buildBottomBar(context, state, currencyFormatter),
-            ],
-          ),
-        );
-      },
+                _buildBottomBar(context, state, currencyFormatter),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -610,54 +611,56 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final bool canPlaceOrder = state.selectedAddress != null &&
         (state.checkoutItems.isNotEmpty || state.currentDebt != 0) &&
         state.status != CheckoutStatus.placingOrder;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -4)),
-        ],
-      ),
-      child: SafeArea(
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Tổng thanh toán', style: TextStyle(color: AppTheme.textGrey, fontSize: 13)),
-                  Text(
-                    currencyFormatter.format(state.totalWithDebt),
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            SizedBox(
-              height: 50,
-              width: 160,
-              child: ElevatedButton(
-                onPressed: canPlaceOrder 
-                    ? () {
-                        if (widget.onBehalfOfAgent != null) {
-                          context.read<CheckoutCubit>().placeOrderOnBehalfOf();
-                        } else {
-                          context.read<CheckoutCubit>().placeOrder();
-                        }
-                      } 
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryGreen,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: state.status == CheckoutStatus.placingOrder
-                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                    : const Text('ĐẶT HÀNG', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ),
+    return ResponsiveWrapper(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -4)),
           ],
+        ),
+        child: SafeArea(
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Tổng thanh toán', style: TextStyle(color: AppTheme.textGrey, fontSize: 13)),
+                    Text(
+                      currencyFormatter.format(state.totalWithDebt),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              SizedBox(
+                height: 50,
+                width: 160,
+                child: ElevatedButton(
+                  onPressed: canPlaceOrder 
+                      ? () {
+                          if (widget.onBehalfOfAgent != null) {
+                            context.read<CheckoutCubit>().placeOrderOnBehalfOf();
+                          } else {
+                            context.read<CheckoutCubit>().placeOrder();
+                          }
+                        } 
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryGreen,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: state.status == CheckoutStatus.placingOrder
+                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                      : const Text('ĐẶT HÀNG', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

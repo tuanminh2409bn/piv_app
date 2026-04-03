@@ -8,12 +8,13 @@ import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/core/theme/app_theme.dart';
 import 'package:piv_app/core/theme/nature_background_painter.dart';
-import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
 import 'package:piv_app/data/models/cart_item_model.dart';
 import 'package:piv_app/features/checkout/presentation/pages/checkout_page.dart';
-import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
+import 'package:piv_app/common/widgets/responsive_wrapper.dart';
+import 'package:piv_app/features/home/data/models/product_model.dart';
+import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import '../bloc/cart_suggestions_cubit.dart';
 
 class CartPage extends StatelessWidget {
@@ -39,76 +40,97 @@ class CartView extends StatelessWidget {
   Widget build(BuildContext context) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
 
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundLight,
-      body: Stack(
-        children: [
-          // Background pattern
-          Positioned.fill(
-            child: CustomPaint(
-              painter: NatureBackgroundPainter(
-                color1: AppTheme.primaryGreen.withValues(alpha: 0.05),
-                color2: AppTheme.secondaryGreen.withValues(alpha: 0.03),
-                accent: AppTheme.accentGold.withValues(alpha: 0.1),
+    return ResponsiveWrapper(
+      child: Scaffold(
+        backgroundColor: AppTheme.backgroundLight,
+        body: Stack(
+          children: [
+            // Background pattern
+            Positioned.fill(
+              child: CustomPaint(
+                painter: NatureBackgroundPainter(
+                  color1: AppTheme.primaryGreen.withValues(alpha: 0.05),
+                  color2: AppTheme.secondaryGreen.withValues(alpha: 0.03),
+                  accent: AppTheme.accentGold.withValues(alpha: 0.1),
+                ),
               ),
             ),
-          ),
 
-          BlocListener<CartCubit, CartState>(
-            listener: (context, state) {
-              if (state.status == CartStatus.itemRemovedSuccess) {
-                ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(const SnackBar(content: Text('Đã xoá sản phẩm khỏi giỏ hàng.'), backgroundColor: AppTheme.errorRed));
-              } else if (state.status == CartStatus.itemAddedSuccess) {
-                ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(const SnackBar(content: Text('Đã cập nhật giỏ hàng!'), backgroundColor: AppTheme.secondaryGreen));
-              } else if (state.status == CartStatus.error && state.errorMessage != null) {
-                ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content: Text(state.errorMessage!), backgroundColor: AppTheme.errorRed));
-              }
-            },
-            child: BlocBuilder<CartCubit, CartState>(
-              builder: (context, state) {
-                if (state.status == CartStatus.loading && state.items.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
+            BlocListener<CartCubit, CartState>(
+              listener: (context, state) {
+                if (state.status == CartStatus.itemRemovedSuccess) {
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(const SnackBar(
+                        content: Text('Đã xoá sản phẩm khỏi giỏ hàng.'),
+                        backgroundColor: AppTheme.errorRed));
+                } else if (state.status == CartStatus.itemAddedSuccess) {
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(const SnackBar(
+                        content: Text('Đã cập nhật giỏ hàng!'),
+                        backgroundColor: AppTheme.secondaryGreen));
+                } else if (state.status == CartStatus.error &&
+                    state.errorMessage != null) {
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(SnackBar(
+                        content: Text(state.errorMessage!),
+                        backgroundColor: AppTheme.errorRed));
                 }
-
-                if (state.items.isEmpty) {
-                  return _buildEmptyCart(context);
-                }
-
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if(state.items.isNotEmpty) {
-                    final lastItem = state.items.last;
-                    context.read<CartSuggestionsCubit>().fetchSuggestions(lastItem.categoryId, currentProductId: lastItem.productId);
+              },
+              child: BlocBuilder<CartCubit, CartState>(
+                builder: (context, state) {
+                  if (state.status == CartStatus.loading && state.items.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
                   }
-                });
 
-                return Stack(
-                  children: [
-                    CustomScrollView(
-                      slivers: [
-                        _buildSliverAppBar(context, state.uniqueItemCount),
-                        SliverPadding(
-                          padding: const EdgeInsets.symmetric(vertical: 16.0),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final item = state.items[index];
-                                return _buildCartItemCard(context, item, currencyFormatter, index);
-                              },
-                              childCount: state.items.length,
+                  if (state.items.isEmpty) {
+                    return _buildEmptyCart(context);
+                  }
+
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (state.items.isNotEmpty) {
+                      final lastItem = state.items.last;
+                      context.read<CartSuggestionsCubit>().fetchSuggestions(
+                          lastItem.categoryId,
+                          currentProductId: lastItem.productId);
+                    }
+                  });
+
+                  return Stack(
+                    children: [
+                      CustomScrollView(
+                        slivers: [
+                          _buildSliverAppBar(context, state.uniqueItemCount),
+                          SliverPadding(
+                            padding: const EdgeInsets.symmetric(vertical: 16.0),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  final item = state.items[index];
+                                  return _buildCartItemCard(
+                                      context, item, currencyFormatter, index);
+                                },
+                                childCount: state.items.length,
+                              ),
                             ),
                           ),
-                        ),
-                        SliverToBoxAdapter(child: _buildSuggestionsSection()),
-                        SliverPadding(padding: EdgeInsets.only(bottom: 120 + MediaQuery.of(context).padding.bottom)), // Space for bottom bar
-                      ],
-                    ),
-                    _buildSummarySection(context, state, currencyFormatter),
-                  ],
-                );
-              },
+                          SliverToBoxAdapter(child: _buildSuggestionsSection()),
+                          SliverPadding(
+                              padding: EdgeInsets.only(
+                                  bottom: 120 +
+                                      MediaQuery.of(context).padding.bottom)), // Space for bottom bar
+                        ],
+                      ),
+                      _buildSummarySection(context, state, currencyFormatter),
+                    ],
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -121,10 +143,17 @@ class CartView extends StatelessWidget {
       leading: const BackButton(color: Colors.white),
       flexibleSpace: FlexibleSpaceBar(
         centerTitle: true,
-        title: Text('Giỏ hàng ($itemCount)', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text('Giỏ hàng ($itemCount)',
+            style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 18)),
         background: Container(
           decoration: const BoxDecoration(
-            gradient: LinearGradient(colors: [AppTheme.primaryGreen, AppTheme.secondaryGreen], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            gradient: LinearGradient(
+                colors: [AppTheme.primaryGreen, AppTheme.secondaryGreen],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight),
           ),
         ),
       ),
@@ -143,13 +172,20 @@ class CartView extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(30),
-                decoration: BoxDecoration(color: AppTheme.backgroundLight, shape: BoxShape.circle),
-                child: Icon(Icons.shopping_cart_outlined, size: 80, color: AppTheme.primaryGreen.withValues(alpha: 0.5)),
+                decoration: BoxDecoration(
+                    color: AppTheme.backgroundLight, shape: BoxShape.circle),
+                child: Icon(Icons.shopping_cart_outlined,
+                    size: 80, color: AppTheme.primaryGreen.withValues(alpha: 0.5)),
               ),
               const SizedBox(height: 24),
-              Text('Giỏ hàng trống trơn', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+              Text('Giỏ hàng trống trơn',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold, color: AppTheme.textDark)),
               const SizedBox(height: 8),
-              const Text('Có vẻ như bạn chưa chọn sản phẩm nào.\nHãy dạo một vòng và thêm món đồ ưng ý nhé!', textAlign: TextAlign.center, style: TextStyle(color: AppTheme.textGrey)),
+              const Text(
+                  'Có vẻ như bạn chưa chọn sản phẩm nào.\nHãy dạo một vòng và thêm món đồ ưng ý nhé!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppTheme.textGrey)),
               const SizedBox(height: 32),
               ElevatedButton.icon(
                 onPressed: () {
@@ -157,7 +193,9 @@ class CartView extends StatelessWidget {
                 },
                 icon: const Icon(Icons.storefront),
                 label: const Text('TIẾP TỤC MUA SẮM'),
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16)),
+                style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 32, vertical: 16)),
               )
             ],
           ),
@@ -166,7 +204,8 @@ class CartView extends StatelessWidget {
     );
   }
 
-  Widget _buildCartItemCard(BuildContext context, CartItemModel item, NumberFormat formatter, int index) {
+  Widget _buildCartItemCard(BuildContext context, CartItemModel item,
+      NumberFormat formatter, int index) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Dismissible(
@@ -184,41 +223,62 @@ class CartView extends StatelessWidget {
             builder: (BuildContext context) {
               return AlertDialog(
                 title: const Text("Xác nhận xoá"),
-                content: const Text("Bạn có chắc chắn muốn xoá sản phẩm này khỏi giỏ hàng?"),
+                content: const Text(
+                    "Bạn có chắc chắn muốn xoá sản phẩm này khỏi giỏ hàng?"),
                 actions: <Widget>[
-                  TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text("HỦY")),
-                  TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text("XOÁ", style: TextStyle(color: Colors.red))),
+                  TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text("HỦY")),
+                  TextButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text("XOÁ", style: TextStyle(color: Colors.red))),
                 ],
               );
             },
           );
         },
         onDismissed: (direction) {
-          context.read<CartCubit>().removeProduct(item.productId, item.caseUnitName);
+          context
+              .read<CartCubit>()
+              .removeProduct(item.productId, item.caseUnitName);
         },
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4))
+            ],
           ),
           child: Row(
             children: [
               // Product Image
               InkWell(
-                onTap: () => Navigator.of(context).push(ProductDetailPage.route(item.productId)),
+                onTap: () => Navigator.of(context)
+                    .push(ProductDetailPage.route(item.productId)),
                 child: Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: Image.network(
-                      item.imageUrl, width: 90, height: 90, fit: BoxFit.cover,
-                      errorBuilder: (c,e,s) => Container(width:90, height:90, color: Colors.grey.shade100, child: const Icon(Icons.image_not_supported, color: Colors.grey)),
+                      item.imageUrl,
+                      width: 90,
+                      height: 90,
+                      fit: BoxFit.cover,
+                      errorBuilder: (c, e, s) => Container(
+                          width: 90,
+                          height: 90,
+                          color: Colors.grey.shade100,
+                          child: const Icon(Icons.image_not_supported,
+                              color: Colors.grey)),
                     ),
                   ),
                 ),
               ),
-              
+
               // Product Details
               Expanded(
                 child: Padding(
@@ -232,13 +292,19 @@ class CartView extends StatelessWidget {
                           Expanded(
                             child: Text(
                               item.productName,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                              maxLines: 2, overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 15),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           InkWell(
-                            onTap: () => context.read<CartCubit>().removeProduct(item.productId, item.caseUnitName),
-                            child: const Icon(Icons.close, size: 20, color: AppTheme.textGrey),
+                            onTap: () => context
+                                .read<CartCubit>()
+                                .removeProduct(
+                                    item.productId, item.caseUnitName),
+                            child: const Icon(Icons.close,
+                                size: 20, color: AppTheme.textGrey),
                           )
                         ],
                       ),
@@ -247,22 +313,26 @@ class CartView extends StatelessWidget {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: item.quantityPerPackage > 1 
-                                  ? AppTheme.primaryGreen.withValues(alpha: 0.1) 
+                              color: item.quantityPerPackage > 1
+                                  ? AppTheme.primaryGreen.withValues(alpha: 0.1)
                                   : Colors.grey.shade100,
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(
-                                color: item.quantityPerPackage > 1 
-                                    ? AppTheme.primaryGreen.withValues(alpha: 0.3) 
+                                color: item.quantityPerPackage > 1
+                                    ? AppTheme.primaryGreen
+                                        .withValues(alpha: 0.3)
                                     : Colors.grey.shade300,
                               ),
                             ),
                             child: Text(
                               item.quantityPerPackage > 1 ? 'MUA THÙNG' : 'MUA LẺ',
                               style: TextStyle(
-                                color: item.quantityPerPackage > 1 ? AppTheme.primaryGreen : AppTheme.textGrey,
+                                color: item.quantityPerPackage > 1
+                                    ? AppTheme.primaryGreen
+                                    : AppTheme.textGrey,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -271,10 +341,11 @@ class CartView extends StatelessWidget {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              item.quantityPerPackage > 1 
+                              item.quantityPerPackage > 1
                                   ? '${item.caseUnitName} (${item.quantityPerPackage} ${item.itemUnitName})'
                                   : 'Đơn vị: ${item.itemUnitName}',
-                              style: const TextStyle(color: AppTheme.textGrey, fontSize: 12),
+                              style: const TextStyle(
+                                  color: AppTheme.textGrey, fontSize: 12),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -287,7 +358,10 @@ class CartView extends StatelessWidget {
                         children: [
                           Text(
                             formatter.format(item.subtotal),
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryGreen, fontSize: 16),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryGreen,
+                                fontSize: 16),
                           ),
                           _buildQuantityAdjuster(context, item),
                         ],
@@ -319,23 +393,31 @@ class CartView extends StatelessWidget {
           _buildAdjustButton(
             icon: Icons.remove,
             onPressed: (item.quantity > 1 && !isUpdatingThisItem)
-                ? () => context.read<CartCubit>().updateQuantity(item.productId, item.caseUnitName, item.quantity - 1)
+                ? () => context.read<CartCubit>().updateQuantity(
+                    item.productId, item.caseUnitName, item.quantity - 1)
                 : null,
           ),
           GestureDetector(
-            onTap: isUpdatingThisItem ? null : () => _showQuantityInputDialog(context, item),
+            onTap: isUpdatingThisItem
+                ? null
+                : () => _showQuantityInputDialog(context, item),
             child: Container(
               width: 40,
               alignment: Alignment.center,
               child: isUpdatingThisItem
-                  ? const SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text('${item.quantity}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ? const SizedBox(
+                      height: 14,
+                      width: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text('${item.quantity}',
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
           ),
           _buildAdjustButton(
             icon: Icons.add,
             onPressed: !isUpdatingThisItem
-                ? () => context.read<CartCubit>().updateQuantity(item.productId, item.caseUnitName, item.quantity + 1)
+                ? () => context.read<CartCubit>().updateQuantity(
+                    item.productId, item.caseUnitName, item.quantity + 1)
                 : null,
             isAdd: true,
           ),
@@ -344,21 +426,25 @@ class CartView extends StatelessWidget {
     );
   }
 
-  Widget _buildAdjustButton({required IconData icon, VoidCallback? onPressed, bool isAdd = false}) {
+  Widget _buildAdjustButton(
+      {required IconData icon, VoidCallback? onPressed, bool isAdd = false}) {
     return SizedBox(
       width: 32,
       height: 32,
       child: IconButton(
         padding: EdgeInsets.zero,
         icon: Icon(icon, size: 16),
-        color: onPressed == null ? Colors.grey : (isAdd ? AppTheme.primaryGreen : Colors.black87),
+        color: onPressed == null
+            ? Colors.grey
+            : (isAdd ? AppTheme.primaryGreen : Colors.black87),
         onPressed: onPressed,
       ),
     );
   }
 
   void _showQuantityInputDialog(BuildContext context, CartItemModel item) {
-    final TextEditingController controller = TextEditingController(text: item.quantity.toString());
+    final TextEditingController controller =
+        TextEditingController(text: item.quantity.toString());
     final formKey = GlobalKey<FormState>();
     showDialog(
       context: context,
@@ -373,16 +459,24 @@ class CartView extends StatelessWidget {
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             textAlign: TextAlign.center,
-            decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12)),
-            validator: (value) => (value == null || int.tryParse(value) == null || int.parse(value) <= 0) ? 'Nhập số hợp lệ' : null,
+            decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 16, vertical: 12)),
+            validator: (value) =>
+                (value == null || int.tryParse(value) == null || int.parse(value) <= 0)
+                    ? 'Nhập số hợp lệ'
+                    : null,
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('HỦY')),
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('HỦY')),
           ElevatedButton(
             onPressed: () {
               if (formKey.currentState!.validate()) {
-                context.read<CartCubit>().updateQuantity(item.productId, item.caseUnitName, int.parse(controller.text));
+                context.read<CartCubit>().updateQuantity(
+                    item.productId, item.caseUnitName, int.parse(controller.text));
                 Navigator.pop(context);
               }
             },
@@ -398,15 +492,22 @@ class CartView extends StatelessWidget {
       builder: (context, state) {
         if (state.suggestedProducts.isEmpty) return const SizedBox.shrink();
 
-        final userRole = (context.read<AuthBloc>().state as AuthAuthenticated).user.role;
-        final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+        final userRole =
+            (context.read<AuthBloc>().state as AuthAuthenticated).user.role;
+        final currencyFormatter =
+            NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-              child: Text('CÓ THỂ BẠN THÍCH', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.textGrey, letterSpacing: 1.2)),
+              child: Text('CÓ THỂ BẠN THÍCH',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textGrey,
+                      letterSpacing: 1.2)),
             ),
             SizedBox(
               height: 240,
@@ -415,7 +516,8 @@ class CartView extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 itemCount: state.suggestedProducts.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, index) => _buildSuggestionCard(context, state.suggestedProducts[index], userRole, currencyFormatter),
+                itemBuilder: (context, index) => _buildSuggestionCard(context,
+                    state.suggestedProducts[index], userRole, currencyFormatter),
               ),
             ),
             const SizedBox(height: 24),
@@ -425,7 +527,8 @@ class CartView extends StatelessWidget {
     );
   }
 
-  Widget _buildSuggestionCard(BuildContext context, ProductModel product, String userRole, NumberFormat formatter) {
+  Widget _buildSuggestionCard(BuildContext context, ProductModel product,
+      String userRole, NumberFormat formatter) {
     return SizedBox(
       width: 150,
       child: Card(
@@ -434,25 +537,40 @@ class CartView extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         color: Colors.white,
         child: InkWell(
-          onTap: () => Navigator.of(context).push(ProductDetailPage.route(product.id)),
+          onTap: () => Navigator.of(context)
+              .push(ProductDetailPage.route(product.id)),
           borderRadius: BorderRadius.circular(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                  child: Image.network(product.imageUrl, width: double.infinity, fit: BoxFit.cover, errorBuilder: (c,e,s) => Container(color: Colors.grey.shade100, child: const Icon(Icons.image, color: Colors.grey)))
-                ),
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(12)),
+                    child: Image.network(product.imageUrl,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (c, e, s) => Container(
+                            color: Colors.grey.shade100,
+                            child: const Icon(Icons.image, color: Colors.grey)))),
               ),
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(product.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    Text(product.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 12)),
                     const SizedBox(height: 4),
-                    Text('${formatter.format(product.getPriceForRole(userRole))} / ${product.displayUnit}', style: const TextStyle(color: AppTheme.primaryGreen, fontSize: 12, fontWeight: FontWeight.w600)),
+                    Text(
+                        '${formatter.format(product.getPriceForRole(userRole))} / ${product.displayUnit}',
+                        style: const TextStyle(
+                            color: AppTheme.primaryGreen,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
@@ -463,45 +581,62 @@ class CartView extends StatelessWidget {
     );
   }
 
-  Widget _buildSummarySection(BuildContext context, CartState state, NumberFormat formatter) {
+  Widget _buildSummarySection(
+      BuildContext context, CartState state, NumberFormat formatter) {
     return Align(
       alignment: Alignment.bottomCenter,
-      child: Container(
-        // Bỏ padding cứng ở đây, chuyển vào trong SafeArea
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, -5))],
-        ),
-        child: SafeArea(
-          top: false, // Chỉ quan tâm đáy
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16), // Padding chuẩn
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Tạm tính (${state.uniqueItemCount} món)', style: const TextStyle(color: AppTheme.textGrey)),
-                    Text(formatter.format(state.totalPrice), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: state.items.isEmpty ? null : () => Navigator.of(context).push(CheckoutPage.route()),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      elevation: 8,
-                      shadowColor: AppTheme.primaryGreen.withValues(alpha: 0.4),
-                    ),
-                    child: const Text('TIẾN HÀNH THANH TOÁN', style: TextStyle(fontWeight: FontWeight.bold)),
+      child: ResponsiveWrapper(
+        child: Container(
+          // Bỏ padding cứng ở đây, chuyển vào trong SafeArea
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, -5))
+            ],
+          ),
+          child: SafeArea(
+            top: false, // Chỉ quan tâm đáy
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16), // Padding chuẩn
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Tạm tính (${state.uniqueItemCount} món)',
+                          style: const TextStyle(color: AppTheme.textGrey)),
+                      Text(formatter.format(state.totalPrice),
+                          style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textDark)),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: state.items.isEmpty
+                          ? null
+                          : () => Navigator.of(context).push(CheckoutPage.route()),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
+                        elevation: 8,
+                        shadowColor: AppTheme.primaryGreen.withValues(alpha: 0.4),
+                      ),
+                      child: const Text('TIẾN HÀNH THANH TOÁN',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

@@ -1,10 +1,10 @@
 // lib/features/returns/data/repositories/return_repository_impl.dart
 
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:piv_app/core/error/failure.dart';
 import 'package:piv_app/data/models/order_model.dart';
 import 'package:piv_app/features/returns/domain/entities/return_request_item.dart';
@@ -29,7 +29,7 @@ class ReturnRepositoryImpl implements ReturnRepository {
   Future<Either<Failure, void>> createReturnRequest({
     required OrderModel order,
     required List<ReturnRequestItem> items,
-    required List<File> images,
+    required List<XFile> images,
     required String userNotes,
     required double penaltyFee,
     required double refundAmount,
@@ -37,7 +37,6 @@ class ReturnRepositoryImpl implements ReturnRepository {
     try {
       final user = _auth.currentUser;
       if (user == null) {
-        // --- THAY ĐỔI: Sử dụng ServerFailure thay vì Failure ---
         return Left(ServerFailure('Bạn cần đăng nhập để thực hiện chức năng này.'));
       }
 
@@ -67,17 +66,20 @@ class ReturnRepositoryImpl implements ReturnRepository {
 
       return const Right(null);
     } catch (e) {
-      // --- THAY ĐỔI: Sử dụng ServerFailure thay vì Failure ---
       return Left(ServerFailure('Tạo yêu cầu thất bại: ${e.toString()}'));
     }
   }
 
-  Future<List<String>> _uploadImages(String orderId, List<File> images) async {
+  Future<List<String>> _uploadImages(String orderId, List<XFile> images) async {
     final List<String> downloadUrls = [];
     for (final image in images) {
       final fileName = const Uuid().v4();
       final ref = _storage.ref('return_requests/$orderId/$fileName.jpg');
-      final uploadTask = ref.putFile(image);
+      
+      final bytes = await image.readAsBytes();
+      final metadata = SettableMetadata(contentType: 'image/jpeg');
+      
+      final uploadTask = ref.putData(bytes, metadata);
       final snapshot = await uploadTask.whenComplete(() => null);
       final downloadUrl = await snapshot.ref.getDownloadURL();
       downloadUrls.add(downloadUrl);
@@ -101,7 +103,7 @@ class ReturnRepositoryImpl implements ReturnRepository {
     required String requestId,
     required String newStatus,
     String? adminNotes,
-    String? rejectionReason, // <<< THÊM MỚI
+    String? rejectionReason,
   }) async {
     try {
       final dataToUpdate = {
@@ -111,11 +113,9 @@ class ReturnRepositoryImpl implements ReturnRepository {
       if (adminNotes != null) {
         dataToUpdate['adminNotes'] = adminNotes;
       }
-      // --- THAY ĐỔI Ở ĐÂY ---
       if (rejectionReason != null) {
         dataToUpdate['rejectionReason'] = rejectionReason;
       }
-      // --- KẾT THÚC THAY ĐỔI ---
 
       await _firestore.collection('returnRequests').doc(requestId).update(dataToUpdate);
       return const Right(null);

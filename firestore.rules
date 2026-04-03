@@ -110,8 +110,13 @@ service cloud.firestore {
              request.resource.data.referralPromptPending == false &&
              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['salesRepId', 'referrerId', 'status', 'referralPromptPending', 'updatedAt'])
            ) ||
+           (isAccountant() &&
+             request.auth.uid != userId &&
+             resource.data.role != 'admin' &&
+             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['useGeneralPrice'])
+           ) ||
            (
-             isSalesRep() &&
+             (isSalesRep() || isAccountant()) &&
              resource.data.salesRepId == request.auth.uid &&
              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['useGeneralPrice'])
            );
@@ -126,9 +131,14 @@ service cloud.firestore {
       }
     }
     
+    function isStaffOrManagingSalesRep(agentId) {
+      let agentData = getUserData(agentId);
+      return isStaff() && (agentData.status == 'pending_approval' || agentData.salesRepId == request.auth.uid || isAdmin() || isAccountant());
+    }
+    
   match /price_requests/{requestId} {
       allow read: if isStaff();
-      allow create: if isStaff();
+      allow create: if isStaffOrManagingSalesRep(request.resource.data.agentId);
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }

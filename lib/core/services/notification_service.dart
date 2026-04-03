@@ -3,12 +3,11 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:math';
-import 'dart:io'; 
+import 'package:piv_app/core/utils/platform_utils.dart'; // Add this import
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -79,7 +78,7 @@ class NotificationService {
   }
 
   Future<void> _createAndroidChannel() async {
-    if (!kIsWeb && Platform.isAndroid) {
+    if (!PlatformUtils.isWeb && PlatformUtils.isAndroid) {
       await _localNotifications
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(_androidChannel);
@@ -88,6 +87,8 @@ class NotificationService {
   }
 
   Future<void> _initLocalNotifications() async {
+    if (PlatformUtils.isWeb) return; // Add this guard
+
     const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@drawable/ic_notification');
     
     // Bỏ const để tránh lỗi trên một số phiên bản Dart cũ hơn hoặc cấu hình strict
@@ -120,7 +121,7 @@ class NotificationService {
 
       // Chỉ hiển thị Local Notification trên Android
       // iOS tự động hiển thị khi app ở foreground nếu đã cấu hình presentation options (đã làm ở trên)
-      if (notification != null && !kIsWeb && Platform.isAndroid) {
+      if (notification != null && !PlatformUtils.isWeb && PlatformUtils.isAndroid) {
         _showLocalNotification(
           notification.title ?? 'Thông báo',
           notification.body ?? '',

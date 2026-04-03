@@ -16,7 +16,7 @@ class ProductFormState extends Equatable {
   final List<CategoryModel> allCategories;
   final List<List<CategoryModel>> categoryLevels;
   final List<CategoryModel?> selectedCategoryPath;
-  final File? selectedImageFile;
+  final XFile? selectedImageFile;
   final String? errorMessage;
   final String version;
   final List<UserModel> agents;
@@ -67,7 +67,7 @@ class ProductFormState extends Equatable {
     List<CategoryModel>? allCategories,
     List<List<CategoryModel>>? categoryLevels,
     List<CategoryModel?>? selectedCategoryPath,
-    File? selectedImageFile,
+    XFile? selectedImageFile,
     String? errorMessage,
     List<UserModel>? agents,
     UserModel? selectedOwnerAgent,

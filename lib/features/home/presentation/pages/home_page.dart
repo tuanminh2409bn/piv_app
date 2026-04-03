@@ -1,34 +1,34 @@
 //lib/features/home/presentation/pages/home_page.dart
 
+import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:carousel_slider/carousel_slider.dart';
 import 'package:intl/intl.dart';
+import 'package:piv_app/common/widgets/app_network_image.dart';
+import 'package:piv_app/common/widgets/responsive_wrapper.dart';
 import 'package:piv_app/core/theme/app_theme.dart';
 import 'package:piv_app/core/theme/nature_background_painter.dart';
+import 'package:piv_app/core/utils/responsive.dart';
+import 'package:piv_app/data/models/cart_item_model.dart';
+import 'package:piv_app/data/models/news_article_model.dart';
+import 'package:piv_app/data/models/packaging_option_model.dart';
+import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
+import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
 import 'package:piv_app/features/cart/presentation/pages/cart_page.dart';
 import 'package:piv_app/features/cart/presentation/widgets/cart_icon_with_badge.dart';
+import 'package:piv_app/features/home/data/models/banner_model.dart';
+import 'package:piv_app/features/home/data/models/category_model.dart';
+import 'package:piv_app/features/home/data/models/product_model.dart';
+import 'package:piv_app/features/home/presentation/bloc/home_cubit.dart';
+import 'package:piv_app/features/news/presentation/pages/news_detail_page.dart';
 import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
+import 'package:piv_app/features/products/presentation/pages/category_products_page.dart';
+import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
+import 'package:piv_app/features/products/presentation/pages/search_page.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:url_launcher/url_launcher.dart';
-
-import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:piv_app/features/home/presentation/bloc/home_cubit.dart';
-import 'package:piv_app/features/home/data/models/category_model.dart';
-import 'package:piv_app/features/home/data/models/banner_model.dart';
-import 'package:piv_app/features/home/data/models/product_model.dart';
-import 'package:piv_app/data/models/news_article_model.dart';
-import 'package:piv_app/features/news/presentation/pages/news_detail_page.dart';
-import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
-import 'package:piv_app/features/products/presentation/pages/category_products_page.dart';
-import 'package:piv_app/features/products/presentation/pages/search_page.dart';
-import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
-
-import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
-import 'package:piv_app/features/checkout/presentation/pages/checkout_page.dart';
-import 'package:piv_app/data/models/cart_item_model.dart';
-import 'package:piv_app/data/models/packaging_option_model.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -60,47 +60,56 @@ class HomeView extends StatelessWidget {
           ),
 
           // 2. NỘI DUNG CHÍNH
-          BlocBuilder<HomeCubit, HomeState>(
-            builder: (context, state) {
-              if (state.status == HomeStatus.loading || state.status == HomeStatus.initial) {
-                return const _ShimmerLoadingView();
-              }
-              if (state.status == HomeStatus.error) {
-                return _ErrorView(errorMessage: state.errorMessage);
-              }
+          Positioned.fill(
+            child: ResponsiveWrapper(
+              backgroundColor: Colors.transparent, // Không đè nền họa tiết
+              showShadow: false, // Bỏ bóng để nội dung hòa vào nền
+              maxWidth: 1200, // Chiều rộng tối đa cân đối
+              child: BlocBuilder<HomeCubit, HomeState>(
+                builder: (context, state) {
+                  if (state.status == HomeStatus.loading ||
+                      state.status == HomeStatus.initial) {
+                    return const _ShimmerLoadingView();
+                  }
+                  if (state.status == HomeStatus.error) {
+                    return _ErrorView(errorMessage: state.errorMessage);
+                  }
 
-              return RefreshIndicator.adaptive(
-                onRefresh: () async => context.read<HomeCubit>().refreshHomeData(),
-                child: CustomScrollView(
-                  slivers: [
-                    _HomeAppBar(),
-                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
-                    
-                    // Header chào mừng
-                    _WelcomeHeader(),
-                    
-                    // Banner
-                    _BannerCarousel(banners: state.banners),
-                    
-                    // Danh mục
-                    _SectionHeader(title: 'DANH MỤC NỔI BẬT'),
-                    _CategoriesRow(categories: state.categories), 
-                    
-                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                  return RefreshIndicator.adaptive(
+                    onRefresh: () async =>
+                        context.read<HomeCubit>().refreshHomeData(),
+                    child: CustomScrollView(
+                      slivers: [
+                        _HomeAppBar(),
+                        const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-                    // Sản phẩm
-                    _SectionHeader(title: 'SẢN PHẨM NỔI BẬT'),
-                    _FeaturedProductsGrid(products: state.featuredProducts),
-                    
-                    // Tin tức
-                    _SectionHeader(title: 'TIN TỨC & SỰ KIỆN'),
-                    _NewsList(newsArticles: state.newsArticles),
-                    
-                    const SliverToBoxAdapter(child: SizedBox(height: 120)),
-                  ],
-                ), 
-              );
-            },
+                        // Header chào mừng
+                        _WelcomeHeader(),
+
+                        // Banner
+                        _BannerCarousel(banners: state.banners),
+
+                        // Danh mục
+                        _SectionHeader(title: 'DANH MỤC NỔI BẬT'),
+                        _CategoriesRow(categories: state.categories),
+
+                        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+                        // Sản phẩm
+                        _SectionHeader(title: 'SẢN PHẨM NỔI BẬT'),
+                        _FeaturedProductsGrid(products: state.featuredProducts),
+
+                        // Tin tức
+                        _SectionHeader(title: 'TIN TỨC & SỰ KIỆN'),
+                        _NewsList(newsArticles: state.newsArticles),
+
+                        const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
         ],
       ),
@@ -122,9 +131,10 @@ class _HomeAppBar extends StatelessWidget {
       shadowColor: Colors.black.withValues(alpha: 0.1),
       surfaceTintColor: Colors.white,
       backgroundColor: Colors.white.withValues(alpha: 0.95),
+      centerTitle: false,
       title: GestureDetector(
         onTap: () => Navigator.of(context).push(SearchPage.route()),
-        child: Hero( 
+        child: Hero(
           tag: 'search_bar',
           child: Material(
             color: Colors.transparent,
@@ -147,7 +157,8 @@ class _HomeAppBar extends StatelessWidget {
                   const SizedBox(width: 12),
                   Icon(Icons.search, color: AppTheme.textGrey, size: 20),
                   const SizedBox(width: 8),
-                  Text('Tìm kiếm sản phẩm...', style: TextStyle(color: AppTheme.textGrey, fontSize: 14)),
+                  Text('Tìm kiếm sản phẩm...',
+                      style: TextStyle(color: AppTheme.textGrey, fontSize: 14)),
                 ],
               ),
             ),
@@ -157,7 +168,7 @@ class _HomeAppBar extends StatelessWidget {
       actions: [
         const NotificationIconWithBadge()
             .animate(onPlay: (controller) => controller.repeat(reverse: true))
-            .shake(delay: 2000.ms, duration: 1000.ms, hz: 2, rotation: 0.1), 
+            .shake(delay: 2000.ms, duration: 1000.ms, hz: 2, rotation: 0.1),
         CartIconWithBadge(
           onPressed: () => Navigator.of(context).push(CartPage.route()),
         ),
@@ -174,9 +185,10 @@ class _WelcomeHeader extends StatelessWidget {
     String userIdentifier = 'Khách';
 
     if (authState is AuthAuthenticated) {
-      userIdentifier = authState.user.displayName ?? authState.user.email ?? 'Đại lý';
+      userIdentifier =
+          authState.user.displayName ?? authState.user.email ?? 'Đại lý';
     }
-    
+
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -185,7 +197,10 @@ class _WelcomeHeader extends StatelessWidget {
           children: [
             Text(
               'Chào mừng trở lại,',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppTheme.textGrey),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(color: AppTheme.textGrey),
             ),
             ShaderMask(
               shaderCallback: (bounds) => const LinearGradient(
@@ -194,13 +209,17 @@ class _WelcomeHeader extends StatelessWidget {
               child: Text(
                 userIdentifier,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: Colors.white, 
-                  fontWeight: FontWeight.bold,
-                ),
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
             ),
           ],
-        ).animate().slideX(begin: -0.2, end: 0, duration: 500.ms, curve: Curves.easeOut), // Animate nội dung bên trong
+        ).animate().slideX(
+            begin: -0.2,
+            end: 0,
+            duration: 500.ms,
+            curve: Curves.easeOut), // Animate nội dung bên trong
       ),
     );
   }
@@ -222,22 +241,23 @@ class _BannerCarousel extends StatelessWidget {
           itemBuilder: (context, index, realIndex) {
             final banner = banners[index];
             return GestureDetector(
-              onTap: () { /* Handle banner tap */ },
+              onTap: () {/* Handle banner tap */},
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 8.0),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(color: AppTheme.primaryGreen.withValues(alpha: 0.3), blurRadius: 15, offset: const Offset(0, 8))
-                  ]
-                ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                          color: AppTheme.primaryGreen.withValues(alpha: 0.3),
+                          blurRadius: 15,
+                          offset: const Offset(0, 8))
+                    ]),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
-                  child: Image.network(
-                    banner.imageUrl,
+                  child: AppNetworkImage(
+                    imageUrl: banner.imageUrl,
                     fit: BoxFit.cover,
                     width: double.infinity,
-                    errorBuilder: (context, error, stackTrace) => const Center(child: Icon(Icons.broken_image_outlined)),
                   ),
                 ),
               ),
@@ -248,12 +268,14 @@ class _BannerCarousel extends StatelessWidget {
             autoPlay: true,
             autoPlayInterval: const Duration(seconds: 5),
             enlargeCenterPage: true,
-            viewportFraction: 0.9,
+            viewportFraction: Responsive.value(context, mobile: 0.9, desktop: 0.6),
             enlargeStrategy: CenterPageEnlargeStrategy.zoom,
             autoPlayAnimationDuration: const Duration(milliseconds: 800),
             autoPlayCurve: Curves.fastOutSlowIn,
           ),
-        ).animate().fadeIn(delay: 200.ms).scale(begin: const Offset(0.95, 0.95), curve: Curves.easeOutBack), // Animate nội dung
+        ).animate().fadeIn(delay: 200.ms).scale(
+            begin: const Offset(0.95, 0.95),
+            curve: Curves.easeOutBack), // Animate nội dung
       ),
     );
   }
@@ -275,15 +297,15 @@ class _SectionHeader extends StatelessWidget {
             Container(
               padding: const EdgeInsets.only(left: 8),
               decoration: const BoxDecoration(
-                border: Border(left: BorderSide(color: AppTheme.accentGold, width: 4))
-              ),
+                  border: Border(
+                      left: BorderSide(color: AppTheme.accentGold, width: 4))),
               child: Text(
                 title,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textDark,
-                  letterSpacing: 1.1,
-                ),
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textDark,
+                      letterSpacing: 1.1,
+                    ),
               ),
             ),
             if (onSeeAll != null)
@@ -292,7 +314,10 @@ class _SectionHeader extends StatelessWidget {
                 child: const Text('Xem tất cả'),
               )
           ],
-        ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2, end: 0), // Animate nội dung
+        )
+            .animate()
+            .fadeIn(delay: 300.ms)
+            .slideY(begin: 0.2, end: 0), // Animate nội dung
       ),
     );
   }
@@ -306,7 +331,10 @@ class _CategoriesRow extends StatelessWidget {
   Widget build(BuildContext context) {
     if (categories.isEmpty) return _buildPlaceholder('Chưa có danh mục nào');
 
-    final itemsToShow = categories.length > 3 ? categories.sublist(0, 3) : categories;
+    // Hiển thị nhiều hơn trên Desktop
+    final int limit = Responsive.value(context, mobile: 3, desktop: 6);
+    final itemsToShow =
+        categories.length > limit ? categories.sublist(0, limit) : categories;
 
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -319,7 +347,8 @@ class _CategoriesRow extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4.0),
                 child: InkWell(
-                  onTap: () => Navigator.of(context).push(CategoryProductsPage.route(category)),
+                  onTap: () => Navigator.of(context)
+                      .push(CategoryProductsPage.route(category)),
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
                     height: 120,
@@ -343,10 +372,13 @@ class _CategoriesRow extends StatelessWidget {
                             padding: const EdgeInsets.all(12.0),
                             child: Hero(
                               tag: 'cat_${category.id}',
-                              child: Image.network(
-                                category.imageUrl,
+                              child: AppNetworkImage(
+                                imageUrl: category.imageUrl,
                                 fit: BoxFit.contain,
-                                errorBuilder: (c, e, s) => const Icon(Icons.category_outlined, color: AppTheme.primaryGreen, size: 32),
+                                errorWidget: const Icon(
+                                    Icons.category_outlined,
+                                    color: AppTheme.primaryGreen,
+                                    size: 32),
                               ),
                             ),
                           ),
@@ -354,11 +386,13 @@ class _CategoriesRow extends StatelessWidget {
                         Expanded(
                           flex: 1,
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 4.0),
                             child: Text(
                               category.name,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600, fontSize: 12),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -369,7 +403,10 @@ class _CategoriesRow extends StatelessWidget {
                     ),
                   ),
                 ),
-              ).animate().fadeIn(delay: (100 * index).ms).slideX(begin: 0.2, end: 0, curve: Curves.easeOut),
+              )
+                  .animate()
+                  .fadeIn(delay: (100 * index).ms)
+                  .slideX(begin: 0.2, end: 0, curve: Curves.easeOut),
             );
           }).toList(),
         ),
@@ -385,19 +422,23 @@ class _FeaturedProductsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (products.isEmpty) return _buildPlaceholder('Không có sản phẩm nổi bật');
-    
-    final double screenWidth = MediaQuery.of(context).size.width;
-    final double childAspectRatio = (screenWidth / 2) / 330; 
+
+    final int crossAxisCount = Responsive.value(context, mobile: 2, desktop: 4);
+    final double childAspectRatio = Responsive.value(
+      context, 
+      mobile: (MediaQuery.of(context).size.width / 2) / 330,
+      desktop: 0.65, // Tỷ lệ an toàn để hiển thị chữ không bị tràn trên Desktop
+    );
 
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       sliver: SliverGrid.builder(
         itemCount: products.length,
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
+          crossAxisCount: crossAxisCount,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          childAspectRatio: childAspectRatio, 
+          childAspectRatio: childAspectRatio,
         ),
         itemBuilder: (context, index) {
           final product = products[index];
@@ -429,7 +470,8 @@ class _FeaturedProductCard extends StatelessWidget {
     final price = product.getPriceForRole(userRole);
 
     return GestureDetector(
-      onTap: () => Navigator.of(context).push(ProductDetailPage.route(product.id)),
+      onTap: () =>
+          Navigator.of(context).push(ProductDetailPage.route(product.id)),
       child: Card(
         margin: EdgeInsets.zero,
         elevation: 4,
@@ -446,19 +488,36 @@ class _FeaturedProductCard extends StatelessWidget {
                   Hero(
                     tag: 'prod_img_${product.id}',
                     child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(16)),
                       child: (product.imageUrl.isNotEmpty)
-                          ? Image.network(product.imageUrl, fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(color: Colors.grey.shade100, child: const Icon(Icons.image, size: 40, color: Colors.grey)))
-                          : Container(color: Colors.grey.shade100, child: const Icon(Icons.image, size: 40, color: Colors.grey)),
+                          ? AppNetworkImage(
+                              imageUrl: product.imageUrl,
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              color: Colors.grey.shade100,
+                              child: const Icon(Icons.image,
+                                  size: 40, color: Colors.grey)),
                     ),
                   ),
                   if (product.isPrivate)
                     Positioned(
-                      top: 0, left: 0,
+                      top: 0,
+                      left: 0,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: const BoxDecoration(color: Colors.red, borderRadius: BorderRadius.only(topLeft: Radius.circular(16), bottomRight: Radius.circular(12))),
-                        child: const Text('ĐỘC QUYỀN', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: const BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(16),
+                                bottomRight: Radius.circular(12))),
+                        child: const Text('ĐỘC QUYỀN',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold)),
                       ),
                     ),
                 ],
@@ -473,7 +532,10 @@ class _FeaturedProductCard extends StatelessWidget {
                   children: [
                     Text(
                       product.name,
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, height: 1.2),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          height: 1.2),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -486,8 +548,12 @@ class _FeaturedProductCard extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 currencyFormatter.format(price),
-                                style: const TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 15),
-                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: AppTheme.primaryGreen,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             const SizedBox(width: 4),
@@ -495,22 +561,25 @@ class _FeaturedProductCard extends StatelessWidget {
                               color: AppTheme.secondaryGreen,
                               borderRadius: BorderRadius.circular(8),
                               child: InkWell(
-                                onTap: () async => _handleAddToCart(context, product, userRole),
+                                onTap: () async => _handleAddToCart(
+                                    context, product, userRole),
                                 borderRadius: BorderRadius.circular(8),
                                 child: const Padding(
                                   padding: EdgeInsets.all(6.0),
-                                  child: Icon(Icons.add_shopping_cart, color: Colors.white, size: 18),
+                                  child: Icon(Icons.add_shopping_cart,
+                                      color: Colors.white, size: 18),
                                 ),
                               ),
                             ),
                           ],
                         )
                       else
-                         SizedBox(
+                        SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
                             onPressed: () async {
-                              final Uri launchUri = Uri(scheme: 'tel', path: '0345012346');
+                              final Uri launchUri =
+                                  Uri(scheme: 'tel', path: '0345012346');
                               if (await canLaunchUrl(launchUri)) {
                                 await launchUrl(launchUri);
                               }
@@ -522,7 +591,8 @@ class _FeaturedProductCard extends StatelessWidget {
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                             icon: const Icon(Icons.phone, size: 14),
-                            label: const Text('Liên hệ', style: TextStyle(fontSize: 12)),
+                            label: const Text('Liên hệ',
+                                style: TextStyle(fontSize: 12)),
                           ),
                         )
                     else
@@ -530,9 +600,19 @@ class _FeaturedProductCard extends StatelessWidget {
                         alignment: Alignment.bottomLeft,
                         child: FittedBox(
                           child: TextButton(
-                            onPressed: () => Navigator.of(context).pushAndRemoveUntil(LoginPage.route(), (route) => false),
-                            style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                            child: const Text('Đăng nhập xem giá', style: TextStyle(color: AppTheme.primaryGreen, fontSize: 11, fontStyle: FontStyle.italic)),
+                            onPressed: () => Navigator.of(context)
+                                .pushAndRemoveUntil(
+                                    LoginPage.route(), (route) => false),
+                            style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: Size.zero,
+                                tapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap),
+                            child: const Text('Đăng nhập xem giá',
+                                style: TextStyle(
+                                    color: AppTheme.primaryGreen,
+                                    fontSize: 11,
+                                    fontStyle: FontStyle.italic)),
                           ),
                         ),
                       ),
@@ -546,41 +626,51 @@ class _FeaturedProductCard extends StatelessWidget {
     ).animate().scale(duration: 300.ms, curve: Curves.easeOut);
   }
 
-  Future<void> _handleAddToCart(BuildContext context, ProductModel product, String userRole) async {
-    final cartItem = await _showPackagingOptionsDialog(context, product, userRole);
+  Future<void> _handleAddToCart(
+      BuildContext context, ProductModel product, String userRole) async {
+    final cartItem =
+        await _showPackagingOptionsDialog(context, product, userRole);
     if (cartItem != null && context.mounted) {
       context.read<CartCubit>().addProduct(
-        product: product,
-        selectedOption: product.packingOptions.firstWhere((opt) => opt.name == cartItem.caseUnitName),
-        quantity: cartItem.quantity,
-      );
+            product: product,
+            selectedOption: product.packingOptions
+                .firstWhere((opt) => opt.name == cartItem.caseUnitName),
+            quantity: cartItem.quantity,
+          );
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(
           content: Text('Đã thêm ${product.name} vào giỏ hàng'),
           backgroundColor: AppTheme.secondaryGreen,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           margin: const EdgeInsets.all(16),
         ));
     }
   }
 
-  Future<CartItemModel?> _showPackagingOptionsDialog(BuildContext context, ProductModel product, String userRole) async {
-    final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
-     return showDialog<CartItemModel>(
+  Future<CartItemModel?> _showPackagingOptionsDialog(
+      BuildContext context, ProductModel product, String userRole) async {
+    final currencyFormatter =
+        NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    return showDialog<CartItemModel>(
       context: context,
       builder: (dialogContext) {
         if (product.packingOptions.isEmpty) {
           return AlertDialog(
-            title: const Text('Thông báo'), 
-            content: const Text('Sản phẩm này chưa có quy cách đóng gói.'), 
-            actions: [TextButton(onPressed: ()=> Navigator.of(dialogContext).pop(), child: const Text('Đóng'))]
-          );
+              title: const Text('Thông báo'),
+              content: const Text('Sản phẩm này chưa có quy cách đóng gói.'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Đóng'))
+              ]);
         }
 
         // --- TỰ ĐỘNG THÊM QUY CÁCH LẺ NẾU CHƯA CÓ ---
-        List<PackagingOptionModel> finalOptions = List.from(product.packingOptions);
+        List<PackagingOptionModel> finalOptions =
+            List.from(product.packingOptions);
         bool hasRetail = finalOptions.any((opt) => opt.quantityPerPackage == 1);
         if (!hasRetail && finalOptions.isNotEmpty) {
           final caseOption = finalOptions.first;
@@ -603,87 +693,126 @@ class _FeaturedProductCard extends StatelessWidget {
         return StatefulBuilder(
           builder: (stfContext, stfSetState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: Text('Chọn mua ${product.name}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              content: SingleChildScrollView( 
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              title: Text('Chọn mua ${product.name}',
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
+              content: SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400),
                   child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Quy cách đóng gói:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    const SizedBox(height: 12),
-                    ...finalOptions.map((option) {
-                      final bool isRetail = option.quantityPerPackage == 1;
-                      final String typeLabel = isRetail ? 'MUA LẺ' : 'MUA THÙNG';
-                      final String subLabel = isRetail 
-                          ? 'Đơn vị: ${option.unit}' 
-                          : 'Quy cách: ${option.name} (${option.quantityPerPackage} ${option.unit})';
-                      final price = option.getPriceForRole(userRole);
-                      
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: selectedOption == option ? AppTheme.primaryGreen : Colors.grey.shade300,
-                            width: selectedOption == option ? 2 : 1,
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Quy cách đóng gói:',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14)),
+                      const SizedBox(height: 12),
+                      ...finalOptions.map((option) {
+                        final bool isRetail = option.quantityPerPackage == 1;
+                        final String typeLabel =
+                            isRetail ? 'MUA LẺ' : 'MUA THÙNG';
+                        final String subLabel = isRetail
+                            ? 'Đơn vị: ${option.unit}'
+                            : 'Quy cách: ${option.name} (${option.quantityPerPackage} ${option.unit})';
+                        final price = option.getPriceForRole(userRole);
+                  
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: selectedOption == option
+                                  ? AppTheme.primaryGreen
+                                  : Colors.grey.shade300,
+                              width: selectedOption == option ? 2 : 1,
+                            ),
+                            color: selectedOption == option
+                                ? AppTheme.primaryGreen.withValues(alpha: 0.05)
+                                : Colors.transparent,
                           ),
-                          color: selectedOption == option ? AppTheme.primaryGreen.withValues(alpha: 0.05) : Colors.transparent,
-                        ),
-                        child: RadioListTile<PackagingOptionModel>(
-                          value: option,
-                          groupValue: selectedOption,
-                          activeColor: AppTheme.primaryGreen,
-                          onChanged: (value) { if (value != null) stfSetState(() => selectedOption = value); },
-                          title: Text(typeLabel, style: TextStyle(fontWeight: FontWeight.bold, color: selectedOption == option ? AppTheme.primaryGreen : AppTheme.textDark, fontSize: 14)),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(subLabel, style: const TextStyle(fontSize: 12)),
-                              Text(currencyFormatter.format(price), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 13)),
-                            ],
+                          child: RadioListTile<PackagingOptionModel>(
+                            value: option,
+                            groupValue: selectedOption,
+                            activeColor: AppTheme.primaryGreen,
+                            onChanged: (value) {
+                              if (value != null)
+                                stfSetState(() => selectedOption = value);
+                            },
+                            title: Text(typeLabel,
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: selectedOption == option
+                                        ? AppTheme.primaryGreen
+                                        : AppTheme.textDark,
+                                    fontSize: 14)),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(subLabel,
+                                    style: const TextStyle(fontSize: 12)),
+                                Text(currencyFormatter.format(price),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.orange,
+                                        fontSize: 13)),
+                              ],
+                            ),
+                            isThreeLine: true,
                           ),
-                          isThreeLine: true,
-                        ),
-                      );
-                    }),
-                    const SizedBox(height: 16),
-                    const Text('Số lượng đặt:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: quantityController,
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                        prefixIcon: IconButton(
-                            onPressed: () {
-                              int current = int.tryParse(quantityController.text) ?? 0;
-                              if(current > 1) stfSetState(() => quantityController.text = (current - 1).toString());
-                            },
-                            icon: const Icon(Icons.remove_circle_outline)
-                        ),
-                        suffixIcon: IconButton(
-                            onPressed: () {
-                              int current = int.tryParse(quantityController.text) ?? 0;
-                              stfSetState(() => quantityController.text = (current + 1).toString());
-                            },
-                            icon: const Icon(Icons.add_circle_outline)
+                        );
+                      }),
+                      const SizedBox(height: 16),
+                      const Text('Số lượng đặt:',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14)),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: quantityController,
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                          prefixIcon: IconButton(
+                              onPressed: () {
+                                int current =
+                                    int.tryParse(quantityController.text) ?? 0;
+                                if (current > 1)
+                                  stfSetState(() => quantityController.text =
+                                      (current - 1).toString());
+                              },
+                              icon: const Icon(Icons.remove_circle_outline)),
+                          suffixIcon: IconButton(
+                              onPressed: () {
+                                int current =
+                                    int.tryParse(quantityController.text) ?? 0;
+                                stfSetState(() => quantityController.text =
+                                    (current + 1).toString());
+                              },
+                              icon: const Icon(Icons.add_circle_outline)),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.of(dialogContext).pop(null), child: const Text('Hủy', style: TextStyle(color: AppTheme.textGrey))),
+                TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(null),
+                    child: const Text('Hủy',
+                        style: TextStyle(color: AppTheme.textGrey))),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryGreen,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
                   ),
                   onPressed: () {
                     final quantity = int.tryParse(quantityController.text) ?? 0;
@@ -702,7 +831,8 @@ class _FeaturedProductCard extends StatelessWidget {
                       ));
                     }
                   },
-                  child: const Text('XÁC NHẬN', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const Text('XÁC NHẬN',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             );
@@ -721,17 +851,39 @@ class _NewsList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (newsArticles.isEmpty) return _buildPlaceholder('Không có tin tức mới');
 
+    final int limit = Responsive.value(context, mobile: 3, desktop: 5);
+    final items = newsArticles.length > limit ? newsArticles.sublist(0, limit) : newsArticles;
+
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      sliver: SliverList.separated(
-        itemCount: newsArticles.length > 3 ? 3 : newsArticles.length, 
-        itemBuilder: (context, index) {
-          final article = newsArticles[index];
-          return _NewsCard(article: article)
-              .animate().slideX(begin: 0.2, end: 0, delay: (100 * index).ms, curve: Curves.easeOut); // Tin tức trượt vào
-        },
-        separatorBuilder: (context, index) => const SizedBox(height: 12),
-      ),
+      sliver: Responsive.isMobile(context) 
+        ? SliverList.separated(
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              final article = items[index];
+              return _NewsCard(article: article).animate().slideX(
+                  begin: 0.2,
+                  end: 0,
+                  delay: (100 * index).ms,
+                  curve: Curves.easeOut);
+            },
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
+          )
+        : SliverGrid.builder(
+            itemCount: items.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 3,
+            ),
+            itemBuilder: (context, index) {
+              final article = items[index];
+              return _NewsCard(article: article).animate().fadeIn(
+                  delay: (100 * index).ms,
+                  curve: Curves.easeOut);
+            },
+          ),
     );
   }
 }
@@ -748,41 +900,59 @@ class _NewsCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
       child: Card(
         color: Colors.white,
+        margin: EdgeInsets.zero,
         elevation: 2,
         shadowColor: Colors.black.withValues(alpha: 0.05),
         child: Row(
           children: [
             ClipRRect(
-              borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), bottomLeft: Radius.circular(20)),
-              child: Image.network(
-                article.imageUrl,
+              borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  bottomLeft: Radius.circular(20)),
+              child: AppNetworkImage(
+                imageUrl: article.imageUrl,
                 width: 100,
                 height: 110,
                 fit: BoxFit.cover,
-                errorBuilder: (c,e,s) => Container(width: 100, height: 110, color: Colors.grey.shade100, child: const Icon(Icons.article_outlined, color: Colors.grey, size: 30)),
+                errorWidget: Container(
+                    width: 100,
+                    height: 110,
+                    color: Colors.grey.shade100,
+                    child: const Icon(Icons.article_outlined,
+                        color: Colors.grey, size: 30)),
               ),
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: EdgeInsets.only(
+                  left: 12.0, 
+                  right: 12.0, 
+                  top: Responsive.value(context, mobile: 12.0, desktop: 36.0), 
+                  bottom: 8.0
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.start,
                   children: [
                     Text(
                       article.title,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, height: 1.4),
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: Responsive.value(context, mobile: 14.0, desktop: 13.0),
+                          height: Responsive.value(context, mobile: 1.4, desktop: 1.2)),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Row(
                       children: [
-                        const Icon(Icons.calendar_today, size: 12, color: AppTheme.textGrey),
+                        Icon(Icons.calendar_today,
+                            size: Responsive.value(context, mobile: 12.0, desktop: 14.0), color: AppTheme.textGrey),
                         const SizedBox(width: 4),
                         Text(
                           dateFormat.format(article.publishedDate.toDate()),
-                          style: TextStyle(color: AppTheme.textGrey, fontSize: 12),
+                          style:
+                              TextStyle(color: AppTheme.textGrey, fontSize: Responsive.value(context, mobile: 12.0, desktop: 14.0)),
                         ),
                       ],
                     ),
@@ -792,7 +962,8 @@ class _NewsCard extends StatelessWidget {
             ),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 8.0),
-              child: Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.textGrey),
+              child: Icon(Icons.arrow_forward_ios,
+                  size: 16, color: AppTheme.textGrey),
             )
           ],
         ),
@@ -836,19 +1007,23 @@ class _ShimmerLoadingView extends StatelessWidget {
                   const SizedBox(height: 8),
                   _buildShimmerContainer(height: 30, width: 250),
                   const SizedBox(height: 40),
-                  _buildShimmerContainer(height: 180, width: double.infinity, radius: 20),
+                  _buildShimmerContainer(
+                      height: 180, width: double.infinity, radius: 20),
                   const SizedBox(height: 40),
                   _buildShimmerContainer(height: 24, width: 200),
-                   const SizedBox(height: 24),
+                  const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: List.generate(4, (index) => Column(
-                      children: [
-                        _buildShimmerContainer(height: 60, width: 60, radius: 16),
-                        const SizedBox(height: 8),
-                        _buildShimmerContainer(height: 10, width: 50),
-                      ],
-                    )),
+                    children: List.generate(
+                        4,
+                        (index) => Column(
+                              children: [
+                                _buildShimmerContainer(
+                                    height: 60, width: 60, radius: 16),
+                                const SizedBox(height: 8),
+                                _buildShimmerContainer(height: 10, width: 50),
+                              ],
+                            )),
                   )
                 ],
               ),
@@ -858,7 +1033,9 @@ class _ShimmerLoadingView extends StatelessWidget {
       ),
     );
   }
-  Widget _buildShimmerContainer({required double height, required double width, double radius = 8}) {
+
+  Widget _buildShimmerContainer(
+      {required double height, required double width, double radius = 8}) {
     return Container(
       height: height,
       width: width,
@@ -882,7 +1059,8 @@ class _ErrorView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.cloud_off_rounded, size: 60, color: AppTheme.textGrey),
+            const Icon(Icons.cloud_off_rounded,
+                size: 60, color: AppTheme.textGrey),
             const SizedBox(height: 16),
             Text(
               errorMessage ?? 'Không thể tải dữ liệu trang chủ.',

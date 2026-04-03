@@ -5,8 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:piv_app/common/widgets/app_network_image.dart';
+import 'package:piv_app/common/widgets/responsive_wrapper.dart';
 import 'package:piv_app/core/di/injection_container.dart';
-import 'package:piv_app/core/theme/app_theme.dart'; // Đảm bảo AppTheme có sẵn hoặc dùng màu cứng nếu cần
+import 'package:piv_app/core/theme/app_theme.dart';
+import 'package:piv_app/core/utils/responsive.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
@@ -135,7 +138,7 @@ class _SearchViewState extends State<SearchView> {
             child: BlocBuilder<SearchCubit, SearchState>(
               builder: (context, state) {
                 if (state.status == SearchStatus.loading) {
-                  return _buildLoadingShimmer();
+                  return _buildLoadingShimmer(context);
                 }
 
                 // Hiển thị lịch sử nếu chưa nhập gì
@@ -316,38 +319,53 @@ class _SearchViewState extends State<SearchView> {
       userRole = (authState is AuthAuthenticated) ? authState.user.role : 'agent_2';
     }
 
-    return GridView.builder(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).padding.bottom),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.65,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
+    final int crossAxisCount = Responsive.value(context, mobile: 2, desktop: 4);
+    final double childAspectRatio = Responsive.value(context, mobile: 0.65, desktop: 0.65);
+
+    return ResponsiveWrapper(
+      backgroundColor: Colors.transparent,
+      showShadow: false,
+      maxWidth: 1200,
+      child: GridView.builder(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).padding.bottom),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          childAspectRatio: childAspectRatio,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemCount: products.length,
+        itemBuilder: (context, index) {
+          final product = products[index];
+          final price = product.getPriceForRole(userRole);
+          
+          // Hiệu ứng xuất hiện lần lượt (Staggered)
+          return _ProductGridItem(
+            product: product,
+            price: price,
+            isSelectionMode: isSelectionMode,
+          ).animate(delay: (50 * index).ms).fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
+        },
       ),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
-        final price = product.getPriceForRole(userRole);
-        
-        // Hiệu ứng xuất hiện lần lượt (Staggered)
-        return _ProductGridItem(
-          product: product,
-          price: price,
-          isSelectionMode: isSelectionMode,
-        ).animate(delay: (50 * index).ms).fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
-      },
     );
   }
 
-  Widget _buildLoadingShimmer() {
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.65,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
+  Widget _buildLoadingShimmer(BuildContext context) {
+    final int crossAxisCount = Responsive.value(context, mobile: 2, desktop: 4);
+    final double childAspectRatio = Responsive.value(context, mobile: 0.65, desktop: 0.65);
+
+    return ResponsiveWrapper(
+      backgroundColor: Colors.transparent,
+      showShadow: false,
+      maxWidth: 1200,
+      child: GridView.builder(
+        padding: const EdgeInsets.all(16),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          childAspectRatio: childAspectRatio,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
       itemCount: 6,
       itemBuilder: (context, index) {
         return Container(
@@ -388,6 +406,7 @@ class _SearchViewState extends State<SearchView> {
           ),
         ).animate(onPlay: (c) => c.repeat()).shimmer(duration: 1200.ms, color: Colors.white.withOpacity(0.5));
       },
+    ),
     );
   }
 

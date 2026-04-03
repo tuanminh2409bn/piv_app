@@ -7,13 +7,19 @@ import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/auth/presentation/bloc/register_cubit.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
+import 'package:piv_app/core/theme/app_theme.dart';
+import 'package:piv_app/core/theme/nature_background_painter.dart';
+import 'package:piv_app/common/widgets/responsive_wrapper.dart';
+import 'package:piv_app/core/utils/responsive.dart';
 
 Future<void> _launchURL(BuildContext context, String urlString) async {
   final Uri url = Uri.parse(urlString);
   if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Không thể mở đường dẫn: $urlString')),
-    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể mở đường dẫn: $urlString')),
+      );
+    }
   }
 }
 
@@ -27,13 +33,46 @@ class RegisterPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Đăng Ký Tài Khoản'),
-        centerTitle: true,
-      ),
-      body: BlocProvider(
-        create: (_) => sl<RegisterCubit>(),
-        child: const RegisterForm(),
+      backgroundColor: Colors.white,
+      body: Stack(
+        children: [
+          // 1. HỌA TIẾT NỀN - Toàn màn hình
+          Positioned.fill(
+            child: CustomPaint(
+              painter: NatureBackgroundPainter(
+                color1: AppTheme.primaryGreen.withValues(alpha: 0.15),
+                color2: AppTheme.secondaryGreen.withValues(alpha: 0.1),
+                accent: AppTheme.accentGold.withValues(alpha: 0.25),
+              ),
+            ),
+          ),
+
+          // 2. Nội dung chính
+          Center(
+            child: ResponsiveWrapper(
+              // Tăng maxWidth cho web khi dùng form ngang
+              maxWidth: Responsive.isMobile(context) ? 600 : 900,
+              isForm: true,
+              backgroundColor: Colors.transparent, 
+              showShadow: false,
+              child: BlocProvider(
+                create: (_) => sl<RegisterCubit>(),
+                child: const RegisterForm(),
+              ),
+            ),
+          ),
+          
+          // Nút quay lại
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8.0, top: 8.0),
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back, color: AppTheme.textDark),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -73,6 +112,8 @@ class _RegisterFormState extends State<RegisterForm> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isWide = !Responsive.isMobile(context);
+
     return BlocListener<RegisterCubit, RegisterState>(
       listener: (context, state) {
         if (state.status == RegisterStatus.error) {
@@ -81,96 +122,153 @@ class _RegisterFormState extends State<RegisterForm> {
             ..showSnackBar(
               SnackBar(
                 content: Text(state.errorMessage ?? 'Lỗi đăng ký không xác định.'),
-                backgroundColor: Theme.of(context).colorScheme.error,
+                backgroundColor: AppTheme.errorRed,
               ),
             );
         } else if (state.status == RegisterStatus.success) {
-          // --- NỘI DUNG THÔNG BÁO ĐÃ ĐƯỢC CẬP NHẬT ---
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(
               const SnackBar(
                 content: Text('Đăng ký thành công! Tài khoản của bạn đang chờ phê duyệt.'),
                 backgroundColor: Colors.green,
-                duration: Duration(seconds: 4), // Tăng thời gian hiển thị
+                duration: Duration(seconds: 4),
               ),
             );
-          // ---------------------------------------------
-          Navigator.of(context).pop(); // Quay về trang đăng nhập
+          Navigator.of(context).pop();
         }
       },
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 24.0 + MediaQuery.of(context).padding.bottom),
-        child: Column(
-          children: <Widget>[
-            Text(
-              'Tạo tài khoản mới',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 30,
+                  offset: const Offset(0, 15),
+                )
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Vui lòng điền đầy đủ thông tin bên dưới',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 32.0),
-            _DisplayNameInput(focusNode: _displayNameFocusNode),
-            const SizedBox(height: 16.0),
-            _PhoneNumberInput(focusNode: _phoneNumberFocusNode),
-            const SizedBox(height: 16.0),
-            _IdCardOrTaxIdInput(focusNode: _idCardOrTaxIdFocusNode),
-            const SizedBox(height: 16.0),
-            _DobInput(focusNode: _dobFocusNode),
-            const SizedBox(height: 16.0),
-            _CurrentAddressInput(focusNode: _currentAddressFocusNode),
-            const SizedBox(height: 16.0),
-            _EmailInput(focusNode: _emailFocusNode),
-            const SizedBox(height: 16.0),
-            _PasswordInput(focusNode: _passwordFocusNode),
-            const SizedBox(height: 16.0),
-            _ConfirmPasswordInput(focusNode: _confirmPasswordFocusNode),
-            const SizedBox(height: 16.0),
-            _ReferralCodeInput(focusNode: _referralCodeFocusNode),
-            const SizedBox(height: 24.0),
-            const _RegisterButton(),
-            const SizedBox(height: 24.0),
-            _buildTermsAndPolicyText(context),
-            const SizedBox(height: 16.0),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text("Đã có tài khoản?"),
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text('Đăng nhập ngay'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                const Text(
+                  'Tạo tài khoản mới',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryGreen,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Vui lòng điền đầy đủ thông tin bên dưới',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppTheme.textGrey),
+                ),
+                const SizedBox(height: 32.0),
+
+                if (isWide) ...[
+                  // Layout 2 cột cho Web
+                  Row(
+                    children: [
+                      Expanded(child: _DisplayNameInput(focusNode: _displayNameFocusNode)),
+                      const SizedBox(width: 16),
+                      Expanded(child: _PhoneNumberInput(focusNode: _phoneNumberFocusNode)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: _IdCardOrTaxIdInput(focusNode: _idCardOrTaxIdFocusNode)),
+                      const SizedBox(width: 16),
+                      Expanded(child: _DobInput(focusNode: _dobFocusNode)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _CurrentAddressInput(focusNode: _currentAddressFocusNode),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: _EmailInput(focusNode: _emailFocusNode)),
+                      const SizedBox(width: 16),
+                      Expanded(child: _ReferralCodeInput(focusNode: _referralCodeFocusNode)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: _PasswordInput(focusNode: _passwordFocusNode)),
+                      const SizedBox(width: 16),
+                      Expanded(child: _ConfirmPasswordInput(focusNode: _confirmPasswordFocusNode)),
+                    ],
+                  ),
+                ] else ...[
+                  // Layout 1 cột cho Mobile
+                  _DisplayNameInput(focusNode: _displayNameFocusNode),
+                  const SizedBox(height: 16.0),
+                  _PhoneNumberInput(focusNode: _phoneNumberFocusNode),
+                  const SizedBox(height: 16.0),
+                  _IdCardOrTaxIdInput(focusNode: _idCardOrTaxIdFocusNode),
+                  const SizedBox(height: 16.0),
+                  _DobInput(focusNode: _dobFocusNode),
+                  const SizedBox(height: 16.0),
+                  _CurrentAddressInput(focusNode: _currentAddressFocusNode),
+                  const SizedBox(height: 16.0),
+                  _EmailInput(focusNode: _emailFocusNode),
+                  const SizedBox(height: 16.0),
+                  _PasswordInput(focusNode: _passwordFocusNode),
+                  const SizedBox(height: 16.0),
+                  _ConfirmPasswordInput(focusNode: _confirmPasswordFocusNode),
+                  const SizedBox(height: 16.0),
+                  _ReferralCodeInput(focusNode: _referralCodeFocusNode),
+                ],
+
+                const SizedBox(height: 32.0),
+                const _RegisterButton(),
+                const SizedBox(height: 24.0),
+                _buildTermsAndPolicyText(context),
+                const SizedBox(height: 24.0),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("Đã có tài khoản? "),
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      child: const Text(
+                        'Đăng nhập ngay',
+                        style: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildTermsAndPolicyText(BuildContext context) {
-    final theme = Theme.of(context);
     return RichText(
       textAlign: TextAlign.center,
       text: TextSpan(
         text: 'Bằng việc đăng ký, bạn đồng ý với ',
-        style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
+        style: const TextStyle(color: AppTheme.textGrey, fontSize: 12),
         children: <TextSpan>[
           TextSpan(
             text: 'Điều khoản Dịch vụ',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.primary,
+            style: const TextStyle(
+              color: AppTheme.primaryGreen,
               decoration: TextDecoration.underline,
+              fontWeight: FontWeight.bold,
             ),
             recognizer: TapGestureRecognizer()
               ..onTap = () {
@@ -180,9 +278,10 @@ class _RegisterFormState extends State<RegisterForm> {
           const TextSpan(text: ' và '),
           TextSpan(
             text: 'Chính sách Bảo mật',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.primary,
+            style: const TextStyle(
+              color: AppTheme.primaryGreen,
               decoration: TextDecoration.underline,
+              fontWeight: FontWeight.bold,
             ),
             recognizer: TapGestureRecognizer()
               ..onTap = () {
@@ -210,7 +309,7 @@ class _DisplayNameInput extends StatelessWidget {
           initialValue: state.displayName,
           focusNode: focusNode,
           decoration: const InputDecoration(
-            labelText: 'Họ và tên (Ghi rõ) *',
+            labelText: 'Họ và tên *',
             prefixIcon: Icon(Icons.person_outline),
           ),
           keyboardType: TextInputType.name,
@@ -264,7 +363,7 @@ class _IdCardOrTaxIdInput extends StatelessWidget {
           initialValue: state.idCardOrTaxId,
           focusNode: focusNode,
           decoration: const InputDecoration(
-            labelText: 'CCCD hoặc Mã số thuế *',
+            labelText: 'CCCD hoặc MST *',
             prefixIcon: Icon(Icons.badge_outlined),
           ),
           onChanged: (value) {
@@ -314,7 +413,6 @@ class _DobInputState extends State<_DobInput> {
     return BlocBuilder<RegisterCubit, RegisterState>(
       buildWhen: (previous, current) => previous.dob != current.dob,
       builder: (context, state) {
-        // Đồng bộ controller nếu state thay đổi từ bên ngoài (nếu cần)
         if (state.dob != _controller.text) {
           _controller.text = state.dob;
         }
@@ -324,7 +422,7 @@ class _DobInputState extends State<_DobInput> {
           readOnly: true,
           onTap: () => _selectDate(context),
           decoration: const InputDecoration(
-            labelText: 'Ngày tháng năm sinh *',
+            labelText: 'Ngày sinh *',
             hintText: 'Chọn ngày sinh',
             prefixIcon: Icon(Icons.calendar_today_outlined),
             suffixIcon: Icon(Icons.arrow_drop_down),
@@ -408,14 +506,13 @@ class _PasswordInputState extends State<_PasswordInput> {
           focusNode: widget.focusNode,
           decoration: InputDecoration(
             labelText: 'Mật khẩu *',
-            hintText: 'Ít nhất 6 ký tự',
             prefixIcon: const Icon(Icons.lock_outline),
             suffixIcon: IconButton(
               icon: Icon(_obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined),
               onPressed: () => setState(() => _obscureText = !_obscureText),
             ),
             errorText: state.password.isNotEmpty && state.password.length < 6
-                ? 'Mật khẩu phải có ít nhất 6 ký tự'
+                ? 'Ít nhất 6 ký tự'
                 : null,
           ),
           obscureText: _obscureText,
@@ -481,7 +578,7 @@ class _ReferralCodeInput extends StatelessWidget {
           initialValue: state.referralCode,
           focusNode: focusNode,
           decoration: const InputDecoration(
-            labelText: 'Mã giới thiệu (Tùy chọn)',
+            labelText: 'Mã giới thiệu',
             prefixIcon: Icon(Icons.card_giftcard_outlined),
           ),
           onChanged: (value) {
@@ -507,12 +604,19 @@ class _RegisterButton extends StatelessWidget {
       builder: (context, state) {
         return state.status == RegisterStatus.submitting
             ? const Center(child: CircularProgressIndicator())
-            : ElevatedButton(
-          onPressed: state.isFormValid
-              ? () => context.read<RegisterCubit>().signUpWithCredentials()
-              : null,
-          child: const Text('ĐĂNG KÝ'),
-        );
+            : SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: state.isFormValid
+                      ? () => context.read<RegisterCubit>().signUpWithCredentials()
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('ĐĂNG KÝ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              );
       },
     );
   }
