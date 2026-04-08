@@ -52,6 +52,12 @@ Key directories:
     -   Centered, constrained content (max-width) for forms and lists.
     -   Adaptive layouts (2-column forms, dynamic grid counts) for Web.
 5.  **Security Rules:** Updated `firestore.rules` to allow Sales Reps and Accountants to propose price/discount changes for pending agents (Admin approval workflow).
+6.  **Web UI Polishing & Optimization:**
+    -   Configured CORS on Firebase Storage (`gsutil cors set cors.json gs://piv-fertilizer-app.firebasestorage.app`) to display images correctly via `AppNetworkImage` on the Web.
+    -   Optimized `HomePage`, `LoginPage`, and `RegisterPage` with full-width aesthetic backgrounds (`NatureBackgroundPainter`) while keeping content constrained and centered via `ResponsiveWrapper`.
+    -   Refactored layout of `ProductDetailPage` using `ConstrainedBox` and `Align` to resolve bottom bar overlay issue on large screens without stretching vertically.
+    -   Enhanced grids in `SearchPage`, `AllCategoriesPage`, and `CategoryProductsPage` to dynamically adjust columns (up to 4) and aspect ratios on Desktop for better space utilization.
+    -   Improved `SliverAppBar` in Category pages to span the full screen width with its background, while keeping the grid content constrained and centered via calculated horizontal padding.
 
 ### Web Best Practices
 -   **Use `PlatformUtils`:** Instead of `dart:io` or `Platform.is...`, use `PlatformUtils.isWeb/isAndroid/isIOS`.

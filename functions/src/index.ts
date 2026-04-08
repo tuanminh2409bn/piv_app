@@ -2483,3 +2483,26 @@ export const onDebtUpdateRequestUpdated = onDocumentUpdated(
     }
   }
 );
+
+// ===================================================================
+// FUNCTION 31: LẤY EMAIL BẰNG SỐ ĐIỆN THOẠI ĐỂ ĐĂNG NHẬP
+// ===================================================================
+export const getAuthEmailByPhone = onCall(
+  {
+    region: "asia-southeast1",
+    enforceAppCheck: false,
+    invoker: "public",
+  },
+  async (request: CallableRequest) => {
+    const phone = request.data.phoneNumber;
+    if (!phone) {
+      throw new HttpsError("invalid-argument", "Thiếu số điện thoại.");
+    }
+    const usersSnapshot = await db.collection("users").where("phoneNumber", "==", phone).limit(1).get();
+    if (usersSnapshot.empty) {
+      return { email: null };
+    }
+    const userData = usersSnapshot.docs[0].data();
+    return { email: userData.email || null };
+  }
+);

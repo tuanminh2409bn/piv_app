@@ -473,7 +473,7 @@ class _EmailInput extends StatelessWidget {
           initialValue: state.email,
           focusNode: focusNode,
           decoration: const InputDecoration(
-            labelText: 'Email *',
+            labelText: 'Email (Tùy chọn)',
             prefixIcon: Icon(Icons.email_outlined),
           ),
           keyboardType: TextInputType.emailAddress,

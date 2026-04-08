@@ -43,8 +43,10 @@ class LoginPage extends StatelessWidget {
           Center(
             child: ResponsiveWrapper(
               isForm: true,
-              backgroundColor: Colors.transparent, // Để lộ nền Gradient phía sau
-              showShadow: false, // Không cần bóng của Wrapper vì LoginForm đã có bóng rồi
+              backgroundColor:
+                  Colors.transparent, // Để lộ nền Gradient phía sau
+              showShadow:
+                  false, // Không cần bóng của Wrapper vì LoginForm đã có bóng rồi
               child: MultiBlocProvider(
                 providers: [
                   BlocProvider(create: (_) => sl<LoginCubit>()),
@@ -84,19 +86,39 @@ class _LoginFormState extends State<LoginForm> {
       listener: (context, state) {
         // Xử lý chuyển hướng nếu cần
       },
-      child: BlocListener<SocialSignInCubit, SocialSignInState>(
-        listener: (context, state) {
-          if (state.status == SocialSignInStatus.error && state.errorMessage != null) {
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(state.errorMessage!),
-                  backgroundColor: AppTheme.errorRed,
-                ),
-              );
-          }
-        },
+      child: MultiBlocListener(
+        listeners: [
+          BlocListener<SocialSignInCubit, SocialSignInState>(
+            listener: (context, state) {
+              if (state.status == SocialSignInStatus.error &&
+                  state.errorMessage != null) {
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    SnackBar(
+                      content: Text(state.errorMessage!),
+                      backgroundColor: AppTheme.errorRed,
+                    ),
+                  );
+              }
+            },
+          ),
+          BlocListener<LoginCubit, LoginState>(
+            listener: (context, state) {
+              if (state.status == LoginStatus.error &&
+                  state.errorMessage != null) {
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    SnackBar(
+                      content: Text(state.errorMessage!),
+                      backgroundColor: AppTheme.errorRed,
+                    ),
+                  );
+              }
+            },
+          ),
+        ],
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20),
@@ -213,7 +235,8 @@ class _LoginFormContentState extends State<_LoginFormContent> {
               ),
               onChanged: (v) => context.read<LoginCubit>().emailChanged(v),
               validator: (value) {
-                if (value == null || value.isEmpty) return 'Vui lòng nhập thông tin';
+                if (value == null || value.isEmpty)
+                  return 'Vui lòng nhập thông tin';
                 return null;
               },
             ),
@@ -227,13 +250,17 @@ class _LoginFormContentState extends State<_LoginFormContent> {
                 labelText: 'Mật khẩu',
                 prefixIcon: const Icon(Icons.lock_outline),
                 suffixIcon: IconButton(
-                  icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                  icon: Icon(_obscurePassword
+                      ? Icons.visibility_off
+                      : Icons.visibility),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
                 ),
               ),
               onChanged: (v) => context.read<LoginCubit>().passwordChanged(v),
               validator: (value) {
-                if (value == null || value.isEmpty) return 'Vui lòng nhập mật khẩu';
+                if (value == null || value.isEmpty)
+                  return 'Vui lòng nhập mật khẩu';
                 return null;
               },
             ),
@@ -242,7 +269,8 @@ class _LoginFormContentState extends State<_LoginFormContent> {
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
-                onPressed: () => Navigator.of(context).push(ForgotPasswordPage.route()),
+                onPressed: () =>
+                    Navigator.of(context).push(ForgotPasswordPage.route()),
                 child: const Text('Quên mật khẩu?'),
               ),
             ),
@@ -261,11 +289,14 @@ class _LoginFormContentState extends State<_LoginFormContent> {
                         },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   child: state.status == LoginStatus.submitting
                       ? const CupertinoActivityIndicator(color: Colors.white)
-                      : const Text('ĐĂNG NHẬP', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      : const Text('ĐĂNG NHẬP',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
                 );
               },
             ),
@@ -280,20 +311,25 @@ class _LoginFormContentState extends State<_LoginFormContent> {
               children: [
                 _SocialButton(
                   icon: Image.asset('assets/google_logo.png', height: 24),
-                  onTap: () => context.read<SocialSignInCubit>().logInWithGoogle(),
+                  onTap: () =>
+                      context.read<SocialSignInCubit>().logInWithGoogle(),
                 ),
                 const SizedBox(width: 20),
                 _SocialButton(
-                  icon: const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 28),
-                  onTap: () => context.read<SocialSignInCubit>().logInWithFacebook(),
+                  icon: const Icon(Icons.facebook,
+                      color: Color(0xFF1877F2), size: 28),
+                  onTap: () =>
+                      context.read<SocialSignInCubit>().logInWithFacebook(),
                 ),
 
                 // Apple (iOS only)
                 if (PlatformUtils.isIOS) ...[
                   const SizedBox(width: 20),
                   _SocialButton(
-                    icon: const Icon(Icons.apple, color: Colors.black, size: 28),
-                    onTap: () => context.read<SocialSignInCubit>().logInWithApple(),
+                    icon:
+                        const Icon(Icons.apple, color: Colors.black, size: 28),
+                    onTap: () =>
+                        context.read<SocialSignInCubit>().logInWithApple(),
                   ),
                 ],
               ],
@@ -308,7 +344,9 @@ class _LoginFormContentState extends State<_LoginFormContent> {
                   onTap: () => Navigator.of(context).push(RegisterPage.route()),
                   child: const Text(
                     'Đăng ký ngay',
-                    style: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        color: AppTheme.primaryGreen,
+                        fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
@@ -316,7 +354,10 @@ class _LoginFormContentState extends State<_LoginFormContent> {
           ],
         ),
       ),
-    ).animate().fadeIn(duration: 800.ms).slideY(begin: 0.2, end: 0, curve: Curves.easeOutQuart);
+    )
+        .animate()
+        .fadeIn(duration: 800.ms)
+        .slideY(begin: 0.2, end: 0, curve: Curves.easeOutQuart);
   }
 }
 
@@ -354,7 +395,8 @@ class _DividerWithText extends StatelessWidget {
         Expanded(child: Divider(color: Colors.grey.shade300)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(text, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+          child: Text(text,
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
         ),
         Expanded(child: Divider(color: Colors.grey.shade300)),
       ],

@@ -1198,7 +1198,7 @@ class _PaymentQrInfoState extends State<_PaymentQrInfo> {
   Widget build(BuildContext context) {
     final shortOrderId = widget.order.id?.substring(0, 8).toUpperCase() ?? 'DONHANG';
     final paymentContent = 'PIV DH $shortOrderId';
-    final amount = widget.order.finalTotal;
+    final amount = widget.order.paidAmount;
 
     const bool isCompany = true;
 

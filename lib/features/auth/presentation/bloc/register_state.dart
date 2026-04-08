@@ -33,7 +33,7 @@ class RegisterState extends Equatable {
 
   bool get passwordsMatch => password == confirmPassword;
   bool get isFormValid =>
-      email.isNotEmpty &&
+      (email.isNotEmpty || phoneNumber.isNotEmpty) &&
       password.isNotEmpty &&
       passwordsMatch &&
       password.length >= 6 &&

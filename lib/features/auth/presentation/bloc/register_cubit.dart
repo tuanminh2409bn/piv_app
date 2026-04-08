@@ -23,7 +23,8 @@ class RegisterCubit extends Cubit<RegisterState> {
   }
 
   void confirmPasswordChanged(String value) {
-    emit(state.copyWith(confirmPassword: value, status: RegisterStatus.initial));
+    emit(
+        state.copyWith(confirmPassword: value, status: RegisterStatus.initial));
   }
 
   void displayNameChanged(String value) {
@@ -54,29 +55,41 @@ class RegisterCubit extends Cubit<RegisterState> {
     if (!state.isFormValid || state.status == RegisterStatus.submitting) return;
 
     emit(state.copyWith(status: RegisterStatus.submitting));
-    developer.log('RegisterCubit: Attempting sign up for email: ${state.email}', name: 'RegisterCubit');
+
+    final safeEmail = state.email.trim();
+    final safePhone = state.phoneNumber.trim().replaceAll(' ', '');
+    final effectiveEmail =
+        safeEmail.isNotEmpty ? safeEmail : '$safePhone@piv.app';
+    developer.log(
+        'RegisterCubit: Attempting sign up for email: $effectiveEmail',
+        name: 'RegisterCubit');
 
     final result = await _authRepository.signUp(
-      email: state.email,
+      email: effectiveEmail,
       password: state.password,
       displayName: state.displayName.isNotEmpty ? state.displayName : null,
       referralCode: state.referralCode.isNotEmpty ? state.referralCode : null,
-      phoneNumber: state.phoneNumber.isNotEmpty ? state.phoneNumber : null,
-      idCardOrTaxId: state.idCardOrTaxId.isNotEmpty ? state.idCardOrTaxId : null,
+      phoneNumber: safePhone.isNotEmpty ? safePhone : null,
+      idCardOrTaxId:
+          state.idCardOrTaxId.isNotEmpty ? state.idCardOrTaxId : null,
       dob: state.dob.isNotEmpty ? state.dob : null,
-      currentAddress: state.currentAddress.isNotEmpty ? state.currentAddress : null,
+      currentAddress:
+          state.currentAddress.isNotEmpty ? state.currentAddress : null,
     );
 
     result.fold(
-          (failure) {
-        developer.log('RegisterCubit: SignUp failed - ${failure.message}', name: 'RegisterCubit');
+      (failure) {
+        developer.log('RegisterCubit: SignUp failed - ${failure.message}',
+            name: 'RegisterCubit');
         emit(state.copyWith(
           status: RegisterStatus.error,
           errorMessage: failure.message,
         ));
       },
-          (_) {
-        developer.log('RegisterCubit: SignUp successful for email: ${state.email}', name: 'RegisterCubit');
+      (_) {
+        developer.log(
+            'RegisterCubit: SignUp successful for email: ${state.email}',
+            name: 'RegisterCubit');
         emit(state.copyWith(status: RegisterStatus.success));
       },
     );

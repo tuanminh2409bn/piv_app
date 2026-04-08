@@ -116,8 +116,8 @@ service cloud.firestore {
              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['useGeneralPrice'])
            ) ||
            (
-             (isSalesRep() || isAccountant()) &&
-             resource.data.salesRepId == request.auth.uid &&
+             isSalesRep() &&
+             (resource.data.salesRepId == request.auth.uid || resource.data.status == 'pending_approval') &&
              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['useGeneralPrice'])
            );
                       
@@ -140,7 +140,7 @@ service cloud.firestore {
       allow read: if isStaff();
       allow create: if isStaffOrManagingSalesRep(request.resource.data.agentId);
       allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || (isStaff() && resource.data.requesterId == request.auth.uid);
     }
 
   match /discount_requests/{requestId} {
