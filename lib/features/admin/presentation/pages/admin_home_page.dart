@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:piv_app/common/widgets/responsive_wrapper.dart';
+import 'package:piv_app/core/theme/app_theme.dart';
+import 'package:piv_app/core/theme/nature_background_painter.dart';
+import 'package:piv_app/core/utils/responsive.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_debt_management_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/quick_order_agent_selection_page.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
@@ -26,11 +30,21 @@ class AdminHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final int crossAxisCount = Responsive.value(
+      context,
+      mobile: 2,
+      tablet: 3,
+      desktop: 4,
+    );
+
     return Scaffold(
+      backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
         title: const Text('Bảng điều khiển Admin'),
+        backgroundColor: AppTheme.primaryGreen,
+        foregroundColor: Colors.white,
         actions: [
-          const NotificationIconWithBadge(),
+          const NotificationIconWithBadge(iconColor: Colors.white),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Đăng xuất',
@@ -38,107 +52,122 @@ class AdminHomePage extends StatelessWidget {
           ),
         ],
       ),
-      body: Padding(
-        padding: EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 12.0 + MediaQuery.of(context).padding.bottom),
-        child: GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          children: <Widget>[
-            _DashboardCard(
-              title: 'Đơn hàng',
-              icon: Icons.shopping_cart_outlined,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminOrdersPage())),
-            ),
-            _DashboardCard(
-              title: 'Quản lý Công nợ',
-              icon: Icons.receipt_long_outlined,
-              onTap: () => Navigator.of(context).push(AdminDebtManagementPage.route()),
-            ),
-            _DashboardCard(
-              title: 'Duyệt Giá Riêng',
-              icon: Icons.approval,
-              onTap: () => Navigator.of(context).push(PriceApprovalPage.route()),
-            ),
-            _DashboardCard(
-              title: 'Duyệt Chiết Khấu',
-              icon: Icons.assignment_turned_in_outlined,
-              onTap: () => Navigator.of(context).push(AdminDiscountRequestsPage.route()),
-            ),
-            _DashboardCard(
-              title: 'Cấu hình Chiết khấu',
-              icon: Icons.price_change_outlined,
-              onTap: () => Navigator.of(context).push(DiscountSettingsPage.route()),
-            ),
-            _DashboardCard(
-              title: 'Quản lý Đổi/Trả',
-              icon: Icons.sync_problem_outlined,
-              onTap: () => Navigator.of(context).push(AdminReturnRequestsPage.route()),
-            ),
-            _DashboardCard(
-              title: 'Cấu hình Đổi Trả',
-              icon: Icons.settings_backup_restore_outlined,
-              onTap: () => Navigator.of(context).push(ReturnPolicyConfigPage.route()),
-            ),
-            _DashboardCard(
-              title: 'Sản phẩm',
-              icon: Icons.inventory_2_outlined,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminProductsPage())),
-            ),
-            _DashboardCard(
-              title: 'Danh mục',
-              icon: Icons.category_outlined,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminCategoriesPage())),
-            ),
-            _DashboardCard(
-              title: 'Người dùng',
-              icon: Icons.people_outline,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminUsersPage())),
-            ),
-            _DashboardCard(
-              title: 'Cài đặt Đặt nhanh',
-              icon: Icons.playlist_add_check_rounded,
-              onTap: () => Navigator.of(context).push(QuickOrderAgentSelectionPage.route()),
-            ),
-            _DashboardCard(
-              title: 'Soạn Thông Báo',
-              icon: Icons.send_rounded,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManualNotificationPage())),
-            ),
-            _DashboardCard(
-              title: 'Lịch Sử Gửi',
-              icon: Icons.history_rounded,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationHistoryPage())),
-            ),
-            _DashboardCard(
-              title: 'Quản lý Cam kết',
-              icon: Icons.workspace_premium_outlined,
-              onTap: () => Navigator.of(context).push(AdminCommitmentsPage.route()),
-            ),
-            _DashboardCard(
-              title: 'Vòng Quay May Mắn',
-              icon: Icons.casino_outlined,
-              onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const LuckyWheelAdminPage())
+      body: Stack(
+        children: [
+          // Background pattern
+          Positioned.fill(
+            child: CustomPaint(
+              painter: NatureBackgroundPainter(
+                color1: AppTheme.primaryGreen.withValues(alpha: 0.05),
+                color2: AppTheme.secondaryGreen.withValues(alpha: 0.03),
+                accent: AppTheme.accentGold.withValues(alpha: 0.1),
               ),
             ),
-            _DashboardCard(
-              title: 'Hoa hồng',
-              icon: Icons.percent_rounded,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminCommissionsPage())),
+          ),
+          ResponsiveWrapper(
+            maxWidth: 1200,
+            child: GridView.count(
+              padding: EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 24.0 + MediaQuery.of(context).padding.bottom),
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              children: <Widget>[
+                _DashboardCard(
+                  title: 'Đơn hàng',
+                  icon: Icons.shopping_cart_outlined,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminOrdersPage())),
+                ),
+                _DashboardCard(
+                  title: 'Quản lý Công nợ',
+                  icon: Icons.receipt_long_outlined,
+                  onTap: () => Navigator.of(context).push(AdminDebtManagementPage.route()),
+                ),
+                _DashboardCard(
+                  title: 'Duyệt Giá Riêng',
+                  icon: Icons.approval,
+                  onTap: () => Navigator.of(context).push(PriceApprovalPage.route()),
+                ),
+                _DashboardCard(
+                  title: 'Duyệt Chiết Khấu',
+                  icon: Icons.assignment_turned_in_outlined,
+                  onTap: () => Navigator.of(context).push(AdminDiscountRequestsPage.route()),
+                ),
+                _DashboardCard(
+                  title: 'Cấu hình Chiết khấu',
+                  icon: Icons.price_change_outlined,
+                  onTap: () => Navigator.of(context).push(DiscountSettingsPage.route()),
+                ),
+                _DashboardCard(
+                  title: 'Quản lý Đổi/Trả',
+                  icon: Icons.sync_problem_outlined,
+                  onTap: () => Navigator.of(context).push(AdminReturnRequestsPage.route()),
+                ),
+                _DashboardCard(
+                  title: 'Cấu hình Đổi Trả',
+                  icon: Icons.settings_backup_restore_outlined,
+                  onTap: () => Navigator.of(context).push(ReturnPolicyConfigPage.route()),
+                ),
+                _DashboardCard(
+                  title: 'Sản phẩm',
+                  icon: Icons.inventory_2_outlined,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminProductsPage())),
+                ),
+                _DashboardCard(
+                  title: 'Danh mục',
+                  icon: Icons.category_outlined,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminCategoriesPage())),
+                ),
+                _DashboardCard(
+                  title: 'Người dùng',
+                  icon: Icons.people_outline,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminUsersPage())),
+                ),
+                _DashboardCard(
+                  title: 'Cài đặt Đặt nhanh',
+                  icon: Icons.playlist_add_check_rounded,
+                  onTap: () => Navigator.of(context).push(QuickOrderAgentSelectionPage.route()),
+                ),
+                _DashboardCard(
+                  title: 'Soạn Thông Báo',
+                  icon: Icons.send_rounded,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManualNotificationPage())),
+                ),
+                _DashboardCard(
+                  title: 'Lịch Sử Gửi',
+                  icon: Icons.history_rounded,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationHistoryPage())),
+                ),
+                _DashboardCard(
+                  title: 'Quản lý Cam kết',
+                  icon: Icons.workspace_premium_outlined,
+                  onTap: () => Navigator.of(context).push(AdminCommitmentsPage.route()),
+                ),
+                _DashboardCard(
+                  title: 'Vòng Quay May Mắn',
+                  icon: Icons.casino_outlined,
+                  onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const LuckyWheelAdminPage())
+                  ),
+                ),
+                _DashboardCard(
+                  title: 'Hoa hồng',
+                  icon: Icons.percent_rounded,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminCommissionsPage())),
+                ),
+                _DashboardCard(
+                  title: 'Vouchers',
+                  icon: Icons.airplane_ticket_outlined,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminVouchersPage())),
+                ),
+                _DashboardCard(
+                  title: 'Quản lý Tin tức',
+                  icon: Icons.article_outlined,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminNewsListPage())),
+                ),
+              ],
             ),
-            _DashboardCard(
-              title: 'Vouchers',
-              icon: Icons.airplane_ticket_outlined,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminVouchersPage())),
-            ),
-            _DashboardCard(
-              title: 'Quản lý Tin tức',
-              icon: Icons.article_outlined,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminNewsListPage())),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

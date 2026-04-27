@@ -336,6 +336,27 @@ class _LoginFormContentState extends State<_LoginFormContent> {
             ),
 
             const SizedBox(height: 32),
+            
+            // Guest Login Button
+            BlocBuilder<LoginCubit, LoginState>(
+              builder: (context, state) {
+                return OutlinedButton.icon(
+                  onPressed: state.status == LoginStatus.submitting
+                      ? null
+                      : () => context.read<LoginCubit>().logInAnonymously(),
+                  icon: const Icon(Icons.person_outline),
+                  label: const Text('XEM VỚI TƯ CÁCH KHÁCH', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    side: const BorderSide(color: AppTheme.primaryGreen),
+                    foregroundColor: AppTheme.primaryGreen,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

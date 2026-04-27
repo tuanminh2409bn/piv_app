@@ -43,7 +43,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             if (user.isNotEmpty) {
               if (user.status == 'pending_approval') {
                 emit(AuthAccountPending(user: user));
-              } else if (!user.isProfileComplete) {
+              } else if (!user.isProfileComplete && !user.isGuest) {
                 emit(AuthProfileIncomplete(user: user));
               } else {
                 emit(AuthAuthenticated(user: user));
@@ -62,7 +62,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     if (event.user.isNotEmpty) {
       if (event.user.status == 'pending_approval') {
         emit(AuthAccountPending(user: event.user));
-      } else if (!event.user.isProfileComplete) {
+      } else if (!event.user.isProfileComplete && !event.user.isGuest) {
         emit(AuthProfileIncomplete(user: event.user));
       } else {
         try {

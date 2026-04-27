@@ -95,4 +95,26 @@ class LoginCubit extends Cubit<LoginState> {
       },
     );
   }
+
+  // Thêm phương thức Đăng nhập Khách
+  Future<void> logInAnonymously() async {
+    if (state.status == LoginStatus.submitting) return;
+
+    emit(state.copyWith(
+        status: LoginStatus.submitting, clearErrorMessage: true));
+
+    final result = await _authRepository.signInAnonymously();
+
+    result.fold(
+      (failure) {
+        emit(state.copyWith(
+          status: LoginStatus.error,
+          errorMessage: failure.message,
+        ));
+      },
+      (_) {
+        emit(state.copyWith(status: LoginStatus.success));
+      },
+    );
+  }
 }
