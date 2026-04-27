@@ -11,6 +11,8 @@ import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/core/theme/app_theme.dart';
 import 'package:piv_app/core/utils/responsive.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:piv_app/features/cart/presentation/pages/cart_page.dart';
+import 'package:piv_app/features/cart/presentation/widgets/cart_icon_with_badge.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
 import 'package:piv_app/features/search/bloc/search_cubit.dart';
@@ -123,7 +125,8 @@ class _SearchViewState extends State<SearchView> {
 
   void _onHistoryTap(String term) {
     _searchController.text = term;
-    _searchController.selection = TextSelection.fromPosition(TextPosition(offset: term.length));
+    _searchController.selection =
+        TextSelection.fromPosition(TextPosition(offset: term.length));
     _onSubmitted(term);
   }
 
@@ -142,7 +145,8 @@ class _SearchViewState extends State<SearchView> {
                 }
 
                 // Hiển thị lịch sử nếu chưa nhập gì
-                if (_searchController.text.isEmpty && state.searchHistory.isNotEmpty) {
+                if (_searchController.text.isEmpty &&
+                    state.searchHistory.isNotEmpty) {
                   return _buildSearchHistory(context, state.searchHistory);
                 }
 
@@ -152,7 +156,7 @@ class _SearchViewState extends State<SearchView> {
                     return _buildEmptyState();
                   }
                   // Trường hợp mới vào chưa có lịch sử và chưa search (thường load all thì sẽ có data, nhưng nếu backend rỗng)
-                  return const SizedBox(); 
+                  return const SizedBox();
                 }
 
                 return _buildSearchResultsGrid(
@@ -217,7 +221,9 @@ class _SearchViewState extends State<SearchView> {
                                   color: Colors.grey,
                                   onPressed: () {
                                     _searchController.clear();
-                                    context.read<SearchCubit>().loadSearchHistory();
+                                    context
+                                        .read<SearchCubit>()
+                                        .loadSearchHistory();
                                   },
                                 ),
                                 Container(
@@ -226,10 +232,12 @@ class _SearchViewState extends State<SearchView> {
                                   color: Colors.grey[300],
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.arrow_forward, size: 20),
+                                  icon:
+                                      const Icon(Icons.arrow_forward, size: 20),
                                   color: AppTheme.primaryGreen,
                                   tooltip: 'Tìm kiếm',
-                                  onPressed: () => _onSubmitted(_searchController.text),
+                                  onPressed: () =>
+                                      _onSubmitted(_searchController.text),
                                 ),
                               ],
                             )
@@ -243,6 +251,11 @@ class _SearchViewState extends State<SearchView> {
             ),
           ),
           // Có thể thêm nút Filter ở đây trong tương lai
+          const SizedBox(width: 8),
+          CartIconWithBadge(
+            iconColor: AppTheme.primaryGreen,
+            onPressed: () => Navigator.of(context).push(CartPage.route()),
+          ),
         ],
       ),
     );
@@ -250,7 +263,8 @@ class _SearchViewState extends State<SearchView> {
 
   Widget _buildSearchHistory(BuildContext context, List<String> history) {
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.of(context).padding.bottom),
+      padding: EdgeInsets.fromLTRB(
+          20, 20, 20, 20 + MediaQuery.of(context).padding.bottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -259,11 +273,15 @@ class _SearchViewState extends State<SearchView> {
             children: [
               const Text(
                 'Lịch sử tìm kiếm',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87),
               ),
               TextButton(
                 onPressed: () => context.read<SearchCubit>().clearHistory(),
-                child: const Text('Xóa tất cả', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                child: const Text('Xóa tất cả',
+                    style: TextStyle(color: Colors.redAccent, fontSize: 13)),
               ),
             ],
           ),
@@ -276,7 +294,8 @@ class _SearchViewState extends State<SearchView> {
                 onTap: () => _onHistoryTap(term),
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
@@ -290,8 +309,10 @@ class _SearchViewState extends State<SearchView> {
                       Text(term, style: const TextStyle(color: Colors.black87)),
                       const SizedBox(width: 4),
                       InkWell(
-                        onTap: () => context.read<SearchCubit>().removeSearchTerm(term),
-                        child: Icon(Icons.close, size: 14, color: Colors.grey[400]),
+                        onTap: () =>
+                            context.read<SearchCubit>().removeSearchTerm(term),
+                        child: Icon(Icons.close,
+                            size: 14, color: Colors.grey[400]),
                       ),
                     ],
                   ),
@@ -316,18 +337,21 @@ class _SearchViewState extends State<SearchView> {
       userRole = targetUserRole;
     } else {
       final authState = context.read<AuthBloc>().state;
-      userRole = (authState is AuthAuthenticated) ? authState.user.role : 'agent_2';
+      userRole =
+          (authState is AuthAuthenticated) ? authState.user.role : 'agent_2';
     }
 
     final int crossAxisCount = Responsive.value(context, mobile: 2, desktop: 4);
-    final double childAspectRatio = Responsive.value(context, mobile: 0.65, desktop: 0.65);
+    final double childAspectRatio =
+        Responsive.value(context, mobile: 0.65, desktop: 0.65);
 
     return ResponsiveWrapper(
       backgroundColor: Colors.transparent,
       showShadow: false,
       maxWidth: 1200,
       child: GridView.builder(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).padding.bottom),
+        padding: EdgeInsets.fromLTRB(
+            16, 16, 16, 16 + MediaQuery.of(context).padding.bottom),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: crossAxisCount,
           childAspectRatio: childAspectRatio,
@@ -338,13 +362,16 @@ class _SearchViewState extends State<SearchView> {
         itemBuilder: (context, index) {
           final product = products[index];
           final price = product.getPriceForRole(userRole);
-          
+
           // Hiệu ứng xuất hiện lần lượt (Staggered)
           return _ProductGridItem(
             product: product,
             price: price,
             isSelectionMode: isSelectionMode,
-          ).animate(delay: (50 * index).ms).fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
+          )
+              .animate(delay: (50 * index).ms)
+              .fadeIn(duration: 400.ms)
+              .slideY(begin: 0.1, end: 0);
         },
       ),
     );
@@ -352,7 +379,8 @@ class _SearchViewState extends State<SearchView> {
 
   Widget _buildLoadingShimmer(BuildContext context) {
     final int crossAxisCount = Responsive.value(context, mobile: 2, desktop: 4);
-    final double childAspectRatio = Responsive.value(context, mobile: 0.65, desktop: 0.65);
+    final double childAspectRatio =
+        Responsive.value(context, mobile: 0.65, desktop: 0.65);
 
     return ResponsiveWrapper(
       backgroundColor: Colors.transparent,
@@ -366,47 +394,53 @@ class _SearchViewState extends State<SearchView> {
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
         ),
-      itemCount: 6,
-      itemBuilder: (context, index) {
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey[200]!),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 3,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        itemCount: 6,
+        itemBuilder: (context, index) {
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(16)),
+                    ),
                   ),
                 ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(height: 14, width: 120, color: Colors.grey[300]),
-                      const SizedBox(height: 8),
-                      Container(height: 14, width: 80, color: Colors.grey[300]),
-                      const SizedBox(height: 12),
-                      Container(height: 18, width: 100, color: Colors.grey[300]),
-                    ],
+                Expanded(
+                  flex: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                            height: 14, width: 120, color: Colors.grey[300]),
+                        const SizedBox(height: 8),
+                        Container(
+                            height: 14, width: 80, color: Colors.grey[300]),
+                        const SizedBox(height: 12),
+                        Container(
+                            height: 18, width: 100, color: Colors.grey[300]),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ).animate(onPlay: (c) => c.repeat()).shimmer(duration: 1200.ms, color: Colors.white.withOpacity(0.5));
-      },
-    ),
+              ],
+            ),
+          )
+              .animate(onPlay: (c) => c.repeat())
+              .shimmer(duration: 1200.ms, color: Colors.white.withOpacity(0.5));
+        },
+      ),
     );
   }
 
@@ -421,12 +455,16 @@ class _SearchViewState extends State<SearchView> {
               color: Colors.blue.withOpacity(0.05),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.search_off_rounded, size: 64, color: Colors.grey),
+            child: const Icon(Icons.search_off_rounded,
+                size: 64, color: Colors.grey),
           ),
           const SizedBox(height: 16),
           const Text(
             'Không tìm thấy sản phẩm',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black54),
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black54),
           ),
           const SizedBox(height: 8),
           Text(
@@ -452,7 +490,8 @@ class _ProductGridItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    final currencyFormatter =
+        NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
 
     return Container(
       decoration: BoxDecoration(
@@ -478,6 +517,13 @@ class _ProductGridItem extends StatelessWidget {
                     backgroundColor: Colors.orange));
                 return;
               }
+              if (price <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text(
+                        'Sản phẩm này chưa được cấu hình giá. Vui lòng cài đặt giá riêng.'),
+                    backgroundColor: Colors.orange));
+                return;
+              }
               Navigator.of(context).pop(product);
             } else {
               Navigator.of(context).push(ProductDetailPage.route(product.id));
@@ -493,13 +539,15 @@ class _ProductGridItem extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     ClipRRect(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(16)),
                       child: Image.network(
                         product.imageUrl,
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Container(
                           color: Colors.grey[100],
-                          child: const Icon(Icons.image_not_supported, color: Colors.grey),
+                          child: const Icon(Icons.image_not_supported,
+                              color: Colors.grey),
                         ),
                       ),
                     ),
@@ -508,7 +556,8 @@ class _ProductGridItem extends StatelessWidget {
                         top: 0,
                         left: 0,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           decoration: const BoxDecoration(
                             gradient: LinearGradient(
                               colors: [Color(0xFFD32F2F), Color(0xFFEF5350)],
@@ -534,12 +583,13 @@ class _ProductGridItem extends StatelessWidget {
                   ],
                 ),
               ),
-              
+
               // Info Section
               Expanded(
                 flex: 3,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), // Giảm padding
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 10), // Giảm padding
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -559,19 +609,24 @@ class _ProductGridItem extends StatelessWidget {
                         product.displayUnit,
                         style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                       ),
-                      
+
                       const Spacer(), // Dùng Spacer để đẩy giá xuống đáy
-                      
+
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
                             child: Text(
-                              price > 0 ? currencyFormatter.format(price) : 'Liên hệ',
+                              price > 0
+                                  ? currencyFormatter.format(price)
+                                  : 'Liên hệ',
                               style: TextStyle(
-                                color: price > 0 ? const Color(0xFF1565C0) : Colors.orange,
+                                color: price > 0
+                                    ? const Color(0xFF1565C0)
+                                    : Colors.orange,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 14, // Giảm font size giá tiền một chút
+                                fontSize:
+                                    14, // Giảm font size giá tiền một chút
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -581,11 +636,14 @@ class _ProductGridItem extends StatelessWidget {
                             Container(
                               margin: const EdgeInsets.only(left: 4),
                               padding: const EdgeInsets.all(6),
-                              decoration: const BoxDecoration(
-                                color: AppTheme.primaryGreen, 
+                              decoration: BoxDecoration(
+                                color: price > 0
+                                    ? AppTheme.primaryGreen
+                                    : Colors.grey.shade400,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.add, color: Colors.white, size: 14),
+                              child: const Icon(Icons.add,
+                                  color: Colors.white, size: 14),
                             ),
                         ],
                       ),

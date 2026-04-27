@@ -17,6 +17,8 @@ import 'package:piv_app/features/products/presentation/pages/product_detail_page
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
 import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
+import 'package:piv_app/features/cart/presentation/pages/cart_page.dart';
+import 'package:piv_app/features/cart/presentation/widgets/cart_icon_with_badge.dart';
 import 'package:piv_app/data/models/cart_item_model.dart';
 import 'package:piv_app/data/models/packaging_option_model.dart';
 
@@ -100,6 +102,16 @@ class CategoryProductsView extends StatelessWidget {
                     pinned: true,
                     backgroundColor: AppTheme.primaryGreen,
                     leading: const BackButton(color: Colors.white),
+                    actions: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+                        child: CartIconWithBadge(
+                          iconColor: Colors.white,
+                          onPressed: () => Navigator.of(context).push(CartPage.route()),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     flexibleSpace: FlexibleSpaceBar(
                       centerTitle: false,
                       titlePadding: EdgeInsets.only(left: horizontalPadding > 16.0 ? horizontalPadding + 40 : 56, bottom: 16),

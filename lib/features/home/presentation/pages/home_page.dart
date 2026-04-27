@@ -64,7 +64,7 @@ class HomeView extends StatelessWidget {
             child: ResponsiveWrapper(
               backgroundColor: Colors.transparent, // Không đè nền họa tiết
               showShadow: false, // Bỏ bóng để nội dung hòa vào nền
-              maxWidth: 1200, // Chiều rộng tối đa cân đối
+              maxWidth: Responsive.isDesktop(context) ? double.infinity : 1200, // Cho phép tràn viền trên Web
               child: BlocBuilder<HomeCubit, HomeState>(
                 builder: (context, state) {
                   if (state.status == HomeStatus.loading ||
@@ -80,30 +80,38 @@ class HomeView extends StatelessWidget {
                         context.read<HomeCubit>().refreshHomeData(),
                     child: CustomScrollView(
                       slivers: [
-                        _HomeAppBar(),
-                        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                        _wrapConstrained(context, _HomeAppBar()),
+                        _wrapConstrained(context, const SliverToBoxAdapter(child: SizedBox(height: 24))),
 
                         // Header chào mừng
-                        _WelcomeHeader(),
+                        _wrapConstrained(context, _WelcomeHeader()),
 
-                        // Banner
+                        // Khoảng cách trên banner
+                        if (Responsive.isDesktop(context))
+                          const SliverToBoxAdapter(child: SizedBox(height: 40)),
+
+                        // Banner - KHÔNG bọc constrained để tràn viền
                         _BannerCarousel(banners: state.banners),
 
-                        // Danh mục
-                        _SectionHeader(title: 'DANH MỤC NỔI BẬT'),
-                        _CategoriesRow(categories: state.categories),
+                        // Khoảng cách dưới banner
+                        if (Responsive.isDesktop(context))
+                          const SliverToBoxAdapter(child: SizedBox(height: 40)),
 
-                        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                        // Danh mục
+                        _wrapConstrained(context, _SectionHeader(title: 'DANH MỤC NỔI BẬT')),
+                        _wrapConstrained(context, _CategoriesRow(categories: state.categories)),
+
+                        _wrapConstrained(context, const SliverToBoxAdapter(child: SizedBox(height: 24))),
 
                         // Sản phẩm
-                        _SectionHeader(title: 'SẢN PHẨM NỔI BẬT'),
-                        _FeaturedProductsGrid(products: state.featuredProducts),
+                        _wrapConstrained(context, _SectionHeader(title: 'SẢN PHẨM NỔI BẬT')),
+                        _wrapConstrained(context, _FeaturedProductsGrid(products: state.featuredProducts)),
 
                         // Tin tức
-                        _SectionHeader(title: 'TIN TỨC & SỰ KIỆN'),
-                        _NewsList(newsArticles: state.newsArticles),
+                        _wrapConstrained(context, _SectionHeader(title: 'TIN TỨC & SỰ KIỆN')),
+                        _wrapConstrained(context, _NewsList(newsArticles: state.newsArticles)),
 
-                        const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                        _wrapConstrained(context, const SliverToBoxAdapter(child: SizedBox(height: 120))),
                       ],
                     ),
                   );
@@ -113,6 +121,20 @@ class HomeView extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// Hàm hỗ trợ bọc các thành phần cần giới hạn chiều rộng trên Web
+  Widget _wrapConstrained(BuildContext context, Widget sliver) {
+    if (!Responsive.isDesktop(context)) return sliver;
+    final double screenWidth = MediaQuery.of(context).size.width;
+    const double maxWidth = 1200;
+    if (screenWidth <= maxWidth) return sliver;
+    
+    final double padding = (screenWidth - maxWidth) / 2;
+    return SliverPadding(
+      padding: EdgeInsets.symmetric(horizontal: padding),
+      sliver: sliver,
     );
   }
 }
@@ -233,9 +255,11 @@ class _BannerCarousel extends StatelessWidget {
   Widget build(BuildContext context) {
     if (banners.isEmpty) return const SizedBox.shrink();
 
+    final bool isDesktop = Responsive.isDesktop(context);
+
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24.0),
+        padding: EdgeInsets.symmetric(vertical: isDesktop ? 0 : 24.0),
         child: CarouselSlider.builder(
           itemCount: banners.length,
           itemBuilder: (context, index, realIndex) {
@@ -243,39 +267,66 @@ class _BannerCarousel extends StatelessWidget {
             return GestureDetector(
               onTap: () {/* Handle banner tap */},
               child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 8.0),
+                margin: EdgeInsets.symmetric(horizontal: isDesktop ? 0 : 8.0),
                 decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
+                  borderRadius: BorderRadius.circular(isDesktop ? 0 : 20),
+                  boxShadow: isDesktop 
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        )
+                      ]
+                    : [
+                        BoxShadow(
                           color: AppTheme.primaryGreen.withValues(alpha: 0.3),
                           blurRadius: 15,
                           offset: const Offset(0, 8))
-                    ]),
+                      ]
+                ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: AppNetworkImage(
-                    imageUrl: banner.imageUrl,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
+                  borderRadius: BorderRadius.circular(isDesktop ? 0 : 20),
+                  child: Stack(
+                    children: [
+                      AppNetworkImage(
+                        imageUrl: banner.imageUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                      ),
+                      // Lớp phủ gradient nhẹ trên Web để ảnh trông sâu hơn
+                      if (isDesktop)
+                        Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withValues(alpha: 0.1),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
             );
           },
           options: CarouselOptions(
-            aspectRatio: 16 / 9,
+            aspectRatio: isDesktop ? 21 / 8 : 16 / 9, // Tăng thêm chút chiều cao
             autoPlay: true,
-            autoPlayInterval: const Duration(seconds: 5),
-            enlargeCenterPage: true,
-            viewportFraction: Responsive.value(context, mobile: 0.9, desktop: 0.6),
+            autoPlayInterval: const Duration(seconds: 6), // Chậm lại chút cho sang
+            enlargeCenterPage: !isDesktop,
+            viewportFraction: isDesktop ? 1.0 : 0.9,
             enlargeStrategy: CenterPageEnlargeStrategy.zoom,
-            autoPlayAnimationDuration: const Duration(milliseconds: 800),
-            autoPlayCurve: Curves.fastOutSlowIn,
+            autoPlayAnimationDuration: const Duration(milliseconds: 1000), // Mượt hơn
+            autoPlayCurve: Curves.easeInOutCubic, // Đường cong mượt hơn
           ),
-        ).animate().fadeIn(delay: 200.ms).scale(
-            begin: const Offset(0.95, 0.95),
-            curve: Curves.easeOutBack), // Animate nội dung
+        ).animate().fadeIn(delay: 200.ms),
       ),
     );
   }

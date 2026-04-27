@@ -68,14 +68,39 @@ class AgentSpecialPricePage extends StatelessWidget {
                     activeColor: AppTheme.primaryGreen,
                   ),
                   const Divider(height: 1),
-                  if (!state.useGeneralPrice)
+                  if (!state.useGeneralPrice) ...[
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Tìm kiếm sản phẩm...',
+                          prefixIcon: const Icon(Icons.search),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                        ),
+                        onChanged: (query) {
+                          context.read<AgentSpecialPriceCubit>().updateSearchQuery(query);
+                        },
+                      ),
+                    ),
                     Expanded(
-                      child: ListView.separated(
-                        padding: EdgeInsets.fromLTRB(16, 16, 16, 80 + MediaQuery.of(context).padding.bottom),
-                        itemCount: state.products.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final product = state.products[index];
+                      child: Builder(builder: (context) {
+                        final displayedProducts = state.searchQuery.isEmpty 
+                            ? state.products 
+                            : state.products.where((p) => p.name.toLowerCase().contains(state.searchQuery.toLowerCase())).toList();
+                        
+                        if (displayedProducts.isEmpty) {
+                          return const Center(child: Text('Không tìm thấy sản phẩm nào.'));
+                        }
+
+                        return ListView.separated(
+                          padding: EdgeInsets.fromLTRB(16, 0, 16, 80 + MediaQuery.of(context).padding.bottom),
+                          itemCount: displayedProducts.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final product = displayedProducts[index];
                           final originalPrice = product.getPriceForRole(user.role);
                           // Ưu tiên hiển thị giá local đang sửa, sau đó đến giá DB
                           final currentPrice = state.unsavedChanges[product.id] ?? state.specialPrices[product.id];
@@ -140,9 +165,10 @@ class AgentSpecialPricePage extends StatelessWidget {
                             ),
                           );
                         },
-                      ),
-                    )
-                  else
+                      );
+                    }),
+                  ),
+                  ] else
                     Padding(
                       padding: const EdgeInsets.all(32.0),
                       child: Column(

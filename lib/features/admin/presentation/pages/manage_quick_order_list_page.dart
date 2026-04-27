@@ -30,7 +30,8 @@ class ManageQuickOrderListPage extends StatelessWidget {
 
   // --- SỬA ĐỔI HÀM NÀY ---
   void _onAddProduct(BuildContext context) async {
-    final currentUser = (context.read<AuthBloc>().state as AuthAuthenticated).user;
+    final currentUser =
+        (context.read<AuthBloc>().state as AuthAuthenticated).user;
     final cubit = context.read<ManageQuickListCubit>();
 
     // Điều hướng đến trang tìm kiếm để chọn sản phẩm
@@ -58,7 +59,8 @@ class ManageQuickOrderListPage extends StatelessWidget {
       body: BlocConsumer<ManageQuickListCubit, ManageQuickListState>(
         listener: (context, state) {
           // Lắng nghe và hiển thị lỗi nếu có
-          if (state.status == ManageQuickListStatus.error && state.errorMessage != null) {
+          if (state.status == ManageQuickListStatus.error &&
+              state.errorMessage != null) {
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(
@@ -91,7 +93,11 @@ class ManageQuickOrderListPage extends StatelessWidget {
 
           // Hiển thị danh sách sản phẩm
           return ListView.builder(
-            padding: EdgeInsets.only(bottom: 80 + MediaQuery.of(context).padding.bottom), // Thêm khoảng đệm để không bị FAB che
+            padding: EdgeInsets.only(
+                bottom: 80 +
+                    MediaQuery.of(context)
+                        .padding
+                        .bottom), // Thêm khoảng đệm để không bị FAB che
             itemCount: state.products.length,
             itemBuilder: (context, index) {
               final product = state.products[index];
@@ -122,7 +128,8 @@ class _ProductListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     // Lấy giá mặc định từ quy cách đầu tiên để hiển thị.
     final displayPrice = product.packingOptions.isNotEmpty
-        ? product.getPriceForRole('agent_2') // Giả sử lấy giá đại lý cấp 2 để hiển thị
+        ? product.getPriceForRole(
+            'agent_2') // Giả sử lấy giá đại lý cấp 2 để hiển thị
         : 0.0;
 
     return Card(
@@ -142,13 +149,13 @@ class _ProductListItem extends StatelessWidget {
                 width: 60,
                 height: 60,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    Container(
-                      width: 60,
-                      height: 60,
-                      color: Colors.grey.shade200,
-                      child: const Icon(Icons.image_not_supported, color: Colors.grey),
-                    ),
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 60,
+                  height: 60,
+                  color: Colors.grey.shade200,
+                  child:
+                      const Icon(Icons.image_not_supported, color: Colors.grey),
+                ),
               ),
             ),
             if (product.isPrivate) // <-- Kiểm tra
@@ -167,11 +174,14 @@ class _ProductListItem extends StatelessWidget {
           ],
         ),
         // --- KẾT THÚC SỬA ĐỔI ---
-        title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(product.name,
+            style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(
-          currencyFormatter.format(displayPrice),
+          displayPrice > 0 ? currencyFormatter.format(displayPrice) : 'Liên hệ',
           style: TextStyle(
-            color: Theme.of(context).colorScheme.primary,
+            color: displayPrice > 0
+                ? Theme.of(context).colorScheme.primary
+                : Colors.orange,
             fontWeight: FontWeight.w600,
             fontSize: 15,
           ),
@@ -185,7 +195,8 @@ class _ProductListItem extends StatelessWidget {
               context: context,
               builder: (dialogContext) => AlertDialog(
                 title: const Text('Xác nhận xóa'),
-                content: Text('Bạn có chắc muốn xóa "${product.name}" khỏi danh sách đặt nhanh?'),
+                content: Text(
+                    'Bạn có chắc muốn xóa "${product.name}" khỏi danh sách đặt nhanh?'),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(dialogContext).pop(),
@@ -193,10 +204,13 @@ class _ProductListItem extends StatelessWidget {
                   ),
                   TextButton(
                     onPressed: () {
-                      context.read<ManageQuickListCubit>().removeProduct(product.id);
+                      context
+                          .read<ManageQuickListCubit>()
+                          .removeProduct(product.id);
                       Navigator.of(dialogContext).pop();
                     },
-                    child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+                    child:
+                        const Text('Xóa', style: TextStyle(color: Colors.red)),
                   ),
                 ],
               ),

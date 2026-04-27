@@ -22,6 +22,9 @@ import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/orders/presentation/bloc/order_detail_cubit.dart';
 import 'package:piv_app/features/returns/presentation/pages/create_return_request_page.dart';
+import 'package:piv_app/common/widgets/app_network_image.dart';
+import 'package:piv_app/common/widgets/responsive_wrapper.dart';
+import 'package:piv_app/core/utils/responsive.dart';
 import 'package:piv_app/common/widgets/currency_input_formatter.dart'; 
 
 class OrderDetailPage extends StatelessWidget {
@@ -284,113 +287,116 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                 controller: screenshotController,
                 child: CustomScrollView(
                   slivers: [
-                    _buildSliverAppBar(context, order, currentUser),
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Form(
-                          key: formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildStatusCard(context, order),
-                              const SizedBox(height: 16),
-
-                              if (currentUser != null && order.status == 'pending_approval') ...[
-                                _buildDebtInfoCard(context, currentUser.debtAmount.toDouble()),
+                    _wrapConstrained(context, _buildSliverAppBar(context, order, currentUser)),
+                    _wrapConstrained(
+                      context,
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Form(
+                            key: formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildStatusCard(context, order),
                                 const SizedBox(height: 16),
-                              ],
 
-                              if (order.shippingDate != null) ...[
-                                _buildInfoCard(
-                                    context,
-                                    'Thông tin giao hàng',
-                                    Icons.local_shipping_outlined,
-                                    _ShippingInfo(shippingDate: order.shippingDate!.toDate())),
-                                const SizedBox(height: 16),
-                              ],
-
-                              if (order.paymentStatus == 'unpaid' &&
-                                  order.status != 'pending_approval') ...[
-                                // Nếu là chủ đơn hàng (Khách hàng) -> Hiện mã QR
-                                if (currentUser?.id == order.userId && state.paymentInfo != null) ...[
-                                  _buildInfoCard(
-                                      context,
-                                      'Thông tin thanh toán',
-                                      Icons.qr_code_scanner,
-                                      _PaymentQrInfo(paymentInfo: state.paymentInfo!, order: order)),
-                                ]
-                                // Nếu là Nhân viên/Admin -> Chỉ hiện thông báo
-                                else if (currentUser?.id != order.userId) ...[
-                                  _buildInfoCard(
-                                      context,
-                                      'Thông tin thanh toán',
-                                      Icons.info_outline,
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                        child: Row(
-                                          children: [
-                                            const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                'Khách hàng chưa thực hiện thanh toán/chuyển khoản.',
-                                                style: TextStyle(
-                                                    color: Colors.orange.shade800,
-                                                    fontWeight: FontWeight.w500,
-                                                    fontStyle: FontStyle.italic),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      )),
+                                if (currentUser != null && order.status == 'pending_approval') ...[
+                                  _buildDebtInfoCard(context, currentUser.debtAmount.toDouble()),
+                                  const SizedBox(height: 16),
                                 ],
-                                const SizedBox(height: 16),
-                              ],
 
-                              _buildInfoCard(
-                                  context,
-                                  'Địa chỉ nhận hàng',
-                                  Icons.location_on_outlined,
-                                  _AddressInfo(address: order.shippingAddress)),
-                              const SizedBox(height: 16),
+                                if (order.shippingDate != null) ...[
+                                  _buildInfoCard(
+                                      context,
+                                      'Thông tin giao hàng',
+                                      Icons.local_shipping_outlined,
+                                      _ShippingInfo(shippingDate: order.shippingDate!.toDate())),
+                                  const SizedBox(height: 16),
+                                ],
 
-                              if (order.legalInfo != null) ...[
+                                if (order.paymentStatus == 'unpaid' &&
+                                    order.status != 'pending_approval') ...[
+                                  // Nếu là chủ đơn hàng (Khách hàng) -> Hiện mã QR
+                                  if (currentUser?.id == order.userId && state.paymentInfo != null) ...[
+                                    _buildInfoCard(
+                                        context,
+                                        'Thông tin thanh toán',
+                                        Icons.qr_code_scanner,
+                                        _PaymentQrInfo(paymentInfo: state.paymentInfo!, order: order)),
+                                  ]
+                                  // Nếu là Nhân viên/Admin -> Chỉ hiện thông báo
+                                  else if (currentUser?.id != order.userId) ...[
+                                    _buildInfoCard(
+                                        context,
+                                        'Thông tin thanh toán',
+                                        Icons.info_outline,
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                          child: Row(
+                                            children: [
+                                              const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  'Khách hàng chưa thực hiện thanh toán/chuyển khoản.',
+                                                  style: TextStyle(
+                                                      color: Colors.orange.shade800,
+                                                      fontWeight: FontWeight.w500,
+                                                      fontStyle: FontStyle.italic),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        )),
+                                  ],
+                                  const SizedBox(height: 16),
+                                ],
+
                                 _buildInfoCard(
                                     context,
-                                    'Thông tin pháp lý khách hàng',
-                                    Icons.gavel_outlined,
-                                    _LegalInfo(legalInfo: order.legalInfo!)),
+                                    'Địa chỉ nhận hàng',
+                                    Icons.location_on_outlined,
+                                    _AddressInfo(address: order.shippingAddress)),
                                 const SizedBox(height: 16),
+
+                                if (order.legalInfo != null) ...[
+                                  _buildInfoCard(
+                                      context,
+                                      'Thông tin pháp lý khách hàng',
+                                      Icons.gavel_outlined,
+                                      _LegalInfo(legalInfo: order.legalInfo!)),
+                                  const SizedBox(height: 16),
+                                ],
+
+                                _buildInfoCard(context, 'Sản phẩm', Icons.shopping_bag_outlined,
+                                    _OrderItemsList(items: order.items)),
+                                const SizedBox(height: 16),
+
+                                _buildInfoCard(
+                                    context,
+                                    'Thanh toán',
+                                    Icons.receipt_long_outlined,
+                                    _PaymentSummary(
+                                        order: order,
+                                        totalAmountToHandle: totalAmountToHandle,
+                                        voucherDiscount: state.voucherDiscount)),
+
+                                if (order.status == 'pending_approval') ...[
+                                  const SizedBox(height: 16),
+                                  _VoucherSection(voucherController: voucherController),
+                                  const SizedBox(height: 16),
+                                  _ApprovalPaymentInputSection(
+                                      amountController: amountController,
+                                      totalAmount: totalAmountToHandle,
+                                      numberFormatter: numberFormatter),
+                                ],
+
+                                const SizedBox(height: 120), // Bottom padding for BottomBar
                               ],
-
-                              _buildInfoCard(context, 'Sản phẩm', Icons.shopping_bag_outlined,
-                                  _OrderItemsList(items: order.items)),
-                              const SizedBox(height: 16),
-
-                              _buildInfoCard(
-                                  context,
-                                  'Thanh toán',
-                                  Icons.receipt_long_outlined,
-                                  _PaymentSummary(
-                                      order: order,
-                                      totalAmountToHandle: totalAmountToHandle,
-                                      voucherDiscount: state.voucherDiscount)),
-
-                              if (order.status == 'pending_approval') ...[
-                                const SizedBox(height: 16),
-                                _VoucherSection(voucherController: voucherController),
-                                const SizedBox(height: 16),
-                                _ApprovalPaymentInputSection(
-                                    amountController: amountController,
-                                    totalAmount: totalAmountToHandle,
-                                    numberFormatter: numberFormatter),
-                              ],
-
-                              const SizedBox(height: 100), // Bottom padding for BottomBar
-                            ],
-                          ),
-                        ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0),
+                            ),
+                          ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0),
+                        ),
                       ),
                     ),
                   ],
@@ -402,6 +408,20 @@ class _OrderDetailViewState extends State<OrderDetailView> {
           );
         },
       ),
+    );
+  }
+
+  /// Hàm hỗ trợ bọc các thành phần cần giới hạn chiều rộng trên Web
+  Widget _wrapConstrained(BuildContext context, Widget sliver) {
+    if (!Responsive.isDesktop(context)) return sliver;
+    final double screenWidth = MediaQuery.of(context).size.width;
+    const double maxWidth = 900;
+    if (screenWidth <= maxWidth) return sliver;
+    
+    final double padding = (screenWidth - maxWidth) / 2;
+    return SliverPadding(
+      padding: EdgeInsets.symmetric(horizontal: padding),
+      sliver: sliver,
     );
   }
 
@@ -975,9 +995,11 @@ class _BottomBar extends StatelessWidget {
     }
 
     if (bottomWidget != null) {
+      final bool isDesktop = Responsive.isDesktop(context);
       return Align(
         alignment: Alignment.bottomCenter,
         child: Container(
+          constraints: BoxConstraints(maxWidth: isDesktop ? 900 : double.infinity),
           padding: const EdgeInsets.all(16.0)
               .copyWith(bottom: 16.0 + MediaQuery.of(context).padding.bottom),
           decoration: BoxDecoration(
@@ -1253,22 +1275,11 @@ class _PaymentQrInfoState extends State<_PaymentQrInfo> {
               // Ảnh QR
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  qrUrl,
+                child: AppNetworkImage(
+                  imageUrl: qrUrl,
                   height: 300,
                   width: 300,
                   fit: BoxFit.contain,
-                  loadingBuilder: (context, child, progress) => progress == null
-                      ? child
-                      : const SizedBox(height: 300, width: 300, child: Center(child: CircularProgressIndicator())),
-                  errorBuilder: (context, error, stack) => const SizedBox(height: 300, width: 300, child: Center(child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.error_outline, color: Colors.red, size: 40),
-                      SizedBox(height: 8),
-                      Text('Không thể tạo mã QR', style: TextStyle(color: Colors.grey)),
-                    ],
-                  ))),
                 ),
               ),
 
@@ -1456,15 +1467,11 @@ class _OrderItemsList extends StatelessWidget {
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: Image.network(item.imageUrl,
+          child: AppNetworkImage(
+              imageUrl: item.imageUrl,
               width: 60,
               height: 60,
-              fit: BoxFit.cover,
-              errorBuilder: (c, e, s) => Container(
-                  width: 60,
-                  height: 60,
-                  color: Colors.grey.shade200,
-                  child: const Icon(Icons.image, color: Colors.grey))),
+              fit: BoxFit.cover),
         ),
         const SizedBox(width: 12),
         Expanded(

@@ -139,55 +139,104 @@ class ProductDetailView extends StatelessWidget {
   }
 
   Widget _buildDesktopLayout(BuildContext context, ProductModel product, PackagingOptionModel? selectedOption, String userRole, bool canViewPrice, bool isGuest) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Cột trái: Ảnh sản phẩm
-            Expanded(
-              flex: 1,
-              child: Column(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: Hero(
-                      tag: 'prod_img_${product.id}',
-                      child: AppNetworkImage(imageUrl: product.imageUrl, fit: BoxFit.cover),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  if (product.isPrivate)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: AppTheme.errorRed,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'SẢN PHẨM ĐỘC QUYỀN',
-                        style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                ],
+    return Column(
+      children: [
+        // --- DESKTOP HEADER ACTIONS ---
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+          color: Colors.white,
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+                onPressed: () => Navigator.of(context).pop(),
               ),
-            ),
-            const SizedBox(width: 40),
-            // Cột phải: Thông tin chi tiết
-            Expanded(
-              flex: 1,
-              child: Column(
+              const SizedBox(width: 8),
+              Text(
+                product.name,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const Spacer(),
+              if (!isGuest)
+                Container(
+                  margin: const EdgeInsets.only(right: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8)],
+                  ),
+                  child: WishlistButton(productId: product.id, color: AppTheme.primaryGreen),
+                ),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8)],
+                ),
+                child: CartIconWithBadge(
+                  iconColor: AppTheme.primaryGreen,
+                  onPressed: () => Navigator.of(context).push(CartPage.route()),
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        Expanded(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildProductContent(context, product, selectedOption, userRole, canViewPrice),
-                  const SizedBox(height: 150), // Khoảng trống cho BottomBar
+                  // Cột trái: Ảnh sản phẩm
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(24),
+                          child: Hero(
+                            tag: 'prod_img_${product.id}',
+                            child: AppNetworkImage(imageUrl: product.imageUrl, fit: BoxFit.cover),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        if (product.isPrivate)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.errorRed,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text(
+                              'SẢN PHẨM ĐỘC QUYỀN',
+                              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 40),
+                  // Cột phải: Thông tin chi tiết
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildProductContent(context, product, selectedOption, userRole, canViewPrice),
+                        const SizedBox(height: 150), // Khoảng trống cho BottomBar
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 

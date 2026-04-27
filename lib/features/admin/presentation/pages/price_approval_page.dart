@@ -34,7 +34,8 @@ class PriceApprovalPage extends StatelessWidget {
             return Center(child: Text(state.errorMessage ?? 'Có lỗi xảy ra'));
           }
           if (state.pendingRequests.isEmpty) {
-            return const Center(child: Text('Không có yêu cầu nào đang chờ duyệt.'));
+            return const Center(
+                child: Text('Không có yêu cầu nào đang chờ duyệt.'));
           }
 
           return ListView.separated(
@@ -90,7 +91,7 @@ class _RequestCardState extends State<_RequestCard> {
           children: widget.request.items.map((item) {
             final isRemoval = item.newPrice <= 0;
             final isSelected = _selectedProductIds.contains(item.productId);
-            
+
             return CheckboxListTile(
               value: isSelected,
               onChanged: (bool? value) {
@@ -107,10 +108,17 @@ class _RequestCardState extends State<_RequestCard> {
               secondary: item.productImageUrl.isNotEmpty
                   ? ClipRRect(
                       borderRadius: BorderRadius.circular(4),
-                      child: Image.network(item.productImageUrl, width: 40, height: 40, fit: BoxFit.cover, errorBuilder: (_,__,___) => const Icon(Icons.image, size: 40)),
+                      child: Image.network(item.productImageUrl,
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              const Icon(Icons.image, size: 40)),
                     )
                   : const Icon(Icons.image, size: 40),
-              title: Text(item.productName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              title: Text(item.productName,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.bold)),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -118,18 +126,27 @@ class _RequestCardState extends State<_RequestCard> {
                     'Giá niêm yết: ${currencyFormat.format(item.generalPrice)}',
                     style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
-                  Row(
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       if (item.oldPrice > 0) ...[
                         Text(
-                          'Giá riêng cũ: ${currencyFormat.format(item.oldPrice)}', 
-                          style: const TextStyle(decoration: TextDecoration.lineThrough, color: Colors.grey, fontSize: 12)
-                        ),
-                        const Icon(Icons.arrow_right_alt, size: 16, color: Colors.grey),
+                            'Giá riêng cũ: ${currencyFormat.format(item.oldPrice)}',
+                            style: const TextStyle(
+                                decoration: TextDecoration.lineThrough,
+                                color: Colors.grey,
+                                fontSize: 12)),
+                        const Icon(Icons.arrow_right_alt,
+                            size: 16, color: Colors.grey),
                       ],
                       Text(
-                        isRemoval ? 'Về giá gốc' : 'Giá đề xuất: ${currencyFormat.format(item.newPrice)}',
-                        style: TextStyle(color: isRemoval ? Colors.red : Colors.blue, fontWeight: FontWeight.bold, fontSize: 13),
+                        isRemoval
+                            ? 'Về giá gốc'
+                            : 'Giá đề xuất: ${currencyFormat.format(item.newPrice)}',
+                        style: TextStyle(
+                            color: isRemoval ? Colors.red : Colors.blue,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13),
                       ),
                     ],
                   ),
@@ -160,7 +177,7 @@ class _RequestCardState extends State<_RequestCard> {
     final int selectedCount = _selectedProductIds.length;
     final int totalCount = widget.request.items.length;
     String approveButtonText = 'DUYỆT';
-    
+
     if (isBatchUpdate) {
       if (selectedCount == totalCount) {
         approveButtonText = 'DUYỆT TẤT CẢ';
@@ -179,12 +196,17 @@ class _RequestCardState extends State<_RequestCard> {
         child: ExpansionTile(
           initiallyExpanded: true,
           leading: Icon(icon, color: color),
-          title: Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+          title: Text(title,
+              style: TextStyle(color: color, fontWeight: FontWeight.bold)),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Đại lý: ${widget.request.agentName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              Text('Yêu cầu bởi: ${widget.request.requesterName} • ${dateFormat.format(widget.request.createdAt.toDate())}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              Text('Đại lý: ${widget.request.agentName}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 13)),
+              Text(
+                  'Yêu cầu bởi: ${widget.request.requesterName} • ${dateFormat.format(widget.request.createdAt.toDate())}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12)),
             ],
           ),
           childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -197,21 +219,24 @@ class _RequestCardState extends State<_RequestCard> {
               children: [
                 TextButton(
                   onPressed: () => _showRejectDialog(context),
-                  child: const Text('TỪ CHỐI', style: TextStyle(color: Colors.red)),
+                  child: const Text('TỪ CHỐI',
+                      style: TextStyle(color: Colors.red)),
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
                   // Vô hiệu hóa nút duyệt nếu là batch update mà chưa chọn gì (hoặc chuyển thành nút từ chối như logic trên)
                   onPressed: (isBatchUpdate && selectedCount == 0)
-                      ? () => _showRejectDialog(context) // Nếu không chọn gì -> Từ chối
+                      ? () => _showRejectDialog(
+                          context) // Nếu không chọn gì -> Từ chối
                       : () {
                           // Nếu là batch update, tạo bản sao request chỉ chứa items đã chọn
                           if (isBatchUpdate) {
                             // Lọc danh sách items
                             final filteredItems = widget.request.items
-                                .where((item) => _selectedProductIds.contains(item.productId))
+                                .where((item) => _selectedProductIds
+                                    .contains(item.productId))
                                 .toList();
-                            
+
                             // Tạo request mới với danh sách đã lọc (dùng copyWith không được vì items là list, phải tạo mới hoặc sửa model để copy list)
                             // Cách đơn giản: Tạo request mới thủ công
                             final partialRequest = PriceRequestModel(
@@ -223,18 +248,24 @@ class _RequestCardState extends State<_RequestCard> {
                               requesterRole: widget.request.requesterRole,
                               type: widget.request.type,
                               items: filteredItems, // CHỈ GỬI ITEM ĐƯỢC DUYỆT
-                              newGeneralPriceState: widget.request.newGeneralPriceState,
+                              newGeneralPriceState:
+                                  widget.request.newGeneralPriceState,
                               status: widget.request.status,
                               createdAt: widget.request.createdAt,
                             );
-                            
-                            context.read<PriceApprovalCubit>().approveRequest(partialRequest);
+
+                            context
+                                .read<PriceApprovalCubit>()
+                                .approveRequest(partialRequest);
                           } else {
                             // Các loại request khác duyệt bình thường
-                            context.read<PriceApprovalCubit>().approveRequest(widget.request);
+                            context
+                                .read<PriceApprovalCubit>()
+                                .approveRequest(widget.request);
                           }
                         },
-                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryGreen),
                   child: Text(approveButtonText),
                 ),
               ],
@@ -253,13 +284,18 @@ class _RequestCardState extends State<_RequestCard> {
         title: const Text('Từ chối yêu cầu'),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(hintText: 'Lý do từ chối (tùy chọn)'),
+          decoration:
+              const InputDecoration(hintText: 'Lý do từ chối (tùy chọn)'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Hủy')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Hủy')),
           ElevatedButton(
             onPressed: () {
-              context.read<PriceApprovalCubit>().rejectRequest(widget.request.id, controller.text);
+              context
+                  .read<PriceApprovalCubit>()
+                  .rejectRequest(widget.request.id, controller.text);
               Navigator.pop(dialogContext);
             },
             child: const Text('Xác nhận'),

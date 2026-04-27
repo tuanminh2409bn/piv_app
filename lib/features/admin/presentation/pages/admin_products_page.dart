@@ -8,6 +8,7 @@ import 'package:piv_app/features/admin/presentation/bloc/admin_products_cubit.da
 import 'package:piv_app/features/admin/presentation/pages/admin_product_form_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/price_adjustment_page.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
+import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 
 class AdminProductsPage extends StatelessWidget {
   const AdminProductsPage({super.key});
@@ -17,28 +18,38 @@ class AdminProductsPage extends StatelessWidget {
     // Cung cấp Cubit cho riêng trang này
     return BlocProvider(
       create: (_) => sl<AdminProductsCubit>()..fetchAllProducts(),
-      child: Builder( // Thêm Builder để lấy context mới bên dưới BlocProvider
+      child: Builder(
+        // Thêm Builder để lấy context mới bên dưới BlocProvider
         builder: (context) {
+          final authState = context.read<AuthBloc>().state;
+          final bool isAdmin =
+              authState is AuthAuthenticated && authState.user.role == 'admin';
+
           return Scaffold(
             appBar: AppBar(
               title: const Text('Quản lý Sản phẩm'),
               actions: [
-                IconButton(
-                  icon: const Icon(Icons.price_change_outlined),
-                  tooltip: 'Điều chỉnh giá hàng loạt',
-                  onPressed: () {
-                    Navigator.of(context).push(PriceAdjustmentPage.route()).then((_) {
-                      // Bây giờ context này đã nằm dưới BlocProvider nên sẽ tìm thấy Cubit
-                      context.read<AdminProductsCubit>().fetchAllProducts();
-                    });
-                  },
-                ),
+                if (isAdmin)
+                  IconButton(
+                    icon: const Icon(Icons.price_change_outlined),
+                    tooltip: 'Điều chỉnh giá hàng loạt',
+                    onPressed: () {
+                      Navigator.of(context)
+                          .push(PriceAdjustmentPage.route())
+                          .then((_) {
+                        // Bây giờ context này đã nằm dưới BlocProvider nên sẽ tìm thấy Cubit
+                        context.read<AdminProductsCubit>().fetchAllProducts();
+                      });
+                    },
+                  ),
               ],
             ),
             // Trang này sẽ có nút FloatingActionButton riêng
             floatingActionButton: FloatingActionButton(
               onPressed: () {
-                Navigator.of(context).push<bool?>(AdminProductFormPage.route()).then((success) {
+                Navigator.of(context)
+                    .push<bool?>(AdminProductFormPage.route())
+                    .then((success) {
                   if (success == true) {
                     context.read<AdminProductsCubit>().fetchAllProducts();
                   }
@@ -53,7 +64,6 @@ class AdminProductsPage extends StatelessWidget {
     );
   }
 }
-
 
 // =================================================================
 //        WIDGET VIEW ĐÃ ĐƯỢC DI CHUYỂN TỪ TRANG HOME
@@ -72,23 +82,28 @@ class AdminProductsView extends StatelessWidget {
               hintText: 'Tìm kiếm sản phẩm...',
               prefixIcon: Icon(Icons.search),
             ),
-            onChanged: (query) => context.read<AdminProductsCubit>().searchProducts(query),
+            onChanged: (query) =>
+                context.read<AdminProductsCubit>().searchProducts(query),
           ),
         ),
         Expanded(
           child: BlocBuilder<AdminProductsCubit, AdminProductsState>(
             builder: (context, state) {
-              if (state.status == AdminProductsStatus.loading && state.filteredProducts.isEmpty) {
+              if (state.status == AdminProductsStatus.loading &&
+                  state.filteredProducts.isEmpty) {
                 return const Center(child: CircularProgressIndicator());
               }
               if (state.filteredProducts.isEmpty) {
-                return const Center(child: Text('Không tìm thấy sản phẩm nào.'));
+                return const Center(
+                    child: Text('Không tìm thấy sản phẩm nào.'));
               }
               return RefreshIndicator(
-                onRefresh: () => context.read<AdminProductsCubit>().fetchAllProducts(),
+                onRefresh: () =>
+                    context.read<AdminProductsCubit>().fetchAllProducts(),
                 child: ListView.separated(
                   // Thêm padding để tránh FAB (80px) và thanh điều hướng
-                  padding: EdgeInsets.only(bottom: 80 + MediaQuery.of(context).padding.bottom),
+                  padding: EdgeInsets.only(
+                      bottom: 80 + MediaQuery.of(context).padding.bottom),
                   itemCount: state.filteredProducts.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, index) {
@@ -105,8 +120,10 @@ class AdminProductsView extends StatelessWidget {
   }
 
   Widget _buildProductListItem(BuildContext context, ProductModel product) {
-    final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
-    final displayPrice = product.packingOptions.isNotEmpty && product.packingOptions.first.prices.isNotEmpty
+    final currencyFormatter =
+        NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    final displayPrice = product.packingOptions.isNotEmpty &&
+            product.packingOptions.first.prices.isNotEmpty
         ? product.packingOptions.first.prices.values.first
         : 0.0;
 
@@ -114,7 +131,9 @@ class AdminProductsView extends StatelessWidget {
       color: Colors.white,
       child: InkWell(
         onTap: () {
-          Navigator.of(context).push<bool?>(AdminProductFormPage.route(product: product)).then((success) {
+          Navigator.of(context)
+              .push<bool?>(AdminProductFormPage.route(product: product))
+              .then((success) {
             if (success == true) {
               context.read<AdminProductsCubit>().fetchAllProducts();
             }
@@ -128,8 +147,20 @@ class AdminProductsView extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: (product.imageUrl.isNotEmpty)
-                    ? Image.network(product.imageUrl, width: 60, height: 60, fit: BoxFit.cover, errorBuilder: (_,__,___) => Container(width: 60, height: 60, color: Colors.grey.shade200, child: const Icon(Icons.image_not_supported)))
-                    : Container(width: 60, height: 60, color: Colors.grey.shade200, child: const Icon(Icons.image)),
+                    ? Image.network(product.imageUrl,
+                        width: 60,
+                        height: 60,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                            width: 60,
+                            height: 60,
+                            color: Colors.grey.shade200,
+                            child: const Icon(Icons.image_not_supported)))
+                    : Container(
+                        width: 60,
+                        height: 60,
+                        color: Colors.grey.shade200,
+                        child: const Icon(Icons.image)),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -137,7 +168,12 @@ class AdminProductsView extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis,),
+                    Text(
+                      product.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     const SizedBox(height: 4),
                     Text('Giá từ: ${currencyFormatter.format(displayPrice)}'),
                   ],
@@ -153,7 +189,9 @@ class AdminProductsView extends StatelessWidget {
                     child: Switch(
                       value: product.isFeatured,
                       onChanged: (newValue) {
-                        context.read<AdminProductsCubit>().toggleIsFeatured(product.id, product.isFeatured);
+                        context
+                            .read<AdminProductsCubit>()
+                            .toggleIsFeatured(product.id, product.isFeatured);
                       },
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
@@ -161,22 +199,30 @@ class AdminProductsView extends StatelessWidget {
                 ],
               ),
               IconButton(
-                icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
+                icon: Icon(Icons.delete_outline,
+                    color: Theme.of(context).colorScheme.error),
                 tooltip: 'Xóa sản phẩm',
                 onPressed: () {
                   showDialog(
                     context: context,
                     builder: (dialogContext) => AlertDialog(
                       title: const Text('Xác nhận xóa'),
-                      content: Text('Bạn có chắc chắn muốn xóa sản phẩm "${product.name}"? Hành động này không thể hoàn tác.'),
+                      content: Text(
+                          'Bạn có chắc chắn muốn xóa sản phẩm "${product.name}"? Hành động này không thể hoàn tác.'),
                       actions: [
-                        TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Hủy')),
+                        TextButton(
+                            onPressed: () => Navigator.of(dialogContext).pop(),
+                            child: const Text('Hủy')),
                         TextButton(
                           onPressed: () {
-                            context.read<AdminProductsCubit>().deleteProduct(product.id);
+                            context
+                                .read<AdminProductsCubit>()
+                                .deleteProduct(product.id);
                             Navigator.of(dialogContext).pop();
                           },
-                          child: Text('Xóa', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                          child: Text('Xóa',
+                              style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error)),
                         ),
                       ],
                     ),

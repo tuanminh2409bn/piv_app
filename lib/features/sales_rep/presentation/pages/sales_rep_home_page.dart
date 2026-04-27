@@ -24,6 +24,7 @@ import 'package:piv_app/features/admin/presentation/pages/admin_products_page.da
 import 'package:piv_app/features/admin/presentation/pages/agent_special_price_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/agent_discount_config_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/manual_notification_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/agent_product_visibility_page.dart';
 
 
 class SalesRepHomePage extends StatelessWidget {
@@ -255,6 +256,8 @@ class MyAgentsView extends StatelessWidget {
                         Navigator.of(context).push(AgentSpecialPricePage.route(user: agent));
                       } else if (value == 'discount_config') {
                         Navigator.of(context).push(AgentDiscountConfigPage.route(user: agent));
+                      } else if (value == 'manage_visibility') {
+                        Navigator.of(context).push(MaterialPageRoute(builder: (_) => AgentProductVisibilityPage(agent: agent)));
                       }
                     },
                     // <<< THÊM ITEM MỚI VÀO MENU >>>
@@ -274,6 +277,10 @@ class MyAgentsView extends StatelessWidget {
                       const PopupMenuItem<String>(
                         value: 'discount_config',
                         child: ListTile(leading: Icon(Icons.percent), title: Text('Cấu hình chiết khấu')),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'manage_visibility',
+                        child: ListTile(leading: Icon(Icons.visibility_off_outlined), title: Text('Hiển thị Sản phẩm')),
                       ),
                       const PopupMenuDivider(),
                       const PopupMenuItem<String>(
@@ -369,6 +376,8 @@ class PendingAgentsView extends StatelessWidget {
               Navigator.of(context).push(AgentSpecialPricePage.route(user: agent));
             } else if (value == 'discount_config') {
               Navigator.of(context).push(AgentDiscountConfigPage.route(user: agent));
+            } else if (value == 'manage_visibility') {
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => AgentProductVisibilityPage(agent: agent)));
             }
           },
           itemBuilder: (context) => [
@@ -383,6 +392,10 @@ class PendingAgentsView extends StatelessWidget {
             const PopupMenuItem(
               value: 'discount_config',
               child: ListTile(leading: Icon(Icons.percent), title: Text('Cấu hình chiết khấu')),
+            ),
+            const PopupMenuItem<String>(
+              value: 'manage_visibility',
+              child: ListTile(leading: Icon(Icons.visibility_off_outlined), title: Text('Hiển thị Sản phẩm')),
             ),
           ],
         ),

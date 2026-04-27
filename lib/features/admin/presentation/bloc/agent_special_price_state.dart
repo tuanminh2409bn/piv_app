@@ -12,6 +12,7 @@ class AgentSpecialPriceState extends Equatable {
   final bool useGeneralPrice;
   final String? errorMessage;
   final PriceRequestModel? pendingRequest; // Yêu cầu đang chờ duyệt
+  final String searchQuery;
 
   const AgentSpecialPriceState({
     this.status = AgentSpecialPriceStatus.initial,
@@ -21,6 +22,7 @@ class AgentSpecialPriceState extends Equatable {
     this.useGeneralPrice = true,
     this.errorMessage,
     this.pendingRequest,
+    this.searchQuery = '',
   });
 
   bool get isLocked => pendingRequest != null; // UI helper
@@ -34,6 +36,7 @@ class AgentSpecialPriceState extends Equatable {
     String? errorMessage,
     PriceRequestModel? pendingRequest,
     bool clearPendingRequest = false,
+    String? searchQuery,
   }) {
     return AgentSpecialPriceState(
       status: status ?? this.status,
@@ -43,10 +46,11 @@ class AgentSpecialPriceState extends Equatable {
       useGeneralPrice: useGeneralPrice ?? this.useGeneralPrice,
       errorMessage: errorMessage,
       pendingRequest: clearPendingRequest ? null : (pendingRequest ?? this.pendingRequest),
+      searchQuery: searchQuery ?? this.searchQuery,
     );
   }
 
   @override
   List<Object?> get props =>
-      [status, products, specialPrices, unsavedChanges, useGeneralPrice, errorMessage, pendingRequest];
+      [status, products, specialPrices, unsavedChanges, useGeneralPrice, errorMessage, pendingRequest, searchQuery];
 }

@@ -37,7 +37,12 @@ class _AgentProductVisibilityPageState extends State<AgentProductVisibilityPage>
 
     productsResult.fold(
       (l) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.message))),
-      (r) => _allProducts = r,
+      (r) {
+        _allProducts = r.where((p) {
+          if (!p.isPrivate) return true;
+          return p.ownerAgentId == widget.agent.id;
+        }).toList();
+      },
     );
 
     hiddenResult.fold(

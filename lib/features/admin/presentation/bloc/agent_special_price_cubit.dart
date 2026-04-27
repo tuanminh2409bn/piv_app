@@ -85,13 +85,16 @@ class AgentSpecialPriceCubit extends Cubit<AgentSpecialPriceState> {
   Future<void> toggleGeneralPrice(bool value) async {
     try {
       // Optimistic update handled by stream, but we can set it locally too
-      emit(state.copyWith(useGeneralPrice: value)); 
+      emit(state.copyWith(useGeneralPrice: value));
       await specialPriceRepository.toggleUseGeneralPrice(targetUser.id, value);
     } catch (e) {
       emit(state.copyWith(status: AgentSpecialPriceStatus.error, errorMessage: 'Lỗi: $e'));
     }
   }
 
+  void updateSearchQuery(String query) {
+    emit(state.copyWith(searchQuery: query));
+  }
   // Only updates local state
   void updateSpecialPriceLocal(String productId, double price) {
     final newUnsaved = Map<String, double>.from(state.unsavedChanges);
