@@ -244,10 +244,6 @@ class _LoginFormState extends State<LoginForm> {
           ),
           BlocListener<LoginCubit, LoginState>(
             listener: (context, state) {
-              if (state.status == LoginStatus.success) {
-                // Đóng màn hình đăng nhập ngay khi Cubit báo thành công
-                Navigator.of(context).popUntil((route) => route.isFirst);
-              }
               if (state.status == LoginStatus.error && state.errorMessage != null) {
                 ScaffoldMessenger.of(context)
                   ..hideCurrentSnackBar()
