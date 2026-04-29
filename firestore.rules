@@ -31,10 +31,6 @@ service cloud.firestore {
       return isSignedIn() && userExists(request.auth.uid) && (getUserData(request.auth.uid).role == 'agent_1' || getUserData(request.auth.uid).role == 'agent_2');
     }
     
-    function isApprovedAgent() {
-        return isAgent() && getUserData(request.auth.uid).status == 'active';
-    }
-
     function isAccountant() {
       return isSignedIn() && userExists(request.auth.uid) && getUserData(request.auth.uid).role == 'accountant';
     }
@@ -48,31 +44,28 @@ service cloud.firestore {
     }
     
     function canAgentUpdateOwnOrder() {
-      let incomingData = request.resource.data;
-      let existingData = resource.data;
-      let isApproving = incomingData.status == 'pending' &&
-                    existingData.status == 'pending_approval' &&
-                    incomingData.diff(existingData).affectedKeys().hasOnly([
+      return (request.resource.data.status == 'pending' &&
+                    resource.data.status == 'pending_approval' &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                       'status',
                       'approvedAt',
                       'paidAmount',
                       'remainingDebt',
                       'discount',
                       'appliedVoucherCode'
-                    ]);
-      let isRejecting = incomingData.status == 'rejected' &&
-                    existingData.status == 'pending_approval' &&
-                    incomingData.diff(existingData).affectedKeys().hasOnly([
+                    ])) || 
+                    (request.resource.data.status == 'rejected' &&
+                    resource.data.status == 'pending_approval' &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                       'status',
                       'rejectedAt',
                       'rejectionReason'
-                    ]);
-      let isConfirmingPayment = incomingData.paymentStatus == 'verifying' &&
-                    existingData.paymentStatus == 'unpaid' &&
-                    incomingData.diff(existingData).affectedKeys().hasOnly([
+                    ])) || 
+                    (request.resource.data.paymentStatus == 'verifying' &&
+                    resource.data.paymentStatus == 'unpaid' &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                       'paymentStatus'
-                    ]);
-      return isApproving || isRejecting || isConfirmingPayment;
+                    ]));
 }
 
     function isStaffUpdatingOrderFields() {
@@ -151,15 +144,15 @@ service cloud.firestore {
     }
     
   match /products/{docId} { 
-      allow read: if isSignedIn() && (resource.data.isPrivate == false || resource.data.ownerAgentId == request.auth.uid || isStaff());
+      allow read: if (resource.data.isPrivate == false || (isSignedIn() && (resource.data.ownerAgentId == request.auth.uid || isStaff())));
       allow write: if isStaff();
     }
     
-  match /categories/{docId} { allow read: if isSignedIn(); allow write: if isAdmin(); }
-  match /banners/{docId} { allow read: if isSignedIn(); allow write: if isAdmin(); }
-  match /settings/{docId} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+  match /categories/{docId} { allow read: if true; allow write: if isAdmin(); }
+  match /banners/{docId} { allow read: if true; allow write: if isAdmin(); }
+  match /settings/{docId} { allow read: if true; allow write: if isAdmin(); }
   match /newsArticles/{docId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isAdmin();
     }
   match /carts/{userId}/{documents=**} {

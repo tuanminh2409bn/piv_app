@@ -3,13 +3,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/core/di/injection_container.dart';
-import 'package:piv_app/core/theme/app_theme.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:piv_app/features/cart/presentation/pages/cart_page.dart';
-import 'package:piv_app/features/cart/presentation/widgets/cart_icon_with_badge.dart';
+import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
 import 'package:piv_app/features/home/presentation/bloc/home_cubit.dart';
 import 'package:piv_app/features/home/presentation/pages/home_page.dart';
-import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
 import 'package:piv_app/features/profile/presentation/bloc/profile_cubit.dart';
 import 'package:piv_app/features/profile/presentation/pages/profile_page.dart';
 import 'package:piv_app/features/products/presentation/pages/all_categories_page.dart';
@@ -46,17 +43,15 @@ class _MainScreenState extends State<MainScreen> {
     ];
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    context.read<AuthBloc>().stream.listen((authState) {
-      if (authState is AuthAuthenticated) {
-        _profileCubit.fetchUserProfile(authState.user.id);
-      }
-    });
-  }
-
   void _onItemTapped(int index) {
+    // Kiểm tra đăng nhập khi vào các tab nhạy cảm
+    if (index == 2 || index == 3) {
+      final authState = context.read<AuthBloc>().state;
+      if (authState is! AuthAuthenticated) {
+        Navigator.of(context).push(LoginPage.route());
+        return;
+      }
+    }
     setState(() {
       _selectedIndex = index;
     });
@@ -69,24 +64,39 @@ class _MainScreenState extends State<MainScreen> {
         BlocProvider.value(value: _homeCubit),
         BlocProvider.value(value: _profileCubit),
       ],
-      child: Scaffold(
-        extendBody: true, // Quan trọng: Cho phép nội dung tràn xuống dưới BottomBar
-        body: BlocListener<ProfileCubit, ProfileState>(
-          listener: (context, state) {
-            if (state.status == ProfileStatus.success && state.user.referralPromptPending) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  _showReferralPromptDialog(context);
-                }
-              });
-            }
-          },
-          child: IndexedStack(
+      child: MultiBlocListener(
+        listeners: [
+          BlocListener<AuthBloc, AuthState>(
+            listener: (context, state) {
+              if (state is AuthAuthenticated) {
+                _profileCubit.fetchUserProfile(state.user.id);
+              } else if (state is AuthUnauthenticated) {
+                // Khi đăng xuất, quay về trang chủ để tránh kẹt ở tab Tài khoản/Đặt nhanh
+                setState(() {
+                  _selectedIndex = 0;
+                });
+              }
+            },
+          ),
+          BlocListener<ProfileCubit, ProfileState>(
+            listener: (context, state) {
+              if (state.status == ProfileStatus.success && state.user.referralPromptPending) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    _showReferralPromptDialog(context);
+                  }
+                });
+              }
+            },
+          ),
+        ],
+        child: Scaffold(
+          extendBody: true, // Quan trọng: Cho phép nội dung tràn xuống dưới BottomBar
+          body: IndexedStack(
             index: _selectedIndex,
             children: _widgetOptions,
           ),
-        ),
-        bottomNavigationBar: GlassBottomNavigation(
+          bottomNavigationBar: GlassBottomNavigation(
           currentIndex: _selectedIndex,
           onItemTapped: _onItemTapped,
           items: [
@@ -113,8 +123,9 @@ class _MainScreenState extends State<MainScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _showReferralPromptDialog(BuildContext context) {
     // ... Giữ nguyên hàm này ...

@@ -87,6 +87,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       }
     }
     await _authRepository.logOut();
+    // Chúng ta không cần emit ở đây vì _userSubscription sẽ tự động bắt được event logOut từ Repository
   }
 
   Future<void> _onUserRefreshRequested(

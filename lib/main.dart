@@ -133,28 +133,39 @@ class InitialScreenController extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
+        if (state is AuthInitial) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
         if (state is AuthAuthenticated) {
           if (state.user.isAdmin) {
             return const AdminHomePage();
           } else if (state.user.isSalesRep) {
             return const SalesRepHomePage();
-          }
-          else if (state.user.isAccountant) {
+          } else if (state.user.isAccountant) {
             return const AccountantHomePage();
-          }
-          else {
+          } else {
             return const MainScreen();
           }
         }
         if (state is AuthProfileIncomplete) {
           return CompleteProfilePage(user: state.user);
         }
-        if (state is AuthUnauthenticated || state is AuthAccountPending) {
+        if (state is AuthAccountPending) {
           return const LoginPage();
         }
-        return const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        );
+
+        // TỰ ĐỘNG CHUYỂN HƯỚNG THEO NỀN TẢNG
+        if (PlatformUtils.isWeb) {
+          // Web: Vào thẳng MainScreen (khách vãng lai không thấy giá)
+          return const MainScreen();
+        } else {
+          // Mobile: Bắt buộc đăng nhập
+          return const LoginPage();
+        }
       },
     );
   }

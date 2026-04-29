@@ -12,6 +12,8 @@ import 'package:piv_app/data/models/lucky_wheel_campaign_model.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/bloc/lucky_wheel_cubit.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:piv_app/common/widgets/responsive_wrapper.dart';
+import 'package:piv_app/core/utils/responsive.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/pages/spin_history_page.dart';
 import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/pages/lucky_wheel_rules_page.dart';
@@ -57,7 +59,10 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
   Widget build(BuildContext context) {
     // Lấy kích thước màn hình để xử lý responsive
     final size = MediaQuery.of(context).size;
-    final double wheelSize = math.min(size.width * 0.85, 300.0); // Max 300px hoặc 85% màn hình
+    final bool isDesktop = Responsive.isDesktop(context);
+    final double wheelSize = isDesktop 
+        ? math.min(size.height * 0.6, 500.0) // Lớn hơn trên Desktop
+        : math.min(size.width * 0.85, 300.0);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -134,16 +139,21 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
               ),
 
               // 2. Nội dung chính (Responsive)
-              SafeArea(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return SizedBox(
-                      width: constraints.maxWidth,
-                      height: constraints.maxHeight,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Spacer(flex: 2),
+              Center(
+                child: ResponsiveWrapper(
+                  maxWidth: 1000,
+                  backgroundColor: Colors.transparent,
+                  showShadow: false,
+                  child: SafeArea(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return SizedBox(
+                          width: constraints.maxWidth,
+                          height: constraints.maxHeight,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Spacer(flex: 2),
                           
                           // --- WHEEL SECTION ---
                           SizedBox(
@@ -346,6 +356,8 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
                   },
                 ),
               ),
+            ),
+          ),
             ],
           );
         },
@@ -355,6 +367,7 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
 
   void _showWinDialog(BuildContext context) {
     final isNoPrize = _lastWinningReward!.name.toLowerCase().contains('không trúng');
+    final bool isDesktop = Responsive.isDesktop(context);
 
     showDialog(
       context: context,
@@ -362,7 +375,8 @@ class _LuckyWheelViewState extends State<LuckyWheelView> {
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
         child: Container(
-          padding: const EdgeInsets.all(24),
+          width: isDesktop ? 450 : null, // Giới hạn chiều rộng Dialog trên Web
+          padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),

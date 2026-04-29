@@ -18,29 +18,40 @@ class QuickOrderCubit extends Cubit<QuickOrderState> {
   QuickOrderCubit({
     required QuickOrderRepository quickOrderRepository,
     required AuthBloc authBloc,
-    String? targetAgentId, // <-- 1. THÊM THAM SỐ TÙY CHỌN
+    String? targetAgentId,
   })  : _quickOrderRepository = quickOrderRepository,
         _authBloc = authBloc,
         super(const QuickOrderState()) {
-
-    // --- 2. LOGIC XÁC ĐỊNH ID NGƯỜI DÙNG ---
+    
     if (targetAgentId != null) {
-      // Nếu có targetAgentId (đặt hàng hộ), dùng ID đó
       _agentId = targetAgentId;
       _subscribeToQuickList();
     } else {
-      // Nếu không (người dùng tự xem), dùng ID đăng nhập
-      final authState = _authBloc.state;
-      if (authState is AuthAuthenticated) {
-        _agentId = authState.user.id;
-        _subscribeToQuickList();
-      } else {
-        emit(state.copyWith(
-            status: QuickOrderStatus.error,
-            errorMessage: 'Không thể xác thực người dùng.'));
-      }
+      // Tự động kiểm tra auth hiện tại
+      _checkAuthAndSubscribe();
+
+      // Lắng nghe thay đổi Auth để tự động cập nhật nếu đăng nhập sau khi vào app
+      _authBlocSubscription = _authBloc.stream.listen((authState) {
+        if (authState is AuthAuthenticated) {
+          _agentId = authState.user.id;
+          _subscribeToQuickList();
+        }
+      });
     }
-    // ---------------------------------------
+  }
+
+  StreamSubscription? _authBlocSubscription;
+
+  void _checkAuthAndSubscribe() {
+    final authState = _authBloc.state;
+    if (authState is AuthAuthenticated) {
+      _agentId = authState.user.id;
+      _subscribeToQuickList();
+    } else {
+      emit(state.copyWith(
+          status: QuickOrderStatus.error,
+          errorMessage: 'Vui lòng đăng nhập để sử dụng tính năng này.'));
+    }
   }
 
   void _subscribeToQuickList() {
@@ -84,6 +95,7 @@ class QuickOrderCubit extends Cubit<QuickOrderState> {
   @override
   Future<void> close() {
     _quickListSubscription?.cancel();
+    _authBlocSubscription?.cancel();
     return super.close();
   }
 }

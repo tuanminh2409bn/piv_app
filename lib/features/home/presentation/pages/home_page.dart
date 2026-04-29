@@ -65,57 +65,64 @@ class HomeView extends StatelessWidget {
               backgroundColor: Colors.transparent, // Không đè nền họa tiết
               showShadow: false, // Bỏ bóng để nội dung hòa vào nền
               maxWidth: Responsive.isDesktop(context) ? double.infinity : 1200, // Cho phép tràn viền trên Web
-              child: BlocBuilder<HomeCubit, HomeState>(
-                builder: (context, state) {
-                  if (state.status == HomeStatus.loading ||
-                      state.status == HomeStatus.initial) {
-                    return const _ShimmerLoadingView();
-                  }
-                  if (state.status == HomeStatus.error) {
-                    return _ErrorView(errorMessage: state.errorMessage);
-                  }
+              child: RefreshIndicator.adaptive(
+                onRefresh: () async => context.read<HomeCubit>().refreshHomeData(),
+                child: CustomScrollView(
+                  slivers: [
+                    _wrapConstrained(context, _HomeAppBar()),
+                    _wrapConstrained(context, const SliverToBoxAdapter(child: SizedBox(height: 24))),
 
-                  return RefreshIndicator.adaptive(
-                    onRefresh: () async =>
-                        context.read<HomeCubit>().refreshHomeData(),
-                    child: CustomScrollView(
-                      slivers: [
-                        _wrapConstrained(context, _HomeAppBar()),
-                        _wrapConstrained(context, const SliverToBoxAdapter(child: SizedBox(height: 24))),
+                    // Header chào mừng - Luôn hiển thị và phản ứng ngay với AuthBloc
+                    _wrapConstrained(context, _WelcomeHeader()),
 
-                        // Header chào mừng
-                        _wrapConstrained(context, _WelcomeHeader()),
+                    // Phần nội dung phụ thuộc vào HomeCubit
+                    BlocBuilder<HomeCubit, HomeState>(
+                      builder: (context, state) {
+                        if (state.status == HomeStatus.loading || state.status == HomeStatus.initial) {
+                          return SliverToBoxAdapter(
+                            child: _ShimmerContent(isDesktop: Responsive.isDesktop(context)),
+                          );
+                        }
+                        if (state.status == HomeStatus.error) {
+                          return SliverToBoxAdapter(
+                            child: _ErrorView(errorMessage: state.errorMessage),
+                          );
+                        }
 
-                        // Khoảng cách trên banner
-                        if (Responsive.isDesktop(context))
-                          const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                        return SliverMainAxisGroup(
+                          slivers: [
+                            // Khoảng cách trên banner
+                            if (Responsive.isDesktop(context))
+                              const SliverToBoxAdapter(child: SizedBox(height: 40)),
 
-                        // Banner - KHÔNG bọc constrained để tràn viền
-                        _BannerCarousel(banners: state.banners),
+                            // Banner - KHÔNG bọc constrained để tràn viền
+                            _BannerCarousel(banners: state.banners),
 
-                        // Khoảng cách dưới banner
-                        if (Responsive.isDesktop(context))
-                          const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                            // Khoảng cách dưới banner
+                            if (Responsive.isDesktop(context))
+                              const SliverToBoxAdapter(child: SizedBox(height: 40)),
 
-                        // Danh mục
-                        _wrapConstrained(context, _SectionHeader(title: 'DANH MỤC NỔI BẬT')),
-                        _wrapConstrained(context, _CategoriesRow(categories: state.categories)),
+                            // Danh mục
+                            _wrapConstrained(context, _SectionHeader(title: 'DANH MỤC NỔI BẬT')),
+                            _wrapConstrained(context, _CategoriesRow(categories: state.categories)),
 
-                        _wrapConstrained(context, const SliverToBoxAdapter(child: SizedBox(height: 24))),
+                            _wrapConstrained(context, const SliverToBoxAdapter(child: SizedBox(height: 24))),
 
-                        // Sản phẩm
-                        _wrapConstrained(context, _SectionHeader(title: 'SẢN PHẨM NỔI BẬT')),
-                        _wrapConstrained(context, _FeaturedProductsGrid(products: state.featuredProducts)),
+                            // Sản phẩm
+                            _wrapConstrained(context, _SectionHeader(title: 'SẢN PHẨM NỔI BẬT')),
+                            _wrapConstrained(context, _FeaturedProductsGrid(products: state.featuredProducts)),
 
-                        // Tin tức
-                        _wrapConstrained(context, _SectionHeader(title: 'TIN TỨC & SỰ KIỆN')),
-                        _wrapConstrained(context, _NewsList(newsArticles: state.newsArticles)),
-
-                        _wrapConstrained(context, const SliverToBoxAdapter(child: SizedBox(height: 120))),
-                      ],
+                            // Tin tức
+                            _wrapConstrained(context, _SectionHeader(title: 'TIN TỨC & SỰ KIỆN')),
+                            _wrapConstrained(context, _NewsList(newsArticles: state.newsArticles)),
+                          ],
+                        );
+                      },
                     ),
-                  );
-                },
+
+                    _wrapConstrained(context, const SliverToBoxAdapter(child: SizedBox(height: 120))),
+                  ],
+                ),
               ),
             ),
           ),
@@ -247,86 +254,167 @@ class _WelcomeHeader extends StatelessWidget {
   }
 }
 
-class _BannerCarousel extends StatelessWidget {
+class _BannerCarousel extends StatefulWidget {
   final List<BannerModel> banners;
   const _BannerCarousel({required this.banners});
 
   @override
+  State<_BannerCarousel> createState() => _BannerCarouselState();
+}
+
+class _BannerCarouselState extends State<_BannerCarousel> {
+  int _currentIndex = 0;
+  final CarouselSliderController _controller = CarouselSliderController();
+
+  @override
   Widget build(BuildContext context) {
-    if (banners.isEmpty) return const SizedBox.shrink();
+    if (widget.banners.isEmpty) return const SizedBox.shrink();
 
     final bool isDesktop = Responsive.isDesktop(context);
 
     return SliverToBoxAdapter(
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: isDesktop ? 0 : 24.0),
-        child: CarouselSlider.builder(
-          itemCount: banners.length,
-          itemBuilder: (context, index, realIndex) {
-            final banner = banners[index];
-            return GestureDetector(
-              onTap: () {/* Handle banner tap */},
-              child: Container(
-                margin: EdgeInsets.symmetric(horizontal: isDesktop ? 0 : 8.0),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(isDesktop ? 0 : 20),
-                  boxShadow: isDesktop 
-                    ? [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        )
-                      ]
-                    : [
-                        BoxShadow(
-                          color: AppTheme.primaryGreen.withValues(alpha: 0.3),
-                          blurRadius: 15,
-                          offset: const Offset(0, 8))
-                      ]
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(isDesktop ? 0 : 20),
-                  child: Stack(
-                    children: [
-                      AppNetworkImage(
-                        imageUrl: banner.imageUrl,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: isDesktop ? 20.0 : 20.0),
+            child: CarouselSlider.builder(
+              carouselController: _controller,
+              itemCount: widget.banners.length,
+              itemBuilder: (context, index, realIndex) {
+                final banner = widget.banners[index];
+                return _BannerItem(banner: banner, isDesktop: isDesktop);
+              },
+              options: CarouselOptions(
+                // Tỷ lệ 16/5 giúp ảnh cover không bị mất quá nhiều chi tiết trên Desktop
+                aspectRatio: isDesktop ? 16 / 5 : 16 / 9,
+                autoPlay: true,
+                autoPlayInterval: const Duration(seconds: 5),
+                enlargeCenterPage: true, // Luôn phóng to trang giữa như Mobile
+                // Hiển thị một phần của 2 slide bên cạnh (giống Mobile)
+                viewportFraction: isDesktop ? 0.92 : 0.88,
+                onPageChanged: (index, reason) {
+                  setState(() {
+                    _currentIndex = index;
+                  });
+                },
+                autoPlayAnimationDuration: const Duration(milliseconds: 1200),
+                autoPlayCurve: Curves.fastOutSlowIn,
+              ),
+            ),
+          ),
+          // Chỉ số trang
+          Positioned(
+            bottom: isDesktop ? 40 : 40,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: widget.banners.asMap().entries.map((entry) {
+                  return GestureDetector(
+                    onTap: () => _controller.animateToPage(entry.key),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: _currentIndex == entry.key ? 18 : 6,
+                      height: 6,
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(3),
+                        color: _currentIndex == entry.key 
+                            ? Colors.white 
+                            : Colors.white.withValues(alpha: 0.4),
                       ),
-                      // Lớp phủ gradient nhẹ trên Web để ảnh trông sâu hơn
-                      if (isDesktop)
-                        Positioned.fill(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black.withValues(alpha: 0.1),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ],
+      ).animate().fadeIn(duration: 800.ms),
+    );
+  }
+}
+
+class _BannerItem extends StatefulWidget {
+  final BannerModel banner;
+  final bool isDesktop;
+  const _BannerItem({required this.banner, required this.isDesktop});
+
+  @override
+  State<_BannerItem> createState() => _BannerItemState();
+}
+
+class _BannerItemState extends State<_BannerItem> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: () {},
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeOutQuint,
+          margin: const EdgeInsets.symmetric(horizontal: 4.0),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24), // Luôn bo góc như Mobile
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: _isHovered ? 0.25 : 0.15),
+                blurRadius: _isHovered ? 25 : 15,
+                offset: Offset(0, _isHovered ? 12 : 6),
+              )
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Stack(
+              children: [
+                // 1. ẢNH CHÍNH: Lấp đầy khung (Cover)
+                Positioned.fill(
+                  child: AnimatedScale(
+                    scale: _isHovered ? 1.05 : 1.0,
+                    duration: const Duration(milliseconds: 1500),
+                    curve: Curves.easeOutCubic,
+                    child: AppNetworkImage(
+                      imageUrl: widget.banner.imageUrl,
+                      fit: BoxFit.cover, // Lấp đầy toàn bộ khung hình
+                      width: double.infinity,
+                      height: double.infinity,
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
-          options: CarouselOptions(
-            aspectRatio: isDesktop ? 21 / 8 : 16 / 9, // Tăng thêm chút chiều cao
-            autoPlay: true,
-            autoPlayInterval: const Duration(seconds: 6), // Chậm lại chút cho sang
-            enlargeCenterPage: !isDesktop,
-            viewportFraction: isDesktop ? 1.0 : 0.9,
-            enlargeStrategy: CenterPageEnlargeStrategy.zoom,
-            autoPlayAnimationDuration: const Duration(milliseconds: 1000), // Mượt hơn
-            autoPlayCurve: Curves.easeInOutCubic, // Đường cong mượt hơn
+
+                // 2. Lớp phủ Gradient bảo vệ nội dung và tạo chiều sâu
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: const [0.7, 1.0],
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.3),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ).animate().fadeIn(delay: 200.ms),
+        ),
       ),
     );
   }
@@ -382,10 +470,11 @@ class _CategoriesRow extends StatelessWidget {
   Widget build(BuildContext context) {
     if (categories.isEmpty) return _buildPlaceholder('Chưa có danh mục nào');
 
-    // Hiển thị nhiều hơn trên Desktop
-    final int limit = Responsive.value(context, mobile: 3, desktop: 6);
-    final itemsToShow =
-        categories.length > limit ? categories.sublist(0, limit) : categories;
+    final bool isDesktop = Responsive.isDesktop(context);
+    
+    // <<< GIẢI PHÁP CỨNG: CHỈ LẤY ĐÚNG 2 DANH MỤC ĐẦU TIÊN >>>
+    // Điều này đảm bảo dù Firebase trả về bao nhiêu thì cũng chỉ hiện 2 cái đẹp nhất
+    final itemsToShow = categories.take(2).toList();
 
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -396,68 +485,73 @@ class _CategoriesRow extends StatelessWidget {
             final category = entry.value;
             return Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                padding: EdgeInsets.symmetric(horizontal: isDesktop ? 16.0 : 6.0),
                 child: InkWell(
                   onTap: () => Navigator.of(context)
                       .push(CategoryProductsPage.route(category)),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(24),
                   child: Container(
-                    height: 120,
+                    height: isDesktop ? 220 : 140, // To hơn trên Desktop
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
                           color: AppTheme.primaryGreen.withValues(alpha: 0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
                         ),
                       ],
+                      border: Border.all(
+                          color: AppTheme.primaryGreen.withValues(alpha: 0.1),
+                          width: 1),
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Expanded(
-                          flex: 2,
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Hero(
-                              tag: 'cat_${category.id}',
-                              child: AppNetworkImage(
-                                imageUrl: category.imageUrl,
-                                fit: BoxFit.contain,
-                                errorWidget: const Icon(
-                                    Icons.category_outlined,
-                                    color: AppTheme.primaryGreen,
-                                    size: 32),
+                          flex: 3,
+                          child: Container(
+                            margin: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color:
+                                  AppTheme.primaryGreen.withValues(alpha: 0.05),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Hero(
+                                tag: 'cat_${category.id}',
+                                child: AppNetworkImage(
+                                  imageUrl: category.imageUrl,
+                                  fit: BoxFit.contain,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                        Expanded(
-                          flex: 1,
-                          child: Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 4.0),
-                            child: Text(
-                              category.name,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w600, fontSize: 12),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+                          child: Text(
+                            category.name.toUpperCase(),
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textDark,
+                                fontSize: isDesktop ? 20 : 14,
+                                letterSpacing: 1.1),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const SizedBox(height: 8),
                       ],
                     ),
                   ),
                 ),
               )
                   .animate()
-                  .fadeIn(delay: (100 * index).ms)
-                  .slideX(begin: 0.2, end: 0, curve: Curves.easeOut),
+                  .fadeIn(delay: (200 * index).ms)
+                  .scale(begin: const Offset(0.9, 0.9), curve: Curves.easeOutBack),
             );
           }).toList(),
         ),
@@ -474,17 +568,22 @@ class _FeaturedProductsGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     if (products.isEmpty) return _buildPlaceholder('Không có sản phẩm nổi bật');
 
-    final int crossAxisCount = Responsive.value(context, mobile: 2, desktop: 4);
+    final bool isDesktop = Responsive.isDesktop(context);
+    // Giới hạn: 8 sản phẩm trên Web, 6 sản phẩm trên Mobile
+    final int displayLimit = isDesktop ? 8 : 6;
+    final displayItems = products.take(displayLimit).toList();
+
+    final int crossAxisCount = isDesktop ? 4 : 2;
     final double childAspectRatio = Responsive.value(
       context, 
       mobile: (MediaQuery.of(context).size.width / 2) / 330,
-      desktop: 0.65, // Tỷ lệ an toàn để hiển thị chữ không bị tràn trên Desktop
+      desktop: 0.65, 
     );
 
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       sliver: SliverGrid.builder(
-        itemCount: products.length,
+        itemCount: displayItems.length,
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: crossAxisCount,
           crossAxisSpacing: 12,
@@ -492,7 +591,7 @@ class _FeaturedProductsGrid extends StatelessWidget {
           childAspectRatio: childAspectRatio,
         ),
         itemBuilder: (context, index) {
-          final product = products[index];
+          final product = displayItems[index];
           return _FeaturedProductCard(product: product);
         },
       ),
@@ -518,6 +617,8 @@ class _FeaturedProductCard extends StatelessWidget {
         canViewPrice = true;
       }
     }
+    // canViewPrice mặc định là false nếu authState là AuthUnauthenticated
+    
     final price = product.getPriceForRole(userRole);
 
     return GestureDetector(
@@ -903,38 +1004,39 @@ class _NewsList extends StatelessWidget {
     if (newsArticles.isEmpty) return _buildPlaceholder('Không có tin tức mới');
 
     final int limit = Responsive.value(context, mobile: 3, desktop: 5);
-    final items = newsArticles.length > limit ? newsArticles.sublist(0, limit) : newsArticles;
+    final items =
+        newsArticles.length > limit ? newsArticles.sublist(0, limit) : newsArticles;
 
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      sliver: Responsive.isMobile(context) 
-        ? SliverList.separated(
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final article = items[index];
-              return _NewsCard(article: article).animate().slideX(
-                  begin: 0.2,
-                  end: 0,
-                  delay: (100 * index).ms,
-                  curve: Curves.easeOut);
-            },
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
-          )
-        : SliverGrid.builder(
-            itemCount: items.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 3,
+      sliver: Responsive.isMobile(context)
+          ? SliverList.separated(
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final article = items[index];
+                return _NewsCard(article: article).animate().slideX(
+                    begin: 0.2,
+                    end: 0,
+                    delay: (100 * index).ms,
+                    curve: Curves.easeOut);
+              },
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+            )
+          : SliverGrid.builder(
+              itemCount: items.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 3,
+              ),
+              itemBuilder: (context, index) {
+                final article = items[index];
+                return _NewsCard(article: article)
+                    .animate()
+                    .fadeIn(delay: (100 * index).ms, curve: Curves.easeOut);
+              },
             ),
-            itemBuilder: (context, index) {
-              final article = items[index];
-              return _NewsCard(article: article).animate().fadeIn(
-                  delay: (100 * index).ms,
-                  curve: Curves.easeOut);
-            },
-          ),
     );
   }
 }
@@ -976,11 +1078,10 @@ class _NewsCard extends StatelessWidget {
             Expanded(
               child: Padding(
                 padding: EdgeInsets.only(
-                  left: 12.0, 
-                  right: 12.0, 
-                  top: Responsive.value(context, mobile: 12.0, desktop: 36.0), 
-                  bottom: 8.0
-                ),
+                    left: 12.0,
+                    right: 12.0,
+                    top: Responsive.value(context, mobile: 12.0, desktop: 36.0),
+                    bottom: 8.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.start,
@@ -989,8 +1090,10 @@ class _NewsCard extends StatelessWidget {
                       article.title,
                       style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: Responsive.value(context, mobile: 14.0, desktop: 13.0),
-                          height: Responsive.value(context, mobile: 1.4, desktop: 1.2)),
+                          fontSize: Responsive.value(
+                              context, mobile: 14.0, desktop: 13.0),
+                          height: Responsive.value(
+                              context, mobile: 1.4, desktop: 1.2)),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -998,12 +1101,16 @@ class _NewsCard extends StatelessWidget {
                     Row(
                       children: [
                         Icon(Icons.calendar_today,
-                            size: Responsive.value(context, mobile: 12.0, desktop: 14.0), color: AppTheme.textGrey),
+                            size: Responsive.value(
+                                context, mobile: 12.0, desktop: 14.0),
+                            color: AppTheme.textGrey),
                         const SizedBox(width: 4),
                         Text(
                           dateFormat.format(article.publishedDate.toDate()),
-                          style:
-                              TextStyle(color: AppTheme.textGrey, fontSize: Responsive.value(context, mobile: 12.0, desktop: 14.0)),
+                          style: TextStyle(
+                              color: AppTheme.textGrey,
+                              fontSize: Responsive.value(
+                                  context, mobile: 12.0, desktop: 14.0)),
                         ),
                       ],
                     ),
@@ -1025,62 +1132,54 @@ class _NewsCard extends StatelessWidget {
 
 // --- UTILITY WIDGETS (LOADING & ERROR) ---
 
-class _ShimmerLoadingView extends StatelessWidget {
-  const _ShimmerLoadingView();
+class _ShimmerContent extends StatelessWidget {
+  final bool isDesktop;
+  const _ShimmerContent({required this.isDesktop});
 
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
       baseColor: Colors.grey.shade200,
       highlightColor: Colors.grey.shade100,
-      child: CustomScrollView(
-        physics: const NeverScrollableScrollPhysics(),
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            backgroundColor: AppTheme.backgroundLight,
-            title: Container(
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 40),
+            _buildShimmerContainer(
+                height: isDesktop ? 300 : 180, width: double.infinity, radius: 24),
+            const SizedBox(height: 40),
+            _buildShimmerContainer(height: 24, width: 200),
+            const SizedBox(height: 24),
+            Row(
+              children: List.generate(
+                  2,
+                  (index) => Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: _buildShimmerContainer(
+                              height: isDesktop ? 220 : 140, width: double.infinity, radius: 24),
+                        ),
+                      )),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 24),
-                  _buildShimmerContainer(height: 20, width: 150),
-                  const SizedBox(height: 8),
-                  _buildShimmerContainer(height: 30, width: 250),
-                  const SizedBox(height: 40),
-                  _buildShimmerContainer(
-                      height: 180, width: double.infinity, radius: 20),
-                  const SizedBox(height: 40),
-                  _buildShimmerContainer(height: 24, width: 200),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: List.generate(
-                        4,
-                        (index) => Column(
-                              children: [
-                                _buildShimmerContainer(
-                                    height: 60, width: 60, radius: 16),
-                                const SizedBox(height: 8),
-                                _buildShimmerContainer(height: 10, width: 50),
-                              ],
-                            )),
-                  )
-                ],
+            const SizedBox(height: 40),
+            _buildShimmerContainer(height: 24, width: 200),
+            const SizedBox(height: 24),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: isDesktop ? 4 : 2,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: isDesktop ? 4 : 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.7,
               ),
+              itemBuilder: (_, __) => _buildShimmerContainer(height: 200, width: double.infinity, radius: 16),
             ),
-          )
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1106,7 +1205,7 @@ class _ErrorView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 60),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

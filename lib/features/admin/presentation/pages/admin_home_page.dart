@@ -40,15 +40,51 @@ class AdminHomePage extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
-        title: const Text('Bảng điều khiển Admin'),
+        title: const Text(
+          'BẢNG ĐIỀU KHIỂN ADMIN',
+          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2),
+        ),
+        centerTitle: false,
         backgroundColor: AppTheme.primaryGreen,
         foregroundColor: Colors.white,
+        elevation: 4,
+        shadowColor: AppTheme.primaryGreen.withOpacity(0.3),
         actions: [
           const NotificationIconWithBadge(iconColor: Colors.white),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Đăng xuất',
-            onPressed: () => context.read<AuthBloc>().add(AuthLogoutRequested()),
+          const SizedBox(width: 8),
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.logout_rounded, color: Colors.white),
+              tooltip: 'Đăng xuất tài khoản',
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Xác nhận đăng xuất'),
+                    content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi hệ thống quản trị không?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Hủy'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          context.read<AuthBloc>().add(AuthLogoutRequested());
+                        },
+                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed, foregroundColor: Colors.white),
+                        child: const Text('Đăng xuất'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         ],
       ),

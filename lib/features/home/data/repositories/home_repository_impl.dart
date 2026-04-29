@@ -28,7 +28,11 @@ class HomeRepositoryImpl implements HomeRepository {
           .where('parentId', isNull: true)
           .limit(3)
           .get();
-      final categories = querySnapshot.docs.map((doc) => CategoryModel.fromSnapshot(doc)).toList();
+      final categories = querySnapshot.docs
+          .map((doc) => CategoryModel.fromSnapshot(doc))
+          .where((cat) => !cat.name.toLowerCase().contains('gốc'))
+          .toList();
+      developer.log('Fetched ${categories.length} categories (Hard-removed "Gốc")', name: 'HomeRepository');
       return Right(categories);
     } on FirebaseException catch (e) {
       return Left(ServerFailure('Lỗi Firebase khi tải danh mục nổi bật: ${e.message}'));
@@ -43,7 +47,11 @@ class HomeRepositoryImpl implements HomeRepository {
       final querySnapshot = await _categoriesCollection
           .orderBy('name')
           .get();
-      final categories = querySnapshot.docs.map((doc) => CategoryModel.fromSnapshot(doc)).toList();
+      final categories = querySnapshot.docs
+          .map((doc) => CategoryModel.fromSnapshot(doc))
+          .where((cat) => !cat.name.toLowerCase().contains('gốc'))
+          .toList();
+      developer.log('Fetched ${categories.length} categories (Hard-removed "Gốc")', name: 'HomeRepository');
       return Right(categories);
     } on FirebaseException catch (e) {
       return Left(ServerFailure('Lỗi Firebase khi tải tất cả danh mục: ${e.message}'));
@@ -59,7 +67,11 @@ class HomeRepositoryImpl implements HomeRepository {
           .where('parentId', isEqualTo: parentId)
           .orderBy('name')
           .get();
-      final categories = querySnapshot.docs.map((doc) => CategoryModel.fromSnapshot(doc)).toList();
+      final categories = querySnapshot.docs
+          .map((doc) => CategoryModel.fromSnapshot(doc))
+          .where((cat) => !cat.name.toLowerCase().contains('gốc'))
+          .toList();
+      developer.log('Fetched ${categories.length} categories (Hard-removed "Gốc")', name: 'HomeRepository');
       return Right(categories);
     } on FirebaseException catch (e) {
       return Left(ServerFailure('Lỗi Firebase khi tải danh mục con: ${e.message}'));
@@ -156,7 +168,7 @@ class HomeRepositoryImpl implements HomeRepository {
       }
 
       products.shuffle();
-      final limitedProducts = products.take(6).toList();
+      final limitedProducts = products.take(20).toList(); // Lấy nhiều hơn để UI tự lọc theo nền tảng
       final processedProducts = await _applySpecialPricesIfNeeded(limitedProducts, currentUserId);
       final finalProducts = await _filterHiddenProducts(processedProducts, currentUserId);
       return Right(finalProducts);

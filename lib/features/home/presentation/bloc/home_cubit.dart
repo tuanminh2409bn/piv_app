@@ -39,27 +39,24 @@ class HomeCubit extends Cubit<HomeState> {
         super(const HomeState()) {
 
     final currentState = _authBloc.state;
-    if (currentState is AuthAuthenticated) {
-      loadHomeData(currentState.user);
-    }
+    // Cho phép tải dữ liệu kể cả khi chưa đăng nhập (user rỗng)
+    loadHomeData(currentState.user);
 
     _authSubscription = _authBloc.stream.listen((authState) {
-      if (authState is AuthAuthenticated) {
-        if (_currentUser?.id != authState.user.id) {
-          loadHomeData(authState.user);
-        }
-      } else if (authState is AuthUnauthenticated) {
-        emit(const HomeState());
+      // Phản ứng ngay lập tức với bất kỳ sự thay đổi ID người dùng nào
+      if (authState.user.id != _currentUser?.id) {
+        developer.log('HomeCubit: User ID changed from ${_currentUser?.id} to ${authState.user.id}. Reloading...', name: 'HomeCubit');
+        loadHomeData(authState.user);
       }
     });
   }
 
   Future<void> loadHomeData(UserModel user) async {
-    if (state.status == HomeStatus.loading) return;
-
+    // Luôn cập nhật user hiện tại và phát ra trạng thái loading ngay lập tức
     _currentUser = user;
     emit(state.copyWith(status: HomeStatus.loading, user: user));
-    developer.log('HomeCubit: Fetching all home screen data...', name: 'HomeCubit');
+    
+    developer.log('HomeCubit: Fetching all home screen data for user: ${user.id}', name: 'HomeCubit');
 
     try {
       final results = await Future.wait([
@@ -72,7 +69,7 @@ class HomeCubit extends Cubit<HomeState> {
 
       List<String> errors = [];
       final finalBanners = (results[0] as Either<Failure, List<BannerModel>>).fold((f) {errors.add(f.message); return <BannerModel>[];}, (r) => r);
-      final finalFeaturedCategories = (results[1] as Either<Failure, List<CategoryModel>>).fold((f) {errors.add(f.message); return <CategoryModel>[];}, (r) => r);
+      var finalFeaturedCategories = (results[1] as Either<Failure, List<CategoryModel>>).fold((f) {errors.add(f.message); return <CategoryModel>[];}, (r) => r);
       var finalFeaturedProducts = (results[2] as Either<Failure, List<ProductModel>>).fold((f) {errors.add(f.message); return <ProductModel>[];}, (r) => r);
       final finalNews = (results[3] as Either<Failure, List<NewsArticleModel>>).fold((f) {errors.add(f.message); return <NewsArticleModel>[];}, (r) => r);
       final finalAllProducts = (results[4] as Either<Failure, List<ProductModel>>).fold((f) {errors.add(f.message); return <ProductModel>[];}, (r) => r);
@@ -80,6 +77,11 @@ class HomeCubit extends Cubit<HomeState> {
       if (errors.isNotEmpty) {
         emit(state.copyWith(status: HomeStatus.error, errorMessage: errors.join('\n')));
       } else {
+        // --- LỌC DANH MỤC PHÂN BÓN GỐC ---
+        finalFeaturedCategories = finalFeaturedCategories.where((cat) {
+          final normalizedName = _removeDiacritics(cat.name.toLowerCase());
+          return !normalizedName.contains('phan bon goc');
+        }).toList();
 
         // <<< LOGIC QUAN TRỌNG NẰM Ở ĐÂY >>>
         if (user.role != 'admin' && finalFeaturedProducts.length > 8) {

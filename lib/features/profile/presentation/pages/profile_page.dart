@@ -17,8 +17,8 @@ import 'package:piv_app/features/profile/presentation/pages/qr_scanner_page.dart
 import 'package:piv_app/features/sales_commitment/presentation/pages/sales_commitment_page.dart';
 import 'package:piv_app/features/lucky_wheel/presentation/pages/lucky_wheel_page.dart';
 import 'package:piv_app/features/profile/presentation/pages/debt_payment_page.dart';
+import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
 import 'package:piv_app/common/widgets/responsive_wrapper.dart';
-import 'package:piv_app/core/utils/responsive.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // --- HELPER FUNCTION ---
@@ -66,22 +66,33 @@ class ProfileView extends StatelessWidget {
         }
       },
       builder: (context, state) {
+        final authState = context.read<AuthBloc>().state;
+        final bool isNotAuthenticated = authState is AuthUnauthenticated || (authState is AuthAuthenticated && authState.user.isEmpty);
+
         if (state.status == ProfileStatus.loading ||
-            state.status == ProfileStatus.initial) {
+            (state.status == ProfileStatus.initial && !isNotAuthenticated)) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (state.user.isEmpty && state.status != ProfileStatus.loading) {
+
+        if (isNotAuthenticated || (state.user.isEmpty && state.status != ProfileStatus.loading)) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('Không thể tải thông tin người dùng.'),
+                const Icon(Icons.person_outline, size: 80, color: AppTheme.textGrey),
                 const SizedBox(height: 16),
+                const Text('Vui lòng đăng nhập để xem thông tin cá nhân', 
+                  style: TextStyle(color: AppTheme.textGrey)),
+                const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: () {
-                    context.read<AuthBloc>().add(AuthLogoutRequested());
+                    Navigator.of(context).push(LoginPage.route());
                   },
-                  child: const Text('Đăng xuất & Thử lại'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('ĐĂNG NHẬP NGAY'),
                 )
               ],
             ),

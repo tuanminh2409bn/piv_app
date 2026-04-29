@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:piv_app/core/theme/app_theme.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/admin/domain/repositories/admin_repository.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
@@ -39,18 +40,50 @@ class AccountantHomePage extends StatelessWidget {
       length: 8, // <-- SỬA Ở ĐÂY
       child: Scaffold(
         appBar: AppBar(
-          title: Text('Kế toán: ${user.displayName ?? ''}'),
+          title: Text(
+            'BẢNG ĐIỀU KHIỂN KẾ TOÁN',
+            style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2),
+          ),
+          backgroundColor: AppTheme.primaryGreen,
+          foregroundColor: Colors.white,
+          elevation: 4,
           actions: [
-            const NotificationIconWithBadge(),
+            const NotificationIconWithBadge(iconColor: Colors.white),
             IconButton(
-              icon: const Icon(Icons.send_rounded),
+              icon: const Icon(Icons.send_rounded, color: Colors.white),
               tooltip: 'Gửi thông báo',
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManualNotificationPage())),
             ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Đăng xuất',
-              onPressed: () => context.read<AuthBloc>().add(AuthLogoutRequested()),
+            Container(
+              margin: const EdgeInsets.only(right: 16, left: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.logout_rounded, color: Colors.white),
+                tooltip: 'Đăng xuất',
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Xác nhận đăng xuất'),
+                      content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi hệ thống quản trị không?'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            context.read<AuthBloc>().add(AuthLogoutRequested());
+                          },
+                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed, foregroundColor: Colors.white),
+                          child: const Text('Đăng xuất'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
           ],
           // --- SỬA ĐỔI: Thêm Tab "Sản phẩm" ---
