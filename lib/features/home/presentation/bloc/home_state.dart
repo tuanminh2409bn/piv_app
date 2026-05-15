@@ -14,6 +14,7 @@ class HomeState extends Equatable {
   final String? errorMessage;
   final bool isSearching;
   final UserModel? user; // <<< THÊM TRƯỜNG NÀY
+  final List<VoucherModel> activeVouchers; // Thêm trường lưu voucher
 
   const HomeState({
     this.status = HomeStatus.initial,
@@ -27,13 +28,14 @@ class HomeState extends Equatable {
     this.errorMessage,
     this.isSearching = false,
     this.user, // <<< THÊM VÀO CONSTRUCTOR
+    this.activeVouchers = const [],
   });
 
   @override
   List<Object?> get props => [
     status, banners, categories, allCategories, featuredProducts,
     filteredFeaturedProducts, newsArticles, errorMessage, isSearching, allProducts,
-    user, // <<< THÊM VÀO PROPS
+    user, activeVouchers // <<< THÊM VÀO PROPS
   ];
 
   HomeState copyWith({
@@ -48,6 +50,7 @@ class HomeState extends Equatable {
     String? errorMessage,
     bool? isSearching,
     UserModel? user, // <<< THÊM VÀO COPYWITH
+    List<VoucherModel>? activeVouchers,
   }) {
     return HomeState(
       status: status ?? this.status,
@@ -61,6 +64,7 @@ class HomeState extends Equatable {
       errorMessage: errorMessage ?? this.errorMessage,
       isSearching: isSearching ?? this.isSearching,
       user: user ?? this.user,
+      activeVouchers: activeVouchers ?? this.activeVouchers,
     );
   }
 }

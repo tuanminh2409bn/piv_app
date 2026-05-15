@@ -15,6 +15,7 @@ import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/sales_rep/presentation/pages/create_agent_order_page.dart';
 import 'package:piv_app/features/sales_commitment/presentation/bloc/admin/sales_commitment_admin_cubit.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
+import 'package:piv_app/core/utils/platform_utils.dart';
 import 'package:piv_app/features/accountant/presentation/bloc/accountant_agents_cubit.dart';
 import 'package:piv_app/features/notifications/presentation/widgets/notification_icon_with_badge.dart';
 import 'package:piv_app/features/returns/presentation/bloc/admin_returns_cubit.dart';
@@ -33,73 +34,112 @@ class AccountantHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = (context.read<AuthBloc>().state as AuthAuthenticated).user;
+    final isWeb = PlatformUtils.isWeb;
+    final foregroundColor = AppTheme.primaryGreen;
+    final backgroundColor = Colors.white;
+    final containerColor = AppTheme.primaryGreen.withValues(alpha: 0.1);
 
     // --- SỬA ĐỔI: Tăng length từ 7 lên 8 ---
     return DefaultTabController(
       length: 8, // <-- SỬA Ở ĐÂY
       child: Scaffold(
         appBar: AppBar(
-          title: Text(
-            'BẢNG ĐIỀU KHIỂN KẾ TOÁN',
-            style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2),
-          ),
-          backgroundColor: AppTheme.primaryGreen,
-          foregroundColor: Colors.white,
-          elevation: 4,
-          actions: [
-            const NotificationIconWithBadge(iconColor: Colors.white),
-            IconButton(
-              icon: const Icon(Icons.send_rounded, color: Colors.white),
-              tooltip: 'Gửi thông báo',
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManualNotificationPage())),
-            ),
-            Container(
-              margin: const EdgeInsets.only(right: 16, left: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.logout_rounded, color: Colors.white),
-                tooltip: 'Đăng xuất',
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Xác nhận đăng xuất'),
-                      content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi hệ thống quản trị không?'),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
-                        ElevatedButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            context.read<AuthBloc>().add(AuthLogoutRequested());
-                          },
-                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed, foregroundColor: Colors.white),
-                          child: const Text('Đăng xuất'),
+          titleSpacing: 0,
+          title: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1200),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      isWeb ? 'BẢNG ĐIỀU KHIỂN KẾ TOÁN' : 'KẾ TOÁN',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        letterSpacing: isWeb ? 1.2 : 0,
+                        fontSize: isWeb ? 20 : 18,
+                      ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        NotificationIconWithBadge(iconColor: foregroundColor),
+                        IconButton(
+                          icon: Icon(Icons.send_rounded, color: foregroundColor),
+                          tooltip: 'Gửi thông báo',
+                          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManualNotificationPage())),
+                        ),
+                        Container(
+                          margin: const EdgeInsets.only(left: 8),
+                          decoration: BoxDecoration(
+                            color: containerColor,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: IconButton(
+                            icon: Icon(Icons.logout_rounded, color: foregroundColor),
+                            tooltip: 'Đăng xuất',
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Xác nhận đăng xuất'),
+                                  content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi hệ thống quản trị không?'),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        context.read<AuthBloc>().add(AuthLogoutRequested());
+                                      },
+                                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed, foregroundColor: Colors.white),
+                                      child: const Text('Đăng xuất'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ],
                     ),
-                  );
-                },
+                  ],
+                ),
               ),
             ),
-          ],
-          // --- SỬA ĐỔI: Thêm Tab "Sản phẩm" ---
-          bottom: const TabBar(
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            tabs: [
-              Tab(icon: Icon(Icons.people_outline), text: 'Người dùng'),
-              Tab(icon: Icon(Icons.receipt_long_outlined), text: 'Đơn hàng'),
-              Tab(icon: Icon(Icons.account_balance_wallet_outlined), text: 'Công nợ'),
-              Tab(icon: Icon(Icons.sync_problem_outlined), text: 'Đổi/Trả'),
-              Tab(icon: Icon(Icons.inventory_2_outlined), text: 'Sản phẩm'), // <-- TAB MỚI
-              Tab(icon: Icon(Icons.workspace_premium_outlined), text: 'Cam kết'),
-              Tab(icon: Icon(Icons.add_shopping_cart), text: 'Đặt hàng hộ'),
-              Tab(icon: Icon(Icons.playlist_add_check_rounded), text: 'Cài đặt Đặt nhanh'),
-            ],
+          ),
+          automaticallyImplyLeading: false,
+          backgroundColor: backgroundColor,
+          foregroundColor: foregroundColor,
+          elevation: 4,
+          bottom: PreferredSize(
+            preferredSize: Size.fromHeight(isWeb ? 48.0 : 64.0),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1200),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: TabBar(
+                    isScrollable: true,
+                    tabAlignment: TabAlignment.start,
+                    labelColor: AppTheme.primaryGreen,
+                    unselectedLabelColor: Colors.grey.shade600,
+                    indicatorColor: AppTheme.primaryGreen,
+                    labelPadding: isWeb ? const EdgeInsets.symmetric(horizontal: 16.0) : const EdgeInsets.symmetric(horizontal: 12.0),
+                    tabs: const [
+                      Tab(icon: Icon(Icons.people_outline), text: 'Người dùng'),
+                      Tab(icon: Icon(Icons.receipt_long_outlined), text: 'Đơn hàng'),
+                      Tab(icon: Icon(Icons.account_balance_wallet_outlined), text: 'Công nợ'),
+                      Tab(icon: Icon(Icons.sync_problem_outlined), text: 'Đổi/Trả'),
+                      Tab(icon: Icon(Icons.inventory_2_outlined), text: 'Sản phẩm'),
+                      Tab(icon: Icon(Icons.workspace_premium_outlined), text: 'Cam kết'),
+                      Tab(icon: Icon(Icons.add_shopping_cart), text: 'Đặt hàng hộ'),
+                      Tab(icon: Icon(Icons.playlist_add_check_rounded), text: 'Cài đặt Đặt nhanh'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
         // --- SỬA ĐỔI: Thêm View cho tab "Sản phẩm" ---

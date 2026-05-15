@@ -72,9 +72,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
           }
           
           // Tự động điền số tiền cần thanh toán
+          final currentInput = amountController.text.replaceAll(RegExp(r'[^0-9]'), '');
           final totalStr = currencyFormatter.format(state.amountToPay).replaceAll(RegExp(r'[^0-9]'), '');
-          if (amountController.text.replaceAll('.', '') != totalStr) {
-             amountController.text = NumberFormat.decimalPattern('vi_VN').format(state.amountToPay);
+          
+          if (currentInput != totalStr) {
+             if (currentInput.isEmpty && state.amountToPay == 0) {
+               // Cho phép ô nhập bị xoá rỗng
+             } else {
+               amountController.text = NumberFormat.decimalPattern('vi_VN').format(state.amountToPay);
+             }
           }
         },
         builder: (context, state) {
@@ -541,7 +547,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
             child: Divider(color: Colors.grey[200], height: 1),
           ),
           
-          _buildSummaryRow('Tiền hàng', currencyFormatter.format(state.finalTotal), isBold: true),
+          _buildSummaryRow('Thành tiền (trước thuế)', currencyFormatter.format(state.finalTotalBeforeVat), isBold: true),
+          
+          if (state.vatPercentage > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: _buildSummaryRow('Thuế VAT (${state.vatPercentage.toInt()}%)', currencyFormatter.format(state.vatAmount)),
+            ),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Divider(color: Colors.grey[200], height: 1),
+          ),
+          
+          _buildSummaryRow('Tiền hàng (sau thuế)', currencyFormatter.format(state.finalTotal), isBold: true, fontSize: 16),
           
           if (state.currentDebt != 0) ...[
              const SizedBox(height: 8),
@@ -630,7 +649,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   children: [
                     const Text('Tổng thanh toán', style: TextStyle(color: AppTheme.textGrey, fontSize: 13)),
                     Text(
-                      currencyFormatter.format(state.totalWithDebt),
+                      currencyFormatter.format(widget.onBehalfOfAgent != null ? state.totalWithDebt : state.amountToPay),
                       style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
                     ),
                   ],

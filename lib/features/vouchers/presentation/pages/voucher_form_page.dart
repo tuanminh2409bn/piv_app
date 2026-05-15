@@ -4,6 +4,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 import 'package:piv_app/features/vouchers/presentation/bloc/voucher_management_cubit.dart';
+import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:piv_app/data/models/user_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 // --- THÊM IMPORT FORMATTER ---
 import 'package:piv_app/common/widgets/currency_input_formatter.dart';
 // --- KẾT THÚC THÊM ---
@@ -42,6 +45,13 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
   DiscountType _discountType = DiscountType.fixedAmount;
   DateTime _expiresAt = DateTime.now().add(const Duration(days: 30));
 
+  // --- THÊM BIẾN MỚI ---
+  String _targetType = 'all'; // 'all', 'specific_agents', 'specific_sales_reps'
+  List<String> _targetUserIds = [];
+  List<String> _targetSalesRepIds = [];
+  String _applicableCategory = 'all'; // 'all', 'foliar_fertilizer', 'root_fertilizer'
+  // --- KẾT THÚC THÊM BIẾN ---
+
   @override
   void initState() {
     super.initState();
@@ -60,6 +70,12 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
     if (v != null) {
       _discountType = v.discountType;
       _expiresAt = v.expiresAt.toDate();
+      _targetType = v.targetType;
+      _targetUserIds = List.from(v.targetUserIds);
+      _targetSalesRepIds = List.from(v.targetSalesRepIds);
+      _applicableCategory = v.applicableCategory;
+      
+      // Load names later if needed, but for simplicity, we can show IDs or "X đại lý đã chọn"
     }
   }
 
@@ -114,13 +130,148 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
         expiresAt: _expiresAt,
         buyQuantity: _discountType == DiscountType.buyXGetY ? buyQtyNum : null,
         getQuantity: _discountType == DiscountType.buyXGetY ? getQtyNum : null,
+        targetType: _targetType,
+        targetUserIds: _targetUserIds,
+        targetSalesRepIds: _targetSalesRepIds,
+        applicableCategory: _applicableCategory,
       );
       Navigator.of(context).pop();
     }
   }
 
+  Future<void> _openAgentSelectionDialog() async {
+    final snapshot = await FirebaseFirestore.instance.collection('users')
+        .where('role', whereIn: ['agent_1', 'agent_2']).get();
+    
+    final agents = snapshot.docs.map((d) {
+      final data = d.data();
+      data['id'] = d.id; // ensure ID is passed
+      return UserModel.fromJson(data);
+    }).toList();
+    List<String> tempSelected = List.from(_targetUserIds);
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setStateBuilder) {
+            return AlertDialog(
+              title: const Text('Chọn Đại lý'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: agents.length,
+                  itemBuilder: (context, index) {
+                    final agent = agents[index];
+                    final isSelected = tempSelected.contains(agent.id);
+                    return CheckboxListTile(
+                      title: Text(agent.displayName ?? 'Không tên'),
+                      subtitle: Text(agent.addresses.isNotEmpty ? agent.addresses.first.phoneNumber : agent.email ?? ''),
+                      value: isSelected,
+                      onChanged: (val) {
+                        setStateBuilder(() {
+                          if (val == true) {
+                            tempSelected.add(agent.id);
+                          } else {
+                            tempSelected.remove(agent.id);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('HỦY')),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _targetUserIds = tempSelected;
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: const Text('XÁC NHẬN'),
+                ),
+              ],
+            );
+          }
+        );
+      }
+    );
+  }
+
+  Future<void> _openSalesRepSelectionDialog() async {
+    final snapshot = await FirebaseFirestore.instance.collection('users')
+        .where('role', isEqualTo: 'sales_rep').get();
+    
+    final reps = snapshot.docs.map((d) {
+      final data = d.data();
+      data['id'] = d.id;
+      return UserModel.fromJson(data);
+    }).toList();
+    List<String> tempSelected = List.from(_targetSalesRepIds);
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setStateBuilder) {
+            return AlertDialog(
+              title: const Text('Chọn Nhân viên kinh doanh'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: reps.length,
+                  itemBuilder: (context, index) {
+                    final rep = reps[index];
+                    final isSelected = tempSelected.contains(rep.id);
+                    return CheckboxListTile(
+                      title: Text(rep.displayName ?? 'Không tên'),
+                      subtitle: Text(rep.email ?? ''),
+                      value: isSelected,
+                      onChanged: (val) {
+                        setStateBuilder(() {
+                          if (val == true) {
+                            tempSelected.add(rep.id);
+                          } else {
+                            tempSelected.remove(rep.id);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('HỦY')),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _targetSalesRepIds = tempSelected;
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: const Text('XÁC NHẬN'),
+                ),
+              ],
+            );
+          }
+        );
+      }
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final userState = context.read<AuthBloc>().state;
+    final bool isAdmin = userState is AuthAuthenticated && userState.user.isAdmin;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.voucher == null ? 'Tạo Voucher mới' : 'Sửa Voucher'),
@@ -138,6 +289,70 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (isAdmin) ...[
+                DropdownButtonFormField<String>(
+                  value: _targetType,
+                  decoration: const InputDecoration(labelText: 'Đối tượng áp dụng'),
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('Tất cả đại lý')),
+                    DropdownMenuItem(value: 'specific_agents', child: Text('Riêng từng đại lý được chọn')),
+                    DropdownMenuItem(value: 'specific_sales_reps', child: Text('Nhóm đại lý của NVKD tự chọn')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        _targetType = value;
+                        if (_targetType == 'all') {
+                          _targetUserIds.clear();
+                          _targetSalesRepIds.clear();
+                        } else if (_targetType == 'specific_agents') {
+                          _targetSalesRepIds.clear();
+                        } else if (_targetType == 'specific_sales_reps') {
+                          _targetUserIds.clear();
+                        }
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                
+                if (_targetType == 'specific_agents') ...[
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.people),
+                    label: Text(_targetUserIds.isEmpty ? 'Chọn Đại lý' : 'Đã chọn ${_targetUserIds.length} Đại lý (Bấm để thay đổi)'),
+                    onPressed: _openAgentSelectionDialog,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                
+                if (_targetType == 'specific_sales_reps') ...[
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.business_center),
+                    label: Text(_targetSalesRepIds.isEmpty ? 'Chọn NVKD' : 'Đã chọn ${_targetSalesRepIds.length} NVKD (Bấm để thay đổi)'),
+                    onPressed: _openSalesRepSelectionDialog,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ],
+
+              DropdownButtonFormField<String>(
+                value: _applicableCategory,
+                decoration: const InputDecoration(labelText: 'Loại sản phẩm áp dụng'),
+                items: const [
+                  DropdownMenuItem(value: 'all', child: Text('Áp dụng cho tất cả')),
+                  DropdownMenuItem(value: 'foliar_fertilizer', child: Text('Chỉ Phân bón lá')),
+                  DropdownMenuItem(value: 'root_fertilizer', child: Text('Chỉ Phân bón gốc')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _applicableCategory = value;
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+              
               TextFormField(
                 controller: _codeController,
                 decoration: const InputDecoration(labelText: 'Mã Voucher (viết liền, không dấu, viết hoa)'),

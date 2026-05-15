@@ -606,7 +606,7 @@ class _PaymentSummary extends StatelessWidget {
     
     // Tính tổng tiền thực giao dựa trên confirmedSubtotal
     final double confirmedTotal = order.items.fold(0.0, (sum, item) => sum + item.confirmedSubtotal);
-    final double confirmedFinalTotal = (confirmedTotal + order.shippingFee - order.discount - order.commissionDiscount).clamp(0, double.infinity);
+    final double confirmedFinalTotal = order.confirmedFinalTotal;
     
     // Nếu đơn hàng đã giao (shipped), dùng confirmedFinalTotal để tính nợ dự kiến
     final double baseTotalForDebt = (order.status == 'shipped' || order.status == 'completed') 
@@ -638,7 +638,13 @@ class _PaymentSummary extends StatelessWidget {
                 color: Colors.green.shade700),
           ],
           const Divider(height: 24),
-          _row('Tiền hàng đơn này', formatter.format(order.finalTotal), isBold: true),
+          _row('Thành tiền (trước thuế)', formatter.format(order.total)),
+          if (order.vatPercentage > 0) ...[
+            const SizedBox(height: 8),
+            _row('Thuế VAT (${order.vatPercentage.toInt()}%)', formatter.format(order.vatAmount)),
+          ],
+          const SizedBox(height: 8),
+          _row('Tiền hàng đơn này (sau thuế)', formatter.format(order.finalTotal), isBold: true),
           
           if (order.status == 'shipped' && returnAdjustment > 0) ...[
             const SizedBox(height: 8),
@@ -1512,8 +1518,7 @@ class _OrderItemsList extends StatelessWidget {
                       children: [
                         Text(
                             '${item.quantity} ${item.packaging} (${item.unit} x ${formatter.format(item.price)})',
-                            style: const TextStyle(color: AppTheme.textGrey, fontSize: 12),
-                            overflow: TextOverflow.ellipsis),
+                            style: const TextStyle(color: AppTheme.textGrey, fontSize: 12)),
                         if ((item.confirmedQuantity * item.quantityPerPackage + item.confirmedLooseQuantity) < (item.quantity * item.quantityPerPackage))
                           Padding(
                             padding: const EdgeInsets.only(top: 2.0),

@@ -22,6 +22,8 @@ import 'package:piv_app/features/profile/domain/repositories/user_profile_reposi
 import 'package:piv_app/features/sales_commitment/presentation/pages/admin_commitments_page.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/sales_commitment_page.dart';
 import 'package:piv_app/features/sales_commitment/presentation/pages/commitment_history_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_vouchers_page.dart';
+import 'package:piv_app/features/vouchers/presentation/pages/voucher_management_page.dart';
 import 'package:piv_app/firebase_options.dart';
 import 'package:piv_app/main.dart';
 
@@ -236,6 +238,15 @@ class NotificationService {
       case 'debt_update_request':
       case 'debt_update_response':
         navigator.push(AdminDebtApprovalPage.route());
+        break;
+      case 'voucher_approval_request':
+        navigator.push(AdminVouchersPage.route());
+        break;
+      case 'voucher_status_update':
+      case 'voucher_rejected':
+      case 'voucher_deletion_rejected':
+      case 'voucher_deleted':
+        navigator.push(VoucherManagementPage.route());
         break;
       default:
         developer.log('Loại thông báo không xác định: $type. Mở trang thông báo.', name: "NotificationService");

@@ -16,6 +16,7 @@ import 'package:piv_app/features/orders/domain/repositories/order_repository.dar
 import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 import 'package:piv_app/features/vouchers/domain/repositories/voucher_repository.dart';
+import 'package:piv_app/features/admin/domain/repositories/admin_settings_repository.dart'; // <<< THÊM MỚI
 import 'package:piv_app/data/models/user_model.dart';
 
 part 'checkout_state.dart';
@@ -27,9 +28,25 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   final AuthBloc _authBloc;
   final CartCubit _cartCubit;
   final FirebaseFunctions _functions;
+  final AdminSettingsRepository _adminSettingsRepository; // <<< THÊM MỚI
 
   StreamSubscription? _authSubscription;
   String _currentUserId = '';
+  List<VoucherModel> _allActiveVouchers = [];
+
+  List<VoucherModel> _filterVouchers(List<CartItemModel> items) {
+    final cartCategories = items.map((i) => i.categoryId).toSet();
+    final hasFoliar = cartCategories.contains('foliar_fertilizer');
+    final hasRoot = cartCategories.contains('root_fertilizer');
+
+    return _allActiveVouchers.where((v) {
+      if (v.maxUses != 0 && v.usedCount >= v.maxUses) return false;
+      if (v.applicableCategory == 'all') return true;
+      if (v.applicableCategory == 'foliar_fertilizer' && hasFoliar) return true;
+      if (v.applicableCategory == 'root_fertilizer' && hasRoot) return true;
+      return false;
+    }).toList();
+  }
 
   CheckoutCubit({
     required UserProfileRepository userProfileRepository,
@@ -38,12 +55,14 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     required AuthBloc authBloc,
     required CartCubit cartCubit,
     required FirebaseFunctions functions,
+    required AdminSettingsRepository adminSettingsRepository, // <<< THÊM MỚI
   })  : _userProfileRepository = userProfileRepository,
         _orderRepository = orderRepository,
         _voucherRepository = voucherRepository,
         _authBloc = authBloc,
         _cartCubit = cartCubit,
         _functions = functions,
+        _adminSettingsRepository = adminSettingsRepository, // <<< THÊM MỚI
         super(const CheckoutState()) {
     _authSubscription = _authBloc.stream.listen((authState) {
       if (authState is AuthAuthenticated) {
@@ -134,6 +153,9 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       debtAmount: currentAgentDebt,
       paidAmount: paidAmountForThisOrder,
       remainingDebt: remainingDebtAfterOrder,
+      appliedVoucherCode: state.appliedVoucher?.id,
+      vatPercentage: state.vatPercentage,
+      vatAmount: state.vatAmount,
       legalInfo: CustomerLegalInfo(
         displayName: agent.displayName,
         idCardOrTaxId: agent.idCardOrTaxId,
@@ -176,6 +198,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       return;
     }
 
+    final double orderTotalBeforeCommission = (state.subtotal + state.shippingFee - state.discount).clamp(0, double.infinity);
     final remainingDebt = state.totalWithDebt - state.amountToPay;
 
     final order = OrderModel(
@@ -185,16 +208,18 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       subtotal: state.subtotal,
       shippingFee: state.shippingFee,
       discount: state.discount,
-      total: state.finalTotal,
+      total: orderTotalBeforeCommission,
       paymentMethod: state.paymentMethod,
       status: 'pending',
       commissionDiscount: state.commissionDiscount,
-      finalTotal: state.totalWithDebt,
+      finalTotal: state.finalTotal,
       salesRepId: authState.user.salesRepId,
       debtAmount: state.currentDebt,
       paidAmount: state.amountToPay,
       remainingDebt: remainingDebt,
       appliedVoucherCode: state.appliedVoucher?.id,
+      vatPercentage: state.vatPercentage,
+      vatAmount: state.vatAmount,
       legalInfo: CustomerLegalInfo(
         displayName: authState.user.displayName,
         idCardOrTaxId: authState.user.idCardOrTaxId,
@@ -218,6 +243,23 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         emit(state.copyWith(status: CheckoutStatus.orderSuccess, newOrderId: orderId));
       },
     );
+  }
+
+  Future<bool> _checkIfStackingAllowed(UserModel agent) async {
+    if (agent.allowVoucherStacking != null) {
+      return agent.allowVoucherStacking!;
+    }
+
+    if (agent.salesRepId != null && agent.salesRepId!.isNotEmpty) {
+      final salesRepResult = await _userProfileRepository.getUserProfile(agent.salesRepId!);
+      final salesRep = salesRepResult.fold((l) => null, (r) => r);
+      if (salesRep != null && salesRep.agentsAllowVoucherStacking != null) {
+        return salesRep.agentsAllowVoucherStacking!;
+      }
+    }
+
+    final policy = await _adminSettingsRepository.getDiscountPolicy();
+    return policy.globalAllowVoucherStacking;
   }
 
   Future<void> loadCheckoutData({List<CartItemModel>? buyNowItems}) async {
@@ -251,14 +293,28 @@ class CheckoutCubit extends Cubit<CheckoutState> {
 
     // --- TẢI DANH SÁCH VOUCHER KHẢ DỤNG ---
     final voucherResult = await _voucherRepository.getActiveVouchers();
-    final availableVouchers = voucherResult.getOrElse(() => []);
-    developer.log('CheckoutCubit: Loaded ${availableVouchers.length} active vouchers', name: 'CheckoutCubit');
+    _allActiveVouchers = voucherResult.getOrElse(() => []);
+    final availableVouchers = _filterVouchers(itemsToCheckout);
+    developer.log('CheckoutCubit: Loaded ${_allActiveVouchers.length} active vouchers, ${availableVouchers.length} available', name: 'CheckoutCubit');
     // --------------------------------------
+
+    // --- TẢI CẤU HÌNH VAT ---
+    double vatPercentage = 10.0;
+    try {
+      final policy = await _adminSettingsRepository.getDiscountPolicy();
+      vatPercentage = policy.vatPercentage;
+    } catch (e) {
+      developer.log("Error loading VAT: $e", name: "CheckoutCubit");
+    }
+    // ------------------------
 
     final shouldCalculateDiscount = user.activeRewardProgram == 'instant_discount' && itemsToCheckout.isNotEmpty;
 
     // Tính toán tổng tiền ban đầu (sẽ được cập nhật sau khi có chiết khấu)
     final initialTotal = subtotal + shippingFee + currentDebt;
+    
+    // Lưu ý: VAT sẽ được get trong State thông qua getter finalTotal và totalWithDebt.
+    // Chúng ta chỉ cần truyền vatPercentage vào state.
 
     emit(state.copyWith(
       status: shouldCalculateDiscount ? CheckoutStatus.calculatingDiscount : CheckoutStatus.success,
@@ -271,22 +327,28 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       discount: 0.0,
       commissionDiscount: 0.0,
       currentDebt: currentDebt,      
-      amountToPay: initialTotal,     
       availableVouchers: availableVouchers, // <<< CẬP NHẬT
+      vatPercentage: vatPercentage,
     ));
 
     if (shouldCalculateDiscount) {
       await calculateCommissionDiscount();
     } else {
-      // Cập nhật lại amountToPay sau khi đã có finalTotal chính xác
-      final finalTotal = state.subtotal - state.discount - state.commissionDiscount;
-      final totalWithDebt = finalTotal + state.currentDebt;
-      emit(state.copyWith(amountToPay: totalWithDebt.clamp(0, double.infinity)));
+      // Cập nhật lại amountToPay sau khi đã có finalTotal chính xác (gồm VAT)
+      emit(state.copyWith(amountToPay: state.totalWithDebt.clamp(0, double.infinity)));
     }
   }
 
   Future<void> calculateCommissionDiscount() async {
     if (state.checkoutItems.isEmpty) return;
+
+    // Không tính chiết khấu đại lý nếu đã có voucher được áp dụng
+    if (state.appliedVoucher != null) {
+      if (state.commissionDiscount != 0.0) {
+        emit(state.copyWith(commissionDiscount: 0.0));
+      }
+      return;
+    }
 
     emit(state.copyWith(status: CheckoutStatus.calculatingDiscount));
     try {
@@ -303,15 +365,11 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       final response = await callable.call(payload);
       final discount = (response.data['discount'] as num).toDouble();
 
-      // TÍNH TOÁN LẠI TỔNG TIỀN VÀ SỐ TIỀN CẦN TRẢ
-      final newFinalTotal = state.subtotal - state.discount - discount;
-      final newTotalWithDebt = newFinalTotal + state.currentDebt;
-
-      emit(state.copyWith(
+      final newState = state.copyWith(
         status: CheckoutStatus.success,
         commissionDiscount: discount,
-        amountToPay: newTotalWithDebt.clamp(0, double.infinity), // CẬP NHẬT LẠI SỐ TIỀN CẦN TRẢ
-      ));
+      );
+      emit(newState.copyWith(amountToPay: newState.totalWithDebt.clamp(0, double.infinity)));
     } catch (e) {
       developer.log("Error calculating discount: $e", name: "CheckoutCubit");
       emit(state.copyWith(
@@ -350,6 +408,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       userId: _currentUserId,
       userRole: userRole,
       subtotal: state.subtotal,
+      cartCategoryIds: state.checkoutItems.map((i) => i.categoryId).toList(),
     );
 
     result.fold(
@@ -380,16 +439,12 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         );
         // --- KẾT THÚC TÍNH TOÁN ---
 
-        // TÍNH TOÁN LẠI TỔNG TIỀN VÀ SỐ TIỀN CẦN TRẢ
-        final newFinalTotal = state.subtotal - discountAmount - state.commissionDiscount;
-        final newTotalWithDebt = newFinalTotal + state.currentDebt;
-
-        emit(state.copyWith(
+        final newState = state.copyWith(
           status: CheckoutStatus.success,
           appliedVoucher: voucher,
           discount: discountAmount,
-          amountToPay: newTotalWithDebt.clamp(0, double.infinity), // CẬP NHẬT LẠI SỐ TIỀN CẦN TRẢ
-        ));
+        );
+        emit(newState.copyWith(amountToPay: newState.totalWithDebt.clamp(0, double.infinity)));
       },
     );
   }
@@ -417,29 +472,24 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     );
     // --- KẾT THÚC TÍNH TOÁN ---
 
-    // TÍNH TOÁN LẠI TỔNG TIỀN VÀ SỐ TIỀN CẦN TRẢ
-    final newFinalTotal = state.subtotal - discountAmount - state.commissionDiscount;
-    final newTotalWithDebt = newFinalTotal + state.currentDebt;
-
-    emit(state.copyWith(
+    final newState = state.copyWith(
       status: CheckoutStatus.success,
       appliedVoucher: voucher,
       discount: discountAmount,
-      amountToPay: newTotalWithDebt.clamp(0, double.infinity),
-    ));
+      commissionDiscount: state.isStackingAllowed ? state.commissionDiscount : 0.0,
+    );
+    emit(newState.copyWith(amountToPay: newState.totalWithDebt.clamp(0, double.infinity)));
   }
 
   void removeVoucher() {
-    // TÍNH TOÁN LẠI TỔNG TIỀN VÀ SỐ TIỀN CẦN TRẢ
-    final newFinalTotal = state.subtotal - 0 - state.commissionDiscount; // Bỏ voucher
-    final newTotalWithDebt = newFinalTotal + state.currentDebt;
-
     emit(state.copyWith(
       status: CheckoutStatus.success,
       forceVoucherToNull: true,
       discount: 0.0,
-      amountToPay: newTotalWithDebt.clamp(0, double.infinity), // CẬP NHẬT LẠI SỐ TIỀN CẦN TRẢ
     ));
+    
+    // Tính toán lại chiết khấu đại lý và tổng tiền sau khi bỏ voucher
+    calculateCommissionDiscount();
   }
 
   Future<void> loadCheckoutDataForAgent(UserModel agent) async {
@@ -463,6 +513,25 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     final currentDebt = agentWithDetails.debtAmount;
     final initialTotal = currentDebt; // Chỉ có công nợ ban đầu
 
+    // --- TẢI DANH SÁCH VOUCHER KHẢ DỤNG ---
+    final voucherResult = await _voucherRepository.getActiveVouchers();
+    _allActiveVouchers = voucherResult.getOrElse(() => []);
+    // Vì checkoutItems rỗng ban đầu nên availableVouchers có thể sẽ khác sau khi thêm item
+    final availableVouchers = _filterVouchers([]);
+    // --------------------------------------
+
+    // --- TẢI CẤU HÌNH VAT VÀ CỘNG DỒN CHIẾT KHẤU ---
+    double vatPercentage = 10.0;
+    bool isStackingAllowed = false;
+    try {
+      final policy = await _adminSettingsRepository.getDiscountPolicy();
+      vatPercentage = policy.vatPercentage;
+      isStackingAllowed = await _checkIfStackingAllowed(agentWithDetails);
+    } catch (e) {
+      developer.log("Error loading config: $e", name: "CheckoutCubit");
+    }
+    // ------------------------
+
     emit(state.copyWith(
       status: CheckoutStatus.success,
       addresses: agentWithDetails.addresses,
@@ -475,9 +544,14 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       discount: 0.0,
       commissionDiscount: 0.0,
       currentDebt: currentDebt, // <-- Đã lấy đúng công nợ
-      amountToPay: initialTotal.clamp(0, double.infinity),
       forceVoucherToNull: true,
+      availableVouchers: availableVouchers,
+      vatPercentage: vatPercentage,
+      isStackingAllowed: isStackingAllowed,
     ));
+    
+    // Khởi tạo amountToPay sau khi state có VAT
+    emit(state.copyWith(amountToPay: state.totalWithDebt.clamp(0, double.infinity)));
   }
 
   void addItemToOnBehalfCart(CartItemModel newItem) {
@@ -524,14 +598,49 @@ class CheckoutCubit extends Cubit<CheckoutState> {
 
   void _recalculateTotalsAndEmit(List<CartItemModel> items) {
     final subtotal = items.fold<double>(0.0, (sum, item) => sum + item.subtotal);
+    
+    // Tính toán lại vouchers dựa trên items mới
+    final updatedAvailableVouchers = _filterVouchers(items);
+    
+    // Kiểm tra xem voucher đang áp dụng có còn hợp lệ không
+    VoucherModel? newAppliedVoucher = state.appliedVoucher;
+    bool forceVoucherToNull = false;
+    double newDiscount = state.discount;
+    
+    if (newAppliedVoucher != null) {
+      // Nếu voucher đang áp dụng không còn trong danh sách hợp lệ, hoặc không đủ điều kiện minOrderValue, thì bỏ áp dụng
+      final stillValid = updatedAvailableVouchers.any((v) => v.id == newAppliedVoucher!.id) 
+                         && subtotal >= newAppliedVoucher.minOrderValue;
+      if (!stillValid) {
+        newAppliedVoucher = null;
+        forceVoucherToNull = true;
+        newDiscount = 0.0;
+      } else {
+        // Cập nhật lại số tiền giảm nếu voucher vẫn hợp lệ
+        // Tính theo subtotal mới
+        // (Lưu ý: hàm applyVoucher đang set discount. Ở đây ta cần update)
+        // Đây là fallback, thông thường nên removeVoucher rồi bắt người dùng chọn lại cho an toàn.
+        newAppliedVoucher = null;
+        forceVoucherToNull = true;
+        newDiscount = 0.0;
+      }
+    }
+
     emit(state.copyWith(
       checkoutItems: items,
       subtotal: subtotal,
+      availableVouchers: updatedAvailableVouchers,
+      appliedVoucher: newAppliedVoucher,
+      forceVoucherToNull: forceVoucherToNull,
+      discount: newDiscount,
     ));
+
     if (items.isNotEmpty) {
       calculateCommissionDiscount();
     } else {
       emit(state.copyWith(commissionDiscount: 0.0));
+      // Cập nhật lại total
+      emit(state.copyWith(amountToPay: state.totalWithDebt.clamp(0, double.infinity)));
     }
   }
 

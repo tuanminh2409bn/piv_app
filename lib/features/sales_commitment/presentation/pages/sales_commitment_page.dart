@@ -82,16 +82,17 @@ class SalesCommitmentView extends StatelessWidget {
                   _wrapConstrained(
                     context,
                     SliverAppBar(
-                      expandedHeight: 120.0,
+                      expandedHeight: Responsive.isDesktop(context) ? 120.0 : 80.0,
                       pinned: true,
                       backgroundColor: AppTheme.primaryGreen,
                       leading: const BackButton(color: Colors.white),
                       flexibleSpace: FlexibleSpaceBar(
                         centerTitle: true,
-                        title: const Text('Chương trình thưởng',
+                        title: Text('Chương trình thưởng',
                             style: TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.bold)),
+                                fontWeight: FontWeight.bold,
+                                fontSize: Responsive.isDesktop(context) ? 20 : 16)),
                         background: Container(
                           decoration: const BoxDecoration(
                             gradient: LinearGradient(
@@ -222,25 +223,39 @@ class ProgramSelectionView extends StatelessWidget {
 
     return Card(
       elevation: 4,
-      shadowColor: color.withOpacity(0.2),
+      shadowColor: color.withValues(alpha: 0.2),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: isActive ? color : Colors.transparent, width: 2)),
       child: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-                  child: Icon(icon, color: color, size: 28),
+                  padding: EdgeInsets.all(isDesktop ? 12 : 10),
+                  decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
+                  child: Icon(icon, color: color, size: isDesktop ? 28 : 24),
                 ),
-                const SizedBox(width: 16),
+                SizedBox(width: isDesktop ? 16 : 12),
                 Expanded(
-                  child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: TextStyle(fontSize: isDesktop ? 20 : 16, fontWeight: FontWeight.bold)),
+                      if (isActive && !isDesktop) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
+                          child: const Text('Đang dùng', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                        )
+                      ]
+                    ],
+                  ),
                 ),
-                if (isActive)
+                if (isActive && isDesktop)
                   Chip(
                     label: const Text('Đang dùng'),
                     backgroundColor: color,
@@ -248,8 +263,8 @@ class ProgramSelectionView extends StatelessWidget {
                   )
               ],
             ),
-            const SizedBox(height: 16),
-            Text(description, style: TextStyle(color: Colors.grey.shade700, height: 1.6, fontSize: 15)),
+            SizedBox(height: isDesktop ? 16 : 12),
+            Text(description, style: TextStyle(color: Colors.grey.shade700, height: 1.6, fontSize: isDesktop ? 15 : 13)),
             if (buttonText != null) ...[
               const SizedBox(height: 24),
               Align(
@@ -291,7 +306,7 @@ class ActiveCommitmentDashboard extends StatelessWidget {
     final bool isDesktop = Responsive.isDesktop(context);
 
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.all(isDesktop ? 24.0 : 16.0),
       child: Column(
         children: [
           const SizedBox(height: 16),
@@ -303,7 +318,7 @@ class ActiveCommitmentDashboard extends StatelessWidget {
                 // Phần trăm bên trái
                 Expanded(
                   flex: 1,
-                  child: _buildProgressCircle(progress, percent),
+                  child: _buildProgressCircle(progress, percent, isDesktop),
                 ),
                 const SizedBox(width: 48),
                 // Thông số bên phải
@@ -317,17 +332,19 @@ class ActiveCommitmentDashboard extends StatelessWidget {
                               'Mục tiêu',
                               currencyFormatter.format(commitment.targetAmount),
                               Icons.flag,
-                              Colors.blue),
+                              Colors.blue,
+                              isDesktop),
                           const SizedBox(width: 16),
                           _buildStatCard(
                               'Đã đạt',
                               currencyFormatter.format(commitment.currentAmount),
                               Icons.trending_up,
-                              Colors.green),
+                              Colors.green,
+                              isDesktop),
                         ],
                       ),
                       const SizedBox(height: 24),
-                      _buildRewardCard(commitment),
+                      _buildRewardCard(commitment, isDesktop),
                     ],
                   ),
                 ),
@@ -336,7 +353,7 @@ class ActiveCommitmentDashboard extends StatelessWidget {
           else
             Column(
               children: [
-                _buildProgressCircle(progress, percent),
+                _buildProgressCircle(progress, percent, isDesktop),
                 const SizedBox(height: 32),
                 Row(
                   children: [
@@ -344,17 +361,19 @@ class ActiveCommitmentDashboard extends StatelessWidget {
                         'Mục tiêu',
                         currencyFormatter.format(commitment.targetAmount),
                         Icons.flag,
-                        Colors.blue),
-                    const SizedBox(width: 16),
+                        Colors.blue,
+                        isDesktop),
+                    const SizedBox(width: 12),
                     _buildStatCard(
                         'Đã đạt',
                         currencyFormatter.format(commitment.currentAmount),
                         Icons.trending_up,
-                        Colors.green),
+                        Colors.green,
+                        isDesktop),
                   ],
                 ),
                 const SizedBox(height: 24),
-                _buildRewardCard(commitment),
+                _buildRewardCard(commitment, isDesktop),
               ],
             ),
 
@@ -368,16 +387,16 @@ class ActiveCommitmentDashboard extends StatelessWidget {
     );
   }
 
-  Widget _buildProgressCircle(double progress, String percent) {
+  Widget _buildProgressCircle(double progress, String percent, bool isDesktop) {
     return Stack(
       alignment: Alignment.center,
       children: [
         SizedBox(
-          width: 200,
-          height: 200,
+          width: isDesktop ? 200 : 160,
+          height: isDesktop ? 200 : 160,
           child: CircularProgressIndicator(
             value: progress,
-            strokeWidth: 15,
+            strokeWidth: isDesktop ? 15 : 12,
             backgroundColor: Colors.grey.shade200,
             color: AppTheme.primaryGreen,
             strokeCap: StrokeCap.round,
@@ -387,44 +406,44 @@ class ActiveCommitmentDashboard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text('$percent%',
-                style: const TextStyle(
-                    fontSize: 40,
+                style: TextStyle(
+                    fontSize: isDesktop ? 40 : 32,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.primaryGreen)),
-            const Text('Đã hoàn thành',
-                style: TextStyle(color: AppTheme.textGrey)),
+            Text('Đã hoàn thành',
+                style: TextStyle(color: AppTheme.textGrey, fontSize: isDesktop ? 14 : 12)),
           ],
         ),
       ],
     ).animate().scale(duration: 600.ms, curve: Curves.easeOutBack);
   }
 
-  Widget _buildRewardCard(SalesCommitmentModel commitment) {
+  Widget _buildRewardCard(SalesCommitmentModel commitment, bool isDesktop) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       color: Colors.amber.shade50,
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: EdgeInsets.all(isDesktop ? 20.0 : 16.0),
         child: Row(
           children: [
-            const Icon(Icons.emoji_events, size: 48, color: Colors.amber),
-            const SizedBox(width: 20),
+            Icon(Icons.emoji_events, size: isDesktop ? 48 : 36, color: Colors.amber),
+            SizedBox(width: isDesktop ? 20 : 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('PHẦN THƯỞNG DỰ KIẾN',
+                  Text('PHẦN THƯỞNG DỰ KIẾN',
                       style: TextStyle(
-                          fontSize: 12,
+                          fontSize: isDesktop ? 12 : 10,
                           fontWeight: FontWeight.bold,
                           color: Colors.amber,
                           letterSpacing: 1.1)),
                   const SizedBox(height: 6),
                   Text(
                     commitment.commitmentDetails?.text ?? 'Đang cập nhật...',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 18),
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: isDesktop ? 18 : 14),
                   ),
                 ],
               ),
@@ -435,16 +454,16 @@ class ActiveCommitmentDashboard extends StatelessWidget {
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(String label, String value, IconData icon, Color color, bool isDesktop) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(isDesktop ? 20 : 12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, 4))
           ],
@@ -452,14 +471,14 @@ class ActiveCommitmentDashboard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color),
-            const SizedBox(height: 12),
+            Icon(icon, color: color, size: isDesktop ? 24 : 20),
+            SizedBox(height: isDesktop ? 12 : 8),
             Text(label,
-                style: const TextStyle(color: AppTheme.textGrey, fontSize: 12)),
+                style: TextStyle(color: AppTheme.textGrey, fontSize: isDesktop ? 12 : 11)),
             const SizedBox(height: 4),
             Text(value,
                 style:
-                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    TextStyle(fontWeight: FontWeight.bold, fontSize: isDesktop ? 18 : 14),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis),
           ],

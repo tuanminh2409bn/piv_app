@@ -33,18 +33,21 @@ class QuickOrderRepositoryImpl implements QuickOrderRepository {
       return [];
     }
 
-    // Lưu ý: Firestore giới hạn 'whereIn' tối đa 10 phần tử.
-    // Nếu danh sách > 10, bạn nên chia nhỏ (chunk) như đã làm ở HomeRepository.
-    // Ở đây tôi giữ nguyên logic cũ của bạn để tránh phức tạp, nhưng bạn nên lưu ý điều này.
+    // Fetch each document individually to avoid Firestore 'list' rule permission issues
+    final futures = productIds.map((id) async {
+      try {
+        final doc = await _firestore.collection('products').doc(id).get();
+        if (doc.exists) {
+          return ProductModel.fromSnapshot(doc);
+        }
+      } catch (e) {
+         // Ignore permission errors for individual files
+      }
+      return null;
+    });
 
-    final querySnapshot = await _firestore
-        .collection('products')
-        .where(FieldPath.documentId, whereIn: productIds)
-        .get();
-
-    final products = querySnapshot.docs
-        .map((doc) => ProductModel.fromSnapshot(doc))
-        .toList();
+    final results = await Future.wait(futures);
+    final products = results.whereType<ProductModel>().toList();
 
     // --- LOGIC LỌC MỚI ---
     // Chỉ giữ lại sản phẩm Public HOẶC sản phẩm Private mà user này sở hữu

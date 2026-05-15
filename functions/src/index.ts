@@ -582,9 +582,12 @@ export const onOrderStatusUpdate = onDocumentUpdated(
         }
       }
 
-      // Tính toán lại tổng đơn thực tế (confirmedSubtotal - discount - commissionDiscount)
-      // Lưu ý: voucher (discount) và chiết khấu đại lý vẫn giữ nguyên theo đơn hàng gốc
-      const actualTotal = Math.max(0, confirmedSubtotal - (discount || 0) - (commissionDiscount || 0));
+      // Tính toán lại tổng đơn thực tế bao gồm phí ship, voucher, chiết khấu và VAT
+      const shippingFee = Number(afterData.shippingFee) || 0;
+      const vatPercentage = Number(afterData.vatPercentage) || 0;
+      const preTax = Math.max(0, confirmedSubtotal + shippingFee - (discount || 0) - (commissionDiscount || 0));
+      const calcVat = preTax * (vatPercentage / 100);
+      const actualTotal = preTax + calcVat;
       // -----------------------------------------------------------------------
 
       if (appliedVoucherCode && typeof appliedVoucherCode === "string" && appliedVoucherCode.length > 0 && discount > 0) {

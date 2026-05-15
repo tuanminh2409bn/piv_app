@@ -35,6 +35,12 @@ class QuickOrderCubit extends Cubit<QuickOrderState> {
         if (authState is AuthAuthenticated) {
           _agentId = authState.user.id;
           _subscribeToQuickList();
+        } else {
+          _agentId = '';
+          _quickListSubscription?.cancel();
+          emit(state.copyWith(
+              status: QuickOrderStatus.success,
+              products: []));
         }
       });
     }
@@ -48,9 +54,10 @@ class QuickOrderCubit extends Cubit<QuickOrderState> {
       _agentId = authState.user.id;
       _subscribeToQuickList();
     } else {
+      _agentId = '';
       emit(state.copyWith(
-          status: QuickOrderStatus.error,
-          errorMessage: 'Vui lòng đăng nhập để sử dụng tính năng này.'));
+          status: QuickOrderStatus.success,
+          products: []));
     }
   }
 

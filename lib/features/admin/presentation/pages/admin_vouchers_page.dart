@@ -9,7 +9,15 @@ import 'package:piv_app/features/admin/presentation/bloc/admin_vouchers_cubit.da
 import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 
 class AdminVouchersPage extends StatelessWidget {
-  const AdminVouchersPage({super.key});
+  final int initialIndex;
+  
+  const AdminVouchersPage({super.key, this.initialIndex = 0});
+
+  static Route<void> route({int initialIndex = 0}) {
+    return MaterialPageRoute<void>(
+      builder: (_) => AdminVouchersPage(initialIndex: initialIndex),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,6 +25,7 @@ class AdminVouchersPage extends StatelessWidget {
       create: (context) => sl<AdminVouchersCubit>()..fetchPendingVouchers(),
       child: DefaultTabController(
         length: 2,
+        initialIndex: initialIndex,
         child: Scaffold(
           appBar: AppBar(
             title: const Text('Duyệt Voucher'),

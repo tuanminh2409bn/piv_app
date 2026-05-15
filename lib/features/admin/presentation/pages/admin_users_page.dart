@@ -118,27 +118,6 @@ class AdminUsersView extends StatelessWidget {
             ),
             title: Text(agent.displayName ?? 'Chưa có tên', style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text('Cấp: ${agent.role.replaceAll('agent_', '')} - Trạng thái: ${agent.status}'),
-            trailing: isAgentRole
-                ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.percent, color: Colors.blue),
-                        tooltip: 'Chiết khấu',
-                        onPressed: () {
-                          Navigator.of(context).push(AgentDiscountConfigPage.route(user: agent));
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.price_change_outlined, color: Colors.orange),
-                        tooltip: 'Giá riêng',
-                        onPressed: () {
-                          Navigator.of(context).push(AgentSpecialPricePage.route(user: agent));
-                        },
-                      ),
-                    ],
-                  )
-                : null,
             onTap: () => _showEditUserDialog(context, agent),
           ),
         );
@@ -282,6 +261,8 @@ class AdminUsersView extends StatelessWidget {
 
     String selectedRole = userToEdit.role;
     String selectedStatus = userToEdit.status;
+    bool? selectedAllowVoucherStacking = userToEdit.allowVoucherStacking;
+    bool? selectedAgentsAllowVoucherStacking = userToEdit.agentsAllowVoucherStacking;
 
     showDialog(
       context: parentContext,
@@ -328,8 +309,40 @@ class AdminUsersView extends StatelessWidget {
                         }
                       },
                     ),
+                    if (selectedRole == 'sales_rep') ...[
+                      const SizedBox(height: 16),
+                      const Text('Đại lý của NVKD được phép cộng dồn Voucher?', style: TextStyle(fontWeight: FontWeight.bold)),
+                      DropdownButton<bool?>(
+                        value: selectedAgentsAllowVoucherStacking,
+                        isExpanded: true,
+                        items: const [
+                          DropdownMenuItem(value: null, child: Text('Mặc định (Theo toàn cục)')),
+                          DropdownMenuItem(value: true, child: Text('Có')),
+                          DropdownMenuItem(value: false, child: Text('Không')),
+                        ],
+                        onChanged: (value) {
+                          setState(() => selectedAgentsAllowVoucherStacking = value);
+                        },
+                      ),
+                    ],
+                    if (selectedRole == 'agent_1' || selectedRole == 'agent_2') ...[
+                      const SizedBox(height: 16),
+                      const Text('Đại lý này được phép cộng dồn Voucher?', style: TextStyle(fontWeight: FontWeight.bold)),
+                      DropdownButton<bool?>(
+                        value: selectedAllowVoucherStacking,
+                        isExpanded: true,
+                        items: const [
+                          DropdownMenuItem(value: null, child: Text('Mặc định (Theo NVKD hoặc Toàn cục)')),
+                          DropdownMenuItem(value: true, child: Text('Có')),
+                          DropdownMenuItem(value: false, child: Text('Không')),
+                        ],
+                        onChanged: (value) {
+                          setState(() => selectedAllowVoucherStacking = value);
+                        },
+                      ),
+                    ],
                     // Chỉ hiển thị nút cấu hình nếu có vai trò là đại lý
-                    if (userToEdit.role == 'agent_1' || userToEdit.role == 'agent_2') ...[
+                    if (selectedRole == 'agent_1' || selectedRole == 'agent_2') ...[
                       const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,

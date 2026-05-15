@@ -16,6 +16,7 @@ import 'package:piv_app/features/cart/presentation/pages/cart_page.dart';
 import 'package:piv_app/features/cart/presentation/widgets/cart_icon_with_badge.dart';
 import 'package:piv_app/features/checkout/presentation/pages/checkout_page.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
+import 'package:piv_app/features/home/presentation/bloc/home_cubit.dart';
 import 'package:piv_app/features/products/presentation/bloc/product_detail_cubit.dart';
 import 'package:piv_app/features/wishlist/presentation/widgets/wishlist_button.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -367,6 +368,54 @@ class ProductDetailView extends StatelessWidget {
                   ),
                 ),
               ),
+            Positioned(
+              bottom: 16,
+              right: 16,
+              child: Builder(
+                builder: (ctx) {
+                  bool hasV = false;
+                  try {
+                    final state = sl<HomeCubit>().state;
+                    hasV = state.activeVouchers.any((v) => 
+                       v.applicableCategory == 'all' || 
+                       v.applicableCategory == product.categoryId ||
+                       v.applicableCategory == product.productType
+                    );
+                  } catch (_) {}
+                  if (!hasV) return const SizedBox.shrink();
+                  
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Colors.orange, Colors.red],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.red.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        )
+                      ],
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.local_fire_department, color: Colors.white, size: 16),
+                        SizedBox(width: 4),
+                        Text('Sản phẩm đang có Ưu đãi/Voucher',
+                          style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ).animate(onPlay: (controller) => controller.repeat(reverse: true))
+                   .scale(begin: const Offset(1, 1), end: const Offset(1.05, 1.05), duration: 1000.ms);
+                }
+              ),
+            ),
           ],
         ),
       ),

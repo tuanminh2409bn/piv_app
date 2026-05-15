@@ -66,6 +66,10 @@ class VoucherModel extends Equatable {
   final String? statusBeforeDeletion;
   final int? buyQuantity;
   final int? getQuantity;
+  final String targetType; // 'all', 'specific_agents', 'specific_sales_reps'
+  final List<String> targetUserIds;
+  final List<String> targetSalesRepIds;
+  final String applicableCategory; // 'all', 'foliar_fertilizer', 'root_fertilizer'
 
   const VoucherModel({
     required this.id,
@@ -85,6 +89,10 @@ class VoucherModel extends Equatable {
     this.statusBeforeDeletion,
     this.buyQuantity,
     this.getQuantity,
+    this.targetType = 'all',
+    this.targetUserIds = const [],
+    this.targetSalesRepIds = const [],
+    this.applicableCategory = 'all',
   });
 
   String get discountTypeString {
@@ -129,7 +137,8 @@ class VoucherModel extends Equatable {
     id, description, discountType, discountValue, maxDiscountAmount,
     minOrderValue, maxUses, usedCount, createdAt, expiresAt,
     status, createdBy, approvedBy, history, statusBeforeDeletion,
-    buyQuantity, getQuantity
+    buyQuantity, getQuantity, targetType, targetUserIds, targetSalesRepIds,
+    applicableCategory
   ];
 
   Map<String, dynamic> toMap() {
@@ -150,6 +159,10 @@ class VoucherModel extends Equatable {
       'statusBeforeDeletion': statusBeforeDeletion,
       'buyQuantity': buyQuantity,
       'getQuantity': getQuantity,
+      'targetType': targetType,
+      'targetUserIds': targetUserIds,
+      'targetSalesRepIds': targetSalesRepIds,
+      'applicableCategory': applicableCategory,
     };
   }
 
@@ -175,6 +188,10 @@ class VoucherModel extends Equatable {
       statusBeforeDeletion: data['statusBeforeDeletion'],
       buyQuantity: data['buyQuantity'] as int?,
       getQuantity: data['getQuantity'] as int?,
+      targetType: data['targetType'] ?? 'all',
+      targetUserIds: List<String>.from(data['targetUserIds'] ?? []),
+      targetSalesRepIds: List<String>.from(data['targetSalesRepIds'] ?? []),
+      applicableCategory: data['applicableCategory'] ?? 'all',
     );
   }
 
@@ -199,6 +216,10 @@ class VoucherModel extends Equatable {
     String? statusBeforeDeletion,
     int? buyQuantity,
     int? getQuantity,
+    String? targetType,
+    List<String>? targetUserIds,
+    List<String>? targetSalesRepIds,
+    String? applicableCategory,
   }) {
     return VoucherModel(
       id: id ?? this.id,
@@ -218,6 +239,10 @@ class VoucherModel extends Equatable {
       statusBeforeDeletion: setStatusBeforeDeletionNull ? null : (statusBeforeDeletion ?? this.statusBeforeDeletion),
       buyQuantity: buyQuantity ?? this.buyQuantity,
       getQuantity: getQuantity ?? this.getQuantity,
+      targetType: targetType ?? this.targetType,
+      targetUserIds: targetUserIds ?? this.targetUserIds,
+      targetSalesRepIds: targetSalesRepIds ?? this.targetSalesRepIds,
+      applicableCategory: applicableCategory ?? this.applicableCategory,
     );
   }
 }

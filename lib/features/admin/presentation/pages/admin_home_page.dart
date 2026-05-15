@@ -12,6 +12,7 @@ import 'package:piv_app/features/admin/presentation/pages/admin_products_page.da
 import 'package:piv_app/features/admin/presentation/pages/admin_categories_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_users_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_commissions_page.dart';
+import 'package:piv_app/features/vouchers/presentation/pages/voucher_management_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_vouchers_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/manual_notification_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/notification_history_page.dart';
@@ -25,6 +26,8 @@ import 'package:piv_app/features/admin/presentation/pages/price_approval_page.da
 import 'package:piv_app/features/admin/presentation/pages/return_policy_config_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_discount_requests_page.dart';
 
+import 'package:piv_app/core/utils/platform_utils.dart'; // <<< ADD IMPORT
+
 class AdminHomePage extends StatelessWidget {
   const AdminHomePage({super.key});
 
@@ -37,56 +40,81 @@ class AdminHomePage extends StatelessWidget {
       desktop: 4,
     );
 
+    final isWeb = PlatformUtils.isWeb;
+    final foregroundColor = isWeb ? Colors.white : AppTheme.primaryGreen;
+    final backgroundColor = isWeb ? AppTheme.primaryGreen : Colors.white;
+    final containerColor = isWeb ? Colors.white.withValues(alpha: 0.2) : AppTheme.primaryGreen.withValues(alpha: 0.1);
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
-        title: const Text(
-          'BẢNG ĐIỀU KHIỂN ADMIN',
-          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2),
-        ),
-        centerTitle: false,
-        backgroundColor: AppTheme.primaryGreen,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        shadowColor: AppTheme.primaryGreen.withOpacity(0.3),
-        actions: [
-          const NotificationIconWithBadge(iconColor: Colors.white),
-          const SizedBox(width: 8),
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.logout_rounded, color: Colors.white),
-              tooltip: 'Đăng xuất tài khoản',
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Xác nhận đăng xuất'),
-                    content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi hệ thống quản trị không?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Hủy'),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          context.read<AuthBloc>().add(AuthLogoutRequested());
-                        },
-                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed, foregroundColor: Colors.white),
-                        child: const Text('Đăng xuất'),
+        titleSpacing: 0,
+        title: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    isWeb ? 'BẢNG ĐIỀU KHIỂN ADMIN' : 'QUẢN TRỊ ADMIN',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold, 
+                      letterSpacing: isWeb ? 1.2 : 0,
+                      fontSize: isWeb ? 20 : 18,
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      NotificationIconWithBadge(iconColor: foregroundColor),
+                      const SizedBox(width: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: containerColor,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: IconButton(
+                          icon: Icon(Icons.logout_rounded, color: foregroundColor),
+                          tooltip: 'Đăng xuất tài khoản',
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Xác nhận đăng xuất'),
+                                content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi hệ thống quản trị không?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Hủy'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      context.read<AuthBloc>().add(AuthLogoutRequested());
+                                    },
+                                    style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorRed, foregroundColor: Colors.white),
+                                    child: const Text('Đăng xuất'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
                       ),
                     ],
                   ),
-                );
-              },
+                ],
+              ),
             ),
           ),
-        ],
+        ),
+        automaticallyImplyLeading: false,
+        backgroundColor: backgroundColor,
+        foregroundColor: foregroundColor,
+        elevation: 4,
+        shadowColor: AppTheme.primaryGreen.withValues(alpha: 0.3),
       ),
       body: Stack(
         children: [
@@ -191,7 +219,12 @@ class AdminHomePage extends StatelessWidget {
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminCommissionsPage())),
                 ),
                 _DashboardCard(
-                  title: 'Vouchers',
+                  title: 'Quản lý Voucher',
+                  icon: Icons.card_giftcard_outlined,
+                  onTap: () => Navigator.of(context).push(VoucherManagementPage.route()),
+                ),
+                _DashboardCard(
+                  title: 'Duyệt Voucher',
                   icon: Icons.airplane_ticket_outlined,
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminVouchersPage())),
                 ),

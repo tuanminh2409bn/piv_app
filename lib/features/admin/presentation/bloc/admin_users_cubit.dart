@@ -71,6 +71,30 @@ class AdminUsersCubit extends Cubit<AdminUsersState> {
     );
   }
 
+  Future<void> updateUserStackingConfig({
+    required String userId,
+    required bool? allowVoucherStacking,
+    required bool? agentsAllowVoucherStacking,
+  }) async {
+    emit(state.copyWith(status: AdminUsersStatus.updating));
+    final result = await _adminRepository.updateUserStackingConfig(
+      userId: userId,
+      allowVoucherStacking: allowVoucherStacking,
+      agentsAllowVoucherStacking: agentsAllowVoucherStacking,
+    );
+
+    result.fold(
+      (failure) {
+        emit(state.copyWith(
+          status: AdminUsersStatus.success,
+          errorMessage: 'Cập nhật cấu hình cộng dồn thất bại: ${failure.message}',
+        ));
+        emit(state.copyWith(clearErrorMessage: true));
+      },
+      (_) => fetchAndGroupUsers(),
+    );
+  }
+
   // --- SỬA ĐỔI HÀM NÀY ---
   Future<void> updateUserDebt({
     required String userId,

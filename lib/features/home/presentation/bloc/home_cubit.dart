@@ -12,6 +12,8 @@ import 'package:piv_app/features/home/data/models/banner_model.dart';
 import 'package:piv_app/features/home/data/models/category_model.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/home/domain/repositories/home_repository.dart';
+import 'package:piv_app/features/vouchers/domain/repositories/voucher_repository.dart';
+import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 import 'dart:developer' as developer;
 
 part 'home_state.dart';
@@ -28,14 +30,17 @@ String _removeDiacritics(String str) {
 class HomeCubit extends Cubit<HomeState> {
   final HomeRepository _homeRepository;
   final AuthBloc _authBloc;
+  final VoucherRepository _voucherRepository;
   StreamSubscription? _authSubscription;
   UserModel? _currentUser;
 
   HomeCubit({
     required HomeRepository homeRepository,
     required AuthBloc authBloc,
+    required VoucherRepository voucherRepository,
   })  : _homeRepository = homeRepository,
         _authBloc = authBloc,
+        _voucherRepository = voucherRepository,
         super(const HomeState()) {
 
     final currentState = _authBloc.state;
@@ -65,7 +70,15 @@ class HomeCubit extends Cubit<HomeState> {
         _homeRepository.getFeaturedProducts(currentUserId: user.id),
         _homeRepository.getLatestNewsArticles(),
         _homeRepository.getAllProducts(currentUserId: user.id),
+        _homeRepository.getAllCategories(), // Lấy tất cả danh mục
       ]);
+      
+      // Fetch vouchers in parallel but do not block UI if it fails
+      List<VoucherModel> activeVouchers = [];
+      if (user.role == 'agent_1' || user.role == 'agent_2') {
+         final voucherResult = await _voucherRepository.getActiveVouchers();
+         activeVouchers = voucherResult.getOrElse(() => []);
+      }
 
       List<String> errors = [];
       final finalBanners = (results[0] as Either<Failure, List<BannerModel>>).fold((f) {errors.add(f.message); return <BannerModel>[];}, (r) => r);
@@ -73,15 +86,28 @@ class HomeCubit extends Cubit<HomeState> {
       var finalFeaturedProducts = (results[2] as Either<Failure, List<ProductModel>>).fold((f) {errors.add(f.message); return <ProductModel>[];}, (r) => r);
       final finalNews = (results[3] as Either<Failure, List<NewsArticleModel>>).fold((f) {errors.add(f.message); return <NewsArticleModel>[];}, (r) => r);
       final finalAllProducts = (results[4] as Either<Failure, List<ProductModel>>).fold((f) {errors.add(f.message); return <ProductModel>[];}, (r) => r);
+      var finalAllCategories = (results[5] as Either<Failure, List<CategoryModel>>).fold((f) {errors.add(f.message); return <CategoryModel>[];}, (r) => r);
 
       if (errors.isNotEmpty) {
         emit(state.copyWith(status: HomeStatus.error, errorMessage: errors.join('\n')));
       } else {
         // --- LỌC DANH MỤC PHÂN BÓN GỐC ---
-        finalFeaturedCategories = finalFeaturedCategories.where((cat) {
-          final normalizedName = _removeDiacritics(cat.name.toLowerCase());
-          return !normalizedName.contains('phan bon goc');
-        }).toList();
+        bool isRootCategory(CategoryModel cat) {
+          final n = cat.name.toLowerCase();
+          final id = cat.id.toLowerCase();
+          
+          if (id.contains('root')) return true;
+          
+          final normalizedName = _removeDiacritics(n).replaceAll(RegExp(r'\s+'), '');
+          if (normalizedName.contains('phanbongoc')) return true;
+          if (normalizedName.contains('goc') && normalizedName.contains('phan')) return true;
+          if (normalizedName.contains('root')) return true;
+          
+          return false;
+        }
+
+        finalFeaturedCategories = finalFeaturedCategories.where((cat) => !isRootCategory(cat)).toList();
+        finalAllCategories = finalAllCategories.where((cat) => !isRootCategory(cat)).toList();
 
         // <<< LOGIC QUAN TRỌNG NẰM Ở ĐÂY >>>
         if (user.role != 'admin' && finalFeaturedProducts.length > 8) {
@@ -93,13 +119,14 @@ class HomeCubit extends Cubit<HomeState> {
             status: HomeStatus.success,
             banners: finalBanners,
             categories: finalFeaturedCategories,
-            allCategories: finalFeaturedCategories,
+            allCategories: finalAllCategories,
             featuredProducts: finalFeaturedProducts,
             filteredFeaturedProducts: finalFeaturedProducts,
             newsArticles: finalNews,
             allProducts: finalAllProducts,
             isSearching: false,
-            user: user
+            user: user,
+            activeVouchers: activeVouchers,
         ));
       }
     } catch (e) {

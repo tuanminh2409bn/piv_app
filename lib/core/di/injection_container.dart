@@ -146,7 +146,7 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<ForgotPasswordCubit>(() => ForgotPasswordCubit(authRepository: sl()));
   sl.registerFactory<SocialSignInCubit>(() => SocialSignInCubit(authRepository: sl()));
   
-  sl.registerFactory<HomeCubit>(() => HomeCubit(homeRepository: sl(), authBloc: sl()));
+  sl.registerLazySingleton<HomeCubit>(() => HomeCubit(homeRepository: sl(), authBloc: sl(), voucherRepository: sl()));
   sl.registerFactory<NewsDetailCubit>(() => NewsDetailCubit(homeRepository: sl()));
   sl.registerFactory<ProductDetailCubit>(() => ProductDetailCubit(homeRepository: sl(), authBloc: sl()));
   sl.registerFactory<CategoryProductsCubit>(() => CategoryProductsCubit(homeRepository: sl()));
@@ -161,7 +161,7 @@ Future<void> initializeDependencies() async {
   // WishlistPageCubit is created in the view, no need to register here.
   
   sl.registerFactory<SearchCubit>(() => SearchCubit(searchRepository: sl(), homeRepository: sl(), authBloc: sl()));
-  sl.registerFactory<CheckoutCubit>(() => CheckoutCubit(userProfileRepository: sl(), orderRepository: sl(), authBloc: sl(), cartCubit: sl(), voucherRepository: sl(), functions: sl()));
+  sl.registerFactory<CheckoutCubit>(() => CheckoutCubit(userProfileRepository: sl(), orderRepository: sl(), authBloc: sl(), cartCubit: sl(), voucherRepository: sl(), functions: sl(), adminSettingsRepository: sl()));
   sl.registerLazySingleton<MyOrdersCubit>(() => MyOrdersCubit(orderRepository: sl(), authBloc: sl()));
   sl.registerFactory<OrderDetailCubit>(() => OrderDetailCubit(orderRepository: sl(), userProfileRepository: sl(), returnRepository: sl(), voucherRepository: sl(), authBloc: sl()));
   

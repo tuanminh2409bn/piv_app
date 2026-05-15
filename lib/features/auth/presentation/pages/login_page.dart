@@ -51,17 +51,22 @@ class _MobileLoginLayout extends StatelessWidget {
             ),
           ),
         ),
-        Center(
-          child: ResponsiveWrapper(
-            isForm: true,
-            backgroundColor: Colors.transparent,
-            showShadow: false,
-            child: MultiBlocProvider(
-              providers: [
-                BlocProvider(create: (_) => sl<LoginCubit>()),
-                BlocProvider(create: (_) => sl<SocialSignInCubit>()),
-              ],
-              child: const LoginForm(),
+        SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+              child: ResponsiveWrapper(
+                isForm: true,
+                backgroundColor: Colors.transparent,
+                showShadow: false,
+                child: MultiBlocProvider(
+                  providers: [
+                    BlocProvider(create: (_) => sl<LoginCubit>()),
+                    BlocProvider(create: (_) => sl<SocialSignInCubit>()),
+                  ],
+                  child: const LoginForm(),
+                ),
+              ),
             ),
           ),
         ),
@@ -301,9 +306,11 @@ class _Header extends StatelessWidget {
           style: TextStyle(color: AppTheme.primaryGreen, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 2),
         ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.5, end: 0),
         const Text(
-          'Đồng hành cùng nhà nông',
-          style: TextStyle(color: AppTheme.textGrey, fontSize: 16, fontStyle: FontStyle.italic),
+          'Thấu hiểu nhà nông\nThấu hiểu cây trồng',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: AppTheme.textGrey, fontSize: 16, fontStyle: FontStyle.italic, height: 1.4),
         ).animate().fadeIn(delay: 500.ms),
+        const SizedBox(height: 32),
       ],
     );
   }

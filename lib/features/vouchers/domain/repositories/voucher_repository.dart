@@ -22,5 +22,6 @@ abstract class VoucherRepository {
     required String userId,
     required String userRole,
     required double subtotal,
+    List<String> cartCategoryIds = const [],
   });
 }

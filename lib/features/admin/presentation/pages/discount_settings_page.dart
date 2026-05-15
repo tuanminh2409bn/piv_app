@@ -52,21 +52,33 @@ class _DiscountSettingsForm extends StatefulWidget {
 class _DiscountSettingsFormState extends State<_DiscountSettingsForm> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late DiscountPolicyModel _policy;
+  late TextEditingController _vatController;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _policy = widget.initialPolicy;
+    _vatController = TextEditingController(text: _policy.vatPercentage.toString());
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _vatController.dispose();
     super.dispose();
   }
 
   void _saveSettings() {
+    final double? vat = double.tryParse(_vatController.text);
+    if (vat != null) {
+      _policy = DiscountPolicyModel(
+        agent1: _policy.agent1,
+        agent2: _policy.agent2,
+        vatPercentage: vat,
+        globalAllowVoucherStacking: _policy.globalAllowVoucherStacking,
+      );
+    }
     context.read<AdminDiscountSettingsCubit>().updateSettings(_policy);
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã lưu cấu hình thành công!')));
   }
@@ -76,6 +88,8 @@ class _DiscountSettingsFormState extends State<_DiscountSettingsForm> with Singl
       _policy = DiscountPolicyModel(
         agent1: isAgent1 ? updatedAgentPolicy : _policy.agent1,
         agent2: isAgent1 ? _policy.agent2 : updatedAgentPolicy,
+        vatPercentage: _policy.vatPercentage,
+        globalAllowVoucherStacking: _policy.globalAllowVoucherStacking,
       );
     });
   }
@@ -84,6 +98,56 @@ class _DiscountSettingsFormState extends State<_DiscountSettingsForm> with Singl
   Widget build(BuildContext context) {
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    flex: 3,
+                    child: Text('Thuế GTGT (VAT) %:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 4,
+                    child: TextField(
+                      controller: _vatController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Expanded(
+                    child: Text('Cho phép cộng dồn Voucher & Chiết khấu:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                  Switch(
+                    value: _policy.globalAllowVoucherStacking,
+                    onChanged: (val) {
+                      setState(() {
+                        _policy = DiscountPolicyModel(
+                          agent1: _policy.agent1,
+                          agent2: _policy.agent2,
+                          vatPercentage: _policy.vatPercentage,
+                          globalAllowVoucherStacking: val,
+                        );
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
         TabBar(
           controller: _tabController,
           labelColor: Theme.of(context).primaryColor,

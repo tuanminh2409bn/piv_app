@@ -605,6 +605,16 @@ class _FeaturedProductCard extends StatelessWidget {
 
   _FeaturedProductCard({required this.product});
 
+  bool _hasVoucher(BuildContext context, ProductModel product) {
+    final state = context.read<HomeCubit>().state;
+    if (state.activeVouchers.isEmpty) return false;
+    return state.activeVouchers.any((v) => 
+       v.applicableCategory == 'all' || 
+       v.applicableCategory == product.categoryId ||
+       v.applicableCategory == product.productType
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = context.watch<AuthBloc>().state;
@@ -620,6 +630,7 @@ class _FeaturedProductCard extends StatelessWidget {
     // canViewPrice mặc định là false nếu authState là AuthUnauthenticated
     
     final price = product.getPriceForRole(userRole);
+    final bool hasVoucher = _hasVoucher(context, product);
 
     return GestureDetector(
       onTap: () =>
@@ -671,6 +682,42 @@ class _FeaturedProductCard extends StatelessWidget {
                                 fontSize: 8,
                                 fontWeight: FontWeight.bold)),
                       ),
+                    ),
+                  if (hasVoucher)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Colors.orange, Colors.red],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: const BorderRadius.only(
+                              topRight: Radius.circular(16),
+                              bottomLeft: Radius.circular(12)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red.withValues(alpha: 0.3),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            )
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.local_fire_department, color: Colors.white, size: 10),
+                            SizedBox(width: 2),
+                            Text('Ưu đãi',
+                              style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ).animate(onPlay: (controller) => controller.repeat(reverse: true))
+                       .scale(begin: const Offset(1, 1), end: const Offset(1.05, 1.05), duration: 800.ms),
                     ),
                 ],
               ),

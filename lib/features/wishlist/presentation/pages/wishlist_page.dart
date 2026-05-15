@@ -123,7 +123,7 @@ class WishlistView extends StatelessWidget {
     final int crossAxisCount = Responsive.value(context, mobile: 2, tablet: 3, desktop: 4);
     final double childAspectRatio = Responsive.value(
       context, 
-      mobile: (screenWidth / 2) / 280,
+      mobile: (screenWidth / 2) / 290,
       tablet: (screenWidth / 3) / 320,
       desktop: (1000 / 4) / 350,
     );
@@ -242,7 +242,7 @@ class WishlistView extends StatelessWidget {
                                           ),
                                           Expanded(
                                             child: Padding(
-                                              padding: const EdgeInsets.all(10.0),
+                                              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
                                               child: Column(
                                                 crossAxisAlignment: CrossAxisAlignment.start,
                                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

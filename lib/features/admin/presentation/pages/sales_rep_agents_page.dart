@@ -38,15 +38,6 @@ class SalesRepAgentsPage extends StatelessWidget {
                   leading: CircleAvatar(child: Text(agent.displayName?[0].toUpperCase() ?? 'Đ')),
                   title: Text(agent.displayName ?? 'Chưa có tên', style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text('Cấp: ${agent.role.replaceAll('agent_', '')} - Trạng thái: ${agent.status}'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.price_change_outlined, color: Colors.blue),
-                    tooltip: 'Cấu hình chiết khấu riêng',
-                    onPressed: () {
-                      Navigator.of(context).push(AgentDiscountConfigPage.route(
-                        user: agent,
-                      ));
-                    },
-                  ),
                   onTap: () => _showEditUserDialog(context, agent),
                 ),
               );
@@ -61,6 +52,8 @@ class SalesRepAgentsPage extends StatelessWidget {
     final cubit = parentContext.read<AdminUsersCubit>();
     String selectedRole = user.role;
     String selectedStatus = user.status;
+    bool? selectedAllowVoucherStacking = user.allowVoucherStacking;
+    bool? selectedAgentsAllowVoucherStacking = user.agentsAllowVoucherStacking;
 
     showDialog(
       context: parentContext,
@@ -109,8 +102,40 @@ class SalesRepAgentsPage extends StatelessWidget {
                         }
                       },
                     ),
+                    if (selectedRole == 'sales_rep') ...[
+                      const SizedBox(height: 16),
+                      const Text('Đại lý của NVKD được phép cộng dồn Voucher?', style: TextStyle(fontWeight: FontWeight.bold)),
+                      DropdownButton<bool?>(
+                        value: selectedAgentsAllowVoucherStacking,
+                        isExpanded: true,
+                        items: const [
+                          DropdownMenuItem(value: null, child: Text('Mặc định (Theo toàn cục)')),
+                          DropdownMenuItem(value: true, child: Text('Có')),
+                          DropdownMenuItem(value: false, child: Text('Không')),
+                        ],
+                        onChanged: (value) {
+                          setState(() => selectedAgentsAllowVoucherStacking = value);
+                        },
+                      ),
+                    ],
+                    if (selectedRole == 'agent_1' || selectedRole == 'agent_2') ...[
+                      const SizedBox(height: 16),
+                      const Text('Đại lý này được phép cộng dồn Voucher?', style: TextStyle(fontWeight: FontWeight.bold)),
+                      DropdownButton<bool?>(
+                        value: selectedAllowVoucherStacking,
+                        isExpanded: true,
+                        items: const [
+                          DropdownMenuItem(value: null, child: Text('Mặc định (Theo NVKD hoặc Toàn cục)')),
+                          DropdownMenuItem(value: true, child: Text('Có')),
+                          DropdownMenuItem(value: false, child: Text('Không')),
+                        ],
+                        onChanged: (value) {
+                          setState(() => selectedAllowVoucherStacking = value);
+                        },
+                      ),
+                    ],
                     // Chỉ hiển thị nút cấu hình nếu là đại lý
-                    if (user.role == 'agent_1' || user.role == 'agent_2') ...[
+                    if (selectedRole == 'agent_1' || selectedRole == 'agent_2') ...[
                       const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
@@ -165,6 +190,14 @@ class SalesRepAgentsPage extends StatelessWidget {
                 ElevatedButton(
                   onPressed: () {
                     cubit.updateUser(user.id, selectedRole, selectedStatus);
+                    if (selectedAllowVoucherStacking != user.allowVoucherStacking ||
+                        selectedAgentsAllowVoucherStacking != user.agentsAllowVoucherStacking) {
+                      cubit.updateUserStackingConfig(
+                        userId: user.id,
+                        allowVoucherStacking: selectedAllowVoucherStacking,
+                        agentsAllowVoucherStacking: selectedAgentsAllowVoucherStacking,
+                      );
+                    }
                     Navigator.of(dialogContext).pop();
                   },
                   child: const Text('Lưu'),

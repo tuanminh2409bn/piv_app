@@ -15,6 +15,7 @@ import 'package:piv_app/features/cart/presentation/pages/cart_page.dart';
 import 'package:piv_app/features/cart/presentation/widgets/cart_icon_with_badge.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
+import 'package:piv_app/features/home/presentation/bloc/home_cubit.dart';
 import 'package:piv_app/features/search/bloc/search_cubit.dart';
 
 class SearchPage extends StatelessWidget {
@@ -488,10 +489,25 @@ class _ProductGridItem extends StatelessWidget {
     required this.isSelectionMode,
   });
 
+  bool _hasVoucher(BuildContext context, ProductModel product) {
+    try {
+      final state = sl<HomeCubit>().state;
+      if (state.activeVouchers.isEmpty) return false;
+      return state.activeVouchers.any((v) => 
+         v.applicableCategory == 'all' || 
+         v.applicableCategory == product.categoryId ||
+         v.applicableCategory == product.productType
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final currencyFormatter =
         NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    final bool hasVoucher = _hasVoucher(context, product);
 
     return Container(
       decoration: BoxDecoration(
@@ -499,7 +515,7 @@ class _ProductGridItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -579,6 +595,42 @@ class _ProductGridItem extends StatelessWidget {
                             ),
                           ),
                         ),
+                      ),
+                    if (hasVoucher)
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Colors.orange, Colors.red],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: const BorderRadius.only(
+                                topRight: Radius.circular(16),
+                                bottomLeft: Radius.circular(12)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.red.withValues(alpha: 0.3),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              )
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.local_fire_department, color: Colors.white, size: 10),
+                              SizedBox(width: 2),
+                              Text('Ưu đãi',
+                                style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ).animate(onPlay: (controller) => controller.repeat(reverse: true))
+                         .scale(begin: const Offset(1, 1), end: const Offset(1.05, 1.05), duration: 800.ms),
                       ),
                   ],
                 ),

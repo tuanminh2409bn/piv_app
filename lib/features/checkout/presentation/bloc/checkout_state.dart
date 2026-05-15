@@ -1,5 +1,3 @@
-//lib/features/checkout/cubit/checkout_state.dart
-
 part of 'checkout_cubit.dart';
 
 enum CheckoutStatus {
@@ -34,6 +32,9 @@ class CheckoutState extends Equatable {
   final double currentDebt;
   final double amountToPay;
   // ------------------------------------
+  
+  final double vatPercentage;
+  final bool isStackingAllowed; // Cờ cho phép cộng dồn chiết khấu
 
   const CheckoutState({
     this.status = CheckoutStatus.initial,
@@ -55,11 +56,15 @@ class CheckoutState extends Equatable {
     this.currentDebt = 0.0,
     this.amountToPay = 0.0,
     // ----------------------------------
+    this.vatPercentage = 10.0,
+    this.isStackingAllowed = false,
   });
 
   // --- SỬA ĐỔI GETTERS ĐỂ TÍNH TOÁN CÔNG NỢ ---
   // Tổng tiền hàng (sau chiết khấu, voucher)
-  double get finalTotal => (subtotal + shippingFee - discount - commissionDiscount).clamp(0, double.infinity);
+  double get finalTotalBeforeVat => (subtotal + shippingFee - discount - commissionDiscount).clamp(0, double.infinity);
+  double get vatAmount => finalTotalBeforeVat * (vatPercentage / 100);
+  double get finalTotal => finalTotalBeforeVat + vatAmount;
 
   // Tổng tiền cần thanh toán (bao gồm cả công nợ)
   double get totalWithDebt => finalTotal + currentDebt;
@@ -74,6 +79,8 @@ class CheckoutState extends Equatable {
     // --- THÊM PROPS MỚI ---
     currentDebt, amountToPay,
     // --------------------
+    vatPercentage,
+    isStackingAllowed,
   ];
 
   CheckoutState copyWith({
@@ -100,6 +107,8 @@ class CheckoutState extends Equatable {
     double? currentDebt,
     double? amountToPay,
     // ----------------------------
+    double? vatPercentage,
+    bool? isStackingAllowed,
   }) {
     return CheckoutState(
       status: status ?? this.status,
@@ -121,6 +130,8 @@ class CheckoutState extends Equatable {
       currentDebt: currentDebt ?? this.currentDebt,
       amountToPay: amountToPay ?? this.amountToPay,
       // -------------------------------
+      vatPercentage: vatPercentage ?? this.vatPercentage,
+      isStackingAllowed: isStackingAllowed ?? this.isStackingAllowed,
     );
   }
 }

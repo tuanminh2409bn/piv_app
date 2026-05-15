@@ -113,6 +113,8 @@ class OrderModel extends Equatable {
   final double remainingDebt;
   final String? appliedVoucherCode;
   final CustomerLegalInfo? legalInfo;
+  final double vatPercentage;
+  final double vatAmount;
 
 
   const OrderModel({
@@ -142,19 +144,22 @@ class OrderModel extends Equatable {
     this.remainingDebt = 0.0,
     this.appliedVoucherCode,
     this.legalInfo,
+    this.vatPercentage = 10.0,
+    this.vatAmount = 0.0,
   });
 
   // Tổng tiền hàng thực tế sau khi công ty xác nhận số lượng giao
   double get confirmedSubtotal => items.fold(0, (sum, item) => sum + item.confirmedSubtotal);
 
-  // Tổng tiền đơn hàng thực tế (đã trừ voucher và chiết khấu)
+  // Tổng tiền đơn hàng thực tế (đã trừ voucher và chiết khấu, cộng thuế VAT)
   double get confirmedFinalTotal {
     // Nếu chưa xác nhận (confirmedSubtotal == 0 hoặc chưa giao), dùng finalTotal gốc
     if (confirmedSubtotal <= 0) return finalTotal;
     
-    // Tính toán lại dựa trên tỷ lệ hoặc tính lại từ đầu
-    // Để đơn giản và chính xác: confirmedSubtotal - discount - commissionDiscount
-    return (confirmedSubtotal - discount - commissionDiscount).clamp(0, double.infinity);
+    // Tính toán lại: 
+    double preTax = (confirmedSubtotal + shippingFee - discount - commissionDiscount).clamp(0, double.infinity);
+    double calculatedVat = preTax * (vatPercentage / 100);
+    return (preTax + calculatedVat).clamp(0, double.infinity);
   }
 
   // Số tiền chênh lệch cần hoàn lại/trừ vào công nợ (Tiền đặt - Tiền thực giao)
@@ -188,6 +193,8 @@ class OrderModel extends Equatable {
     String? appliedVoucherCode,
     bool forceAppliedVoucherCodeToNull = false,
     CustomerLegalInfo? legalInfo,
+    double? vatPercentage,
+    double? vatAmount,
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -216,6 +223,8 @@ class OrderModel extends Equatable {
       remainingDebt: remainingDebt ?? this.remainingDebt,
       appliedVoucherCode: forceAppliedVoucherCodeToNull ? null : (appliedVoucherCode ?? this.appliedVoucherCode),
       legalInfo: legalInfo ?? this.legalInfo,
+      vatPercentage: vatPercentage ?? this.vatPercentage,
+      vatAmount: vatAmount ?? this.vatAmount,
     );
   }
 
@@ -223,7 +232,8 @@ class OrderModel extends Equatable {
   List<Object?> get props => [
     id, userId, items, shippingAddress, subtotal, shippingFee, discount, total,
     paymentMethod, paymentStatus, status, createdAt, salesRepId, commissionDiscount, finalTotal,
-    placedBy, approvedAt, rejectedAt, rejectionReason, shippingDate, returnInfo, debtAmount, paidAmount, remainingDebt, appliedVoucherCode, legalInfo
+    placedBy, approvedAt, rejectedAt, rejectionReason, shippingDate, returnInfo, debtAmount, paidAmount, remainingDebt, appliedVoucherCode, legalInfo,
+    vatPercentage, vatAmount
   ];
 
   Map<String, dynamic> toMap() {
@@ -253,6 +263,8 @@ class OrderModel extends Equatable {
       'remainingDebt': remainingDebt,
       'appliedVoucherCode': appliedVoucherCode,
       'legalInfo': legalInfo?.toMap(),
+      'vatPercentage': vatPercentage,
+      'vatAmount': vatAmount,
     };
   }
 
@@ -296,6 +308,8 @@ class OrderModel extends Equatable {
       legalInfo: data['legalInfo'] != null
           ? CustomerLegalInfo.fromMap(data['legalInfo'] as Map<String, dynamic>)
           : null,
+      vatPercentage: (data['vatPercentage'] as num?)?.toDouble() ?? 10.0,
+      vatAmount: (data['vatAmount'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }

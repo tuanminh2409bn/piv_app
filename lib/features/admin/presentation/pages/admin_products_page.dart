@@ -122,10 +122,18 @@ class AdminProductsView extends StatelessWidget {
   Widget _buildProductListItem(BuildContext context, ProductModel product) {
     final currencyFormatter =
         NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
-    final displayPrice = product.packingOptions.isNotEmpty &&
-            product.packingOptions.first.prices.isNotEmpty
-        ? product.packingOptions.first.prices.values.first
-        : 0.0;
+    double displayPrice = 0.0;
+    if (product.packingOptions.isNotEmpty) {
+      final p1 = product.getPriceForRole('agent_1');
+      final p2 = product.getPriceForRole('agent_2');
+      if (p1 > 0 && p2 > 0) {
+        displayPrice = p1 < p2 ? p1 : p2;
+      } else if (p1 > 0) {
+        displayPrice = p1;
+      } else if (p2 > 0) {
+        displayPrice = p2;
+      }
+    }
 
     return Material(
       color: Colors.white,

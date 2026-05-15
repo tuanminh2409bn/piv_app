@@ -45,7 +45,7 @@ class _MainScreenState extends State<MainScreen> {
 
   void _onItemTapped(int index) {
     // Kiểm tra đăng nhập khi vào các tab nhạy cảm
-    if (index == 2 || index == 3) {
+    if (index == 3) {
       final authState = context.read<AuthBloc>().state;
       if (authState is! AuthAuthenticated) {
         Navigator.of(context).push(LoginPage.route());

@@ -402,13 +402,25 @@ class HomeRepositoryImpl implements HomeRepository {
     }
     try {
       final List<ProductModel> allProducts = [];
-      // Phân tách thành các chunk 30 ID (giới hạn của Firestore 'whereIn')
-      for (var i = 0; i < ids.length; i += 30) {
-        final chunk = ids.sublist(i, i + 30 > ids.length ? ids.length : i + 30);
-        final querySnapshot = await _productsCollection
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
-        allProducts.addAll(querySnapshot.docs.map((doc) => ProductModel.fromSnapshot(doc)));
+      
+      // Fetch each document individually to avoid Firestore 'list' rule permission issues
+      final futures = ids.map((id) async {
+        try {
+          final doc = await _productsCollection.doc(id).get();
+          if (doc.exists) {
+            return ProductModel.fromSnapshot(doc);
+          }
+        } catch (e) {
+          // Bỏ qua lỗi permission cho từng file cụ thể nếu có
+        }
+        return null;
+      });
+      
+      final results = await Future.wait(futures);
+      for (final product in results) {
+        if (product != null) {
+          allProducts.add(product);
+        }
       }
 
       // --- THÊM LOGIC LỌC SAU KHI TẢI ---

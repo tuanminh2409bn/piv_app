@@ -98,6 +98,7 @@ class _CreateCommitmentFormPageState extends State<CreateCommitmentFormPage> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
+        leading: const BackButton(color: Colors.white),
         title: const Text('Đăng ký Cam kết'),
         backgroundColor: AppTheme.primaryGreen,
         foregroundColor: Colors.white,

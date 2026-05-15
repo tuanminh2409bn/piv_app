@@ -70,6 +70,36 @@ class AdminRepositoryImpl implements AdminRepository {
 
   // ... (Toàn bộ các hàm còn lại trong file này được giữ nguyên) ...
   @override
+  Future<Either<Failure, void>> updateUserStackingConfig({
+    required String userId,
+    required bool? allowVoucherStacking,
+    required bool? agentsAllowVoucherStacking,
+  }) async {
+    try {
+      final updateData = <String, dynamic>{};
+      
+      // Use FieldValue.delete() to remove the field if it's null (inheriting from parent)
+      if (allowVoucherStacking == null) {
+        updateData['allowVoucherStacking'] = FieldValue.delete();
+      } else {
+        updateData['allowVoucherStacking'] = allowVoucherStacking;
+      }
+
+      if (agentsAllowVoucherStacking == null) {
+        updateData['agentsAllowVoucherStacking'] = FieldValue.delete();
+      } else {
+        updateData['agentsAllowVoucherStacking'] = agentsAllowVoucherStacking;
+      }
+
+      await _firestore.collection('users').doc(userId).update(updateData);
+      return const Right(null);
+    } catch (e) {
+      developer.log('Error in updateUserStackingConfig', error: e, name: 'AdminRepository');
+      return Left(ServerFailure(e.toString()));
+    }
+  }
+
+  @override
   Future<Either<Failure, Unit>> updateUser(
       String userId, String newRole, String newStatus) async {
     try {
@@ -246,15 +276,20 @@ class AdminRepositoryImpl implements AdminRepository {
     }
 
     try {
-      final querySnapshot = await _firestore
-          .collection('products')
-          .where(FieldPath.documentId, whereIn: productIds)
-          .get();
+      final futures = productIds.map((id) async {
+        try {
+          final doc = await _firestore.collection('products').doc(id).get();
+          if (doc.exists) {
+            return ProductModel.fromSnapshot(doc);
+          }
+        } catch (e) {
+          // ignore
+        }
+        return null;
+      });
 
-      // Sử dụng fromSnapshot trực tiếp, vì nó đã bao gồm ID
-      final products = querySnapshot.docs
-          .map((doc) => ProductModel.fromSnapshot(doc))
-          .toList();
+      final results = await Future.wait(futures);
+      final products = results.whereType<ProductModel>().toList();
 
       // Sắp xếp lại danh sách sản phẩm theo thứ tự ID ban đầu để đảm bảo
       // thứ tự hiển thị không bị thay đổi sau mỗi lần tải lại.

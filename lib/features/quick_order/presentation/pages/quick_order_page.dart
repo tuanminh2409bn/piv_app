@@ -17,6 +17,7 @@ import 'package:piv_app/features/products/presentation/pages/product_detail_page
 import 'package:piv_app/features/quick_order/domain/repositories/quick_order_repository.dart';
 import 'package:piv_app/features/quick_order/presentation/bloc/quick_order_cubit.dart';
 import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
+import 'package:piv_app/core/utils/responsive.dart';
 
 class QuickOrderPage extends StatelessWidget {
   final String? targetAgentId;
@@ -68,27 +69,6 @@ class QuickOrderView extends StatelessWidget {
 
           BlocBuilder<QuickOrderCubit, QuickOrderState>(
             builder: (context, state) {
-              if (state.status == QuickOrderStatus.loading) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (state.status == QuickOrderStatus.error) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline,
-                          size: 48, color: AppTheme.errorRed),
-                      const SizedBox(height: 16),
-                      Text(state.errorMessage ?? 'Đã có lỗi xảy ra',
-                          style: const TextStyle(color: AppTheme.textGrey)),
-                    ],
-                  ),
-                );
-              }
-              if (state.products.isEmpty) {
-                return _buildEmptyState();
-              }
-
               return CustomScrollView(
                 slivers: [
                   // SliverAppBar đồng bộ với các trang khác
@@ -137,28 +117,55 @@ class QuickOrderView extends StatelessWidget {
                     ),
                   ),
 
-                  SliverPadding(
-                    padding: const EdgeInsets.all(12.0),
-                    sliver: SliverGrid(
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: childAspectRatio,
+                  if (state.status == QuickOrderStatus.loading)
+                    const SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (state.status == QuickOrderStatus.error)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.error_outline,
+                                size: 48, color: AppTheme.errorRed),
+                            const SizedBox(height: 16),
+                            Text(state.errorMessage ?? 'Đã có lỗi xảy ra',
+                                style: const TextStyle(color: AppTheme.textGrey)),
+                          ],
+                        ),
                       ),
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final product = state.products[index];
-                          return ProductGridItem(
-                            product: product,
-                            targetUserRole: targetUserRole,
-                            index: index,
-                          );
-                        },
-                        childCount: state.products.length,
+                    )
+                  else if (state.products.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _buildEmptyState(),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.all(12.0),
+                      sliver: SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: Responsive.value(context, mobile: 2, desktop: 4),
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: childAspectRatio,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final product = state.products[index];
+                            return ProductGridItem(
+                              product: product,
+                              targetUserRole: targetUserRole,
+                              index: index,
+                            );
+                          },
+                          childCount: state.products.length,
+                        ),
                       ),
                     ),
-                  ),
                   // Tăng chiều cao lên 120 để tránh bottom nav bar của MainScreen (80px + padding)
                   const SliverToBoxAdapter(child: SizedBox(height: 120)),
                 ],

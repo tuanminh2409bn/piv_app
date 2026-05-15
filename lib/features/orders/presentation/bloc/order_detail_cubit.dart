@@ -173,6 +173,7 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
       userId: userId,
       userRole: userRole,
       subtotal: subtotal,
+      cartCategoryIds: state.order!.items.map((i) => i.categoryId).toList(),
     );
 
     result.fold(

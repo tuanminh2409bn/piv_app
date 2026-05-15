@@ -15,6 +15,12 @@ abstract class AdminRepository {
   Future<Either<Failure, Unit>> updateUser(
       String userId, String newRole, String newStatus);
 
+  Future<Either<Failure, void>> updateUserStackingConfig({
+    required String userId,
+    required bool? allowVoucherStacking,
+    required bool? agentsAllowVoucherStacking,
+  });
+
   // Agent Management
   Future<Either<Failure, List<UserModel>>> getAgentsBySalesRepId(
       String salesRepId);

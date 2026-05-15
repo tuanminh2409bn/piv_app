@@ -29,6 +29,8 @@ class VoucherManagementCubit extends Cubit<VoucherManagementState> {
       final userId = userState.user.id;
       emit(state.copyWith(status: VoucherManagementStatus.loading));
       _vouchersSubscription?.cancel();
+      // Fetch vouchers where createdBy == userId. 
+      // This works for both Sales Reps and Admins (Admins see their own created vouchers).
       _vouchersSubscription = _voucherRepository.getVouchersBySalesRep(userId).listen(
             (vouchers) {
           emit(state.copyWith(status: VoucherManagementStatus.success, vouchers: vouchers));
@@ -52,6 +54,10 @@ class VoucherManagementCubit extends Cubit<VoucherManagementState> {
     required DateTime expiresAt,
     int? buyQuantity,
     int? getQuantity,
+    String targetType = 'all',
+    List<String> targetUserIds = const [],
+    List<String> targetSalesRepIds = const [],
+    String applicableCategory = 'all',
   }) async {
     final userState = _authBloc.state;
     if (userState is! AuthAuthenticated) {
@@ -82,11 +88,15 @@ class VoucherManagementCubit extends Cubit<VoucherManagementState> {
       expiresAt: Timestamp.fromDate(expiresAt),
       createdAt: originalVoucher?.createdAt ?? Timestamp.now(), 
       createdBy: originalVoucher?.createdBy ?? userState.user.id, 
-      status: originalVoucher?.status ?? VoucherStatus.pendingApproval, 
+      status: originalVoucher?.status ?? (userState.user.isAdmin ? VoucherStatus.active : VoucherStatus.pendingApproval), 
       history: originalVoucher?.history ?? [], 
       approvedBy: originalVoucher?.approvedBy,
       buyQuantity: buyQuantity,
       getQuantity: getQuantity,
+      targetType: targetType,
+      targetUserIds: targetUserIds,
+      targetSalesRepIds: targetSalesRepIds,
+      applicableCategory: applicableCategory,
     );
 
     bool hasChanges = true;
@@ -111,8 +121,9 @@ class VoucherManagementCubit extends Cubit<VoucherManagementState> {
     );
 
     final finalVoucher = newVoucherData.copyWith(
-      status: VoucherStatus.pendingApproval, 
+      status: userState.user.isAdmin ? VoucherStatus.active : VoucherStatus.pendingApproval, 
       history: (originalVoucher?.history ?? []) + [newHistoryEntry],
+      approvedBy: userState.user.isAdmin ? userState.user.id : originalVoucher?.approvedBy,
     );
 
     final result = id == null
@@ -135,6 +146,16 @@ class VoucherManagementCubit extends Cubit<VoucherManagementState> {
     if (voucher.status == VoucherStatus.pendingDeletion) return;
 
     emit(state.copyWith(status: VoucherManagementStatus.loading));
+
+    if (userState.user.isAdmin) {
+      // Nếu là Admin thì xóa ngay lập tức
+      final result = await _voucherRepository.deleteVoucher(voucher.id);
+      result.fold(
+            (failure) => emit(state.copyWith(status: VoucherManagementStatus.error, errorMessage: failure.message)),
+            (_) => emit(state.copyWith(status: VoucherManagementStatus.success)),
+      );
+      return;
+    }
 
     final newHistoryEntry = VoucherHistoryEntry(
       action: 'delete_requested',

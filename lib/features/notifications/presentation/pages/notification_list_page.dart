@@ -15,6 +15,8 @@ import 'package:piv_app/features/sales_commitment/presentation/pages/sales_commi
 import 'package:piv_app/features/sales_commitment/presentation/pages/commitment_history_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/price_approval_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_debt_approval_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/admin_vouchers_page.dart';
+import 'package:piv_app/features/vouchers/presentation/pages/voucher_management_page.dart';
 
 class NotificationListPage extends StatelessWidget {
   const NotificationListPage({super.key});
@@ -94,6 +96,17 @@ class NotificationListPage extends StatelessWidget {
       case 'debt_update_request':
       case 'debt_update_response':
         Navigator.of(context).push(AdminDebtApprovalPage.route());
+        break;
+
+      // Thông báo duyệt Voucher
+      case 'voucher_approval_request':
+        Navigator.of(context).push(AdminVouchersPage.route());
+        break;
+      case 'voucher_status_update':
+      case 'voucher_rejected':
+      case 'voucher_deletion_rejected':
+      case 'voucher_deleted':
+        Navigator.of(context).push(VoucherManagementPage.route());
         break;
 
       // Các loại thông báo khác không cần điều hướng (chỉ cần xem)

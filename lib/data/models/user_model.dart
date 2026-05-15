@@ -27,6 +27,8 @@ class UserModel extends Equatable {
   final double debtAmount;
   final Map<String, dynamic>? customDiscount;
   final bool useGeneralPrice;
+  final bool? allowVoucherStacking;
+  final bool? agentsAllowVoucherStacking;
 
   String get referralCode => id;
 
@@ -53,6 +55,8 @@ class UserModel extends Equatable {
     this.debtAmount = 0.0,
     this.customDiscount,
     this.useGeneralPrice = true,
+    this.allowVoucherStacking,
+    this.agentsAllowVoucherStacking,
   });
 
   bool get isGuest => role == 'guest';
@@ -98,6 +102,8 @@ class UserModel extends Equatable {
     double? debtAmount,
     Map<String, dynamic>? customDiscount,
     bool? useGeneralPrice,
+    bool? allowVoucherStacking,
+    bool? agentsAllowVoucherStacking,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -122,6 +128,8 @@ class UserModel extends Equatable {
       debtAmount: debtAmount ?? this.debtAmount,
       customDiscount: customDiscount ?? this.customDiscount,
       useGeneralPrice: useGeneralPrice ?? this.useGeneralPrice,
+      allowVoucherStacking: allowVoucherStacking ?? this.allowVoucherStacking,
+      agentsAllowVoucherStacking: agentsAllowVoucherStacking ?? this.agentsAllowVoucherStacking,
     );
   }
 
@@ -210,6 +218,8 @@ class UserModel extends Equatable {
       debtAmount: (json['debtAmount'] as num?)?.toDouble() ?? 0.0,
       customDiscount: json['customDiscount'] as Map<String, dynamic>?,
       useGeneralPrice: json['useGeneralPrice'] as bool? ?? true,
+      allowVoucherStacking: json['allowVoucherStacking'] as bool?,
+      agentsAllowVoucherStacking: json['agentsAllowVoucherStacking'] as bool?,
     );
   }
 

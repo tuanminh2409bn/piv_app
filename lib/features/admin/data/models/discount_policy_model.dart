@@ -61,13 +61,22 @@ class AgentPolicy {
 class DiscountPolicyModel {
   final AgentPolicy agent1;
   final AgentPolicy agent2;
+  final double vatPercentage;
+  final bool globalAllowVoucherStacking;
 
-  DiscountPolicyModel({required this.agent1, required this.agent2});
+  DiscountPolicyModel({
+    required this.agent1, 
+    required this.agent2,
+    this.vatPercentage = 10.0, // Default 10% VAT
+    this.globalAllowVoucherStacking = false,
+  });
 
   factory DiscountPolicyModel.fromJson(Map<String, dynamic> json) {
     return DiscountPolicyModel(
       agent1: AgentPolicy.fromJson(json['agent_1'] ?? {}),
       agent2: AgentPolicy.fromJson(json['agent_2'] ?? {}),
+      vatPercentage: (json['vatPercentage'] as num?)?.toDouble() ?? 10.0,
+      globalAllowVoucherStacking: json['globalAllowVoucherStacking'] as bool? ?? false,
     );
   }
 
@@ -75,12 +84,16 @@ class DiscountPolicyModel {
     return {
       'agent_1': agent1.toJson(),
       'agent_2': agent2.toJson(),
+      'vatPercentage': vatPercentage,
+      'globalAllowVoucherStacking': globalAllowVoucherStacking,
     };
   }
   
   // Helper để tạo giá trị mặc định nếu DB chưa có
   factory DiscountPolicyModel.defaultPolicy() {
     return DiscountPolicyModel(
+      vatPercentage: 10.0,
+      globalAllowVoucherStacking: false,
       agent1: AgentPolicy(
         foliar: ProductTypePolicy(tiers: [
           DiscountTier(minAmount: 100000000, rate: 0.10),

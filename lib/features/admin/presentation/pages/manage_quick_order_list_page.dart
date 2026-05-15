@@ -126,11 +126,18 @@ class _ProductListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Lấy giá mặc định từ quy cách đầu tiên để hiển thị.
-    final displayPrice = product.packingOptions.isNotEmpty
-        ? product.getPriceForRole(
-            'agent_2') // Giả sử lấy giá đại lý cấp 2 để hiển thị
-        : 0.0;
+    double displayPrice = 0.0;
+    if (product.packingOptions.isNotEmpty) {
+      final p1 = product.getPriceForRole('agent_1');
+      final p2 = product.getPriceForRole('agent_2');
+      if (p1 > 0 && p2 > 0) {
+        displayPrice = p1 < p2 ? p1 : p2;
+      } else if (p1 > 0) {
+        displayPrice = p1;
+      } else if (p2 > 0) {
+        displayPrice = p2;
+      }
+    }
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

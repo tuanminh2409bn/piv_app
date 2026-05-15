@@ -14,6 +14,7 @@ import 'package:piv_app/features/home/data/models/category_model.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/products/presentation/bloc/category_products_cubit.dart';
 import 'package:piv_app/features/products/presentation/pages/product_detail_page.dart';
+import 'package:piv_app/features/home/presentation/bloc/home_cubit.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/auth/presentation/pages/login_page.dart';
 import 'package:piv_app/features/cart/presentation/bloc/cart_cubit.dart';
@@ -302,9 +303,24 @@ class _ProductCard extends StatelessWidget {
 
   _ProductCard({required this.product, required this.userRole, required this.canViewPrice, required this.index});
 
+  bool _hasVoucher(BuildContext context, ProductModel product) {
+    try {
+      final state = sl<HomeCubit>().state;
+      if (state.activeVouchers.isEmpty) return false;
+      return state.activeVouchers.any((v) => 
+         v.applicableCategory == 'all' || 
+         v.applicableCategory == product.categoryId ||
+         v.applicableCategory == product.productType
+      );
+    } catch (_) {
+      return false; // Fallback nếu không có HomeCubit
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final price = product.getPriceForRole(userRole);
+    final bool hasVoucher = _hasVoucher(context, product);
 
     return GestureDetector(
       onTap: () => Navigator.of(context).push(ProductDetailPage.route(product.id)),
@@ -338,6 +354,42 @@ class _ProductCard extends StatelessWidget {
                         decoration: const BoxDecoration(color: Colors.red, borderRadius: BorderRadius.only(topLeft: Radius.circular(16), bottomRight: Radius.circular(12))),
                         child: const Text('ĐỘC QUYỀN', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
                       ),
+                    ),
+                  if (hasVoucher)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Colors.orange, Colors.red],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: const BorderRadius.only(
+                              topRight: Radius.circular(16),
+                              bottomLeft: Radius.circular(12)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red.withValues(alpha: 0.3),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            )
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.local_fire_department, color: Colors.white, size: 10),
+                            SizedBox(width: 2),
+                            Text('Ưu đãi',
+                              style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ).animate(onPlay: (controller) => controller.repeat(reverse: true))
+                       .scale(begin: const Offset(1, 1), end: const Offset(1.05, 1.05), duration: 800.ms),
                     ),
                 ],
               ),
