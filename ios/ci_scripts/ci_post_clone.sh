@@ -33,6 +33,10 @@ else
     echo "ℹ️  Flutter directory already exists."
 fi
 
+# Cài đặt CocoaPods thông qua Homebrew để tránh lỗi tương thích Ruby trên Xcode Cloud
+echo "🥥 Cài đặt CocoaPods mới nhất..."
+HOMEBREW_NO_AUTO_UPDATE=1 brew install cocoapods
+
 # Thêm Flutter vào PATH
 export PATH="$PATH:$HOME/flutter/bin"
 
@@ -47,12 +51,8 @@ flutter precache --ios
 echo "📦 Running flutter pub get..."
 flutter pub get
 
-# Cài đặt CocoaPods dependencies
-echo "🥥 Installing Pods..."
-cd ios
-
-# Cần đảm bảo file Podfile.lock đồng bộ, nếu không thì dùng --repo-update
-# Chạy pod install với repo update để chắc chắn có specs mới nhất
-pod install --repo-update
+# Chạy lệnh cấu hình iOS để tạo các file xcconfig và chạy pod install tự động
+echo "⚙️ Cấu hình iOS project..."
+flutter build ios --config-only
 
 echo "🎉 ci_post_clone.sh completed successfully."
