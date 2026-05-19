@@ -25,6 +25,17 @@ class VoucherRepositoryImpl implements VoucherRepository {
   }
 
   @override
+  Stream<List<VoucherModel>> getAllVouchers() {
+    return _firestore
+        .collection('vouchers')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => VoucherModel.fromSnapshot(doc)).toList();
+    });
+  }
+
+  @override
   Future<Either<Failure, void>> addVoucher(VoucherModel voucher) async {
     try {
       await _firestore.collection('vouchers').doc(voucher.id).set(voucher.toMap());

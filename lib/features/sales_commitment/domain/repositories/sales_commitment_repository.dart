@@ -12,6 +12,19 @@ abstract class SalesCommitmentRepository {
     required DateTime endDate,
   });
 
+  Future<Either<Failure, void>> proposeSalesCommitment({
+    required String agentId,
+    required double targetAmount,
+    required DateTime startDate,
+    required DateTime endDate,
+    required String detailsText,
+  });
+
+  Future<Either<Failure, void>> respondToCommitmentProposal({
+    required String commitmentId,
+    required bool isAccepted,
+  });
+
   /// Admin/NVKD thiết lập chi tiết phần thưởng cho một cam kết
   Future<Either<Failure, void>> setSalesCommitmentDetails({
     required String commitmentId,

@@ -7,6 +7,7 @@ import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 abstract class VoucherRepository {
   // Sửa lại để trả về một Stream<List<VoucherModel>> cho real-time
   Stream<List<VoucherModel>> getVouchersBySalesRep(String salesRepId);
+  Stream<List<VoucherModel>> getAllVouchers(); // MỚI: Cho Admin
 
   // Thêm các hàm mới để quản lý voucher
   Future<Either<Failure, void>> addVoucher(VoucherModel voucher);

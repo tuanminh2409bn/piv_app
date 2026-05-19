@@ -115,6 +115,10 @@ class OrderModel extends Equatable {
   final CustomerLegalInfo? legalInfo;
   final double vatPercentage;
   final double vatAmount;
+  final bool isDiscountReclaimed;
+  final double? reclaimedDiscountAmount;
+  final int? paymentDueDays;
+  final Timestamp? paymentDueDate;
 
 
   const OrderModel({
@@ -146,6 +150,10 @@ class OrderModel extends Equatable {
     this.legalInfo,
     this.vatPercentage = 10.0,
     this.vatAmount = 0.0,
+    this.isDiscountReclaimed = false,
+    this.reclaimedDiscountAmount,
+    this.paymentDueDays,
+    this.paymentDueDate,
   });
 
   // Tổng tiền hàng thực tế sau khi công ty xác nhận số lượng giao
@@ -195,6 +203,10 @@ class OrderModel extends Equatable {
     CustomerLegalInfo? legalInfo,
     double? vatPercentage,
     double? vatAmount,
+    bool? isDiscountReclaimed,
+    double? reclaimedDiscountAmount,
+    int? paymentDueDays,
+    Timestamp? paymentDueDate,
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -225,6 +237,10 @@ class OrderModel extends Equatable {
       legalInfo: legalInfo ?? this.legalInfo,
       vatPercentage: vatPercentage ?? this.vatPercentage,
       vatAmount: vatAmount ?? this.vatAmount,
+      isDiscountReclaimed: isDiscountReclaimed ?? this.isDiscountReclaimed,
+      reclaimedDiscountAmount: reclaimedDiscountAmount ?? this.reclaimedDiscountAmount,
+      paymentDueDays: paymentDueDays ?? this.paymentDueDays,
+      paymentDueDate: paymentDueDate ?? this.paymentDueDate,
     );
   }
 
@@ -233,7 +249,7 @@ class OrderModel extends Equatable {
     id, userId, items, shippingAddress, subtotal, shippingFee, discount, total,
     paymentMethod, paymentStatus, status, createdAt, salesRepId, commissionDiscount, finalTotal,
     placedBy, approvedAt, rejectedAt, rejectionReason, shippingDate, returnInfo, debtAmount, paidAmount, remainingDebt, appliedVoucherCode, legalInfo,
-    vatPercentage, vatAmount
+    vatPercentage, vatAmount, isDiscountReclaimed, reclaimedDiscountAmount, paymentDueDays, paymentDueDate
   ];
 
   Map<String, dynamic> toMap() {
@@ -265,6 +281,10 @@ class OrderModel extends Equatable {
       'legalInfo': legalInfo?.toMap(),
       'vatPercentage': vatPercentage,
       'vatAmount': vatAmount,
+      'isDiscountReclaimed': isDiscountReclaimed,
+      'reclaimedDiscountAmount': reclaimedDiscountAmount,
+      'paymentDueDays': paymentDueDays,
+      'paymentDueDate': paymentDueDate,
     };
   }
 
@@ -310,6 +330,10 @@ class OrderModel extends Equatable {
           : null,
       vatPercentage: (data['vatPercentage'] as num?)?.toDouble() ?? 10.0,
       vatAmount: (data['vatAmount'] as num?)?.toDouble() ?? 0.0,
+      isDiscountReclaimed: data['isDiscountReclaimed'] as bool? ?? false,
+      reclaimedDiscountAmount: (data['reclaimedDiscountAmount'] as num?)?.toDouble(),
+      paymentDueDays: data['paymentDueDays'] as int?,
+      paymentDueDate: data['paymentDueDate'] as Timestamp?,
     );
   }
 }

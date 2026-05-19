@@ -39,6 +39,50 @@ class SalesCommitmentRepositoryImpl implements SalesCommitmentRepository {
   }
 
   @override
+  Future<Either<Failure, void>> proposeSalesCommitment({
+    required String agentId,
+    required double targetAmount,
+    required DateTime startDate,
+    required DateTime endDate,
+    required String detailsText,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable('proposeSalesCommitment');
+      await callable.call({
+        'agentId': agentId,
+        'targetAmount': targetAmount,
+        'startDate': startDate.toIso8601String(),
+        'endDate': endDate.toIso8601String(),
+        'detailsText': detailsText,
+      });
+      return const Right(null);
+    } on FirebaseFunctionsException catch (e) {
+      return Left(ServerFailure(e.message ?? 'Lỗi không xác định từ máy chủ.'));
+    } catch (e) {
+      return Left(ServerFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> respondToCommitmentProposal({
+    required String commitmentId,
+    required bool isAccepted,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable('respondToCommitmentProposal');
+      await callable.call({
+        'commitmentId': commitmentId,
+        'isAccepted': isAccepted,
+      });
+      return const Right(null);
+    } on FirebaseFunctionsException catch (e) {
+      return Left(ServerFailure(e.message ?? 'Lỗi không xác định từ máy chủ.'));
+    } catch (e) {
+      return Left(ServerFailure(e.toString()));
+    }
+  }
+
+  @override
   Future<Either<Failure, void>> setSalesCommitmentDetails({
     required String commitmentId,
     required String detailsText,

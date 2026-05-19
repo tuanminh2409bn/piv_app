@@ -669,13 +669,31 @@ export const onOrderStatusUpdate = onDocumentUpdated(
       // --- CẬP NHẬT CÔNG NỢ DỰA TRÊN GIÁ TRỊ THỰC GIAO ---
       const debtAmountToAdd = actualTotal - (paidAmount || 0);
 
-      if (debtAmountToAdd !== 0) {
-        const userRef = db.collection("users").doc(userId);
-        const transactionId = `purchase_${orderId}`;
-        const debtTransactionRef = db.collection("debtTransactions").doc(transactionId);
+      // --- CẬP NHẬT HẠN THANH TOÁN (paymentDueDate) ---
+      const paymentDueDays = Number(afterData.paymentDueDays) || 30; // Fallback
+      let paymentDueDate = null;
+      if (shippingDate) {
+        const dueDate = new Date(shippingDate.toMillis());
+        dueDate.setDate(dueDate.getDate() + paymentDueDays);
+        paymentDueDate = admin.firestore.Timestamp.fromDate(dueDate);
+      } else {
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + paymentDueDays);
+        paymentDueDate = admin.firestore.Timestamp.fromDate(dueDate);
+      }
 
-        try {
-          await db.runTransaction(async (transaction) => {
+      const userRef = db.collection("users").doc(userId);
+      const transactionId = `purchase_${orderId}`;
+      const debtTransactionRef = db.collection("debtTransactions").doc(transactionId);
+
+      const orderRef = db.collection("orders").doc(orderId);
+
+      try {
+        await db.runTransaction(async (transaction) => {
+          // Lưu paymentDueDate vào order
+          transaction.update(orderRef, {paymentDueDate: paymentDueDate});
+
+          if (debtAmountToAdd !== 0) {
             const debtDoc = await transaction.get(debtTransactionRef);
             if (debtDoc.exists) return;
 
@@ -704,10 +722,10 @@ export const onOrderStatusUpdate = onDocumentUpdated(
                 paidAmount: paidAmount || 0,
               },
             });
-          });
-        } catch (debtError) {
-          logger.error(`Failed to record debt for order ${orderId}:`, debtError);
-        }
+          }
+        });
+      } catch (debtError) {
+        logger.error(`Failed to record debt or update dueDate for order ${orderId}:`, debtError);
       }
     }
 
@@ -1187,6 +1205,157 @@ export const createSalesCommitment = onCall({region: "asia-southeast1"}, async (
   } catch (error) {
     if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", "Failed to create sales commitment.", error);
+  }
+});
+
+// ===================================================================
+// FUNCTION: ĐỀ XUẤT CAM KẾT DOANH SỐ CHO ĐẠI LÝ (BỞI STAFF)
+// ===================================================================
+export const proposeSalesCommitment = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
+
+  const staffId = request.auth.uid;
+  const {agentId, targetAmount, startDate, endDate, detailsText} = request.data;
+
+  if (!agentId || !targetAmount || !startDate || !endDate || !detailsText) {
+    throw new HttpsError("invalid-argument", "Missing required fields.");
+  }
+
+  try {
+    // 1. Kiểm tra quyền của người gửi đề xuất (Admin, Kế toán, NVKD)
+    const staffDoc = await db.collection("users").doc(staffId).get();
+    if (!staffDoc.exists) throw new HttpsError("not-found", "Staff user not found.");
+    const staffData = staffDoc.data()!;
+    if (!["admin", "accountant", "sales_rep"].includes(staffData.role)) {
+      throw new HttpsError("permission-denied", "Only staff can propose a commitment.");
+    }
+
+    // 2. Kiểm tra Đại lý
+    const agentRef = db.collection("users").doc(agentId);
+    const agentDoc = await agentRef.get();
+    if (!agentDoc.exists) throw new HttpsError("not-found", "Agent not found.");
+    const agentData = agentDoc.data()!;
+    if (!["agent_1", "agent_2"].includes(agentData.role)) {
+      throw new HttpsError("invalid-argument", "Target user is not an agent.");
+    }
+
+    // 3. Tạo Cam kết với trạng thái 'proposed_to_agent'
+    const commitmentId = await db.runTransaction(async (transaction) => {
+      const commitmentRef = db.collection("sales_commitments").doc();
+      transaction.set(commitmentRef, {
+        userId: agentId,
+        userDisplayName: agentData.displayName,
+        userRole: agentData.role,
+        targetAmount: Number(targetAmount),
+        currentAmount: 0,
+        startDate: admin.firestore.Timestamp.fromDate(new Date(startDate)),
+        endDate: admin.firestore.Timestamp.fromDate(new Date(endDate)),
+        status: "proposed_to_agent",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        commitmentDetails: {
+          text: detailsText,
+          setByUserId: staffId,
+          setByUserName: staffData.displayName,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+      });
+      return commitmentRef.id;
+    });
+
+    // 4. Gửi thông báo cho Đại lý
+    if (agentData.fcmToken) {
+      const title = "🔔 Đề xuất Chương trình Cam kết Doanh số";
+      const body = "Công ty vừa gửi cho bạn một đề xuất tham gia Chương trình Cam kết Doanh số. Nhấn vào đây để xem chi tiết và phản hồi.";
+      const type = "commitment_proposal";
+      await sendPushNotification([agentData.fcmToken], title, body, {type, commitmentId});
+    }
+    await saveNotificationToFirestore(
+      agentId,
+      "🔔 Đề xuất Chương trình Cam kết Doanh số",
+      "Công ty vừa gửi cho bạn một đề xuất tham gia Chương trình Cam kết Doanh số. Nhấn vào đây để xem chi tiết và phản hồi.",
+      "commitment_proposal",
+      {commitmentId}
+    );
+
+    return {success: true, message: "Đã gửi đề xuất cam kết cho đại lý."};
+  } catch (error) {
+    logger.error("Error proposing commitment:", error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Failed to propose sales commitment.", error);
+  }
+});
+
+// ===================================================================
+// FUNCTION: ĐẠI LÝ PHẢN HỒI ĐỀ XUẤT CAM KẾT
+// ===================================================================
+export const respondToCommitmentProposal = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Authentication required.");
+
+  const agentId = request.auth.uid;
+  const {commitmentId, isAccepted} = request.data;
+
+  if (!commitmentId || isAccepted === undefined) {
+    throw new HttpsError("invalid-argument", "Missing required fields.");
+  }
+
+  try {
+    const commitmentRef = db.collection("sales_commitments").doc(commitmentId);
+    const agentRef = db.collection("users").doc(agentId);
+
+    let proposerId = "";
+
+    await db.runTransaction(async (transaction) => {
+      const commitmentDoc = await transaction.get(commitmentRef);
+      if (!commitmentDoc.exists) throw new HttpsError("not-found", "Commitment not found.");
+
+      const commitmentData = commitmentDoc.data()!;
+      if (commitmentData.userId !== agentId) {
+        throw new HttpsError("permission-denied", "This commitment does not belong to you.");
+      }
+      if (commitmentData.status !== "proposed_to_agent") {
+        throw new HttpsError("failed-precondition", "Commitment is not in proposed state.");
+      }
+
+      proposerId = commitmentData.commitmentDetails?.setByUserId || "";
+
+      if (isAccepted) {
+        // Cập nhật trạng thái Cam kết thành 'active'
+        transaction.update(commitmentRef, {status: "active"});
+        // Cập nhật user.activeRewardProgram = 'sales_commitment'
+        transaction.update(agentRef, {activeRewardProgram: "sales_commitment"});
+      } else {
+        // Cập nhật trạng thái thành 'rejected'
+        transaction.update(commitmentRef, {
+          status: "rejected",
+          cancelledBy: agentId,
+          cancelledByName: "Đại lý từ chối",
+          cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+          cancellationReason: "Đại lý không đồng ý với đề xuất của công ty.",
+        });
+      }
+    });
+
+    // Thông báo lại cho người tạo đề xuất
+    if (proposerId) {
+      const proposerDoc = await db.collection("users").doc(proposerId).get();
+      if (proposerDoc.exists) {
+        const proposerData = proposerDoc.data()!;
+        const actionText = isAccepted ? "ĐỒNG Ý" : "TỪ CHỐI";
+        const title = "Phản hồi đề xuất Cam kết doanh số";
+        const body = `Đại lý đã ${actionText} đề xuất tham gia Chương trình Cam kết Doanh số của bạn.`;
+
+        if (proposerData.fcmToken) {
+          await sendPushNotification([proposerData.fcmToken], title, body, {type: "commitment_proposal_response", commitmentId});
+        }
+        await saveNotificationToFirestore(proposerId, title, body, "commitment_proposal_response", {commitmentId});
+      }
+    }
+
+    return {success: true, message: isAccepted ? "Đã đồng ý tham gia Cam kết." : "Đã từ chối đề xuất Cam kết."};
+  } catch (error) {
+    logger.error("Error responding to commitment:", error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Failed to respond to sales commitment proposal.", error);
   }
 });
 
@@ -2503,9 +2672,139 @@ export const getAuthEmailByPhone = onCall(
     }
     const usersSnapshot = await db.collection("users").where("phoneNumber", "==", phone).limit(1).get();
     if (usersSnapshot.empty) {
-      return { email: null };
+      return {email: null};
     }
     const userData = usersSnapshot.docs[0].data();
-    return { email: userData.email || null };
+    return {email: userData.email || null};
   }
 );
+
+// ===================================================================
+// FUNCTION 32: TỰ ĐỘNG THU HỒI CHIẾT KHẤU NẾU ĐƠN HÀNG QUÁ HẠN THANH TOÁN
+// ===================================================================
+export const checkOverdueOrderDiscounts = onSchedule({
+  schedule: "every day 00:30", // Chạy vào 00:30 mỗi ngày
+  timeZone: "Asia/Ho_Chi_Minh",
+  region: "asia-southeast1",
+}, async (event) => {
+  logger.info("Bắt đầu chạy checkOverdueOrderDiscounts...");
+  const now = admin.firestore.Timestamp.now();
+
+  try {
+    const ordersSnapshot = await db.collection("orders")
+      .where("status", "==", "completed")
+      .where("isDiscountReclaimed", "==", false)
+      .get();
+
+    if (ordersSnapshot.empty) {
+      logger.info("Không có đơn hàng nào cần kiểm tra thu hồi chiết khấu.");
+      return;
+    }
+
+    let processedCount = 0;
+
+    for (const doc of ordersSnapshot.docs) {
+      const order = doc.data();
+
+      // Bỏ qua nếu đơn hàng đã được thanh toán
+      if (order.paymentStatus === "paid") continue;
+
+      // Tính tổng chiết khấu/voucher
+      const discount = Number(order.discount) || 0;
+      const commissionDiscount = Number(order.commissionDiscount) || 0;
+      const totalDiscount = discount + commissionDiscount;
+
+      // Bỏ qua nếu không có chiết khấu nào
+      if (totalDiscount <= 0) continue;
+
+      // Kiểm tra hạn thanh toán
+      let isOverdue = false;
+
+      if (order.paymentDueDate) {
+        // Sử dụng cấu hình hạn thanh toán động đã được gán vào đơn hàng (OrderModel)
+        if (order.paymentDueDate.toMillis() < now.toMillis()) {
+          isOverdue = true;
+        }
+      } else {
+        // Fallback: Nếu đơn hàng cũ chưa có paymentDueDate, tính 30 ngày từ ngày giao/ngày tạo
+        const referenceDate = order.shippingDate || order.createdAt;
+        if (referenceDate) {
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          if (referenceDate.toMillis() < thirtyDaysAgo.getTime()) {
+            isOverdue = true;
+          }
+        }
+      }
+
+      if (!isOverdue) continue;
+
+      const userId = order.userId;
+      const orderId = doc.id;
+
+      const userRef = db.collection("users").doc(userId);
+      const debtTransactionRef = db.collection("debtTransactions").doc(`reclaim_${orderId}`);
+
+      try {
+        await db.runTransaction(async (transaction) => {
+          const userDoc = await transaction.get(userRef);
+          if (!userDoc.exists) return;
+
+          const debtDoc = await transaction.get(debtTransactionRef);
+          if (debtDoc.exists) return; // Đã xử lý
+
+          const currentDebt = Number(userDoc.data()?.debtAmount) || 0;
+          const newDebt = currentDebt + totalDiscount;
+
+          // Cập nhật công nợ user
+          transaction.update(userRef, {debtAmount: newDebt});
+
+          // Đánh dấu đơn hàng đã thu hồi
+          transaction.update(doc.ref, {
+            isDiscountReclaimed: true,
+            reclaimedDiscountAmount: totalDiscount,
+            reclaimedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          const pastDueDays = order.paymentDueDays || 30;
+
+          // Ghi nhận lịch sử giao dịch công nợ
+          transaction.set(debtTransactionRef, {
+            userId: userId,
+            amount: totalDiscount,
+            type: "discount_reclaim",
+            description: `Thu hồi chiết khấu đơn hàng #${orderId.substring(0, 8).toUpperCase()} do quá hạn thanh toán ${pastDueDays} ngày`,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            orderId: orderId,
+            metadata: {
+              discountReclaimed: discount,
+              commissionDiscountReclaimed: commissionDiscount,
+            },
+          });
+        });
+
+        processedCount++;
+
+        // Gửi thông báo cho đại lý
+        const userDoc = await db.collection("users").doc(userId).get();
+        if (userDoc.exists) {
+          const token = userDoc.data()?.fcmToken;
+          const title = "⚠️ Đã thu hồi chiết khấu đơn hàng";
+          const pastDueDays = order.paymentDueDays || 30;
+          const body = `Đơn hàng #${orderId.substring(0, 8).toUpperCase()} đã quá hạn thanh toán ${pastDueDays} ngày. Hệ thống đã thu hồi chiết khấu và cộng vào công nợ của bạn.`;
+          const type = "discount_reclaimed";
+
+          if (token) await sendPushNotification([token], title, body, {type, orderId});
+          await saveNotificationToFirestore(userId, title, body, type, {orderId});
+        }
+      } catch (txnError) {
+        logger.error(`Lỗi khi xử lý đơn hàng ${orderId}:`, txnError);
+      }
+    }
+
+    logger.info(`Đã xử lý thu hồi chiết khấu cho ${processedCount} đơn hàng.`);
+  } catch (error) {
+    logger.error("Lỗi nghiêm trọng trong checkOverdueOrderDiscounts:", error);
+  }
+});
+

@@ -16,7 +16,8 @@ import 'package:piv_app/features/orders/domain/repositories/order_repository.dar
 import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 import 'package:piv_app/features/vouchers/domain/repositories/voucher_repository.dart';
-import 'package:piv_app/features/admin/domain/repositories/admin_settings_repository.dart'; // <<< THÊM MỚI
+import 'package:piv_app/features/admin/domain/repositories/admin_settings_repository.dart';
+import 'package:piv_app/features/admin/data/models/discount_policy_model.dart';
 import 'package:piv_app/data/models/user_model.dart';
 
 part 'checkout_state.dart';
@@ -33,14 +34,78 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   StreamSubscription? _authSubscription;
   String _currentUserId = '';
   List<VoucherModel> _allActiveVouchers = [];
+  bool _isVoucherAllowedCache = true;
+  bool _allowPromotionDuringCommitmentCache = false;
 
-  List<VoucherModel> _filterVouchers(List<CartItemModel> items) {
+  Future<bool> _checkIfPromotionAllowedDuringCommitment(UserModel agent) async {
+    // Priority 1: Specific Agent config
+    if (agent.customPromotionConfig != null && agent.customPromotionConfig!['allowPromotionDuringCommitment'] != null) {
+      return agent.customPromotionConfig!['allowPromotionDuringCommitment'] as bool;
+    }
+
+    // Priority 2: Sales Rep config
+    if (agent.salesRepId != null && agent.salesRepId!.isNotEmpty) {
+      final salesRepResult = await _userProfileRepository.getUserProfile(agent.salesRepId!);
+      final salesRep = salesRepResult.fold((l) => null, (r) => r);
+      if (salesRep != null && salesRep.agentsCustomPromotionConfig != null && salesRep.agentsCustomPromotionConfig!['allowPromotionDuringCommitment'] != null) {
+        return salesRep.agentsCustomPromotionConfig!['allowPromotionDuringCommitment'] as bool;
+      }
+    }
+
+    // Priority 3: Global config
+    final policy = await _adminSettingsRepository.getDiscountPolicy();
+    final AgentPromotionConfig globalPromotion = (agent.role == 'agent_1') ? policy.agent1PromotionConfig : policy.agent2PromotionConfig;
+    return globalPromotion.allowPromotionDuringCommitment;
+  }
+
+  List<VoucherModel> _filterVouchers(List<CartItemModel> items, UserModel user, bool allowPromotionDuringCommitment) {
+    if (user.activeRewardProgram == 'sales_commitment' && !allowPromotionDuringCommitment) {
+      return []; // Khách hàng tham gia chương trình cam kết không được dùng voucher nếu chưa được cấp quyền
+    }
+
     final cartCategories = items.map((i) => i.categoryId).toSet();
     final hasFoliar = cartCategories.contains('foliar_fertilizer');
     final hasRoot = cartCategories.contains('root_fertilizer');
+    final totalQuantity = items.fold<int>(0, (sum, item) => sum + item.quantity);
+    final subtotal = items.fold<double>(0.0, (sum, item) => sum + item.subtotal);
 
     return _allActiveVouchers.where((v) {
       if (v.maxUses != 0 && v.usedCount >= v.maxUses) return false;
+      
+      // Kiểm tra minOrderValue
+      if (subtotal < v.minOrderValue) return false;
+      
+      // Kiểm tra minQuantity và maxQuantity
+      if (v.minQuantity != null && totalQuantity < v.minQuantity!) return false;
+      if (v.maxQuantity != null && totalQuantity > v.maxQuantity!) return false;
+
+      // Kiểm tra loại trừ
+      if (v.excludedUserIds.contains(user.id)) return false;
+      if (user.salesRepId != null && v.excludedSalesRepIds.contains(user.salesRepId)) return false;
+
+      // Kiểm tra targetType
+      bool isTargeted = false;
+      switch (v.targetType) {
+        case 'all':
+          isTargeted = true;
+          break;
+        case 'agent_1':
+          isTargeted = user.role == 'agent_1';
+          break;
+        case 'agent_2':
+          isTargeted = user.role == 'agent_2';
+          break;
+        case 'specific_agents':
+          isTargeted = v.targetUserIds.contains(user.id);
+          break;
+        case 'specific_sales_reps':
+          isTargeted = user.salesRepId != null && v.targetSalesRepIds.contains(user.salesRepId);
+          break;
+        default:
+          isTargeted = true;
+      }
+      if (!isTargeted) return false;
+
       if (v.applicableCategory == 'all') return true;
       if (v.applicableCategory == 'foliar_fertilizer' && hasFoliar) return true;
       if (v.applicableCategory == 'root_fertilizer' && hasRoot) return true;
@@ -129,6 +194,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     final double orderFinalTotal = state.finalTotal;
     const double paidAmountForThisOrder = 0.0;
     final double remainingDebtAfterOrder = orderFinalTotal + currentAgentDebt - paidAmountForThisOrder;
+    final paymentDueDays = await _calculatePaymentDueDays(agent, state.checkoutItems);
 
     final order = OrderModel(
       userId: agent.id,
@@ -156,6 +222,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       appliedVoucherCode: state.appliedVoucher?.id,
       vatPercentage: state.vatPercentage,
       vatAmount: state.vatAmount,
+      paymentDueDays: paymentDueDays,
       legalInfo: CustomerLegalInfo(
         displayName: agent.displayName,
         idCardOrTaxId: agent.idCardOrTaxId,
@@ -200,6 +267,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
 
     final double orderTotalBeforeCommission = (state.subtotal + state.shippingFee - state.discount).clamp(0, double.infinity);
     final remainingDebt = state.totalWithDebt - state.amountToPay;
+    final paymentDueDays = await _calculatePaymentDueDays(authState.user, state.checkoutItems);
 
     final order = OrderModel(
       userId: _currentUserId,
@@ -220,6 +288,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       appliedVoucherCode: state.appliedVoucher?.id,
       vatPercentage: state.vatPercentage,
       vatAmount: state.vatAmount,
+      paymentDueDays: paymentDueDays,
       legalInfo: CustomerLegalInfo(
         displayName: authState.user.displayName,
         idCardOrTaxId: authState.user.idCardOrTaxId,
@@ -262,6 +331,74 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     return policy.globalAllowVoucherStacking;
   }
 
+  Future<bool> _checkIfPromotionAllowed(UserModel agent, {required bool isDiscount}) async {
+    // Priority 1: Specific Agent config
+    if (agent.customPromotionConfig != null) {
+      final key = isDiscount ? 'allowDiscount' : 'allowVoucher';
+      if (agent.customPromotionConfig![key] != null) {
+        return agent.customPromotionConfig![key] as bool;
+      }
+    }
+
+    // Priority 2: Sales Rep config
+    if (agent.salesRepId != null && agent.salesRepId!.isNotEmpty) {
+      final salesRepResult = await _userProfileRepository.getUserProfile(agent.salesRepId!);
+      final salesRep = salesRepResult.fold((l) => null, (r) => r);
+      if (salesRep != null && salesRep.agentsCustomPromotionConfig != null) {
+        final key = isDiscount ? 'allowDiscount' : 'allowVoucher';
+        if (salesRep.agentsCustomPromotionConfig![key] != null) {
+          return salesRep.agentsCustomPromotionConfig![key] as bool;
+        }
+      }
+    }
+
+    // Priority 3: Global config
+    final policy = await _adminSettingsRepository.getDiscountPolicy();
+    final AgentPromotionConfig globalPromotion = (agent.role == 'agent_1') ? policy.agent1PromotionConfig : policy.agent2PromotionConfig;
+    return isDiscount ? globalPromotion.allowDiscount : globalPromotion.allowVoucher;
+  }
+
+  Future<int> _calculatePaymentDueDays(UserModel agent, List<CartItemModel> items) async {
+    final policy = await _adminSettingsRepository.getDiscountPolicy();
+
+    // Xây dựng config gộp từ các lớp (Agent > Sales Rep > Global)
+    Map<String, dynamic> mergedConfig = {};
+
+    // 1. Global config
+    final AgentDueDaysPolicy globalDueDays = (agent.role == 'agent_1') ? policy.agent1DueDays : policy.agent2DueDays;
+    mergedConfig['foliar'] = globalDueDays.foliar;
+    mergedConfig['root'] = globalDueDays.root;
+    mergedConfig['mixed'] = globalDueDays.mixed;
+
+    // 2. Sales Rep config
+    if (agent.salesRepId != null && agent.salesRepId!.isNotEmpty) {
+      final salesRepResult = await _userProfileRepository.getUserProfile(agent.salesRepId!);
+      final salesRep = salesRepResult.fold((l) => null, (r) => r);
+      if (salesRep != null && salesRep.agentsCustomDueDays != null) {
+        if (salesRep.agentsCustomDueDays!['foliar'] != null) mergedConfig['foliar'] = salesRep.agentsCustomDueDays!['foliar'];
+        if (salesRep.agentsCustomDueDays!['root'] != null) mergedConfig['root'] = salesRep.agentsCustomDueDays!['root'];
+        if (salesRep.agentsCustomDueDays!['mixed'] != null) mergedConfig['mixed'] = salesRep.agentsCustomDueDays!['mixed'];
+      }
+    }
+
+    // 3. Specific Agent config
+    if (agent.customDueDays != null) {
+      if (agent.customDueDays!['foliar'] != null) mergedConfig['foliar'] = agent.customDueDays!['foliar'];
+      if (agent.customDueDays!['root'] != null) mergedConfig['root'] = agent.customDueDays!['root'];
+      if (agent.customDueDays!['mixed'] != null) mergedConfig['mixed'] = agent.customDueDays!['mixed'];
+    }
+
+    // Determine order composition
+    final hasFoliar = items.any((i) => i.categoryId == 'foliar_fertilizer');
+    final hasRoot = items.any((i) => i.categoryId == 'root_fertilizer');
+
+    if (hasFoliar && hasRoot) return mergedConfig['mixed'] ?? 30;
+    if (hasFoliar) return mergedConfig['foliar'] ?? 30;
+    if (hasRoot) return mergedConfig['root'] ?? 30;
+
+    return mergedConfig['mixed'] ?? 30; // Fallback
+  }
+
   Future<void> loadCheckoutData({List<CartItemModel>? buyNowItems}) async {
     final authState = _authBloc.state;
     if (authState is! AuthAuthenticated) return;
@@ -291,10 +428,17 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     // LẤY CÔNG NỢ TỪ USER MODEL MỚI NHẤT
     final currentDebt = user.debtAmount;
 
+    // --- KIỂM TRA QUYỀN LỢI KHUYẾN MÃI ---
+    final isDiscountAllowed = await _checkIfPromotionAllowed(user, isDiscount: true);
+    final isVoucherAllowed = await _checkIfPromotionAllowed(user, isDiscount: false);
+    final allowPromotionDuringCommitment = await _checkIfPromotionAllowedDuringCommitment(user);
+    _isVoucherAllowedCache = isVoucherAllowed;
+    _allowPromotionDuringCommitmentCache = allowPromotionDuringCommitment;
+
     // --- TẢI DANH SÁCH VOUCHER KHẢ DỤNG ---
     final voucherResult = await _voucherRepository.getActiveVouchers();
     _allActiveVouchers = voucherResult.getOrElse(() => []);
-    final availableVouchers = _filterVouchers(itemsToCheckout);
+    final availableVouchers = isVoucherAllowed ? _filterVouchers(itemsToCheckout, user, allowPromotionDuringCommitment) : <VoucherModel>[];
     developer.log('CheckoutCubit: Loaded ${_allActiveVouchers.length} active vouchers, ${availableVouchers.length} available', name: 'CheckoutCubit');
     // --------------------------------------
 
@@ -308,7 +452,10 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     }
     // ------------------------
 
-    final shouldCalculateDiscount = user.activeRewardProgram == 'instant_discount' && itemsToCheckout.isNotEmpty;
+    bool shouldCalculateDiscount = isDiscountAllowed && itemsToCheckout.isNotEmpty;
+    if (user.activeRewardProgram == 'sales_commitment' && !allowPromotionDuringCommitment) {
+      shouldCalculateDiscount = false;
+    }
 
     // Tính toán tổng tiền ban đầu (sẽ được cập nhật sau khi có chiết khấu)
     final initialTotal = subtotal + shippingFee + currentDebt;
@@ -401,7 +548,22 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       emit(state.copyWith(status: CheckoutStatus.error, errorMessage: 'Lỗi xác thực người dùng.'));
       return;
     }
-    final userRole = authState.user.role;
+    final user = authState.user;
+    final userRole = user.role;
+
+    final isVoucherAllowed = await _checkIfPromotionAllowed(user, isDiscount: false);
+    if (!isVoucherAllowed) {
+      emit(state.copyWith(status: CheckoutStatus.error, errorMessage: 'Đại lý của bạn không được phép sử dụng Voucher.'));
+      emit(state.copyWith(status: CheckoutStatus.success, clearErrorMessage: true));
+      return;
+    }
+
+    final allowPromotionDuringCommitment = await _checkIfPromotionAllowedDuringCommitment(user);
+    if (user.activeRewardProgram == 'sales_commitment' && !allowPromotionDuringCommitment) {
+      emit(state.copyWith(status: CheckoutStatus.error, errorMessage: 'Đại lý đang tham gia Cam kết doanh số, không thể áp dụng Voucher.'));
+      emit(state.copyWith(status: CheckoutStatus.success, clearErrorMessage: true));
+      return;
+    }
 
     final result = await _voucherRepository.applyVoucher(
       code: code.toUpperCase(),
@@ -516,8 +678,15 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     // --- TẢI DANH SÁCH VOUCHER KHẢ DỤNG ---
     final voucherResult = await _voucherRepository.getActiveVouchers();
     _allActiveVouchers = voucherResult.getOrElse(() => []);
+    
+    // --- KIỂM TRA QUYỀN LỢI KHUYẾN MÃI ---
+    final isVoucherAllowed = await _checkIfPromotionAllowed(agentWithDetails, isDiscount: false);
+    final allowPromotionDuringCommitment = await _checkIfPromotionAllowedDuringCommitment(agentWithDetails);
+    _isVoucherAllowedCache = isVoucherAllowed;
+    _allowPromotionDuringCommitmentCache = allowPromotionDuringCommitment;
+
     // Vì checkoutItems rỗng ban đầu nên availableVouchers có thể sẽ khác sau khi thêm item
-    final availableVouchers = _filterVouchers([]);
+    final availableVouchers = isVoucherAllowed ? _filterVouchers([], agentWithDetails, allowPromotionDuringCommitment) : <VoucherModel>[];
     // --------------------------------------
 
     // --- TẢI CẤU HÌNH VAT VÀ CỘNG DỒN CHIẾT KHẤU ---
@@ -599,8 +768,32 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   void _recalculateTotalsAndEmit(List<CartItemModel> items) {
     final subtotal = items.fold<double>(0.0, (sum, item) => sum + item.subtotal);
     
+    UserModel currentUser;
+    if (state.placeOrderForAgent != null) {
+      currentUser = state.placeOrderForAgent!;
+    } else {
+      final authState = _authBloc.state;
+      if (authState is AuthAuthenticated) {
+        currentUser = authState.user;
+      } else {
+        currentUser = const UserModel(id: '');
+      }
+    }
+    
     // Tính toán lại vouchers dựa trên items mới
-    final updatedAvailableVouchers = _filterVouchers(items);
+    final updatedAvailableVouchers = _isVoucherAllowedCache 
+        ? _filterVouchers(items, currentUser, _allowPromotionDuringCommitmentCache) 
+        : <VoucherModel>[];
+
+    // --- TÍNH TOÁN CHIẾT KHẤU THỜI VỤ (1/5 - 30/6/2026) ---
+    double newSeasonalDiscount = 0.0;
+    final now = DateTime.now();
+    final startPromo = DateTime(2026, 5, 1);
+    final endPromo = DateTime(2026, 6, 30, 23, 59, 59);
+    // Nếu KHÔNG tham gia chương trình cam kết thì mới được hưởng 5%
+    if (now.isAfter(startPromo) && now.isBefore(endPromo) && currentUser.activeRewardProgram != 'sales_commitment') {
+      newSeasonalDiscount = subtotal * 0.05;
+    }
     
     // Kiểm tra xem voucher đang áp dụng có còn hợp lệ không
     VoucherModel? newAppliedVoucher = state.appliedVoucher;
@@ -629,6 +822,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     emit(state.copyWith(
       checkoutItems: items,
       subtotal: subtotal,
+      seasonalDiscount: newSeasonalDiscount,
       availableVouchers: updatedAvailableVouchers,
       appliedVoucher: newAppliedVoucher,
       forceVoucherToNull: forceVoucherToNull,

@@ -29,6 +29,10 @@ class UserModel extends Equatable {
   final bool useGeneralPrice;
   final bool? allowVoucherStacking;
   final bool? agentsAllowVoucherStacking;
+  final Map<String, dynamic>? customDueDays;
+  final Map<String, dynamic>? agentsCustomDueDays;
+  final Map<String, dynamic>? customPromotionConfig;
+  final Map<String, dynamic>? agentsCustomPromotionConfig;
 
   String get referralCode => id;
 
@@ -57,6 +61,10 @@ class UserModel extends Equatable {
     this.useGeneralPrice = true,
     this.allowVoucherStacking,
     this.agentsAllowVoucherStacking,
+    this.customDueDays,
+    this.agentsCustomDueDays,
+    this.customPromotionConfig,
+    this.agentsCustomPromotionConfig,
   });
 
   bool get isGuest => role == 'guest';
@@ -104,6 +112,10 @@ class UserModel extends Equatable {
     bool? useGeneralPrice,
     bool? allowVoucherStacking,
     bool? agentsAllowVoucherStacking,
+    Map<String, dynamic>? customDueDays,
+    Map<String, dynamic>? agentsCustomDueDays,
+    Map<String, dynamic>? customPromotionConfig,
+    Map<String, dynamic>? agentsCustomPromotionConfig,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -130,6 +142,10 @@ class UserModel extends Equatable {
       useGeneralPrice: useGeneralPrice ?? this.useGeneralPrice,
       allowVoucherStacking: allowVoucherStacking ?? this.allowVoucherStacking,
       agentsAllowVoucherStacking: agentsAllowVoucherStacking ?? this.agentsAllowVoucherStacking,
+      customDueDays: customDueDays ?? this.customDueDays,
+      agentsCustomDueDays: agentsCustomDueDays ?? this.agentsCustomDueDays,
+      customPromotionConfig: customPromotionConfig ?? this.customPromotionConfig,
+      agentsCustomPromotionConfig: agentsCustomPromotionConfig ?? this.agentsCustomPromotionConfig,
     );
   }
 
@@ -157,6 +173,12 @@ class UserModel extends Equatable {
       'debtAmount': debtAmount,
       'customDiscount': customDiscount,
       'useGeneralPrice': useGeneralPrice,
+      if (allowVoucherStacking != null) 'allowVoucherStacking': allowVoucherStacking,
+      if (agentsAllowVoucherStacking != null) 'agentsAllowVoucherStacking': agentsAllowVoucherStacking,
+      if (customDueDays != null) 'customDueDays': customDueDays,
+      if (agentsCustomDueDays != null) 'agentsCustomDueDays': agentsCustomDueDays,
+      if (customPromotionConfig != null) 'customPromotionConfig': customPromotionConfig,
+      if (agentsCustomPromotionConfig != null) 'agentsCustomPromotionConfig': agentsCustomPromotionConfig,
     };
   }
 
@@ -189,6 +211,12 @@ class UserModel extends Equatable {
       debtAmount: (data['debtAmount'] as num?)?.toDouble() ?? 0.0,
       customDiscount: data['customDiscount'] as Map<String, dynamic>?,
       useGeneralPrice: data['useGeneralPrice'] as bool? ?? true,
+      allowVoucherStacking: data['allowVoucherStacking'] as bool?,
+      agentsAllowVoucherStacking: data['agentsAllowVoucherStacking'] as bool?,
+      customDueDays: data['customDueDays'] as Map<String, dynamic>?,
+      agentsCustomDueDays: data['agentsCustomDueDays'] as Map<String, dynamic>?,
+      customPromotionConfig: data['customPromotionConfig'] as Map<String, dynamic>?,
+      agentsCustomPromotionConfig: data['agentsCustomPromotionConfig'] as Map<String, dynamic>?,
     );
   }
 
@@ -217,9 +245,13 @@ class UserModel extends Equatable {
       spinCount: json['spinCount'] as int? ?? 0,
       debtAmount: (json['debtAmount'] as num?)?.toDouble() ?? 0.0,
       customDiscount: json['customDiscount'] as Map<String, dynamic>?,
-      useGeneralPrice: json['useGeneralPrice'] as bool? ?? true,
+      useGeneralPrice: json['useGeneralPrice'] ?? true,
       allowVoucherStacking: json['allowVoucherStacking'] as bool?,
       agentsAllowVoucherStacking: json['agentsAllowVoucherStacking'] as bool?,
+      customDueDays: json['customDueDays'] as Map<String, dynamic>?,
+      agentsCustomDueDays: json['agentsCustomDueDays'] as Map<String, dynamic>?,
+      customPromotionConfig: json['customPromotionConfig'] as Map<String, dynamic>?,
+      agentsCustomPromotionConfig: json['agentsCustomPromotionConfig'] as Map<String, dynamic>?,
     );
   }
 
@@ -247,5 +279,11 @@ class UserModel extends Equatable {
     debtAmount,
     customDiscount,
     useGeneralPrice,
+    allowVoucherStacking,
+    agentsAllowVoucherStacking,
+    customDueDays,
+    agentsCustomDueDays,
+    customPromotionConfig,
+    agentsCustomPromotionConfig,
   ];
 }

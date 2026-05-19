@@ -22,6 +22,7 @@ class CheckoutState extends Equatable {
   final VoucherModel? appliedVoucher;
   final double discount;
   final double commissionDiscount;
+  final double seasonalDiscount; // THÊM MỚI: Chiết khấu 5% thời vụ
   final String paymentMethod;
   final String? newOrderId;
   final String? placeOrderForUserId;
@@ -47,6 +48,7 @@ class CheckoutState extends Equatable {
     this.appliedVoucher,
     this.discount = 0.0,
     this.commissionDiscount = 0.0,
+    this.seasonalDiscount = 0.0, // THÊM MỚI
     this.paymentMethod = 'COD',
     this.newOrderId,
     this.placeOrderForUserId,
@@ -62,7 +64,7 @@ class CheckoutState extends Equatable {
 
   // --- SỬA ĐỔI GETTERS ĐỂ TÍNH TOÁN CÔNG NỢ ---
   // Tổng tiền hàng (sau chiết khấu, voucher)
-  double get finalTotalBeforeVat => (subtotal + shippingFee - discount - commissionDiscount).clamp(0, double.infinity);
+  double get finalTotalBeforeVat => (subtotal + shippingFee - discount - commissionDiscount - seasonalDiscount).clamp(0, double.infinity);
   double get vatAmount => finalTotalBeforeVat * (vatPercentage / 100);
   double get finalTotal => finalTotalBeforeVat + vatAmount;
 
@@ -74,7 +76,7 @@ class CheckoutState extends Equatable {
   List<Object?> get props => [
     status, addresses, selectedAddress, errorMessage,
     checkoutItems, subtotal, shippingFee, discount, appliedVoucher,
-    commissionDiscount, paymentMethod, newOrderId, placeOrderForUserId, placeOrderForAgent,
+    commissionDiscount, seasonalDiscount, paymentMethod, newOrderId, placeOrderForUserId, placeOrderForAgent,
     availableVouchers, // <<< THÊM MỚI
     // --- THÊM PROPS MỚI ---
     currentDebt, amountToPay,
@@ -97,6 +99,7 @@ class CheckoutState extends Equatable {
     bool forceVoucherToNull = false,
     double? discount,
     double? commissionDiscount,
+    double? seasonalDiscount, // THÊM MỚI
     String? paymentMethod,
     String? newOrderId,
     String? placeOrderForUserId,
@@ -121,6 +124,7 @@ class CheckoutState extends Equatable {
       appliedVoucher: forceVoucherToNull ? null : (appliedVoucher ?? this.appliedVoucher),
       discount: discount ?? this.discount,
       commissionDiscount: commissionDiscount ?? this.commissionDiscount,
+      seasonalDiscount: seasonalDiscount ?? this.seasonalDiscount, // THÊM MỚI
       paymentMethod: paymentMethod ?? this.paymentMethod,
       newOrderId: newOrderId ?? this.newOrderId,
       placeOrderForUserId: placeOrderForUserId ?? this.placeOrderForUserId,

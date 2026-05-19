@@ -70,7 +70,7 @@ class SalesCommitmentModel extends Equatable {
   final double currentAmount;
   final DateTime startDate;
   final DateTime endDate;
-  final String status; // 'active', 'completed', 'expired', 'pending_cancellation', 'cancelled'
+  final String status; // 'active', 'completed', 'expired', 'pending_cancellation', 'cancelled', 'proposed_to_agent', 'rejected', 'pending_approval'
   final CommitmentDetailsModel? commitmentDetails;
   final CancellationRequestModel? cancellationRequest;
   final String? cancellationReason;

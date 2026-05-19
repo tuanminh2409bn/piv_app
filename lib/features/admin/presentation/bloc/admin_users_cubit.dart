@@ -95,6 +95,54 @@ class AdminUsersCubit extends Cubit<AdminUsersState> {
     );
   }
 
+  Future<void> updateUserDueDaysConfig({
+    required String userId,
+    required Map<String, dynamic>? customDueDays,
+    required Map<String, dynamic>? agentsCustomDueDays,
+  }) async {
+    emit(state.copyWith(status: AdminUsersStatus.updating));
+    final result = await _adminRepository.updateUserDueDaysConfig(
+      userId: userId,
+      customDueDays: customDueDays,
+      agentsCustomDueDays: agentsCustomDueDays,
+    );
+
+    result.fold(
+      (failure) {
+        emit(state.copyWith(
+          status: AdminUsersStatus.success,
+          errorMessage: 'Cập nhật cấu hình hạn thanh toán thất bại: ${failure.message}',
+        ));
+        emit(state.copyWith(clearErrorMessage: true));
+      },
+      (_) => fetchAndGroupUsers(),
+    );
+  }
+
+  Future<void> updateUserPromotionConfig({
+    required String userId,
+    required Map<String, dynamic>? customPromotionConfig,
+    required Map<String, dynamic>? agentsCustomPromotionConfig,
+  }) async {
+    emit(state.copyWith(status: AdminUsersStatus.updating));
+    final result = await _adminRepository.updateUserPromotionConfig(
+      userId: userId,
+      customPromotionConfig: customPromotionConfig,
+      agentsCustomPromotionConfig: agentsCustomPromotionConfig,
+    );
+
+    result.fold(
+      (failure) {
+        emit(state.copyWith(
+          status: AdminUsersStatus.success,
+          errorMessage: 'Cập nhật cấu hình khuyến mãi thất bại: ${failure.message}',
+        ));
+        emit(state.copyWith(clearErrorMessage: true));
+      },
+      (_) => fetchAndGroupUsers(),
+    );
+  }
+
   // --- SỬA ĐỔI HÀM NÀY ---
   Future<void> updateUserDebt({
     required String userId,

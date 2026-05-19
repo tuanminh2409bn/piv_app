@@ -75,6 +75,10 @@ class _DiscountSettingsFormState extends State<_DiscountSettingsForm> with Singl
       _policy = DiscountPolicyModel(
         agent1: _policy.agent1,
         agent2: _policy.agent2,
+        agent1DueDays: _policy.agent1DueDays,
+        agent2DueDays: _policy.agent2DueDays,
+        agent1PromotionConfig: _policy.agent1PromotionConfig,
+        agent2PromotionConfig: _policy.agent2PromotionConfig,
         vatPercentage: vat,
         globalAllowVoucherStacking: _policy.globalAllowVoucherStacking,
       );
@@ -88,6 +92,40 @@ class _DiscountSettingsFormState extends State<_DiscountSettingsForm> with Singl
       _policy = DiscountPolicyModel(
         agent1: isAgent1 ? updatedAgentPolicy : _policy.agent1,
         agent2: isAgent1 ? _policy.agent2 : updatedAgentPolicy,
+        agent1DueDays: _policy.agent1DueDays,
+        agent2DueDays: _policy.agent2DueDays,
+        agent1PromotionConfig: _policy.agent1PromotionConfig,
+        agent2PromotionConfig: _policy.agent2PromotionConfig,
+        vatPercentage: _policy.vatPercentage,
+        globalAllowVoucherStacking: _policy.globalAllowVoucherStacking,
+      );
+    });
+  }
+
+  void _updateDueDaysPolicy(AgentDueDaysPolicy updatedAgentDueDaysPolicy, bool isAgent1) {
+    setState(() {
+      _policy = DiscountPolicyModel(
+        agent1: _policy.agent1,
+        agent2: _policy.agent2,
+        agent1DueDays: isAgent1 ? updatedAgentDueDaysPolicy : _policy.agent1DueDays,
+        agent2DueDays: isAgent1 ? _policy.agent2DueDays : updatedAgentDueDaysPolicy,
+        agent1PromotionConfig: _policy.agent1PromotionConfig,
+        agent2PromotionConfig: _policy.agent2PromotionConfig,
+        vatPercentage: _policy.vatPercentage,
+        globalAllowVoucherStacking: _policy.globalAllowVoucherStacking,
+      );
+    });
+  }
+
+  void _updatePromotionPolicy(AgentPromotionConfig updatedPromotionConfig, bool isAgent1) {
+    setState(() {
+      _policy = DiscountPolicyModel(
+        agent1: _policy.agent1,
+        agent2: _policy.agent2,
+        agent1DueDays: _policy.agent1DueDays,
+        agent2DueDays: _policy.agent2DueDays,
+        agent1PromotionConfig: isAgent1 ? updatedPromotionConfig : _policy.agent1PromotionConfig,
+        agent2PromotionConfig: isAgent1 ? _policy.agent2PromotionConfig : updatedPromotionConfig,
         vatPercentage: _policy.vatPercentage,
         globalAllowVoucherStacking: _policy.globalAllowVoucherStacking,
       );
@@ -137,6 +175,10 @@ class _DiscountSettingsFormState extends State<_DiscountSettingsForm> with Singl
                         _policy = DiscountPolicyModel(
                           agent1: _policy.agent1,
                           agent2: _policy.agent2,
+                          agent1DueDays: _policy.agent1DueDays,
+                          agent2DueDays: _policy.agent2DueDays,
+                          agent1PromotionConfig: _policy.agent1PromotionConfig,
+                          agent2PromotionConfig: _policy.agent2PromotionConfig,
                           vatPercentage: _policy.vatPercentage,
                           globalAllowVoucherStacking: val,
                         );
@@ -163,11 +205,19 @@ class _DiscountSettingsFormState extends State<_DiscountSettingsForm> with Singl
             children: [
               _AgentPolicyEditor(
                 policy: _policy.agent1,
+                dueDaysPolicy: _policy.agent1DueDays,
+                promotionConfig: _policy.agent1PromotionConfig,
                 onChanged: (p) => _updatePolicy(p, true),
+                onDueDaysChanged: (p) => _updateDueDaysPolicy(p, true),
+                onPromotionConfigChanged: (p) => _updatePromotionPolicy(p, true),
               ),
               _AgentPolicyEditor(
                 policy: _policy.agent2,
+                dueDaysPolicy: _policy.agent2DueDays,
+                promotionConfig: _policy.agent2PromotionConfig,
                 onChanged: (p) => _updatePolicy(p, false),
+                onDueDaysChanged: (p) => _updateDueDaysPolicy(p, false),
+                onPromotionConfigChanged: (p) => _updatePromotionPolicy(p, false),
               ),
             ],
           ),
@@ -192,9 +242,20 @@ class _DiscountSettingsFormState extends State<_DiscountSettingsForm> with Singl
 
 class _AgentPolicyEditor extends StatelessWidget {
   final AgentPolicy policy;
+  final AgentDueDaysPolicy dueDaysPolicy;
+  final AgentPromotionConfig promotionConfig;
   final ValueChanged<AgentPolicy> onChanged;
+  final ValueChanged<AgentDueDaysPolicy> onDueDaysChanged;
+  final ValueChanged<AgentPromotionConfig> onPromotionConfigChanged;
 
-  const _AgentPolicyEditor({required this.policy, required this.onChanged});
+  const _AgentPolicyEditor({
+    required this.policy,
+    required this.dueDaysPolicy,
+    required this.promotionConfig,
+    required this.onChanged,
+    required this.onDueDaysChanged,
+    required this.onPromotionConfigChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -203,6 +264,103 @@ class _AgentPolicyEditor extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Card(
+            color: Colors.blue.shade50,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Hạn thanh toán mặc định (ngày)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          initialValue: dueDaysPolicy.foliar.toString(),
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Phân bón lá', border: OutlineInputBorder()),
+                          onChanged: (val) => onDueDaysChanged(
+                            AgentDueDaysPolicy(foliar: int.tryParse(val) ?? 30, root: dueDaysPolicy.root, mixed: dueDaysPolicy.mixed),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextFormField(
+                          initialValue: dueDaysPolicy.root.toString(),
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Phân bón gốc', border: OutlineInputBorder()),
+                          onChanged: (val) => onDueDaysChanged(
+                            AgentDueDaysPolicy(foliar: dueDaysPolicy.foliar, root: int.tryParse(val) ?? 30, mixed: dueDaysPolicy.mixed),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextFormField(
+                          initialValue: dueDaysPolicy.mixed.toString(),
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Hỗn hợp', border: OutlineInputBorder()),
+                          onChanged: (val) => onDueDaysChanged(
+                            AgentDueDaysPolicy(foliar: dueDaysPolicy.foliar, root: dueDaysPolicy.root, mixed: int.tryParse(val) ?? 30),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            color: Colors.orange.shade50,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Quyền lợi khuyến mãi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  SwitchListTile(
+                    title: const Text('Cho phép nhận Chiết khấu Đại lý'),
+                    value: promotionConfig.allowDiscount,
+                    onChanged: (val) => onPromotionConfigChanged(
+                      AgentPromotionConfig(
+                        allowDiscount: val, 
+                        allowVoucher: promotionConfig.allowVoucher,
+                        allowPromotionDuringCommitment: promotionConfig.allowPromotionDuringCommitment,
+                      ),
+                    ),
+                  ),
+                  SwitchListTile(
+                    title: const Text('Cho phép dùng Mã giảm giá (Voucher)'),
+                    value: promotionConfig.allowVoucher,
+                    onChanged: (val) => onPromotionConfigChanged(
+                      AgentPromotionConfig(
+                        allowDiscount: promotionConfig.allowDiscount, 
+                        allowVoucher: val,
+                        allowPromotionDuringCommitment: promotionConfig.allowPromotionDuringCommitment,
+                      ),
+                    ),
+                  ),
+                  const Divider(),
+                  SwitchListTile(
+                    title: const Text('Cho phép dùng Khuyến mãi (Chiết khấu & Voucher) khi đang có Cam kết doanh số'),
+                    value: promotionConfig.allowPromotionDuringCommitment,
+                    onChanged: (val) => onPromotionConfigChanged(
+                      AgentPromotionConfig(
+                        allowDiscount: promotionConfig.allowDiscount, 
+                        allowVoucher: promotionConfig.allowVoucher,
+                        allowPromotionDuringCommitment: val,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
           TierTableEditor(
             title: 'Phân Bón Lá',
             color: Colors.green.shade100,

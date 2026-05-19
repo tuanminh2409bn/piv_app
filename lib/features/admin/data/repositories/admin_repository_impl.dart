@@ -100,6 +100,64 @@ class AdminRepositoryImpl implements AdminRepository {
   }
 
   @override
+  Future<Either<Failure, void>> updateUserDueDaysConfig({
+    required String userId,
+    required Map<String, dynamic>? customDueDays,
+    required Map<String, dynamic>? agentsCustomDueDays,
+  }) async {
+    try {
+      final updateData = <String, dynamic>{};
+      
+      if (customDueDays == null) {
+        updateData['customDueDays'] = FieldValue.delete();
+      } else {
+        updateData['customDueDays'] = customDueDays;
+      }
+
+      if (agentsCustomDueDays == null) {
+        updateData['agentsCustomDueDays'] = FieldValue.delete();
+      } else {
+        updateData['agentsCustomDueDays'] = agentsCustomDueDays;
+      }
+
+      await _firestore.collection('users').doc(userId).update(updateData);
+      return const Right(null);
+    } catch (e) {
+      developer.log('Error in updateUserDueDaysConfig', error: e, name: 'AdminRepository');
+      return Left(ServerFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> updateUserPromotionConfig({
+    required String userId,
+    required Map<String, dynamic>? customPromotionConfig,
+    required Map<String, dynamic>? agentsCustomPromotionConfig,
+  }) async {
+    try {
+      final updateData = <String, dynamic>{};
+      
+      if (customPromotionConfig == null) {
+        updateData['customPromotionConfig'] = FieldValue.delete();
+      } else {
+        updateData['customPromotionConfig'] = customPromotionConfig;
+      }
+
+      if (agentsCustomPromotionConfig == null) {
+        updateData['agentsCustomPromotionConfig'] = FieldValue.delete();
+      } else {
+        updateData['agentsCustomPromotionConfig'] = agentsCustomPromotionConfig;
+      }
+
+      await _firestore.collection('users').doc(userId).update(updateData);
+      return const Right(null);
+    } catch (e) {
+      developer.log('Error in updateUserPromotionConfig', error: e, name: 'AdminRepository');
+      return Left(ServerFailure(e.toString()));
+    }
+  }
+
+  @override
   Future<Either<Failure, Unit>> updateUser(
       String userId, String newRole, String newStatus) async {
     try {

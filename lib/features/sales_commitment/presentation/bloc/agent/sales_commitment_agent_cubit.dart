@@ -102,6 +102,29 @@ class SalesCommitmentAgentCubit extends Cubit<SalesCommitmentAgentState> {
     );
   }
 
+  Future<void> respondToCommitmentProposal({
+    required String commitmentId,
+    required bool isAccepted,
+  }) async {
+    emit(state.copyWith(status: SalesCommitmentAgentStatus.loading));
+    final result = await _repository.respondToCommitmentProposal(
+      commitmentId: commitmentId,
+      isAccepted: isAccepted,
+    );
+    result.fold(
+      (failure) => emit(state.copyWith(
+        status: SalesCommitmentAgentStatus.error,
+        errorMessage: failure.message,
+      )),
+      (_) {
+        if (isAccepted) {
+          _authBloc.add(AuthUserRefreshRequested());
+        }
+        emit(state.copyWith(status: SalesCommitmentAgentStatus.success));
+      },
+    );
+  }
+
   @override
   Future<void> close() {
     _authSubscription?.cancel();

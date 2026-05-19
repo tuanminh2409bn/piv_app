@@ -55,6 +55,8 @@ class VoucherModel extends Equatable {
   final double discountValue;
   final double? maxDiscountAmount;
   final double minOrderValue;
+  final int? minQuantity;
+  final int? maxQuantity;
   final int maxUses;
   final int usedCount;
   final Timestamp createdAt;
@@ -66,9 +68,11 @@ class VoucherModel extends Equatable {
   final String? statusBeforeDeletion;
   final int? buyQuantity;
   final int? getQuantity;
-  final String targetType; // 'all', 'specific_agents', 'specific_sales_reps'
+  final String targetType; // 'all', 'agent_1', 'agent_2', 'specific_agents', 'specific_sales_reps'
   final List<String> targetUserIds;
   final List<String> targetSalesRepIds;
+  final List<String> excludedUserIds;
+  final List<String> excludedSalesRepIds;
   final String applicableCategory; // 'all', 'foliar_fertilizer', 'root_fertilizer'
 
   const VoucherModel({
@@ -78,6 +82,8 @@ class VoucherModel extends Equatable {
     required this.discountValue,
     this.maxDiscountAmount,
     required this.minOrderValue,
+    this.minQuantity,
+    this.maxQuantity,
     required this.maxUses,
     this.usedCount = 0,
     required this.createdAt,
@@ -92,6 +98,8 @@ class VoucherModel extends Equatable {
     this.targetType = 'all',
     this.targetUserIds = const [],
     this.targetSalesRepIds = const [],
+    this.excludedUserIds = const [],
+    this.excludedSalesRepIds = const [],
     this.applicableCategory = 'all',
   });
 
@@ -135,10 +143,10 @@ class VoucherModel extends Equatable {
   @override
   List<Object?> get props => [
     id, description, discountType, discountValue, maxDiscountAmount,
-    minOrderValue, maxUses, usedCount, createdAt, expiresAt,
+    minOrderValue, minQuantity, maxQuantity, maxUses, usedCount, createdAt, expiresAt,
     status, createdBy, approvedBy, history, statusBeforeDeletion,
     buyQuantity, getQuantity, targetType, targetUserIds, targetSalesRepIds,
-    applicableCategory
+    excludedUserIds, excludedSalesRepIds, applicableCategory
   ];
 
   Map<String, dynamic> toMap() {
@@ -148,6 +156,8 @@ class VoucherModel extends Equatable {
       'discountValue': discountValue,
       'maxDiscountAmount': maxDiscountAmount,
       'minOrderValue': minOrderValue,
+      'minQuantity': minQuantity,
+      'maxQuantity': maxQuantity,
       'maxUses': maxUses,
       'usedCount': usedCount,
       'createdAt': createdAt,
@@ -175,6 +185,8 @@ class VoucherModel extends Equatable {
       discountValue: (data['discountValue'] as num?)?.toDouble() ?? 0.0,
       maxDiscountAmount: (data['maxDiscountAmount'] as num?)?.toDouble(),
       minOrderValue: (data['minOrderValue'] as num?)?.toDouble() ?? 0.0,
+      minQuantity: data['minQuantity'] as int?,
+      maxQuantity: data['maxQuantity'] as int?,
       maxUses: data['maxUses'] ?? 0,
       usedCount: data['usedCount'] ?? 0,
       createdAt: data['createdAt'] ?? Timestamp.now(),
@@ -203,6 +215,8 @@ class VoucherModel extends Equatable {
     bool setMaxDiscountAmountNull = false,
     double? maxDiscountAmount,
     double? minOrderValue,
+    int? minQuantity,
+    int? maxQuantity,
     int? maxUses,
     int? usedCount,
     Timestamp? createdAt,
@@ -219,6 +233,8 @@ class VoucherModel extends Equatable {
     String? targetType,
     List<String>? targetUserIds,
     List<String>? targetSalesRepIds,
+    List<String>? excludedUserIds,
+    List<String>? excludedSalesRepIds,
     String? applicableCategory,
   }) {
     return VoucherModel(
@@ -228,6 +244,8 @@ class VoucherModel extends Equatable {
       discountValue: discountValue ?? this.discountValue,
       maxDiscountAmount: setMaxDiscountAmountNull ? null : (maxDiscountAmount ?? this.maxDiscountAmount),
       minOrderValue: minOrderValue ?? this.minOrderValue,
+      minQuantity: minQuantity ?? this.minQuantity,
+      maxQuantity: maxQuantity ?? this.maxQuantity,
       maxUses: maxUses ?? this.maxUses,
       usedCount: usedCount ?? this.usedCount,
       createdAt: createdAt ?? this.createdAt,
@@ -242,6 +260,8 @@ class VoucherModel extends Equatable {
       targetType: targetType ?? this.targetType,
       targetUserIds: targetUserIds ?? this.targetUserIds,
       targetSalesRepIds: targetSalesRepIds ?? this.targetSalesRepIds,
+      excludedUserIds: excludedUserIds ?? this.excludedUserIds,
+      excludedSalesRepIds: excludedSalesRepIds ?? this.excludedSalesRepIds,
       applicableCategory: applicableCategory ?? this.applicableCategory,
     );
   }

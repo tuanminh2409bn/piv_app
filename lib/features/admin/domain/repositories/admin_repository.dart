@@ -21,6 +21,18 @@ abstract class AdminRepository {
     required bool? agentsAllowVoucherStacking,
   });
 
+  Future<Either<Failure, void>> updateUserDueDaysConfig({
+    required String userId,
+    required Map<String, dynamic>? customDueDays,
+    required Map<String, dynamic>? agentsCustomDueDays,
+  });
+
+  Future<Either<Failure, void>> updateUserPromotionConfig({
+    required String userId,
+    required Map<String, dynamic>? customPromotionConfig,
+    required Map<String, dynamic>? agentsCustomPromotionConfig,
+  });
+
   // Agent Management
   Future<Either<Failure, List<UserModel>>> getAgentsBySalesRepId(
       String salesRepId);

@@ -199,11 +199,13 @@ class VoucherManagementView extends StatelessWidget {
       return null;
     }
     // Tìm mục lịch sử từ chối gần nhất
-    final rejectionEntry = voucher.history.lastWhere(
-          (entry) => entry.action == 'rejected' || entry.action == 'deletion_rejected',
-      orElse: () => VoucherHistoryEntry(action: '', actorId: '', timestamp: null!), // Trả về entry rỗng nếu không tìm thấy
-    );
-    // Trả về ghi chú, đảm bảo không rỗng
-    return rejectionEntry.notes?.isNotEmpty == true ? rejectionEntry.notes : null;
+    try {
+      final rejectionEntry = voucher.history.lastWhere(
+            (entry) => entry.action == 'rejected' || entry.action == 'deletion_rejected',
+      );
+      return rejectionEntry.notes?.isNotEmpty == true ? rejectionEntry.notes : null;
+    } catch (e) {
+      return null;
+    }
   }
 }

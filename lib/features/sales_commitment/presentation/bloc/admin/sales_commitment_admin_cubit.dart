@@ -35,6 +35,30 @@ class SalesCommitmentAdminCubit extends Cubit<SalesCommitmentAdminState> {
     );
   }
 
+  Future<void> proposeSalesCommitment({
+    required String agentId,
+    required double targetAmount,
+    required DateTime startDate,
+    required DateTime endDate,
+    required String detailsText,
+  }) async {
+    emit(state.copyWith(status: SalesCommitmentAdminStatus.loading));
+    final result = await _repository.proposeSalesCommitment(
+      agentId: agentId,
+      targetAmount: targetAmount,
+      startDate: startDate,
+      endDate: endDate,
+      detailsText: detailsText,
+    );
+    result.fold(
+      (failure) => emit(state.copyWith(
+          status: SalesCommitmentAdminStatus.error, errorMessage: failure.message)),
+      (_) {
+        emit(state.copyWith(status: SalesCommitmentAdminStatus.success));
+      },
+    );
+  }
+
   Future<void> setCommitmentDetails({
     required String commitmentId,
     required String detailsText,

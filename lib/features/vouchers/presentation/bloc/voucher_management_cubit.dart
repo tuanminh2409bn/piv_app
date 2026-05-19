@@ -7,7 +7,6 @@ import 'package:equatable/equatable.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/vouchers/data/models/voucher_model.dart';
 import 'package:piv_app/features/vouchers/domain/repositories/voucher_repository.dart';
-import 'dart:developer' as developer;
 
 part 'voucher_management_state.dart';
 
@@ -27,11 +26,15 @@ class VoucherManagementCubit extends Cubit<VoucherManagementState> {
     final userState = _authBloc.state;
     if (userState is AuthAuthenticated) {
       final userId = userState.user.id;
+      final isAdmin = userState.user.isAdmin;
       emit(state.copyWith(status: VoucherManagementStatus.loading));
       _vouchersSubscription?.cancel();
-      // Fetch vouchers where createdBy == userId. 
-      // This works for both Sales Reps and Admins (Admins see their own created vouchers).
-      _vouchersSubscription = _voucherRepository.getVouchersBySalesRep(userId).listen(
+      
+      final stream = isAdmin 
+          ? _voucherRepository.getAllVouchers() 
+          : _voucherRepository.getVouchersBySalesRep(userId);
+
+      _vouchersSubscription = stream.listen(
             (vouchers) {
           emit(state.copyWith(status: VoucherManagementStatus.success, vouchers: vouchers));
         },
@@ -49,6 +52,8 @@ class VoucherManagementCubit extends Cubit<VoucherManagementState> {
     required DiscountType discountType,
     required double discountValue,
     required double minOrderValue,
+    int? minQuantity, // MỚI
+    int? maxQuantity, // MỚI
     double? maxDiscountAmount,
     required int maxUses,
     required DateTime expiresAt,
@@ -57,6 +62,8 @@ class VoucherManagementCubit extends Cubit<VoucherManagementState> {
     String targetType = 'all',
     List<String> targetUserIds = const [],
     List<String> targetSalesRepIds = const [],
+    List<String> excludedUserIds = const [], // MỚI
+    List<String> excludedSalesRepIds = const [], // MỚI
     String applicableCategory = 'all',
   }) async {
     final userState = _authBloc.state;
@@ -83,19 +90,23 @@ class VoucherManagementCubit extends Cubit<VoucherManagementState> {
       discountType: discountType,
       discountValue: discountValue,
       minOrderValue: minOrderValue,
+      minQuantity: minQuantity, // MỚI
+      maxQuantity: maxQuantity, // MỚI
       maxDiscountAmount: maxDiscountAmount,
       maxUses: maxUses,
       expiresAt: Timestamp.fromDate(expiresAt),
       createdAt: originalVoucher?.createdAt ?? Timestamp.now(), 
       createdBy: originalVoucher?.createdBy ?? userState.user.id, 
-      status: originalVoucher?.status ?? (userState.user.isAdmin ? VoucherStatus.active : VoucherStatus.pendingApproval), 
-      history: originalVoucher?.history ?? [], 
+      status: originalVoucher?.status ?? (userState.user.isAdmin ? VoucherStatus.active : VoucherStatus.pendingApproval),
+      history: originalVoucher?.history ?? [],
       approvedBy: originalVoucher?.approvedBy,
       buyQuantity: buyQuantity,
       getQuantity: getQuantity,
       targetType: targetType,
       targetUserIds: targetUserIds,
       targetSalesRepIds: targetSalesRepIds,
+      excludedUserIds: excludedUserIds, // MỚI
+      excludedSalesRepIds: excludedSalesRepIds, // MỚI
       applicableCategory: applicableCategory,
     );
 

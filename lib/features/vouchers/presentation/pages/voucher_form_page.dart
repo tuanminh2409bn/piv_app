@@ -36,6 +36,8 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
   late final TextEditingController _descriptionController;
   late final TextEditingController _discountValueController;
   late final TextEditingController _minOrderValueController;
+  late final TextEditingController _minQuantityController; // MỚI
+  late final TextEditingController _maxQuantityController; // MỚI
   late final TextEditingController _maxDiscountAmountController;
   late final TextEditingController _maxUsesController;
   late final TextEditingController _expiresAtController;
@@ -46,9 +48,11 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
   DateTime _expiresAt = DateTime.now().add(const Duration(days: 30));
 
   // --- THÊM BIẾN MỚI ---
-  String _targetType = 'all'; // 'all', 'specific_agents', 'specific_sales_reps'
+  String _targetType = 'all'; // 'all', 'agent_1', 'agent_2', 'specific_agents', 'specific_sales_reps'
   List<String> _targetUserIds = [];
   List<String> _targetSalesRepIds = [];
+  List<String> _excludedUserIds = []; // MỚI
+  List<String> _excludedSalesRepIds = []; // MỚI
   String _applicableCategory = 'all'; // 'all', 'foliar_fertilizer', 'root_fertilizer'
   // --- KẾT THÚC THÊM BIẾN ---
 
@@ -59,10 +63,12 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
 
     _codeController = TextEditingController(text: v?.id ?? '');
     _descriptionController = TextEditingController(text: v?.description ?? '');
-    _discountValueController = TextEditingController(text: CurrencyInputFormatter.formatNumber(v?.discountValue) ?? '');
-    _minOrderValueController = TextEditingController(text: CurrencyInputFormatter.formatNumber(v?.minOrderValue ?? 0));
-    _maxDiscountAmountController = TextEditingController(text: CurrencyInputFormatter.formatNumber(v?.maxDiscountAmount) ?? '');
-    _maxUsesController = TextEditingController(text: CurrencyInputFormatter.formatNumber(v?.maxUses ?? 1));
+    _discountValueController = TextEditingController(text: CurrencyInputFormatter.formatNumber(v?.discountValue));
+    _minOrderValueController = TextEditingController(text: CurrencyInputFormatter.formatNumber(v?.minOrderValue).isEmpty ? '0' : CurrencyInputFormatter.formatNumber(v?.minOrderValue));
+    _minQuantityController = TextEditingController(text: v?.minQuantity?.toString() ?? '');
+    _maxQuantityController = TextEditingController(text: v?.maxQuantity?.toString() ?? '');
+    _maxDiscountAmountController = TextEditingController(text: CurrencyInputFormatter.formatNumber(v?.maxDiscountAmount));
+    _maxUsesController = TextEditingController(text: CurrencyInputFormatter.formatNumber(v?.maxUses).isEmpty ? '1' : CurrencyInputFormatter.formatNumber(v?.maxUses));
     _buyQuantityController = TextEditingController(text: v?.buyQuantity?.toString() ?? '');
     _getQuantityController = TextEditingController(text: v?.getQuantity?.toString() ?? '');
     _expiresAtController = TextEditingController(text: DateFormat('dd/MM/yyyy').format(v?.expiresAt.toDate() ?? _expiresAt));
@@ -73,6 +79,8 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
       _targetType = v.targetType;
       _targetUserIds = List.from(v.targetUserIds);
       _targetSalesRepIds = List.from(v.targetSalesRepIds);
+      _excludedUserIds = List.from(v.excludedUserIds);
+      _excludedSalesRepIds = List.from(v.excludedSalesRepIds);
       _applicableCategory = v.applicableCategory;
       
       // Load names later if needed, but for simplicity, we can show IDs or "X đại lý đã chọn"
@@ -85,6 +93,8 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
     _descriptionController.dispose();
     _discountValueController.dispose();
     _minOrderValueController.dispose();
+    _minQuantityController.dispose();
+    _maxQuantityController.dispose();
     _maxDiscountAmountController.dispose();
     _maxUsesController.dispose();
     _buyQuantityController.dispose();
@@ -97,10 +107,19 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
     if (_formKey.currentState!.validate()) {
       final discountValueNum = CurrencyInputFormatter.parse(_discountValueController.text);
       final minOrderValueNum = CurrencyInputFormatter.parse(_minOrderValueController.text);
+      final minQuantityNum = int.tryParse(_minQuantityController.text);
+      final maxQuantityNum = int.tryParse(_maxQuantityController.text);
       final maxDiscountAmountNum = CurrencyInputFormatter.parse(_maxDiscountAmountController.text);
       final maxUsesNum = CurrencyInputFormatter.parse(_maxUsesController.text);
       final buyQtyNum = int.tryParse(_buyQuantityController.text);
       final getQtyNum = int.tryParse(_getQuantityController.text);
+
+      if (minQuantityNum != null && maxQuantityNum != null && minQuantityNum > maxQuantityNum) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Số lượng tối thiểu không được lớn hơn số lượng tối đa.'), backgroundColor: Colors.orange,)
+        );
+        return;
+      }
 
       if (_discountType != DiscountType.buyXGetY && discountValueNum == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -123,6 +142,8 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
         discountType: _discountType,
         discountValue: discountValueNum?.toDouble() ?? 0.0,
         minOrderValue: minOrderValueNum?.toDouble() ?? 0.0,
+        minQuantity: minQuantityNum,
+        maxQuantity: maxQuantityNum,
         maxDiscountAmount: _discountType == DiscountType.percentage
             ? maxDiscountAmountNum?.toDouble() 
             : null,
@@ -133,22 +154,31 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
         targetType: _targetType,
         targetUserIds: _targetUserIds,
         targetSalesRepIds: _targetSalesRepIds,
+        excludedUserIds: _excludedUserIds,
+        excludedSalesRepIds: _excludedSalesRepIds,
         applicableCategory: _applicableCategory,
       );
       Navigator.of(context).pop();
     }
   }
 
-  Future<void> _openAgentSelectionDialog() async {
-    final snapshot = await FirebaseFirestore.instance.collection('users')
-        .where('role', whereIn: ['agent_1', 'agent_2']).get();
+  Future<void> _openAgentSelectionDialog({required bool isAdmin, required String currentUserId, bool forExclusion = false}) async {
+    Query query = FirebaseFirestore.instance.collection('users')
+        .where('role', whereIn: ['agent_1', 'agent_2']);
+        
+    if (!isAdmin) {
+      query = query.where('salesRepId', isEqualTo: currentUserId);
+    }
+    
+    final snapshot = await query.get();
     
     final agents = snapshot.docs.map((d) {
-      final data = d.data();
-      data['id'] = d.id; // ensure ID is passed
+      final data = d.data() as Map<String, dynamic>;
+      data['id'] = d.id; 
       return UserModel.fromJson(data);
     }).toList();
-    List<String> tempSelected = List.from(_targetUserIds);
+    
+    List<String> tempSelected = List.from(forExclusion ? _excludedUserIds : _targetUserIds);
 
     if (!mounted) return;
 
@@ -158,7 +188,7 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
         return StatefulBuilder(
           builder: (context, setStateBuilder) {
             return AlertDialog(
-              title: const Text('Chọn Đại lý'),
+              title: Text(forExclusion ? 'Chọn Đại lý để Loại trừ' : 'Chọn Đại lý áp dụng'),
               content: SizedBox(
                 width: double.maxFinite,
                 child: ListView.builder(
@@ -189,7 +219,75 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
                 ElevatedButton(
                   onPressed: () {
                     setState(() {
-                      _targetUserIds = tempSelected;
+                      if (forExclusion) {
+                        _excludedUserIds = tempSelected;
+                      } else {
+                        _targetUserIds = tempSelected;
+                      }
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: const Text('XÁC NHẬN'),
+                ),
+              ],
+            );
+          }
+        );
+      }
+    );
+  }
+
+  Future<void> _openExcludedSalesRepSelectionDialog() async {
+    final snapshot = await FirebaseFirestore.instance.collection('users')
+        .where('role', isEqualTo: 'sales_rep').get();
+    
+    final reps = snapshot.docs.map((d) {
+      final data = d.data();
+      data['id'] = d.id;
+      return UserModel.fromJson(data);
+    }).toList();
+    List<String> tempSelected = List.from(_excludedSalesRepIds);
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setStateBuilder) {
+            return AlertDialog(
+              title: const Text('Chọn Nhóm NVKD để Loại trừ'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: reps.length,
+                  itemBuilder: (context, index) {
+                    final rep = reps[index];
+                    final isSelected = tempSelected.contains(rep.id);
+                    return CheckboxListTile(
+                      title: Text(rep.displayName ?? 'Không tên'),
+                      subtitle: Text(rep.email ?? ''),
+                      value: isSelected,
+                      onChanged: (val) {
+                        setStateBuilder(() {
+                          if (val == true) {
+                            tempSelected.add(rep.id);
+                          } else {
+                            tempSelected.remove(rep.id);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('HỦY')),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _excludedSalesRepIds = tempSelected;
                     });
                     Navigator.pop(context);
                   },
@@ -271,6 +369,7 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
   Widget build(BuildContext context) {
     final userState = context.read<AuthBloc>().state;
     final bool isAdmin = userState is AuthAuthenticated && userState.user.isAdmin;
+    final currentUserId = userState is AuthAuthenticated ? userState.user.id : '';
 
     return Scaffold(
       appBar: AppBar(
@@ -295,6 +394,8 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
                   decoration: const InputDecoration(labelText: 'Đối tượng áp dụng'),
                   items: const [
                     DropdownMenuItem(value: 'all', child: Text('Tất cả đại lý')),
+                    DropdownMenuItem(value: 'agent_1', child: Text('Chỉ đại lý C1')),
+                    DropdownMenuItem(value: 'agent_2', child: Text('Chỉ đại lý C2')),
                     DropdownMenuItem(value: 'specific_agents', child: Text('Riêng từng đại lý được chọn')),
                     DropdownMenuItem(value: 'specific_sales_reps', child: Text('Nhóm đại lý của NVKD tự chọn')),
                   ],
@@ -302,7 +403,7 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
                     if (value != null) {
                       setState(() {
                         _targetType = value;
-                        if (_targetType == 'all') {
+                        if (_targetType == 'all' || _targetType == 'agent_1' || _targetType == 'agent_2') {
                           _targetUserIds.clear();
                           _targetSalesRepIds.clear();
                         } else if (_targetType == 'specific_agents') {
@@ -319,8 +420,8 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
                 if (_targetType == 'specific_agents') ...[
                   OutlinedButton.icon(
                     icon: const Icon(Icons.people),
-                    label: Text(_targetUserIds.isEmpty ? 'Chọn Đại lý' : 'Đã chọn ${_targetUserIds.length} Đại lý (Bấm để thay đổi)'),
-                    onPressed: _openAgentSelectionDialog,
+                    label: Text(_targetUserIds.isEmpty ? 'Chọn Đại lý áp dụng' : 'Đã chọn ${_targetUserIds.length} Đại lý (Bấm để thay đổi)'),
+                    onPressed: () => _openAgentSelectionDialog(isAdmin: true, currentUserId: currentUserId),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -328,11 +429,78 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
                 if (_targetType == 'specific_sales_reps') ...[
                   OutlinedButton.icon(
                     icon: const Icon(Icons.business_center),
-                    label: Text(_targetSalesRepIds.isEmpty ? 'Chọn NVKD' : 'Đã chọn ${_targetSalesRepIds.length} NVKD (Bấm để thay đổi)'),
+                    label: Text(_targetSalesRepIds.isEmpty ? 'Chọn NVKD áp dụng' : 'Đã chọn ${_targetSalesRepIds.length} NVKD (Bấm để thay đổi)'),
                     onPressed: _openSalesRepSelectionDialog,
                   ),
                   const SizedBox(height: 16),
                 ],
+                
+                // Nút loại trừ cho Admin
+                const Divider(),
+                const Text('Ngoại trừ (Không bắt buộc)', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.block),
+                        label: Text(_excludedUserIds.isEmpty ? 'Loại trừ Đại lý' : 'Loại trừ ${_excludedUserIds.length} ĐL'),
+                        onPressed: () => _openAgentSelectionDialog(isAdmin: true, currentUserId: currentUserId, forExclusion: true),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.work_off),
+                        label: Text(_excludedSalesRepIds.isEmpty ? 'Loại trừ nhóm NVKD' : 'Loại trừ ${_excludedSalesRepIds.length} Nhóm'),
+                        onPressed: _openExcludedSalesRepSelectionDialog,
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(),
+                const SizedBox(height: 16),
+
+              ] else ...[
+                // Dành cho Nhân viên kinh doanh
+                DropdownButtonFormField<String>(
+                  value: ['all', 'agent_1', 'agent_2', 'specific_agents'].contains(_targetType) ? _targetType : 'all',
+                  decoration: const InputDecoration(labelText: 'Đối tượng áp dụng (Đại lý của bạn)'),
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('Tất cả đại lý của tôi')),
+                    DropdownMenuItem(value: 'agent_1', child: Text('Chỉ đại lý C1 của tôi')),
+                    DropdownMenuItem(value: 'agent_2', child: Text('Chỉ đại lý C2 của tôi')),
+                    DropdownMenuItem(value: 'specific_agents', child: Text('Riêng từng đại lý của tôi')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        _targetType = value;
+                        if (_targetType == 'all' || _targetType == 'agent_1' || _targetType == 'agent_2') {
+                          _targetUserIds.clear();
+                        }
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                
+                if (_targetType == 'specific_agents') ...[
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.people),
+                    label: Text(_targetUserIds.isEmpty ? 'Chọn Đại lý áp dụng' : 'Đã chọn ${_targetUserIds.length} Đại lý của bạn'),
+                    onPressed: () => _openAgentSelectionDialog(isAdmin: false, currentUserId: currentUserId),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.block, color: Colors.red),
+                  label: Text(_excludedUserIds.isEmpty ? 'Loại trừ Đại lý của bạn' : 'Đã loại trừ ${_excludedUserIds.length} Đại lý'),
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                  onPressed: () => _openAgentSelectionDialog(isAdmin: false, currentUserId: currentUserId, forExclusion: true),
+                ),
+                const SizedBox(height: 24),
               ],
 
               DropdownButtonFormField<String>(
@@ -477,27 +645,57 @@ class _VoucherFormPageState extends State<VoucherFormPage> {
                 ),
               ],
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _minOrderValueController,
-                decoration: const InputDecoration(
-                  labelText: 'Giá trị đơn hàng tối thiểu (VNĐ)',
-                  suffixText: 'VNĐ',
-                ),
-                // --- SỬA ĐỔI: Thêm keyboardType và inputFormatters ---
-                keyboardType: const TextInputType.numberWithOptions(decimal: false),
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  CurrencyInputFormatter(),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _minOrderValueController,
+                      decoration: const InputDecoration(
+                        labelText: 'Giá trị đơn hàng tối thiểu',
+                        suffixText: 'VNĐ',
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        CurrencyInputFormatter(),
+                      ],
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return 'Không được để trống';
+                        final parsedValue = CurrencyInputFormatter.parse(value);
+                        if (parsedValue == null || parsedValue < 0) {
+                          return 'Giá trị không hợp lệ';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _minQuantityController,
+                      decoration: const InputDecoration(
+                        labelText: 'Số lượng tối thiểu',
+                        suffixText: 'Thùng',
+                        hintText: 'Bỏ trống nếu không cần',
+                      ),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _maxQuantityController,
+                      decoration: const InputDecoration(
+                        labelText: 'Số lượng tối đa',
+                        suffixText: 'Thùng',
+                        hintText: 'Bỏ trống nếu không cần',
+                      ),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
+                  ),
                 ],
-                // --- KẾT THÚC SỬA ĐỔI ---
-                validator: (value) {
-                  if (value == null || value.isEmpty) return 'Không được để trống';
-                  final parsedValue = CurrencyInputFormatter.parse(value);
-                  if (parsedValue == null || parsedValue < 0) {
-                    return 'Giá trị không hợp lệ';
-                  }
-                  return null;
-                },
               ),
               const SizedBox(height: 16),
               TextFormField(

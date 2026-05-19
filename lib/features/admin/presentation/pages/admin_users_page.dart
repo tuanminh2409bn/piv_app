@@ -10,6 +10,8 @@ import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:piv_app/features/admin/presentation/pages/agent_discount_config_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/agent_special_price_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/agent_product_visibility_page.dart';
+import 'package:piv_app/features/sales_commitment/presentation/pages/propose_commitment_form_page.dart';
+import 'package:piv_app/features/sales_commitment/presentation/bloc/admin/sales_commitment_admin_cubit.dart';
 
 class AdminUsersPage extends StatelessWidget {
   const AdminUsersPage({super.key});
@@ -361,12 +363,51 @@ class AdminUsersView extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
+                          icon: const Icon(Icons.calendar_month),
+                          label: const Text('Cấu hình Hạn Thanh Toán'),
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                            _showDueDaysConfigDialog(parentContext, userToEdit);
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.local_offer),
+                          label: const Text('Cấu hình Khuyến mãi (Chiết khấu & Voucher)'),
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                            _showPromotionConfigDialog(parentContext, userToEdit);
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
                           icon: const Icon(Icons.price_change),
                           label: const Text('Cấu hình Bảng giá Riêng (Sản phẩm)'),
                           onPressed: () {
                             Navigator.of(dialogContext).pop();
                             Navigator.of(parentContext).push(AgentSpecialPricePage.route(
                               user: userToEdit,
+                            ));
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.handshake_outlined),
+                          label: const Text('Đề xuất Cam kết Doanh số'),
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                            Navigator.of(parentContext).push(ProposeCommitmentFormPage.route(
+                              sl<SalesCommitmentAdminCubit>(), 
+                              userToEdit
                             ));
                           },
                         ),
@@ -429,6 +470,164 @@ class AdminUsersView extends StatelessWidget {
     return allowedRoleKeys
         .map((key) => DropdownMenuItem(value: key, child: Text(allRoles[key]!)))
         .toList();
+  }
+
+  void _showDueDaysConfigDialog(BuildContext parentContext, UserModel userToEdit) {
+    final cubit = parentContext.read<AdminUsersCubit>();
+    
+    // Determine which config to edit based on role
+    final bool isSalesRep = userToEdit.role == 'sales_rep';
+    final currentConfig = isSalesRep ? userToEdit.agentsCustomDueDays : userToEdit.customDueDays;
+    
+    final foliarCtrl = TextEditingController(text: currentConfig?['foliar']?.toString() ?? '');
+    final rootCtrl = TextEditingController(text: currentConfig?['root']?.toString() ?? '');
+    final mixedCtrl = TextEditingController(text: currentConfig?['mixed']?.toString() ?? '');
+
+    showDialog(
+      context: parentContext,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(isSalesRep ? 'Hạn thanh toán cho các Đại lý của NVKD' : 'Hạn thanh toán riêng cho Đại lý'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Để trống nếu muốn sử dụng cấu hình mặc định.', style: TextStyle(color: Colors.grey, fontSize: 13)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: foliarCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Phân bón lá (ngày)', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: rootCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Phân bón gốc (ngày)', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: mixedCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Đơn hỗn hợp (ngày)', border: OutlineInputBorder()),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Map<String, dynamic>? newConfig;
+                if (foliarCtrl.text.isNotEmpty || rootCtrl.text.isNotEmpty || mixedCtrl.text.isNotEmpty) {
+                  newConfig = {};
+                  if (foliarCtrl.text.isNotEmpty) newConfig['foliar'] = int.tryParse(foliarCtrl.text);
+                  if (rootCtrl.text.isNotEmpty) newConfig['root'] = int.tryParse(rootCtrl.text);
+                  if (mixedCtrl.text.isNotEmpty) newConfig['mixed'] = int.tryParse(mixedCtrl.text);
+                }
+                
+                cubit.updateUserDueDaysConfig(
+                  userId: userToEdit.id,
+                  customDueDays: isSalesRep ? userToEdit.customDueDays : newConfig,
+                  agentsCustomDueDays: isSalesRep ? newConfig : userToEdit.agentsCustomDueDays,
+                );
+                Navigator.of(context).pop();
+              },
+              child: const Text('Lưu'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showPromotionConfigDialog(BuildContext parentContext, UserModel userToEdit) {
+    final cubit = parentContext.read<AdminUsersCubit>();
+    final bool isSalesRep = userToEdit.role == 'sales_rep';
+    final currentConfig = isSalesRep ? userToEdit.agentsCustomPromotionConfig : userToEdit.customPromotionConfig;
+    
+    // We keep state using StatefulBuilder
+    showDialog(
+      context: parentContext,
+      builder: (context) {
+        bool? allowDiscount = currentConfig?['allowDiscount'];
+        bool? allowVoucher = currentConfig?['allowVoucher'];
+        bool? allowPromotionDuringCommitment = currentConfig?['allowPromotionDuringCommitment'];
+        
+        return StatefulBuilder(
+          builder: (context, setStateBuilder) {
+            return AlertDialog(
+              title: Text(isSalesRep ? 'Quyền lợi KM cho nhóm ĐL của NVKD' : 'Quyền lợi KM riêng cho Đại lý'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Nếu chọn "Mặc định", hệ thống sẽ sử dụng cấu hình chung của công ty.', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<bool?>(
+                    value: allowDiscount,
+                    decoration: const InputDecoration(labelText: 'Nhận Chiết Khấu'),
+                    items: const [
+                      DropdownMenuItem(value: null, child: Text('Mặc định')),
+                      DropdownMenuItem(value: true, child: Text('Cho phép')),
+                      DropdownMenuItem(value: false, child: Text('Không cho phép')),
+                    ],
+                    onChanged: (val) => setStateBuilder(() => allowDiscount = val),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<bool?>(
+                    value: allowVoucher,
+                    decoration: const InputDecoration(labelText: 'Dùng Voucher'),
+                    items: const [
+                      DropdownMenuItem(value: null, child: Text('Mặc định')),
+                      DropdownMenuItem(value: true, child: Text('Cho phép')),
+                      DropdownMenuItem(value: false, child: Text('Không cho phép')),
+                    ],
+                    onChanged: (val) => setStateBuilder(() => allowVoucher = val),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<bool?>(
+                    value: allowPromotionDuringCommitment,
+                    decoration: const InputDecoration(labelText: 'Dùng KM khi đang có Cam kết'),
+                    items: const [
+                      DropdownMenuItem(value: null, child: Text('Mặc định')),
+                      DropdownMenuItem(value: true, child: Text('Cho phép')),
+                      DropdownMenuItem(value: false, child: Text('Không cho phép')),
+                    ],
+                    onChanged: (val) => setStateBuilder(() => allowPromotionDuringCommitment = val),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Hủy'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Map<String, dynamic>? newConfig;
+                    if (allowDiscount != null || allowVoucher != null || allowPromotionDuringCommitment != null) {
+                      newConfig = {};
+                      if (allowDiscount != null) newConfig['allowDiscount'] = allowDiscount;
+                      if (allowVoucher != null) newConfig['allowVoucher'] = allowVoucher;
+                      if (allowPromotionDuringCommitment != null) newConfig['allowPromotionDuringCommitment'] = allowPromotionDuringCommitment;
+                    }
+                    
+                    cubit.updateUserPromotionConfig(
+                      userId: userToEdit.id,
+                      customPromotionConfig: isSalesRep ? userToEdit.customPromotionConfig : newConfig,
+                      agentsCustomPromotionConfig: isSalesRep ? newConfig : userToEdit.agentsCustomPromotionConfig,
+                    );
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Lưu'),
+                ),
+              ],
+            );
+          }
+        );
+      },
+    );
   }
 }
 

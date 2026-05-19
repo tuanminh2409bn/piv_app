@@ -68,6 +68,8 @@ class SalesCommitmentView extends StatelessWidget {
               if (state.activeCommitment != null) {
                 if (state.activeCommitment!.status == 'pending_approval') {
                   content = const PendingApprovalView();
+                } else if (state.activeCommitment!.status == 'proposed_to_agent') {
+                  content = ProposedCommitmentView(commitment: state.activeCommitment!);
                 } else if (['active', 'pending_cancellation', 'completed'].contains(state.activeCommitment!.status)) {
                   content = ActiveCommitmentDashboard(commitment: state.activeCommitment!);
                 } else {
@@ -173,6 +175,138 @@ class PendingApprovalView extends StatelessWidget {
           )
         ],
       ),
+    );
+  }
+}
+
+class ProposedCommitmentView extends StatelessWidget {
+  final SalesCommitmentModel commitment;
+  
+  const ProposedCommitmentView({super.key, required this.commitment});
+
+  @override
+  Widget build(BuildContext context) {
+    final currencyFormatter = NumberFormat.decimalPattern('vi_VN');
+    final dateFormatter = DateFormat('dd/MM/yyyy');
+    
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 16),
+          Icon(Icons.mark_email_unread_outlined, size: 80, color: AppTheme.primaryGreen).animate().scale(duration: 500.ms),
+          const SizedBox(height: 24),
+          Text(
+            'Bạn có một đề xuất Cam kết',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Được gửi từ ${commitment.commitmentDetails?.setByUserName ?? 'Công ty'}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppTheme.textGrey, fontSize: 14),
+          ),
+          const SizedBox(height: 24),
+          
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDetailRow('Mức cam kết:', '${currencyFormatter.format(commitment.targetAmount)} VNĐ', isHighlight: true),
+                  const Divider(height: 24),
+                  _buildDetailRow('Thời gian:', '${dateFormatter.format(commitment.startDate)} - ${dateFormatter.format(commitment.endDate)}'),
+                  const Divider(height: 24),
+                  const Text('Chi tiết quyền lợi & phần thưởng:', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textGrey)),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryGreen.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      commitment.commitmentDetails?.text ?? 'Không có chi tiết.',
+                      style: const TextStyle(color: AppTheme.textDark, height: 1.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 32),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    context.read<SalesCommitmentAgentCubit>().respondToCommitmentProposal(
+                      commitmentId: commitment.id,
+                      isAccepted: false,
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.errorRed,
+                    side: const BorderSide(color: AppTheme.errorRed),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Từ chối', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    context.read<SalesCommitmentAgentCubit>().respondToCommitmentProposal(
+                      commitmentId: commitment.id,
+                      isAccepted: true,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryGreen,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Đồng ý tham gia', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {bool isHighlight = false}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 2,
+          child: Text(label, style: const TextStyle(color: AppTheme.textGrey, fontWeight: FontWeight.w500)),
+        ),
+        Expanded(
+          flex: 3,
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontWeight: isHighlight ? FontWeight.bold : FontWeight.w500,
+              color: isHighlight ? AppTheme.primaryGreen : AppTheme.textDark,
+              fontSize: isHighlight ? 18 : 14,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
