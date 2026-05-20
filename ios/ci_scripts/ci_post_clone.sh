@@ -51,6 +51,12 @@ flutter precache --ios
 echo "📦 Running flutter pub get..."
 flutter pub get
 
+# Tạm thời tắt Swift Package Manager (SPM) của Flutter trên Xcode Cloud
+# Xcode Cloud chặn việc tự động resolve package nếu không có file Package.resolved được commit.
+# Các plugin như google_sign_in sẽ tự động fallback về dùng CocoaPods.
+echo "🔧 Disabling Swift Package Manager..."
+flutter config --no-enable-swift-package-manager
+
 # Chạy lệnh cấu hình iOS để tạo các file xcconfig và chạy pod install tự động
 echo "⚙️ Cấu hình iOS project..."
 flutter build ios --config-only
