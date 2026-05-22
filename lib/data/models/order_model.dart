@@ -119,6 +119,7 @@ class OrderModel extends Equatable {
   final double? reclaimedDiscountAmount;
   final int? paymentDueDays;
   final Timestamp? paymentDueDate;
+  final double seasonalDiscount;
 
 
   const OrderModel({
@@ -154,6 +155,7 @@ class OrderModel extends Equatable {
     this.reclaimedDiscountAmount,
     this.paymentDueDays,
     this.paymentDueDate,
+    this.seasonalDiscount = 0.0,
   });
 
   // Tổng tiền hàng thực tế sau khi công ty xác nhận số lượng giao
@@ -165,7 +167,7 @@ class OrderModel extends Equatable {
     if (confirmedSubtotal <= 0) return finalTotal;
     
     // Tính toán lại: 
-    double preTax = (confirmedSubtotal + shippingFee - discount - commissionDiscount).clamp(0, double.infinity);
+    double preTax = (confirmedSubtotal + shippingFee - discount - commissionDiscount - seasonalDiscount).clamp(0, double.infinity);
     double calculatedVat = preTax * (vatPercentage / 100);
     return (preTax + calculatedVat).clamp(0, double.infinity);
   }
@@ -207,6 +209,7 @@ class OrderModel extends Equatable {
     double? reclaimedDiscountAmount,
     int? paymentDueDays,
     Timestamp? paymentDueDate,
+    double? seasonalDiscount,
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -241,6 +244,7 @@ class OrderModel extends Equatable {
       reclaimedDiscountAmount: reclaimedDiscountAmount ?? this.reclaimedDiscountAmount,
       paymentDueDays: paymentDueDays ?? this.paymentDueDays,
       paymentDueDate: paymentDueDate ?? this.paymentDueDate,
+      seasonalDiscount: seasonalDiscount ?? this.seasonalDiscount,
     );
   }
 
@@ -249,7 +253,7 @@ class OrderModel extends Equatable {
     id, userId, items, shippingAddress, subtotal, shippingFee, discount, total,
     paymentMethod, paymentStatus, status, createdAt, salesRepId, commissionDiscount, finalTotal,
     placedBy, approvedAt, rejectedAt, rejectionReason, shippingDate, returnInfo, debtAmount, paidAmount, remainingDebt, appliedVoucherCode, legalInfo,
-    vatPercentage, vatAmount, isDiscountReclaimed, reclaimedDiscountAmount, paymentDueDays, paymentDueDate
+    vatPercentage, vatAmount, isDiscountReclaimed, reclaimedDiscountAmount, paymentDueDays, paymentDueDate, seasonalDiscount
   ];
 
   Map<String, dynamic> toMap() {
@@ -285,6 +289,7 @@ class OrderModel extends Equatable {
       'reclaimedDiscountAmount': reclaimedDiscountAmount,
       'paymentDueDays': paymentDueDays,
       'paymentDueDate': paymentDueDate,
+      'seasonalDiscount': seasonalDiscount,
     };
   }
 
@@ -334,6 +339,7 @@ class OrderModel extends Equatable {
       reclaimedDiscountAmount: (data['reclaimedDiscountAmount'] as num?)?.toDouble(),
       paymentDueDays: data['paymentDueDays'] as int?,
       paymentDueDate: data['paymentDueDate'] as Timestamp?,
+      seasonalDiscount: (data['seasonalDiscount'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }

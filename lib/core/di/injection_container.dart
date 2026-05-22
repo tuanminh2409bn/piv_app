@@ -163,7 +163,15 @@ Future<void> initializeDependencies() async {
   sl.registerFactory<SearchCubit>(() => SearchCubit(searchRepository: sl(), homeRepository: sl(), authBloc: sl()));
   sl.registerFactory<CheckoutCubit>(() => CheckoutCubit(userProfileRepository: sl(), orderRepository: sl(), authBloc: sl(), cartCubit: sl(), voucherRepository: sl(), functions: sl(), adminSettingsRepository: sl()));
   sl.registerLazySingleton<MyOrdersCubit>(() => MyOrdersCubit(orderRepository: sl(), authBloc: sl()));
-  sl.registerFactory<OrderDetailCubit>(() => OrderDetailCubit(orderRepository: sl(), userProfileRepository: sl(), returnRepository: sl(), voucherRepository: sl(), authBloc: sl()));
+  sl.registerFactory<OrderDetailCubit>(() => OrderDetailCubit(
+    orderRepository: sl(),
+    userProfileRepository: sl(),
+    returnRepository: sl(),
+    voucherRepository: sl(),
+    authBloc: sl(),
+    adminSettingsRepository: sl(),
+    functions: sl(),
+  ));
   
   sl.registerFactory<AdminOrdersCubit>(() => AdminOrdersCubit(orderRepository: sl(), userProfileRepository: sl()));
   sl.registerFactory<AdminProductsCubit>(() => AdminProductsCubit(homeRepository: sl()));

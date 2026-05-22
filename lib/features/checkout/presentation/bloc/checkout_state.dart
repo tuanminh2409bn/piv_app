@@ -31,6 +31,7 @@ class CheckoutState extends Equatable {
 
   // --- THÊM CÁC TRƯỜNG MỚI CHO CÔNG NỢ ---
   final double currentDebt;
+  final double pendingDebt;
   final double amountToPay;
   // ------------------------------------
   
@@ -56,6 +57,7 @@ class CheckoutState extends Equatable {
     this.availableVouchers = const [], // <<< THÊM MỚI
     // --- KHỞI TẠO GIÁ TRỊ MẶC ĐỊNH ---
     this.currentDebt = 0.0,
+    this.pendingDebt = 0.0,
     this.amountToPay = 0.0,
     // ----------------------------------
     this.vatPercentage = 10.0,
@@ -69,7 +71,8 @@ class CheckoutState extends Equatable {
   double get finalTotal => finalTotalBeforeVat + vatAmount;
 
   // Tổng tiền cần thanh toán (bao gồm cả công nợ)
-  double get totalWithDebt => finalTotal + currentDebt;
+  double get projectedDebt => currentDebt + pendingDebt;
+  double get totalWithDebt => finalTotal + projectedDebt;
   // ------------------------------------------
 
   @override
@@ -79,7 +82,7 @@ class CheckoutState extends Equatable {
     commissionDiscount, seasonalDiscount, paymentMethod, newOrderId, placeOrderForUserId, placeOrderForAgent,
     availableVouchers, // <<< THÊM MỚI
     // --- THÊM PROPS MỚI ---
-    currentDebt, amountToPay,
+    currentDebt, pendingDebt, amountToPay,
     // --------------------
     vatPercentage,
     isStackingAllowed,
@@ -108,6 +111,7 @@ class CheckoutState extends Equatable {
     List<VoucherModel>? availableVouchers, // <<< THÊM MỚI
     // --- THÊM CÁC THAM SỐ MỚI ---
     double? currentDebt,
+    double? pendingDebt,
     double? amountToPay,
     // ----------------------------
     double? vatPercentage,
@@ -132,6 +136,7 @@ class CheckoutState extends Equatable {
       availableVouchers: availableVouchers ?? this.availableVouchers, // <<< THÊM MỚI
       // --- CẬP NHẬT CÁC TRƯỜNG MỚI ---
       currentDebt: currentDebt ?? this.currentDebt,
+      pendingDebt: pendingDebt ?? this.pendingDebt,
       amountToPay: amountToPay ?? this.amountToPay,
       // -------------------------------
       vatPercentage: vatPercentage ?? this.vatPercentage,

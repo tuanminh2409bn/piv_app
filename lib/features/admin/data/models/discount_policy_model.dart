@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class DiscountTier {
   final double minAmount;
   final double rate;
@@ -119,6 +121,12 @@ class DiscountPolicyModel {
   final AgentPromotionConfig agent2PromotionConfig;
   final double vatPercentage;
   final bool globalAllowVoucherStacking;
+  
+  // Seasonal discount configurations
+  final bool seasonalDiscountEnabled;
+  final double seasonalDiscountRate;
+  final DateTime? seasonalDiscountStart;
+  final DateTime? seasonalDiscountEnd;
 
   DiscountPolicyModel({
     required this.agent1, 
@@ -129,7 +137,50 @@ class DiscountPolicyModel {
     required this.agent2PromotionConfig,
     this.vatPercentage = 10.0, // Default 10% VAT
     this.globalAllowVoucherStacking = false,
+    this.seasonalDiscountEnabled = false,
+    this.seasonalDiscountRate = 0.05, // Default 5%
+    this.seasonalDiscountStart,
+    this.seasonalDiscountEnd,
   });
+
+  DiscountPolicyModel copyWith({
+    AgentPolicy? agent1,
+    AgentPolicy? agent2,
+    AgentDueDaysPolicy? agent1DueDays,
+    AgentDueDaysPolicy? agent2DueDays,
+    AgentPromotionConfig? agent1PromotionConfig,
+    AgentPromotionConfig? agent2PromotionConfig,
+    double? vatPercentage,
+    bool? globalAllowVoucherStacking,
+    bool? seasonalDiscountEnabled,
+    double? seasonalDiscountRate,
+    DateTime? seasonalDiscountStart,
+    DateTime? seasonalDiscountEnd,
+    bool clearSeasonalDiscountStart = false,
+    bool clearSeasonalDiscountEnd = false,
+  }) {
+    return DiscountPolicyModel(
+      agent1: agent1 ?? this.agent1,
+      agent2: agent2 ?? this.agent2,
+      agent1DueDays: agent1DueDays ?? this.agent1DueDays,
+      agent2DueDays: agent2DueDays ?? this.agent2DueDays,
+      agent1PromotionConfig: agent1PromotionConfig ?? this.agent1PromotionConfig,
+      agent2PromotionConfig: agent2PromotionConfig ?? this.agent2PromotionConfig,
+      vatPercentage: vatPercentage ?? this.vatPercentage,
+      globalAllowVoucherStacking: globalAllowVoucherStacking ?? this.globalAllowVoucherStacking,
+      seasonalDiscountEnabled: seasonalDiscountEnabled ?? this.seasonalDiscountEnabled,
+      seasonalDiscountRate: seasonalDiscountRate ?? this.seasonalDiscountRate,
+      seasonalDiscountStart: clearSeasonalDiscountStart ? null : (seasonalDiscountStart ?? this.seasonalDiscountStart),
+      seasonalDiscountEnd: clearSeasonalDiscountEnd ? null : (seasonalDiscountEnd ?? this.seasonalDiscountEnd),
+    );
+  }
+
+  static DateTime? _parseDateTime(dynamic val) {
+    if (val == null) return null;
+    if (val is Timestamp) return val.toDate();
+    if (val is String) return DateTime.tryParse(val);
+    return null;
+  }
 
   factory DiscountPolicyModel.fromJson(Map<String, dynamic> json) {
     return DiscountPolicyModel(
@@ -141,6 +192,10 @@ class DiscountPolicyModel {
       agent2PromotionConfig: AgentPromotionConfig.fromJson(json['agent_2_promotion_config'] ?? {}),
       vatPercentage: (json['vatPercentage'] as num?)?.toDouble() ?? 10.0,
       globalAllowVoucherStacking: json['globalAllowVoucherStacking'] as bool? ?? false,
+      seasonalDiscountEnabled: json['seasonalDiscountEnabled'] as bool? ?? false,
+      seasonalDiscountRate: (json['seasonalDiscountRate'] as num?)?.toDouble() ?? 0.05,
+      seasonalDiscountStart: _parseDateTime(json['seasonalDiscountStart']),
+      seasonalDiscountEnd: _parseDateTime(json['seasonalDiscountEnd']),
     );
   }
 
@@ -154,6 +209,10 @@ class DiscountPolicyModel {
       'agent_2_promotion_config': agent2PromotionConfig.toJson(),
       'vatPercentage': vatPercentage,
       'globalAllowVoucherStacking': globalAllowVoucherStacking,
+      'seasonalDiscountEnabled': seasonalDiscountEnabled,
+      'seasonalDiscountRate': seasonalDiscountRate,
+      'seasonalDiscountStart': seasonalDiscountStart != null ? Timestamp.fromDate(seasonalDiscountStart!) : null,
+      'seasonalDiscountEnd': seasonalDiscountEnd != null ? Timestamp.fromDate(seasonalDiscountEnd!) : null,
     };
   }
 
@@ -162,10 +221,15 @@ class DiscountPolicyModel {
     return DiscountPolicyModel(
       vatPercentage: 10.0,
       globalAllowVoucherStacking: false,
+      seasonalDiscountEnabled: false,
+      seasonalDiscountRate: 0.05,
+      seasonalDiscountStart: DateTime(2026, 5, 1),
+      seasonalDiscountEnd: DateTime(2026, 6, 30, 23, 59, 59),
       agent1DueDays: AgentDueDaysPolicy(foliar: 30, root: 30, mixed: 30),
       agent2DueDays: AgentDueDaysPolicy(foliar: 30, root: 30, mixed: 30),
       agent1PromotionConfig: AgentPromotionConfig(allowDiscount: true, allowVoucher: true, allowPromotionDuringCommitment: false),
-      agent2PromotionConfig: AgentPromotionConfig(allowDiscount: true, allowVoucher: true, allowPromotionDuringCommitment: false),      agent1: AgentPolicy(
+      agent2PromotionConfig: AgentPromotionConfig(allowDiscount: true, allowVoucher: true, allowPromotionDuringCommitment: false),
+      agent1: AgentPolicy(
         foliar: ProductTypePolicy(tiers: [
           DiscountTier(minAmount: 100000000, rate: 0.10),
           DiscountTier(minAmount: 50000000, rate: 0.07),

@@ -1027,6 +1027,7 @@ class _FeaturedProductCard extends StatelessWidget {
                         quantityPerPackage: selectedOption.quantityPerPackage,
                         caseUnitName: selectedOption.name,
                         categoryId: product.categoryId,
+                        productType: product.productType,
                       ));
                     }
                   },

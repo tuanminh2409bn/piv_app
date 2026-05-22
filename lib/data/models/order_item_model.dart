@@ -15,6 +15,7 @@ class OrderItemModel extends Equatable {
   final String packaging;
   final int quantityPerPackage;
   final String categoryId;
+  final String? productType;
 
   const OrderItemModel({
     required this.productId,
@@ -28,6 +29,7 @@ class OrderItemModel extends Equatable {
     required this.packaging,
     required this.quantityPerPackage,
     this.categoryId = '',
+    this.productType,
   });
 
   // Tiền tạm tính dựa trên số lượng đặt ban đầu
@@ -52,6 +54,7 @@ class OrderItemModel extends Equatable {
     packaging,
     quantityPerPackage,
     categoryId,
+    productType,
   ];
 
   Map<String, dynamic> toMap() {
@@ -67,6 +70,7 @@ class OrderItemModel extends Equatable {
       'packaging': packaging,
       'quantityPerPackage': quantityPerPackage,
       'categoryId': categoryId,
+      if (productType != null) 'productType': productType,
     };
   }
 
@@ -84,6 +88,7 @@ class OrderItemModel extends Equatable {
       packaging: map['packaging'] ?? '',
       quantityPerPackage: (map['quantityPerPackage'] as num? ?? 1).toInt(),
       categoryId: map['categoryId'] ?? '',
+      productType: map['productType'] as String?,
     );
   }
 
@@ -100,6 +105,7 @@ class OrderItemModel extends Equatable {
       packaging: cartItem.caseUnitName,
       quantityPerPackage: cartItem.quantityPerPackage,
       categoryId: cartItem.categoryId,
+      productType: cartItem.productType,
     );
   }
 
@@ -115,6 +121,7 @@ class OrderItemModel extends Equatable {
     String? packaging,
     int? quantityPerPackage,
     String? categoryId,
+    String? productType,
   }) {
     return OrderItemModel(
       productId: productId ?? this.productId,
@@ -128,6 +135,7 @@ class OrderItemModel extends Equatable {
       packaging: packaging ?? this.packaging,
       quantityPerPackage: quantityPerPackage ?? this.quantityPerPackage,
       categoryId: categoryId ?? this.categoryId,
+      productType: productType ?? this.productType,
     );
   }
 }

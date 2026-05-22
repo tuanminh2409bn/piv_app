@@ -27,6 +27,8 @@ import 'package:piv_app/features/admin/presentation/pages/agent_special_price_pa
 import 'package:piv_app/features/admin/presentation/pages/agent_discount_config_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/manual_notification_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/agent_product_visibility_page.dart';
+import 'package:piv_app/features/sales_commitment/presentation/pages/propose_commitment_form_page.dart';
+import 'package:piv_app/features/admin/presentation/bloc/admin_users_cubit.dart';
 
 
 class SalesRepHomePage extends StatelessWidget {
@@ -195,16 +197,39 @@ class SalesRepView extends StatelessWidget {
                 const Text('Đưa mã này cho đại lý mới để quét từ trong ứng dụng của họ.'),
                 const SizedBox(height: 20),
                 Center(
-                  child: QrImageView(
-                    data: user.id,
-                    version: QrVersions.auto,
-                    size: 200.0,
-                  ),
+                  child: user.id.isNotEmpty
+                      ? SizedBox(
+                          width: 200.0,
+                          height: 200.0,
+                          child: QrImageView(
+                            data: user.id,
+                            version: QrVersions.auto,
+                            size: 200.0,
+                            errorStateBuilder: (c, err) {
+                              return const Center(
+                                child: Text(
+                                  'Không thể tạo mã QR',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                              );
+                            },
+                          ),
+                        )
+                      : const SizedBox(
+                          height: 200.0,
+                          child: Center(
+                            child: Text(
+                              'Không tìm thấy ID người dùng',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                        ),
                 ),
                 const SizedBox(height: 20),
                 const Text('Hoặc cung cấp mã:'),
                 SelectableText(
-                  user.id,
+                  user.id.isNotEmpty ? user.id : 'N/A',
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
@@ -213,7 +238,7 @@ class SalesRepView extends StatelessWidget {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text('ĐÓNG'),
             )
           ],
@@ -262,20 +287,127 @@ class VoucherManagementPageWrapper extends StatelessWidget {
 class MyAgentsView extends StatelessWidget {
   const MyAgentsView({super.key});
 
-  (Color, String) _getStatusInfo(String status, BuildContext context) {
-    switch (status) {
-      case 'active': return (Theme.of(context).colorScheme.primary, 'Hoạt động');
-      case 'suspended': return (Colors.red.shade700, 'Bị khóa');
-      default: return (Colors.grey.shade700, 'Không xác định');
-    }
-  }
-
   String _getAgentRoleText(String role) {
     switch (role) {
       case 'agent_1': return 'Đại lý Cấp 1';
       case 'agent_2': return 'Đại lý Cấp 2';
       default: return 'Chưa phân loại';
     }
+  }
+
+  void _showPromotionConfigDialog(BuildContext parentContext, UserModel agent) {
+    final currentConfig = agent.customPromotionConfig;
+    showDialog(
+      context: parentContext,
+      builder: (dialogContext) => BlocProvider<AdminUsersCubit>(
+        create: (_) => sl<AdminUsersCubit>(),
+        child: BlocConsumer<AdminUsersCubit, AdminUsersState>(
+          listener: (context, state) {
+            if (state.status == AdminUsersStatus.success && state.errorMessage == null) {
+              parentContext.read<SalesRepCubit>().fetchMyAgents();
+              Navigator.of(dialogContext).pop();
+              ScaffoldMessenger.of(parentContext).showSnackBar(
+                const SnackBar(content: Text('Cập nhật cấu hình khuyến mãi thành công!'), backgroundColor: Colors.green),
+              );
+            } else if (state.errorMessage != null) {
+              ScaffoldMessenger.of(parentContext).showSnackBar(
+                SnackBar(content: Text(state.errorMessage!), backgroundColor: Colors.red),
+              );
+            }
+          },
+          builder: (context, state) {
+            bool? allowDiscount = currentConfig?['allowDiscount'];
+            bool? allowVoucher = currentConfig?['allowVoucher'];
+            bool? allowPromotionDuringCommitment = currentConfig?['allowPromotionDuringCommitment'];
+
+            return StatefulBuilder(
+              builder: (context, setStateBuilder) {
+                final isUpdating = state.status == AdminUsersStatus.updating;
+
+                return AlertDialog(
+                  title: const Text('Quyền lợi KM riêng cho Đại lý'),
+                  content: isUpdating
+                      ? const SizedBox(
+                          height: 100,
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Nếu chọn "Mặc định", hệ thống sẽ sử dụng cấu hình chung của công ty.',
+                              style: TextStyle(color: Colors.grey, fontSize: 13),
+                            ),
+                            const SizedBox(height: 16),
+                            DropdownButtonFormField<bool?>(
+                              value: allowDiscount,
+                              decoration: const InputDecoration(labelText: 'Nhận Chiết Khấu'),
+                              items: const [
+                                DropdownMenuItem(value: null, child: Text('Mặc định')),
+                                DropdownMenuItem(value: true, child: Text('Cho phép')),
+                                DropdownMenuItem(value: false, child: Text('Không cho phép')),
+                              ],
+                              onChanged: (val) => setStateBuilder(() => allowDiscount = val),
+                            ),
+                            const SizedBox(height: 12),
+                            DropdownButtonFormField<bool?>(
+                              value: allowVoucher,
+                              decoration: const InputDecoration(labelText: 'Dùng Voucher'),
+                              items: const [
+                                DropdownMenuItem(value: null, child: Text('Mặc định')),
+                                DropdownMenuItem(value: true, child: Text('Cho phép')),
+                                DropdownMenuItem(value: false, child: Text('Không cho phép')),
+                              ],
+                              onChanged: (val) => setStateBuilder(() => allowVoucher = val),
+                            ),
+                            const SizedBox(height: 12),
+                            DropdownButtonFormField<bool?>(
+                              value: allowPromotionDuringCommitment,
+                              decoration: const InputDecoration(labelText: 'Dùng KM khi đang có Cam kết'),
+                              items: const [
+                                DropdownMenuItem(value: null, child: Text('Mặc định')),
+                                DropdownMenuItem(value: true, child: Text('Cho phép')),
+                                DropdownMenuItem(value: false, child: Text('Không cho phép')),
+                              ],
+                              onChanged: (val) => setStateBuilder(() => allowPromotionDuringCommitment = val),
+                            ),
+                          ],
+                        ),
+                  actions: [
+                    TextButton(
+                      onPressed: isUpdating ? null : () => Navigator.of(dialogContext).pop(),
+                      child: const Text('Hủy'),
+                    ),
+                    ElevatedButton(
+                      onPressed: isUpdating
+                          ? null
+                          : () {
+                              Map<String, dynamic>? newConfig;
+                              if (allowDiscount != null || allowVoucher != null || allowPromotionDuringCommitment != null) {
+                                newConfig = {};
+                                if (allowDiscount != null) newConfig['allowDiscount'] = allowDiscount;
+                                if (allowVoucher != null) newConfig['allowVoucher'] = allowVoucher;
+                                if (allowPromotionDuringCommitment != null) {
+                                  newConfig['allowPromotionDuringCommitment'] = allowPromotionDuringCommitment;
+                                }
+                              }
+
+                              context.read<AdminUsersCubit>().updateUserPromotionConfig(
+                                    userId: agent.id,
+                                    customPromotionConfig: newConfig,
+                                    agentsCustomPromotionConfig: agent.agentsCustomPromotionConfig,
+                                  );
+                            },
+                      child: const Text('Lưu'),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -295,7 +427,6 @@ class MyAgentsView extends StatelessWidget {
             itemCount: state.myAgents.length,
             itemBuilder: (context, index) {
               final agent = state.myAgents[index];
-              final statusInfo = _getStatusInfo(agent.status, context);
 
               return Card(
                 margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
@@ -323,7 +454,6 @@ class MyAgentsView extends StatelessWidget {
                       } else if (value == 'place_order') {
                         Navigator.of(context).push(CreateAgentOrderPage.route(agent));
                       }
-                      // <<< THÊM LOGIC MỚI >>>
                       else if (value == 'manage_quick_order') {
                         Navigator.of(context).push(ManageQuickOrderListPage.route(agent));
                       } else if (value == 'special_price') {
@@ -332,9 +462,15 @@ class MyAgentsView extends StatelessWidget {
                         Navigator.of(context).push(AgentDiscountConfigPage.route(user: agent));
                       } else if (value == 'manage_visibility') {
                         Navigator.of(context).push(MaterialPageRoute(builder: (_) => AgentProductVisibilityPage(agent: agent)));
+                      } else if (value == 'propose_commitment') {
+                        Navigator.of(context).push(ProposeCommitmentFormPage.route(
+                          sl<SalesCommitmentAdminCubit>(),
+                          agent,
+                        ));
+                      } else if (value == 'promotion_config') {
+                        _showPromotionConfigDialog(context, agent);
                       }
                     },
-                    // <<< THÊM ITEM MỚI VÀO MENU >>>
                     itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
                       const PopupMenuItem<String>(
                         value: 'view_history',
@@ -351,6 +487,14 @@ class MyAgentsView extends StatelessWidget {
                       const PopupMenuItem<String>(
                         value: 'discount_config',
                         child: ListTile(leading: Icon(Icons.percent), title: Text('Cấu hình chiết khấu')),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'promotion_config',
+                        child: ListTile(leading: Icon(Icons.card_giftcard), title: Text('Cấu hình Khuyến mãi')),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'propose_commitment',
+                        child: ListTile(leading: Icon(Icons.handshake_outlined), title: Text('Đề xuất Cam kết')),
                       ),
                       const PopupMenuItem<String>(
                         value: 'manage_visibility',

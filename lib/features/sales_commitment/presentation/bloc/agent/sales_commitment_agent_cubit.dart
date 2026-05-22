@@ -75,6 +75,12 @@ class SalesCommitmentAgentCubit extends Cubit<SalesCommitmentAgentState> {
           history: history,
         ));
       },
+      onError: (error) {
+        emit(state.copyWith(
+          status: SalesCommitmentAgentStatus.error,
+          errorMessage: 'Lỗi tải lịch sử cam kết.',
+        ));
+      },
     );
   }
 

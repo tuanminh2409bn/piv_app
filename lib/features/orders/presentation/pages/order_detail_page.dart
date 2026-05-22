@@ -149,8 +149,11 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                     Icons.receipt_long, 
                     _PaymentSummary(
                       order: order, 
-                      totalAmountToHandle: (order.finalTotal + order.debtAmount - state.voucherDiscount).clamp(0, double.infinity).toDouble(), 
-                      voucherDiscount: state.voucherDiscount
+                      totalAmountToHandle: order.status == 'pending_approval'
+                          ? (state.recalculatedFinalTotal + order.debtAmount).clamp(0.0, double.infinity)
+                          : (order.finalTotal + order.debtAmount - state.voucherDiscount).clamp(0.0, double.infinity), 
+                      voucherDiscount: state.voucherDiscount,
+                      state: state,
                     )
                   ),
                   
@@ -249,9 +252,8 @@ class _OrderDetailViewState extends State<OrderDetailView> {
           // Logic Auto-fill số tiền khi ở trạng thái chờ duyệt
           if (state.status == OrderDetailStatus.success &&
               state.order?.status == 'pending_approval') {
-            final totalAmountToHandle = (state.order!.finalTotal +
-                    state.order!.debtAmount -
-                    state.voucherDiscount)
+            final totalAmountToHandle = (state.recalculatedFinalTotal +
+                    state.order!.debtAmount)
                 .clamp(0, double.infinity)
                 .toDouble();
             final formattedTotal = numberFormatter.format(totalAmountToHandle);
@@ -277,9 +279,10 @@ class _OrderDetailViewState extends State<OrderDetailView> {
           }
 
           final order = state.order!;
-          final totalAmountToHandle = (order.finalTotal + order.debtAmount - state.voucherDiscount)
-              .clamp(0, double.infinity)
-              .toDouble();
+          final totalAmountToHandle = order.status == 'pending_approval'
+              ? (state.recalculatedFinalTotal + order.debtAmount).clamp(0.0, double.infinity)
+              : (order.finalTotal + order.debtAmount - state.voucherDiscount)
+                  .clamp(0.0, double.infinity);
 
           return Stack(
             children: [
@@ -316,7 +319,9 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                                 ],
 
                                 if (order.paymentStatus == 'unpaid' &&
-                                    order.status != 'pending_approval') ...[
+                                    order.status != 'pending_approval' &&
+                                    order.status != 'cancelled' &&
+                                    order.status != 'rejected') ...[
                                   // Nếu là chủ đơn hàng (Khách hàng) -> Hiện mã QR
                                   if (currentUser?.id == order.userId && state.paymentInfo != null) ...[
                                     _buildInfoCard(
@@ -369,10 +374,6 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                                   const SizedBox(height: 16),
                                 ],
 
-                                _buildInfoCard(context, 'Sản phẩm', Icons.shopping_bag_outlined,
-                                    _OrderItemsList(items: order.items)),
-                                const SizedBox(height: 16),
-
                                 _buildInfoCard(
                                     context,
                                     'Thanh toán',
@@ -380,7 +381,12 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                                     _PaymentSummary(
                                         order: order,
                                         totalAmountToHandle: totalAmountToHandle,
-                                        voucherDiscount: state.voucherDiscount)),
+                                        voucherDiscount: state.voucherDiscount,
+                                        state: state)),
+
+                                _buildInfoCard(context, 'Sản phẩm', Icons.shopping_bag_outlined,
+                                    _OrderItemsList(items: order.items)),
+                                const SizedBox(height: 16),
 
                                 if (order.status == 'pending_approval') ...[
                                   const SizedBox(height: 16),
@@ -593,10 +599,13 @@ class _PaymentSummary extends StatelessWidget {
   final OrderModel order;
   final double totalAmountToHandle;
   final double voucherDiscount;
+  final OrderDetailState? state;
+
   const _PaymentSummary({
     required this.order,
     required this.totalAmountToHandle,
     required this.voucherDiscount,
+    this.state,
   });
 
   @override
@@ -611,9 +620,11 @@ class _PaymentSummary extends StatelessWidget {
     // Nếu đơn hàng đã giao (shipped), dùng confirmedFinalTotal để tính nợ dự kiến
     final double baseTotalForDebt = (order.status == 'shipped' || order.status == 'completed') 
         ? confirmedFinalTotal 
-        : order.finalTotal;
+        : (order.status == 'pending_approval' && state != null ? state!.recalculatedFinalTotal : order.finalTotal);
 
-    final double estimatedRemainingDebt = (baseTotalForDebt +
+    final double estimatedRemainingDebt = (order.status == 'pending_approval' && state != null)
+        ? (state!.recalculatedFinalTotal + order.debtAmount - order.paidAmount).toDouble()
+        : (baseTotalForDebt +
             order.debtAmount -
             order.paidAmount -
             voucherDiscount)
@@ -621,6 +632,30 @@ class _PaymentSummary extends StatelessWidget {
 
     // Chênh lệch do trả hàng (nếu có)
     final double returnAdjustment = order.finalTotal - confirmedFinalTotal;
+
+    final double displayCommission = (order.status == 'pending_approval' && state != null)
+        ? state!.recalculatedCommissionDiscount
+        : order.commissionDiscount;
+
+    final double displaySeasonal = (order.status == 'pending_approval' && state != null)
+        ? state!.recalculatedSeasonalDiscount
+        : order.seasonalDiscount;
+
+    final double displayVatPercentage = (order.status == 'pending_approval' && state != null)
+        ? state!.recalculatedVatPercentage
+        : order.vatPercentage;
+
+    final double displayVatAmount = (order.status == 'pending_approval' && state != null)
+        ? state!.recalculatedVatAmount
+        : order.vatAmount;
+
+    final double displayTotalBeforeVat = (order.status == 'pending_approval' && state != null)
+        ? (order.subtotal + order.shippingFee - voucherDiscount - displayCommission - displaySeasonal).clamp(0.0, double.infinity)
+        : order.total;
+
+    final double displayFinalTotal = (order.status == 'pending_approval' && state != null)
+        ? state!.recalculatedFinalTotal
+        : order.finalTotal;
 
     return Column(
       children: [
@@ -632,19 +667,24 @@ class _PaymentSummary extends StatelessWidget {
           if (voucherDiscount > 0)
             _row('Giảm giá voucher', '- ${formatter.format(voucherDiscount)}',
                 color: Colors.green.shade700),
-          if (order.commissionDiscount > 0) ...[
+          if (displayCommission > 0) ...[
             const SizedBox(height: 8),
-            _row('Chiết khấu', '- ${formatter.format(order.commissionDiscount)}',
+            _row('Chiết khấu', '- ${formatter.format(displayCommission)}',
+                color: Colors.green.shade700),
+          ],
+          if (displaySeasonal > 0) ...[
+            const SizedBox(height: 8),
+            _row('Khuyến mãi thời vụ', '- ${formatter.format(displaySeasonal)}',
                 color: Colors.green.shade700),
           ],
           const Divider(height: 24),
-          _row('Thành tiền (trước thuế)', formatter.format(order.total)),
-          if (order.vatPercentage > 0) ...[
+          _row('Thành tiền (trước thuế)', formatter.format(displayTotalBeforeVat)),
+          if (displayVatPercentage > 0) ...[
             const SizedBox(height: 8),
-            _row('Thuế VAT (${order.vatPercentage.toInt()}%)', formatter.format(order.vatAmount)),
+            _row('Thuế VAT (${displayVatPercentage.toInt()}%)', formatter.format(displayVatAmount)),
           ],
           const SizedBox(height: 8),
-          _row('Tiền hàng đơn này (sau thuế)', formatter.format(order.finalTotal), isBold: true),
+          _row('Tiền hàng đơn này (sau thuế)', formatter.format(displayFinalTotal), isBold: true),
           
           if (order.status == 'shipped' && returnAdjustment > 0) ...[
             const SizedBox(height: 8),
@@ -750,12 +790,274 @@ class _VoucherSectionState extends State<_VoucherSection> {
     }
   }
 
+  double _getVoucherDiscountAmount(VoucherModel voucher, List<OrderItemModel> items, double subtotal) {
+    double applicableSubtotal = subtotal;
+    if (voucher.applicableCategory == 'foliar_fertilizer') {
+      applicableSubtotal = items
+          .where((item) => (item.productType ?? item.categoryId) == 'foliar_fertilizer')
+          .fold<double>(0.0, (sum, item) => sum + item.subtotal);
+    } else if (voucher.applicableCategory == 'root_fertilizer') {
+      applicableSubtotal = items
+          .where((item) => (item.productType ?? item.categoryId) == 'root_fertilizer')
+          .fold<double>(0.0, (sum, item) => sum + item.subtotal);
+    }
+
+    int totalItemsInCases = 0;
+    double totalCasesValue = 0;
+    
+    for (var item in items) {
+      final category = item.productType ?? item.categoryId;
+      if (voucher.applicableCategory == 'all' || category == voucher.applicableCategory) {
+        if (item.quantityPerPackage > 1) {
+          totalItemsInCases += item.quantity;
+          totalCasesValue += (item.price * item.quantityPerPackage * item.quantity);
+        }
+      }
+    }
+    
+    double averageCasePrice = totalItemsInCases > 0 
+        ? (totalCasesValue / totalItemsInCases) 
+        : 0.0;
+
+    return voucher.calculateDiscount(
+      applicableSubtotal, 
+      totalItemsInCases: totalItemsInCases,
+      averageCasePrice: averageCasePrice,
+    );
+  }
+
+  void _showVoucherSelection(BuildContext context, OrderDetailState state) {
+    final orderDetailCubit = context.read<OrderDetailCubit>();
+    final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: const BoxDecoration(
+          color: AppTheme.backgroundLight,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    const Text('Chọn Voucher', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: BlocBuilder<OrderDetailCubit, OrderDetailState>(
+                  bloc: orderDetailCubit,
+                  builder: (context, state) {
+                    if (state.availableVouchers.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.confirmation_number_outlined, size: 64, color: Colors.grey.shade300),
+                            const SizedBox(height: 16),
+                            const Text('Bạn chưa có voucher nào khả dụng', style: TextStyle(color: AppTheme.textGrey)),
+                          ],
+                        ),
+                      );
+                    }
+
+                    // Xác định voucher đem lại giá trị giảm giá cao nhất (bestVoucher)
+                    VoucherModel? bestVoucher;
+                    double maxDiscount = 0.0;
+                    final order = state.order;
+                    final double subtotal = order?.subtotal ?? 0.0;
+                    final items = order?.items ?? [];
+                    
+                    for (final voucher in state.availableVouchers) {
+                      final discount = _getVoucherDiscountAmount(
+                        voucher, 
+                        items, 
+                        subtotal
+                      );
+                      if (discount > maxDiscount) {
+                        maxDiscount = discount;
+                        bestVoucher = voucher;
+                      }
+                    }
+
+                    return ListView.builder(
+                      padding: EdgeInsets.only(
+                        left: 20, 
+                        right: 20, 
+                        top: 8, 
+                        bottom: MediaQuery.of(context).padding.bottom + 40.0
+                      ),
+                      itemCount: state.availableVouchers.length,
+                      itemBuilder: (context, index) {
+                        final voucher = state.availableVouchers[index];
+                        final isApplicable = subtotal >= voucher.minOrderValue;
+                        final isBest = bestVoucher != null && voucher.id == bestVoucher.id;
+                        
+                        String discountDesc = '';
+                        if (voucher.discountType == DiscountType.percentage) {
+                          discountDesc = 'Giảm ${voucher.discountValue.toInt()}%';
+                          if (voucher.maxDiscountAmount != null) {
+                            discountDesc += ' (Tối đa ${currencyFormatter.format(voucher.maxDiscountAmount)})';
+                          }
+                        } else if (voucher.discountType == DiscountType.fixedAmount) {
+                          discountDesc = 'Giảm ${currencyFormatter.format(voucher.discountValue)}';
+                        } else if (voucher.discountType == DiscountType.buyXGetY) {
+                          discountDesc = 'Mua ${voucher.buyQuantity} tặng ${voucher.getQuantity} (áp dụng cho hàng thùng)';
+                        }
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isBest 
+                                  ? const Color(0xFFF5AF19) 
+                                  : (isApplicable ? Colors.transparent : Colors.grey.shade200),
+                              width: isBest ? 1.5 : 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: isBest 
+                                    ? const Color(0xFFF5AF19).withOpacity(0.1) 
+                                    : Colors.black.withOpacity(0.03), 
+                                blurRadius: 10, 
+                                offset: const Offset(0, 4)
+                              )
+                            ],
+                          ),
+                          child: InkWell(
+                            onTap: isApplicable ? () {
+                              orderDetailCubit.applyVoucher(voucher.id);
+                              Navigator.pop(context);
+                            } : null,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Opacity(
+                              opacity: isApplicable ? 1.0 : 0.6,
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: isBest
+                                            ? const Color(0xFFF5AF19).withOpacity(0.1)
+                                            : (isApplicable ? AppTheme.primaryGreen.withOpacity(0.1) : Colors.grey.shade100),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        Icons.confirmation_number, 
+                                        color: isBest ? const Color(0xFFE65100) : (isApplicable ? AppTheme.primaryGreen : Colors.grey),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Wrap(
+                                            crossAxisAlignment: WrapCrossAlignment.center,
+                                            spacing: 8,
+                                            runSpacing: 4,
+                                            children: [
+                                              Text(
+                                                voucher.id,
+                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                              ),
+                                              if (isBest)
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    gradient: const LinearGradient(
+                                                      colors: [Color(0xFFF12711), Color(0xFFF5AF19)],
+                                                    ),
+                                                    borderRadius: BorderRadius.circular(12),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: const Color(0xFFF5AF19).withOpacity(0.3),
+                                                        blurRadius: 4,
+                                                        offset: const Offset(0, 2),
+                                                      )
+                                                    ],
+                                                  ),
+                                                  child: const Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(Icons.star, size: 10, color: Colors.white),
+                                                      SizedBox(width: 2),
+                                                      Text(
+                                                        'LỰA CHỌN TỐT NHẤT 🌟',
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 9,
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            discountDesc,
+                                            style: TextStyle(color: isBest ? const Color(0xFFE65100) : (isApplicable ? Colors.orange.shade700 : AppTheme.textGrey), fontWeight: FontWeight.w500, fontSize: 13),
+                                          ),
+                                          if (!isApplicable)
+                                            Text(
+                                              'Chưa đủ ĐK: Đơn từ ${currencyFormatter.format(voucher.minOrderValue)}',
+                                              style: const TextStyle(color: Colors.red, fontSize: 11),
+                                            ),
+                                          Text(
+                                            'HSD: ${DateFormat('dd/MM/yyyy').format(voucher.expiresAt.toDate())}',
+                                            style: const TextStyle(color: AppTheme.textGrey, fontSize: 11),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (isApplicable)
+                                      const Icon(Icons.chevron_right, color: AppTheme.primaryGreen),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<OrderDetailCubit, OrderDetailState>(
       buildWhen: (prev, current) =>
           prev.appliedVoucher != current.appliedVoucher ||
-          prev.status != current.status,
+          prev.status != current.status ||
+          prev.availableVouchers != current.availableVouchers,
       builder: (context, state) {
         final cubit = context.read<OrderDetailCubit>();
         final bool isLoadingVoucher = state.status == OrderDetailStatus.applyingVoucher;
@@ -787,7 +1089,7 @@ class _VoucherSectionState extends State<_VoucherSection> {
                 state.appliedVoucher != null
                     ? _buildAppliedVoucherCard(context, state.appliedVoucher!, cubit)
                     : _buildVoucherInput(context, widget.voucherController, cubit,
-                        isLoadingVoucher, _isButtonEnabled),
+                        isLoadingVoucher, _isButtonEnabled, state),
               ],
             ),
           ),
@@ -797,42 +1099,72 @@ class _VoucherSectionState extends State<_VoucherSection> {
   }
 
   Widget _buildVoucherInput(BuildContext context, TextEditingController controller,
-      OrderDetailCubit cubit, bool isLoading, bool isButtonEnabled) {
-    return Row(
+      OrderDetailCubit cubit, bool isLoading, bool isButtonEnabled, OrderDetailState state) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: TextField(
-            controller: controller,
-            enabled: !isLoading,
-            decoration: const InputDecoration(
-              labelText: 'Nhập mã giảm giá (nếu có)',
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller,
+                enabled: !isLoading,
+                decoration: const InputDecoration(
+                  labelText: 'Nhập mã giảm giá (nếu có)',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                textCapitalization: TextCapitalization.characters,
+                onSubmitted: (_) => _updateButtonState(),
+              ),
             ),
-            textCapitalization: TextCapitalization.characters,
-            onSubmitted: (_) => _updateButtonState(),
-          ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: isLoading || !isButtonEnabled
+                  ? null
+                  : () {
+                      cubit.applyVoucher(controller.text.trim());
+                      FocusScope.of(context).unfocus();
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryGreen,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                disabledBackgroundColor: Colors.grey.shade300,
+              ),
+              child: isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Áp dụng'),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        ElevatedButton(
-          onPressed: isLoading || !isButtonEnabled
-              ? null
-              : () {
-                  cubit.applyVoucher(controller.text.trim());
-                  FocusScope.of(context).unfocus();
-                },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.primaryGreen,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            disabledBackgroundColor: Colors.grey.shade300,
+        const SizedBox(height: 12),
+        InkWell(
+          onTap: () => _showVoucherSelection(context, state),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+            child: Row(
+              children: [
+                const Icon(Icons.sell_outlined, color: AppTheme.primaryGreen, size: 20),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Chọn từ danh sách voucher khả dụng',
+                    style: TextStyle(
+                      color: AppTheme.primaryGreen,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: AppTheme.primaryGreen.withOpacity(0.7), size: 20),
+              ],
+            ),
           ),
-          child: isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Text('Áp dụng'),
         ),
       ],
     );
@@ -1106,10 +1438,9 @@ class _ApprovalActionButtonsOnly extends StatelessWidget {
                     } catch (_) {}
 
                     // Tính tổng tiền cần xử lý (tương tự logic hiển thị)
-                    final voucherDiscount = context.read<OrderDetailCubit>().state.voucherDiscount;
-                    final totalAmountToHandle = (order.finalTotal +
-                            order.debtAmount -
-                            voucherDiscount)
+                    final state = context.read<OrderDetailCubit>().state;
+                    final totalAmountToHandle = (state.recalculatedFinalTotal +
+                            order.debtAmount)
                         .clamp(0, double.infinity)
                         .toDouble();
 

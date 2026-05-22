@@ -117,141 +117,149 @@ class _AgentDiscountConfigViewState extends State<AgentDiscountConfigView> {
 
           final hasPending = state.pendingRequest != null;
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildUserInfoCard(_user),
-                
-                if (hasPending)
-                  Container(
-                    margin: const EdgeInsets.only(top: 16),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      border: Border.all(color: Colors.orange),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.warning_amber_rounded, color: Colors.orange),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Đang có yêu cầu chờ duyệt', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
-                              const SizedBox(height: 4),
-                              Text('Yêu cầu gửi ngày: ${state.pendingRequest!.createdAt.toDate().toString().split('.')[0]}', style: const TextStyle(fontSize: 12)),
-                            ],
+          return SafeArea(
+            bottom: false,
+            child: SingleChildScrollView(
+              padding: EdgeInsets.only(
+                left: 16.0,
+                right: 16.0,
+                top: 16.0,
+                bottom: MediaQuery.of(context).padding.bottom + 80.0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildUserInfoCard(_user),
+                  
+                  if (hasPending)
+                    Container(
+                      margin: const EdgeInsets.only(top: 16),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        border: Border.all(color: Colors.orange),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Đang có yêu cầu chờ duyệt', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                                const SizedBox(height: 4),
+                                Text('Yêu cầu gửi ngày: ${state.pendingRequest!.createdAt.toDate().toString().split('.')[0]}', style: const TextStyle(fontSize: 12)),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-
-                const SizedBox(height: 24),
-                SwitchListTile(
-                  title: const Text('Kích hoạt cấu hình riêng', style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Khi bật, đại lý sẽ dùng bảng chiết khấu này thay vì của hệ thống.'),
-                  value: _enabled,
-                  onChanged: (val) => setState(() => _enabled = val),
-                  contentPadding: EdgeInsets.zero,
-                ),
-                const Divider(height: 32),
-                
-                if (_enabled) ...[
-                  TierTableEditor(
-                    title: 'Phân Bón Lá',
-                    color: Colors.green.shade100,
-                    tiers: _currentPolicy.foliar.tiers,
-                    onChanged: (newTiers) {
-                      setState(() {
-                        _currentPolicy = AgentPolicy(
-                          foliar: ProductTypePolicy(tiers: newTiers),
-                          root: _currentPolicy.root,
-                        );
-                      });
-                    },
-                  ),
+  
                   const SizedBox(height: 24),
-                  TierTableEditor(
-                    title: 'Phân Bón Gốc',
-                    color: Colors.brown.shade100,
-                    tiers: _currentPolicy.root.tiers,
-                    onChanged: (newTiers) {
-                      setState(() {
-                        _currentPolicy = AgentPolicy(
-                          foliar: _currentPolicy.foliar,
-                          root: ProductTypePolicy(tiers: newTiers),
-                        );
-                      });
-                    },
+                  SwitchListTile(
+                    title: const Text('Kích hoạt cấu hình riêng', style: TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: const Text('Khi bật, đại lý sẽ dùng bảng chiết khấu này thay vì của hệ thống.'),
+                    value: _enabled,
+                    onChanged: (val) => setState(() => _enabled = val),
+                    contentPadding: EdgeInsets.zero,
                   ),
-                ] else
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
+                  const Divider(height: 32),
+                  
+                  if (_enabled) ...[
+                    TierTableEditor(
+                      title: 'Phân Bón Lá',
+                      color: Colors.green.shade100,
+                      tiers: _currentPolicy.foliar.tiers,
+                      onChanged: (newTiers) {
+                        setState(() {
+                          _currentPolicy = AgentPolicy(
+                            foliar: ProductTypePolicy(tiers: newTiers),
+                            root: _currentPolicy.root,
+                          );
+                        });
+                      },
                     ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.grey),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Đại lý sẽ sử dụng mức chiết khấu chung của hệ thống (dựa trên doanh số tích lũy).',
-                            style: TextStyle(color: Colors.grey),
+                    const SizedBox(height: 24),
+                    TierTableEditor(
+                      title: 'Phân Bón Gốc',
+                      color: Colors.brown.shade100,
+                      tiers: _currentPolicy.root.tiers,
+                      onChanged: (newTiers) {
+                        setState(() {
+                          _currentPolicy = AgentPolicy(
+                            foliar: _currentPolicy.foliar,
+                            root: ProductTypePolicy(tiers: newTiers),
+                          );
+                        });
+                      },
+                    ),
+                  ] else
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.grey),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Đại lý sẽ sử dụng mức chiết khấu chung của hệ thống (dựa trên doanh số tích lũy).',
+                              style: TextStyle(color: Colors.grey),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                
-                const SizedBox(height: 32),
-                
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: state.status == AgentDiscountStatus.loading ? null : () {
-                       // --- VALIDATION: Chỉ kiểm tra nếu đang BẬT ---
-                       if (_enabled) {
-                         final bool hasFoliar = _currentPolicy.foliar.tiers.isNotEmpty;
-                         final bool hasRoot = _currentPolicy.root.tiers.isNotEmpty;
-
-                         if (!hasFoliar && !hasRoot) {
-                           ScaffoldMessenger.of(context).showSnackBar(
-                             const SnackBar(
-                               content: Text('Vui lòng cấu hình ít nhất 1 nấc chiết khấu (Lá hoặc Gốc) khi bật cấu hình riêng.'),
-                               backgroundColor: Colors.red,
-                               behavior: SnackBarBehavior.floating,
-                             ),
-                           );
-                           return;
+                  
+                  const SizedBox(height: 32),
+                  
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: state.status == AgentDiscountStatus.loading ? null : () {
+                         // --- VALIDATION: Chỉ kiểm tra nếu đang BẬT ---
+                         if (_enabled) {
+                           final bool hasFoliar = _currentPolicy.foliar.tiers.isNotEmpty;
+                           final bool hasRoot = _currentPolicy.root.tiers.isNotEmpty;
+  
+                           if (!hasFoliar && !hasRoot) {
+                             ScaffoldMessenger.of(context).showSnackBar(
+                               const SnackBar(
+                                 content: Text('Vui lòng cấu hình ít nhất 1 nấc chiết khấu (Lá hoặc Gốc) khi bật cấu hình riêng.'),
+                                 backgroundColor: Colors.red,
+                                 behavior: SnackBarBehavior.floating,
+                               ),
+                             );
+                             return;
+                           }
                          }
-                       }
-                       
-                       _saveConfig();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Theme.of(context).primaryColor,
-                      foregroundColor: Colors.white,
+                         
+                         _saveConfig();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: Theme.of(context).primaryColor,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: state.status == AgentDiscountStatus.loading 
+                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : Text(isAdmin ? 'LƯU & ÁP DỤNG NGAY' : (hasPending ? 'CẬP NHẬT YÊU CẦU' : 'GỬI YÊU CẦU DUYỆT')),
                     ),
-                    child: state.status == AgentDiscountStatus.loading 
-                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : Text(isAdmin ? 'LƯU & ÁP DỤNG NGAY' : (hasPending ? 'CẬP NHẬT YÊU CẦU' : 'GỬI YÊU CẦU DUYỆT')),
                   ),
-                ),
-                if (!isAdmin && hasPending)
-                   Padding(
-                     padding: const EdgeInsets.only(top: 8.0),
-                     child: const Center(child: Text('Bạn đã gửi một yêu cầu, gửi lại sẽ cập nhật yêu cầu cũ.', style: TextStyle(color: Colors.grey, fontSize: 12))),
-                   ),
-              ],
+                  if (!isAdmin && hasPending)
+                     Padding(
+                       padding: const EdgeInsets.only(top: 8.0),
+                       child: const Center(child: Text('Bạn đã gửi một yêu cầu, gửi lại sẽ cập nhật yêu cầu cũ.', style: TextStyle(color: Colors.grey, fontSize: 12))),
+                     ),
+                ],
+              ),
             ),
           );
         },

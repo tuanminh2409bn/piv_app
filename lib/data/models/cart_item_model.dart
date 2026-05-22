@@ -11,7 +11,8 @@ class CartItemModel extends Equatable {
   final int quantity;
   final int quantityPerPackage;
   final String caseUnitName;
-  final String categoryId; // <<< THÊM TRƯỜNG MỚI
+  final String categoryId;
+  final String? productType;
 
   const CartItemModel({
     required this.productId,
@@ -22,7 +23,8 @@ class CartItemModel extends Equatable {
     required this.quantity,
     required this.quantityPerPackage,
     required this.caseUnitName,
-    required this.categoryId, // <<< THÊM VÀO CONSTRUCTOR
+    required this.categoryId,
+    this.productType,
   });
 
   double get subtotal => price * quantityPerPackage * quantity;
@@ -40,11 +42,12 @@ class CartItemModel extends Equatable {
       quantityPerPackage: this.quantityPerPackage,
       caseUnitName: this.caseUnitName,
       categoryId: this.categoryId,
+      productType: this.productType,
     );
   }
 
   @override
-  List<Object?> get props => [productId, productName, imageUrl, price, itemUnitName, quantity, quantityPerPackage, caseUnitName, categoryId];
+  List<Object?> get props => [productId, productName, imageUrl, price, itemUnitName, quantity, quantityPerPackage, caseUnitName, categoryId, productType];
 
   factory CartItemModel.fromMap(Map<String, dynamic> map) {
     return CartItemModel(
@@ -56,7 +59,8 @@ class CartItemModel extends Equatable {
       quantity: (map['quantity'] as num? ?? 0).toInt(),
       quantityPerPackage: (map['quantityPerPackage'] as num? ?? 1).toInt(),
       caseUnitName: map['caseUnitName'] as String? ?? 'thùng',
-      categoryId: map['categoryId'] as String? ?? '', // <<< THÊM MỚI
+      categoryId: map['categoryId'] as String? ?? '',
+      productType: map['productType'] as String?,
     );
   }
 
@@ -70,7 +74,8 @@ class CartItemModel extends Equatable {
       'quantity': quantity,
       'quantityPerPackage': quantityPerPackage,
       'caseUnitName': caseUnitName,
-      'categoryId': categoryId, // <<< THÊM MỚI
+      'categoryId': categoryId,
+      if (productType != null) 'productType': productType,
     };
   }
 }

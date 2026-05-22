@@ -160,7 +160,7 @@ export const calculateOrderDiscount = onCall({region: "asia-southeast1"}, async 
 
   try {
     // 1. Xác định User mục tiêu
-    if (agentId && typeof agentId === "string") {
+    if (agentId && typeof agentId === "string" && agentId !== callerId) {
       const callerDoc = await db.collection("users").doc(callerId).get();
       const callerRole = callerDoc.data()?.role;
       if (!callerRole || !["admin", "sales_rep", "accountant"].includes(callerRole)) {

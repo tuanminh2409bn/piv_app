@@ -31,7 +31,9 @@ class VoucherManagementView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Quản lý Voucher')),
+      appBar: ModalRoute.of(context)?.canPop ?? false
+          ? AppBar(title: const Text('Quản lý Voucher'))
+          : null,
       body: BlocBuilder<VoucherManagementCubit, VoucherManagementState>(
         builder: (context, state) {
           if (state.status == VoucherManagementStatus.loading && state.vouchers.isEmpty) {

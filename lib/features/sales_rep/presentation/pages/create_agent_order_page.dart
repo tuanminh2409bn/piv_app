@@ -296,6 +296,7 @@ class _CreateAgentOrderView extends StatelessWidget {
                                   selectedOption.quantityPerPackage,
                               caseUnitName: selectedOption.name,
                               categoryId: product.categoryId,
+                              productType: product.productType,
                             );
                             Navigator.of(dialogContext).pop(cartItem);
                           }

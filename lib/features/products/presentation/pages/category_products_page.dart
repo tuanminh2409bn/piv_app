@@ -471,12 +471,28 @@ class _ProductCard extends StatelessWidget {
         return StatefulBuilder(builder: (ctx, setState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(product.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            DropdownButtonFormField<PackagingOptionModel>(value: sel, items: product.packingOptions.map((o) => DropdownMenuItem(value: o, child: Text('${o.name} - ${currencyFormatter.format(o.getPriceForRole(userRole))}', style: const TextStyle(fontSize: 13)))).toList(), onChanged: (v) => setState(() => sel = v!), decoration: const InputDecoration(labelText: 'Quy cách')),
-            const SizedBox(height: 16),
-            TextField(controller: qty, keyboardType: TextInputType.number, textAlign: TextAlign.center, decoration: InputDecoration(labelText: 'Số lượng', prefixIcon: IconButton(onPressed: () { int c = int.tryParse(qty.text) ?? 0; if(c > 1) qty.text = (c - 1).toString(); }, icon: const Icon(Icons.remove)), suffixIcon: IconButton(onPressed: () { int c = int.tryParse(qty.text) ?? 0; qty.text = (c + 1).toString(); }, icon: const Icon(Icons.add)))),
-          ]),
-          actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Hủy')), ElevatedButton(onPressed: () { int q = int.tryParse(qty.text) ?? 0; if(q > 0) Navigator.pop(dialogContext, CartItemModel(productId: product.id, productName: product.name, imageUrl: product.imageUrl, price: sel.getPriceForRole(userRole), itemUnitName: sel.unit, quantity: q, quantityPerPackage: sel.quantityPerPackage, caseUnitName: sel.name, categoryId: product.categoryId)); }, child: const Text('XÁC NHẬN'))],
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<PackagingOptionModel>(
+                value: sel,
+                isExpanded: true,
+                items: product.packingOptions.map((o) => DropdownMenuItem(
+                  value: o,
+                  child: Text(
+                    '${o.name} - ${currencyFormatter.format(o.getPriceForRole(userRole))}',
+                    style: const TextStyle(fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                )).toList(),
+                onChanged: (v) => setState(() => sel = v!),
+                decoration: const InputDecoration(labelText: 'Quy cách'),
+              ),
+              const SizedBox(height: 16),
+              TextField(controller: qty, keyboardType: TextInputType.number, textAlign: TextAlign.center, decoration: InputDecoration(labelText: 'Số lượng', prefixIcon: IconButton(onPressed: () { int c = int.tryParse(qty.text) ?? 0; if(c > 1) qty.text = (c - 1).toString(); }, icon: const Icon(Icons.remove)), suffixIcon: IconButton(onPressed: () { int c = int.tryParse(qty.text) ?? 0; qty.text = (c + 1).toString(); }, icon: const Icon(Icons.add)))),
+            ],
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Hủy')), ElevatedButton(onPressed: () { int q = int.tryParse(qty.text) ?? 0; if(q > 0) Navigator.pop(dialogContext, CartItemModel(productId: product.id, productName: product.name, imageUrl: product.imageUrl, price: sel.getPriceForRole(userRole), itemUnitName: sel.unit, quantity: q, quantityPerPackage: sel.quantityPerPackage, caseUnitName: sel.name, categoryId: product.categoryId, productType: product.productType)); }, child: const Text('XÁC NHẬN'))],
         ));
       },
     );

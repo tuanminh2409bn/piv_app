@@ -88,6 +88,7 @@ class CartCubit extends Cubit<CartState> {
       quantityPerPackage: selectedOption.quantityPerPackage, // Số sản phẩm lẻ trong 1 thùng
       caseUnitName: selectedOption.name, // Tên quy cách ("Thùng...")
       categoryId: product.categoryId,
+      productType: product.productType,
     );
     // ================================================================
 

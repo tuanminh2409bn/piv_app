@@ -740,6 +740,7 @@ class ProductDetailView extends StatelessWidget {
                                   quantityPerPackage: selectedOption.quantityPerPackage,
                                   caseUnitName: selectedOption.name,
                                   categoryId: product.categoryId,
+                                  productType: product.productType,
                                 );
                                 Navigator.of(context).push(CheckoutPage.route(buyNowItems: [item]));
                               }

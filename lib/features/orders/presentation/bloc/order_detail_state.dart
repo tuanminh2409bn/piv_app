@@ -25,6 +25,15 @@ class OrderDetailState extends Equatable {
   // +++ THÊM TRƯỜNG VOUCHER +++
   final VoucherModel? appliedVoucher;
   final double voucherDiscount; // Lưu số tiền giảm giá từ voucher
+
+  // Recalculated fields for placed-on-behalf orders
+  final double recalculatedCommissionDiscount;
+  final double recalculatedSeasonalDiscount;
+  final double recalculatedVatPercentage;
+  final double recalculatedVatAmount;
+  final double recalculatedFinalTotal;
+  final double recalculatedRemainingDebt;
+  final List<VoucherModel> availableVouchers;
   // +++ KẾT THÚC THÊM +++
 
   const OrderDetailState({
@@ -37,7 +46,13 @@ class OrderDetailState extends Equatable {
     // +++ KHỞI TẠO VOUCHER +++
     this.appliedVoucher,
     this.voucherDiscount = 0.0,
-    // +++ KẾT THÚC KHỞI TẠO +++
+    this.recalculatedCommissionDiscount = 0.0,
+    this.recalculatedSeasonalDiscount = 0.0,
+    this.recalculatedVatPercentage = 10.0,
+    this.recalculatedVatAmount = 0.0,
+    this.recalculatedFinalTotal = 0.0,
+    this.recalculatedRemainingDebt = 0.0,
+    this.availableVouchers = const [],
   });
 
   @override
@@ -51,7 +66,13 @@ class OrderDetailState extends Equatable {
     // +++ THÊM PROPS VOUCHER +++
     appliedVoucher,
     voucherDiscount,
-    // +++ KẾT THÚC THÊM +++
+    recalculatedCommissionDiscount,
+    recalculatedSeasonalDiscount,
+    recalculatedVatPercentage,
+    recalculatedVatAmount,
+    recalculatedFinalTotal,
+    recalculatedRemainingDebt,
+    availableVouchers,
   ];
 
   OrderDetailState copyWith({
@@ -66,7 +87,13 @@ class OrderDetailState extends Equatable {
     VoucherModel? appliedVoucher,
     bool forceVoucherToNull = false, // Để xóa voucher
     double? voucherDiscount,
-    // +++ KẾT THÚC THÊM +++
+    double? recalculatedCommissionDiscount,
+    double? recalculatedSeasonalDiscount,
+    double? recalculatedVatPercentage,
+    double? recalculatedVatAmount,
+    double? recalculatedFinalTotal,
+    double? recalculatedRemainingDebt,
+    List<VoucherModel>? availableVouchers,
   }) {
     return OrderDetailState(
       status: status ?? this.status,
@@ -75,11 +102,15 @@ class OrderDetailState extends Equatable {
       paymentInfo: paymentInfo ?? this.paymentInfo,
       placedByUser: placedByUser ?? this.placedByUser,
       returnRequest: returnRequest ?? this.returnRequest,
-      // +++ CẬP NHẬT VOUCHER +++
-      // Nếu forceVoucherToNull là true, đặt voucher và discount về null/0
       appliedVoucher: forceVoucherToNull ? null : (appliedVoucher ?? this.appliedVoucher),
       voucherDiscount: forceVoucherToNull ? 0.0 : (voucherDiscount ?? this.voucherDiscount),
-      // +++ KẾT THÚC CẬP NHẬT +++
+      recalculatedCommissionDiscount: recalculatedCommissionDiscount ?? this.recalculatedCommissionDiscount,
+      recalculatedSeasonalDiscount: recalculatedSeasonalDiscount ?? this.recalculatedSeasonalDiscount,
+      recalculatedVatPercentage: recalculatedVatPercentage ?? this.recalculatedVatPercentage,
+      recalculatedVatAmount: recalculatedVatAmount ?? this.recalculatedVatAmount,
+      recalculatedFinalTotal: recalculatedFinalTotal ?? this.recalculatedFinalTotal,
+      recalculatedRemainingDebt: recalculatedRemainingDebt ?? this.recalculatedRemainingDebt,
+      availableVouchers: availableVouchers ?? this.availableVouchers,
     );
   }
 }

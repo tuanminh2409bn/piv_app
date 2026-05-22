@@ -26,24 +26,26 @@ class AdminProductsPage extends StatelessWidget {
               authState is AuthAuthenticated && authState.user.role == 'admin';
 
           return Scaffold(
-            appBar: AppBar(
-              title: const Text('Quản lý Sản phẩm'),
-              actions: [
-                if (isAdmin)
-                  IconButton(
-                    icon: const Icon(Icons.price_change_outlined),
-                    tooltip: 'Điều chỉnh giá hàng loạt',
-                    onPressed: () {
-                      Navigator.of(context)
-                          .push(PriceAdjustmentPage.route())
-                          .then((_) {
-                        // Bây giờ context này đã nằm dưới BlocProvider nên sẽ tìm thấy Cubit
-                        context.read<AdminProductsCubit>().fetchAllProducts();
-                      });
-                    },
-                  ),
-              ],
-            ),
+            appBar: ModalRoute.of(context)?.canPop ?? false
+                ? AppBar(
+                    title: const Text('Quản lý Sản phẩm'),
+                    actions: [
+                      if (isAdmin)
+                        IconButton(
+                          icon: const Icon(Icons.price_change_outlined),
+                          tooltip: 'Điều chỉnh giá hàng loạt',
+                          onPressed: () {
+                            Navigator.of(context)
+                                .push(PriceAdjustmentPage.route())
+                                .then((_) {
+                              // Bây giờ context này đã nằm dưới BlocProvider nên sẽ tìm thấy Cubit
+                              context.read<AdminProductsCubit>().fetchAllProducts();
+                            });
+                          },
+                        ),
+                    ],
+                  )
+                : null,
             // Trang này sẽ có nút FloatingActionButton riêng
             floatingActionButton: FloatingActionButton(
               onPressed: () {

@@ -13,7 +13,7 @@ class QuickOrderCubit extends Cubit<QuickOrderState> {
   final QuickOrderRepository _quickOrderRepository;
   final AuthBloc _authBloc;
   StreamSubscription? _quickListSubscription;
-  late final String _agentId;
+  String _agentId = '';
 
   QuickOrderCubit({
     required QuickOrderRepository quickOrderRepository,
@@ -96,6 +96,9 @@ class QuickOrderCubit extends Cubit<QuickOrderState> {
             emit(state.copyWith(
                 status: QuickOrderStatus.error, errorMessage: e.toString()));
           }
+        }, onError: (error) {
+          emit(state.copyWith(
+              status: QuickOrderStatus.error, errorMessage: error.toString()));
         });
   }
 

@@ -346,131 +346,201 @@ class _CheckoutPageState extends State<CheckoutPage> {
           color: AppTheme.backgroundLight,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  const Text('Chọn Voucher', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const Spacer(),
-                  IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
-                ],
+        child: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    const Text('Chọn Voucher', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+                  ],
+                ),
               ),
-            ),
-            Expanded(
-              child: BlocBuilder<CheckoutCubit, CheckoutState>(
-                bloc: checkoutCubit,
-                builder: (context, state) {
-                  if (state.availableVouchers.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.confirmation_number_outlined, size: 64, color: Colors.grey.shade300),
-                          const SizedBox(height: 16),
-                          const Text('Bạn chưa có voucher nào khả dụng', style: TextStyle(color: AppTheme.textGrey)),
-                        ],
-                      ),
-                    );
-                  }
-
-                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: state.availableVouchers.length,
-                    itemBuilder: (context, index) {
-                      final voucher = state.availableVouchers[index];
-                      final isApplicable = state.subtotal >= voucher.minOrderValue;
-                      
-                      String discountDesc = '';
-                      if (voucher.discountType == DiscountType.percentage) {
-                        discountDesc = 'Giảm ${voucher.discountValue.toInt()}%';
-                        if (voucher.maxDiscountAmount != null) {
-                          discountDesc += ' (Tối đa ${currencyFormatter.format(voucher.maxDiscountAmount)})';
-                        }
-                      } else if (voucher.discountType == DiscountType.fixedAmount) {
-                        discountDesc = 'Giảm ${currencyFormatter.format(voucher.discountValue)}';
-                      } else if (voucher.discountType == DiscountType.buyXGetY) {
-                        discountDesc = 'Mua ${voucher.buyQuantity} tặng ${voucher.getQuantity} (áp dụng cho hàng thùng)';
-                      }
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: isApplicable ? Colors.transparent : Colors.grey.shade200,
-                          ),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))
+              Expanded(
+                child: BlocBuilder<CheckoutCubit, CheckoutState>(
+                  bloc: checkoutCubit,
+                  builder: (context, state) {
+                    if (state.availableVouchers.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.confirmation_number_outlined, size: 64, color: Colors.grey.shade300),
+                            const SizedBox(height: 16),
+                            const Text('Bạn chưa có voucher nào khả dụng', style: TextStyle(color: AppTheme.textGrey)),
                           ],
                         ),
-                        child: InkWell(
-                          onTap: isApplicable ? () {
-                            checkoutCubit.selectVoucher(voucher);
-                            Navigator.pop(context);
-                          } : null,
-                          borderRadius: BorderRadius.circular(16),
-                          child: Opacity(
-                            opacity: isApplicable ? 1.0 : 0.6,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: isApplicable ? AppTheme.primaryGreen.withValues(alpha: 0.1) : Colors.grey.shade100,
-                                      borderRadius: BorderRadius.circular(12),
+                      );
+                    }
+
+                    // Xác định voucher đem lại giá trị giảm giá cao nhất (bestVoucher)
+                    VoucherModel? bestVoucher;
+                    double maxDiscount = 0.0;
+                    
+                    for (final voucher in state.availableVouchers) {
+                      final discount = checkoutCubit.calculateVoucherDiscount(
+                        voucher, 
+                        state.checkoutItems, 
+                        state.subtotal
+                      );
+                      if (discount > maxDiscount) {
+                        maxDiscount = discount;
+                        bestVoucher = voucher;
+                      }
+                    }
+
+                    return ListView.builder(
+                      padding: const EdgeInsets.only(left: 20, right: 20, top: 8, bottom: 40),
+                      itemCount: state.availableVouchers.length,
+                      itemBuilder: (context, index) {
+                        final voucher = state.availableVouchers[index];
+                        final isApplicable = state.subtotal >= voucher.minOrderValue;
+                        final isBest = bestVoucher != null && voucher.id == bestVoucher.id;
+                        
+                        String discountDesc = '';
+                        if (voucher.discountType == DiscountType.percentage) {
+                          discountDesc = 'Giảm ${voucher.discountValue.toInt()}%';
+                          if (voucher.maxDiscountAmount != null) {
+                            discountDesc += ' (Tối đa ${currencyFormatter.format(voucher.maxDiscountAmount)})';
+                          }
+                        } else if (voucher.discountType == DiscountType.fixedAmount) {
+                          discountDesc = 'Giảm ${currencyFormatter.format(voucher.discountValue)}';
+                        } else if (voucher.discountType == DiscountType.buyXGetY) {
+                          discountDesc = 'Mua ${voucher.buyQuantity} tặng ${voucher.getQuantity} (áp dụng cho hàng thùng)';
+                        }
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isBest 
+                                  ? const Color(0xFFF5AF19) 
+                                  : (isApplicable ? Colors.transparent : Colors.grey.shade200),
+                              width: isBest ? 1.5 : 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: isBest 
+                                    ? const Color(0xFFF5AF19).withValues(alpha: 0.1) 
+                                    : Colors.black.withValues(alpha: 0.03), 
+                                blurRadius: 10, 
+                                offset: const Offset(0, 4)
+                              )
+                            ],
+                          ),
+                          child: InkWell(
+                            onTap: isApplicable ? () {
+                              checkoutCubit.selectVoucher(voucher);
+                              Navigator.pop(context);
+                            } : null,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Opacity(
+                              opacity: isApplicable ? 1.0 : 0.6,
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: isBest
+                                            ? const Color(0xFFF5AF19).withValues(alpha: 0.1)
+                                            : (isApplicable ? AppTheme.primaryGreen.withValues(alpha: 0.1) : Colors.grey.shade100),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        Icons.confirmation_number, 
+                                        color: isBest ? const Color(0xFFE65100) : (isApplicable ? AppTheme.primaryGreen : Colors.grey),
+                                      ),
                                     ),
-                                    child: Icon(
-                                      Icons.confirmation_number, 
-                                      color: isApplicable ? AppTheme.primaryGreen : Colors.grey,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          voucher.id,
-                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          discountDesc,
-                                          style: TextStyle(color: isApplicable ? Colors.orange.shade700 : AppTheme.textGrey, fontWeight: FontWeight.w500, fontSize: 13),
-                                        ),
-                                        if (!isApplicable)
-                                          Text(
-                                            'Chưa đủ ĐK: Đơn từ ${currencyFormatter.format(voucher.minOrderValue)}',
-                                            style: const TextStyle(color: Colors.red, fontSize: 11),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Wrap(
+                                            crossAxisAlignment: WrapCrossAlignment.center,
+                                            spacing: 8,
+                                            runSpacing: 4,
+                                            children: [
+                                              Text(
+                                                voucher.id,
+                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                              ),
+                                              if (isBest)
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    gradient: const LinearGradient(
+                                                      colors: [Color(0xFFF12711), Color(0xFFF5AF19)],
+                                                    ),
+                                                    borderRadius: BorderRadius.circular(12),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: const Color(0xFFF5AF19).withValues(alpha: 0.3),
+                                                        blurRadius: 4,
+                                                        offset: const Offset(0, 2),
+                                                      )
+                                                    ],
+                                                  ),
+                                                  child: const Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(Icons.star, size: 10, color: Colors.white),
+                                                      SizedBox(width: 2),
+                                                      Text(
+                                                        'LỰA CHỌN TỐT NHẤT 🌟',
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 9,
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                            ],
                                           ),
-                                        Text(
-                                          'HSD: ${DateFormat('dd/MM/yyyy').format(voucher.expiresAt.toDate())}',
-                                          style: const TextStyle(color: AppTheme.textGrey, fontSize: 11),
-                                        ),
-                                      ],
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            discountDesc,
+                                            style: TextStyle(color: isBest ? const Color(0xFFE65100) : (isApplicable ? Colors.orange.shade700 : AppTheme.textGrey), fontWeight: FontWeight.w500, fontSize: 13),
+                                          ),
+                                          if (!isApplicable)
+                                            Text(
+                                              'Chưa đủ ĐK: Đơn từ ${currencyFormatter.format(voucher.minOrderValue)}',
+                                              style: const TextStyle(color: Colors.red, fontSize: 11),
+                                            ),
+                                          Text(
+                                            'HSD: ${DateFormat('dd/MM/yyyy').format(voucher.expiresAt.toDate())}',
+                                            style: const TextStyle(color: AppTheme.textGrey, fontSize: 11),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  if (isApplicable)
-                                    const Icon(Icons.chevron_right, color: AppTheme.primaryGreen),
-                                ],
+                                    if (isApplicable)
+                                      const Icon(Icons.chevron_right, color: AppTheme.primaryGreen),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  );
-                },
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -562,13 +632,31 @@ class _CheckoutPageState extends State<CheckoutPage> {
           
           _buildSummaryRow('Tiền hàng (sau thuế)', currencyFormatter.format(state.finalTotal), isBold: true, fontSize: 16),
           
-          if (state.currentDebt != 0) ...[
+          if (state.currentDebt != 0 || state.pendingDebt != 0) ...[
              const SizedBox(height: 8),
-             _buildSummaryRow(
-               state.currentDebt > 0 ? 'Công nợ cũ' : 'Dư nợ hiện tại', 
-               '${state.currentDebt > 0 ? '+' : ''}${currencyFormatter.format(state.currentDebt)}', 
-               valueColor: state.currentDebt > 0 ? AppTheme.errorRed : AppTheme.primaryGreen
-             ),
+             if (state.currentDebt != 0)
+               _buildSummaryRow(
+                 state.currentDebt > 0 ? 'Công nợ cũ (đã duyệt)' : 'Dư nợ hiện tại (đã duyệt)', 
+                 '${state.currentDebt > 0 ? '+' : ''}${currencyFormatter.format(state.currentDebt)}', 
+                 valueColor: state.currentDebt > 0 ? AppTheme.errorRed : AppTheme.primaryGreen
+               ),
+             if (state.pendingDebt != 0) ...[
+               if (state.currentDebt != 0) const SizedBox(height: 8),
+               _buildSummaryRow(
+                 'Nợ tạm tính (đơn chưa duyệt)', 
+                 '${state.pendingDebt > 0 ? '+' : ''}${currencyFormatter.format(state.pendingDebt)}', 
+                 valueColor: state.pendingDebt > 0 ? Colors.orange : AppTheme.primaryGreen
+               ),
+             ],
+             if (state.currentDebt != 0 && state.pendingDebt != 0) ...[
+               const SizedBox(height: 8),
+               _buildSummaryRow(
+                 'Tổng công nợ cũ dự kiến', 
+                 '${state.projectedDebt > 0 ? '+' : ''}${currencyFormatter.format(state.projectedDebt)}', 
+                 isBold: true,
+                 valueColor: state.projectedDebt > 0 ? AppTheme.errorRed : AppTheme.primaryGreen
+               ),
+             ],
              Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Divider(color: Colors.grey[200], height: 1),

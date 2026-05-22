@@ -65,81 +65,89 @@ class CampaignFormView extends StatelessWidget {
     final cubit = context.read<CampaignFormCubit>();
     final dateFormatter = DateFormat('dd/MM/yyyy');
 
-    return ListView(
-      padding: const EdgeInsets.all(16.0),
-      children: [
-        TextFormField(
-          initialValue: state.campaign.name,
-          decoration: const InputDecoration(labelText: 'Tên chiến dịch', border: OutlineInputBorder()),
-          onChanged: (value) => cubit.updateField(name: value),
+    return SafeArea(
+      bottom: false,
+      child: ListView(
+        padding: EdgeInsets.only(
+          left: 16.0,
+          right: 16.0,
+          top: 16.0,
+          bottom: MediaQuery.of(context).padding.bottom + 80.0,
         ),
-        const SizedBox(height: 16),
-        SwitchListTile(
-          title: const Text('Kích hoạt chiến dịch'),
-          value: state.campaign.isActive,
-          onChanged: (value) => cubit.updateField(isActive: value),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: InkWell(
-                onTap: () async {
-                  final newDate = await showDatePicker(
-                    context: context,
-                    initialDate: state.campaign.startDate,
-                    firstDate: DateTime.now(),
-                    lastDate: DateTime(2100),
-                  );
-                  if (newDate != null) cubit.updateField(startDate: newDate);
-                },
-                child: InputDecorator(
-                  decoration: const InputDecoration(labelText: 'Ngày bắt đầu', border: OutlineInputBorder()),
-                  child: Text(dateFormatter.format(state.campaign.startDate)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: InkWell(
-                onTap: () async {
-                  final newDate = await showDatePicker(
-                    context: context,
-                    initialDate: state.campaign.endDate,
-                    firstDate: state.campaign.startDate,
-                    lastDate: DateTime(2100),
-                  );
-                  if (newDate != null) cubit.updateField(endDate: newDate);
-                },
-                child: InputDecorator(
-                  decoration: const InputDecoration(labelText: 'Ngày kết thúc', border: OutlineInputBorder()),
-                  child: Text(dateFormatter.format(state.campaign.endDate)),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        const Text('Phần thưởng', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        ...state.campaign.rewards.asMap().entries.map((entry) {
-          int index = entry.key;
-          RewardModel reward = entry.value;
-          return RewardInputTile(
-            key: ValueKey(index),
-            reward: reward,
-            onChanged: (newReward) => cubit.updateReward(index, newReward),
-            onRemove: () => cubit.removeReward(index),
-          );
-        }).toList(),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            icon: const Icon(Icons.add),
-            label: const Text('Thêm phần thưởng'),
-            onPressed: () => cubit.addReward(),
+        children: [
+          TextFormField(
+            initialValue: state.campaign.name,
+            decoration: const InputDecoration(labelText: 'Tên chiến dịch', border: OutlineInputBorder()),
+            onChanged: (value) => cubit.updateField(name: value),
           ),
-        ),
-      ],
+          const SizedBox(height: 16),
+          SwitchListTile(
+            title: const Text('Kích hoạt chiến dịch'),
+            value: state.campaign.isActive,
+            onChanged: (value) => cubit.updateField(isActive: value),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () async {
+                    final newDate = await showDatePicker(
+                      context: context,
+                      initialDate: state.campaign.startDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime(2100),
+                    );
+                    if (newDate != null) cubit.updateField(startDate: newDate);
+                  },
+                  child: InputDecorator(
+                    decoration: const InputDecoration(labelText: 'Ngày bắt đầu', border: OutlineInputBorder()),
+                    child: Text(dateFormatter.format(state.campaign.startDate)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: InkWell(
+                  onTap: () async {
+                    final newDate = await showDatePicker(
+                      context: context,
+                      initialDate: state.campaign.endDate,
+                      firstDate: state.campaign.startDate,
+                      lastDate: DateTime(2100),
+                    );
+                    if (newDate != null) cubit.updateField(endDate: newDate);
+                  },
+                  child: InputDecorator(
+                    decoration: const InputDecoration(labelText: 'Ngày kết thúc', border: OutlineInputBorder()),
+                    child: Text(dateFormatter.format(state.campaign.endDate)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text('Phần thưởng', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ...state.campaign.rewards.asMap().entries.map((entry) {
+            int index = entry.key;
+            RewardModel reward = entry.value;
+            return RewardInputTile(
+              key: ValueKey(index),
+              reward: reward,
+              onChanged: (newReward) => cubit.updateReward(index, newReward),
+              onRemove: () => cubit.removeReward(index),
+            );
+          }).toList(),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              icon: const Icon(Icons.add),
+              label: const Text('Thêm phần thưởng'),
+              onPressed: () => cubit.addReward(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

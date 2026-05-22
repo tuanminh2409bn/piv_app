@@ -36,6 +36,43 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   List<VoucherModel> _allActiveVouchers = [];
   bool _isVoucherAllowedCache = true;
   bool _allowPromotionDuringCommitmentCache = false;
+  final Map<String, String> _creatorRolesCache = {};
+
+  // Seasonal discount cache variables
+  bool _seasonalDiscountEnabledCache = false;
+  double _seasonalDiscountRateCache = 0.05;
+  DateTime? _seasonalDiscountStartCache;
+  DateTime? _seasonalDiscountEndCache;
+
+  Future<double> _calculatePendingDebt(String userId) async {
+    try {
+      final ordersResult = await _orderRepository.getUserOrders(userId);
+      return ordersResult.fold(
+        (failure) {
+          developer.log('CheckoutCubit: Error getting user orders for pending debt: ${failure.message}', name: 'CheckoutCubit');
+          return 0.0;
+        },
+        (orders) {
+          // Lọc các đơn hàng đang xử lý (không phải hoàn thành, huỷ, hoặc từ chối)
+          final pendingOrders = orders.where((o) =>
+            o.status == 'pending_approval' ||
+            o.status == 'pending' ||
+            o.status == 'processing' ||
+            o.status == 'shipped'
+          );
+
+          double sum = 0.0;
+          for (var o in pendingOrders) {
+            sum += (o.finalTotal - o.paidAmount);
+          }
+          return sum;
+        },
+      );
+    } catch (e) {
+      developer.log('CheckoutCubit: Exception calculating pending debt: $e', name: 'CheckoutCubit');
+      return 0.0;
+    }
+  }
 
   Future<bool> _checkIfPromotionAllowedDuringCommitment(UserModel agent) async {
     // Priority 1: Specific Agent config
@@ -58,30 +95,114 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     return globalPromotion.allowPromotionDuringCommitment;
   }
 
+  Future<void> _loadCreatorRolesCache(List<VoucherModel> vouchers) async {
+    final creatorIds = vouchers.map((v) => v.createdBy).where((id) => id.isNotEmpty).toSet();
+    final missingCreatorIds = creatorIds.where((id) => !_creatorRolesCache.containsKey(id)).toList();
+    if (missingCreatorIds.isNotEmpty) {
+      await Future.wait(missingCreatorIds.map((id) async {
+        final profileResult = await _userProfileRepository.getUserProfile(id);
+        profileResult.fold(
+          (failure) => null,
+          (userProfile) {
+            _creatorRolesCache[id] = userProfile.role;
+          },
+        );
+      }));
+    }
+  }
+
+  double calculateVoucherDiscount(VoucherModel voucher, List<CartItemModel> items, double subtotal) {
+    double applicableSubtotal = subtotal;
+    if (voucher.applicableCategory == 'foliar_fertilizer') {
+      applicableSubtotal = items
+          .where((item) => (item.productType ?? item.categoryId) == 'foliar_fertilizer')
+          .fold<double>(0.0, (sum, item) => sum + item.subtotal);
+    } else if (voucher.applicableCategory == 'root_fertilizer') {
+      applicableSubtotal = items
+          .where((item) => (item.productType ?? item.categoryId) == 'root_fertilizer')
+          .fold<double>(0.0, (sum, item) => sum + item.subtotal);
+    }
+
+    int totalItemsInCases = 0;
+    double totalCasesValue = 0;
+    
+    for (var item in items) {
+      final category = item.productType ?? item.categoryId;
+      if (voucher.applicableCategory == 'all' || category == voucher.applicableCategory) {
+        if (item.quantityPerPackage > 1) {
+          totalItemsInCases += item.quantity;
+          totalCasesValue += item.subtotal;
+        }
+      }
+    }
+    
+    double averageCasePrice = totalItemsInCases > 0 
+        ? (totalCasesValue / totalItemsInCases) 
+        : 0.0;
+
+    return voucher.calculateDiscount(
+      applicableSubtotal, 
+      totalItemsInCases: totalItemsInCases,
+      averageCasePrice: averageCasePrice,
+    );
+  }
+
   List<VoucherModel> _filterVouchers(List<CartItemModel> items, UserModel user, bool allowPromotionDuringCommitment) {
     if (user.activeRewardProgram == 'sales_commitment' && !allowPromotionDuringCommitment) {
       return []; // Khách hàng tham gia chương trình cam kết không được dùng voucher nếu chưa được cấp quyền
     }
 
-    final cartCategories = items.map((i) => i.categoryId).toSet();
+    final cartCategories = items.map((i) => i.productType ?? i.categoryId).toSet();
     final hasFoliar = cartCategories.contains('foliar_fertilizer');
     final hasRoot = cartCategories.contains('root_fertilizer');
-    final totalQuantity = items.fold<int>(0, (sum, item) => sum + item.quantity);
-    final subtotal = items.fold<double>(0.0, (sum, item) => sum + item.subtotal);
+
+    final totalFoliarQty = items
+        .where((item) => (item.productType ?? item.categoryId) == 'foliar_fertilizer')
+        .fold<int>(0, (sum, item) => sum + item.quantity);
+    final totalRootQty = items
+        .where((item) => (item.productType ?? item.categoryId) == 'root_fertilizer')
+        .fold<int>(0, (sum, item) => sum + item.quantity);
+    final totalQtyAll = items.fold<int>(0, (sum, item) => sum + item.quantity);
+
+    final foliarSubtotal = items
+        .where((item) => (item.productType ?? item.categoryId) == 'foliar_fertilizer')
+        .fold<double>(0.0, (sum, item) => sum + item.subtotal);
+    final rootSubtotal = items
+        .where((item) => (item.productType ?? item.categoryId) == 'root_fertilizer')
+        .fold<double>(0.0, (sum, item) => sum + item.subtotal);
+    final totalSubtotal = items.fold<double>(0.0, (sum, item) => sum + item.subtotal);
 
     return _allActiveVouchers.where((v) {
       if (v.maxUses != 0 && v.usedCount >= v.maxUses) return false;
       
+      double applicableSubtotal = totalSubtotal;
+      int applicableQuantity = totalQtyAll;
+
+      if (v.applicableCategory == 'foliar_fertilizer') {
+        applicableSubtotal = foliarSubtotal;
+        applicableQuantity = totalFoliarQty;
+      } else if (v.applicableCategory == 'root_fertilizer') {
+        applicableSubtotal = rootSubtotal;
+        applicableQuantity = totalRootQty;
+      }
+
+      // Kiểm tra danh mục áp dụng
+      if (v.applicableCategory == 'foliar_fertilizer' && !hasFoliar) return false;
+      if (v.applicableCategory == 'root_fertilizer' && !hasRoot) return false;
+
       // Kiểm tra minOrderValue
-      if (subtotal < v.minOrderValue) return false;
+      if (applicableSubtotal < v.minOrderValue) return false;
       
-      // Kiểm tra minQuantity và maxQuantity
-      if (v.minQuantity != null && totalQuantity < v.minQuantity!) return false;
-      if (v.maxQuantity != null && totalQuantity > v.maxQuantity!) return false;
+      // Kiểm tra minQuantity (Không chặn maxQuantity để hiển thị đầy đủ voucher mốc dưới)
+      if (v.minQuantity != null && applicableQuantity < v.minQuantity!) return false;
 
       // Kiểm tra loại trừ
       if (v.excludedUserIds.contains(user.id)) return false;
       if (user.salesRepId != null && v.excludedSalesRepIds.contains(user.salesRepId)) return false;
+
+      // Kiểm tra người tạo: Nếu là Sales Rep thì người tạo đó phải là sales rep của người dùng này
+      final creatorRole = _creatorRolesCache[v.createdBy];
+      if (creatorRole == 'sales_rep' && user.salesRepId != v.createdBy) return false;
 
       // Kiểm tra targetType
       bool isTargeted = false;
@@ -106,10 +227,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       }
       if (!isTargeted) return false;
 
-      if (v.applicableCategory == 'all') return true;
-      if (v.applicableCategory == 'foliar_fertilizer' && hasFoliar) return true;
-      if (v.applicableCategory == 'root_fertilizer' && hasRoot) return true;
-      return false;
+      return true;
     }).toList();
   }
 
@@ -189,7 +307,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     }
 
     final agent = state.placeOrderForAgent!;
-    final currentAgentDebt = state.currentDebt;
+    final currentAgentDebt = state.projectedDebt;
     final double orderTotalBeforeCommission = (state.subtotal + state.shippingFee - state.discount).clamp(0, double.infinity);
     final double orderFinalTotal = state.finalTotal;
     const double paidAmountForThisOrder = 0.0;
@@ -216,6 +334,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       paymentMethod: 'bank_transfer',
       paymentStatus: 'unpaid',
       commissionDiscount: state.commissionDiscount,
+      seasonalDiscount: state.seasonalDiscount,
       debtAmount: currentAgentDebt,
       paidAmount: paidAmountForThisOrder,
       remainingDebt: remainingDebtAfterOrder,
@@ -280,9 +399,10 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       paymentMethod: state.paymentMethod,
       status: 'pending',
       commissionDiscount: state.commissionDiscount,
+      seasonalDiscount: state.seasonalDiscount,
       finalTotal: state.finalTotal,
       salesRepId: authState.user.salesRepId,
-      debtAmount: state.currentDebt,
+      debtAmount: state.projectedDebt,
       paidAmount: state.amountToPay,
       remainingDebt: remainingDebt,
       appliedVoucherCode: state.appliedVoucher?.id,
@@ -427,6 +547,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
 
     // LẤY CÔNG NỢ TỪ USER MODEL MỚI NHẤT
     final currentDebt = user.debtAmount;
+    final pendingDebt = await _calculatePendingDebt(_currentUserId);
 
     // --- KIỂM TRA QUYỀN LỢI KHUYẾN MÃI ---
     final isDiscountAllowed = await _checkIfPromotionAllowed(user, isDiscount: true);
@@ -438,17 +559,25 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     // --- TẢI DANH SÁCH VOUCHER KHẢ DỤNG ---
     final voucherResult = await _voucherRepository.getActiveVouchers();
     _allActiveVouchers = voucherResult.getOrElse(() => []);
+    await _loadCreatorRolesCache(_allActiveVouchers);
     final availableVouchers = isVoucherAllowed ? _filterVouchers(itemsToCheckout, user, allowPromotionDuringCommitment) : <VoucherModel>[];
     developer.log('CheckoutCubit: Loaded ${_allActiveVouchers.length} active vouchers, ${availableVouchers.length} available', name: 'CheckoutCubit');
     // --------------------------------------
 
-    // --- TẢI CẤU HÌNH VAT ---
+    // --- TẢI CẤU HÌNH VAT VÀ CỘNG DỒN CHIẾT KHẤU ---
     double vatPercentage = 10.0;
+    bool isStackingAllowed = false;
     try {
       final policy = await _adminSettingsRepository.getDiscountPolicy();
+      _seasonalDiscountEnabledCache = policy.seasonalDiscountEnabled;
+      _seasonalDiscountRateCache = policy.seasonalDiscountRate;
+      _seasonalDiscountStartCache = policy.seasonalDiscountStart;
+      _seasonalDiscountEndCache = policy.seasonalDiscountEnd;
+      
       vatPercentage = policy.vatPercentage;
+      isStackingAllowed = await _checkIfStackingAllowed(user);
     } catch (e) {
-      developer.log("Error loading VAT: $e", name: "CheckoutCubit");
+      developer.log("Error loading config: $e", name: "CheckoutCubit");
     }
     // ------------------------
 
@@ -457,11 +586,21 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       shouldCalculateDiscount = false;
     }
 
-    // Tính toán tổng tiền ban đầu (sẽ được cập nhật sau khi có chiết khấu)
-    final initialTotal = subtotal + shippingFee + currentDebt;
-    
-    // Lưu ý: VAT sẽ được get trong State thông qua getter finalTotal và totalWithDebt.
-    // Chúng ta chỉ cần truyền vatPercentage vào state.
+    // Tính seasonal discount cho trường hợp không đặt hộ
+    double newSeasonalDiscount = 0.0;
+    if (itemsToCheckout.isNotEmpty && state.placeOrderForAgent == null) {
+      final now = DateTime.now();
+      bool isInPromoPeriod = true;
+      if (_seasonalDiscountStartCache != null && now.isBefore(_seasonalDiscountStartCache!)) {
+        isInPromoPeriod = false;
+      }
+      if (_seasonalDiscountEndCache != null && now.isAfter(_seasonalDiscountEndCache!)) {
+        isInPromoPeriod = false;
+      }
+      if (_seasonalDiscountEnabledCache && isInPromoPeriod && user.activeRewardProgram != 'sales_commitment') {
+        newSeasonalDiscount = subtotal * _seasonalDiscountRateCache;
+      }
+    }
 
     emit(state.copyWith(
       status: shouldCalculateDiscount ? CheckoutStatus.calculatingDiscount : CheckoutStatus.success,
@@ -473,9 +612,12 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       forceVoucherToNull: true,
       discount: 0.0,
       commissionDiscount: 0.0,
+      seasonalDiscount: newSeasonalDiscount,
       currentDebt: currentDebt,      
+      pendingDebt: pendingDebt,
       availableVouchers: availableVouchers, // <<< CẬP NHẬT
       vatPercentage: vatPercentage,
+      isStackingAllowed: isStackingAllowed,
     ));
 
     if (shouldCalculateDiscount) {
@@ -489,8 +631,15 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   Future<void> calculateCommissionDiscount() async {
     if (state.checkoutItems.isEmpty) return;
 
-    // Không tính chiết khấu đại lý nếu đã có voucher được áp dụng
-    if (state.appliedVoucher != null) {
+    // Nếu là đặt hàng hộ thì không được giảm giá (commissionDiscount = 0)
+    if (state.placeOrderForAgent != null) {
+      emit(state.copyWith(commissionDiscount: 0.0));
+      emit(state.copyWith(amountToPay: state.totalWithDebt.clamp(0, double.infinity)));
+      return;
+    }
+
+    // Không tính chiết khấu đại lý nếu đã có voucher được áp dụng và không được phép cộng dồn
+    if (state.appliedVoucher != null && !state.isStackingAllowed) {
       if (state.commissionDiscount != 0.0) {
         emit(state.copyWith(commissionDiscount: 0.0));
       }
@@ -570,7 +719,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       userId: _currentUserId,
       userRole: userRole,
       subtotal: state.subtotal,
-      cartCategoryIds: state.checkoutItems.map((i) => i.categoryId).toList(),
+      cartCategoryIds: state.checkoutItems.map((i) => i.productType ?? i.categoryId).toList(),
     );
 
     result.fold(
@@ -579,32 +728,35 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         emit(state.copyWith(status: CheckoutStatus.success, clearErrorMessage: true));
       },
           (voucher) {
-        // --- TÍNH TOÁN THÔNG TIN THÙNG ĐỂ ÁP DỤNG MUA X TẶNG Y ---
-        int totalItemsInCases = 0;
-        double totalCasesValue = 0;
-        
-        for (var item in state.checkoutItems) {
-          if (item.quantityPerPackage > 1) {
-            totalItemsInCases += item.quantity;
-            totalCasesValue += item.subtotal;
-          }
+        // Kiểm tra điều kiện số lượng tối thiểu (minQuantity)
+        int applicableQuantity = state.checkoutItems.fold<int>(0, (sum, item) => sum + item.quantity);
+        if (voucher.applicableCategory == 'foliar_fertilizer') {
+          applicableQuantity = state.checkoutItems
+              .where((item) => (item.productType ?? item.categoryId) == 'foliar_fertilizer')
+              .fold<int>(0, (sum, item) => sum + item.quantity);
+        } else if (voucher.applicableCategory == 'root_fertilizer') {
+          applicableQuantity = state.checkoutItems
+              .where((item) => (item.productType ?? item.categoryId) == 'root_fertilizer')
+              .fold<int>(0, (sum, item) => sum + item.quantity);
         }
-        
-        double averageCasePrice = totalItemsInCases > 0 
-            ? (totalCasesValue / totalItemsInCases) 
-            : 0.0;
 
-        final discountAmount = voucher.calculateDiscount(
-          state.subtotal, 
-          totalItemsInCases: totalItemsInCases,
-          averageCasePrice: averageCasePrice,
-        );
-        // --- KẾT THÚC TÍNH TOÁN ---
+        if (voucher.minQuantity != null && applicableQuantity < voucher.minQuantity!) {
+          emit(state.copyWith(
+            status: CheckoutStatus.error,
+            errorMessage: 'Số lượng sản phẩm áp dụng chưa đạt tối thiểu để dùng mã này (yêu cầu tối thiểu ${voucher.minQuantity} thùng).',
+            clearErrorMessage: false,
+          ));
+          emit(state.copyWith(status: CheckoutStatus.success, clearErrorMessage: true));
+          return;
+        }
+
+        final discountAmount = calculateVoucherDiscount(voucher, state.checkoutItems, state.subtotal);
 
         final newState = state.copyWith(
           status: CheckoutStatus.success,
           appliedVoucher: voucher,
           discount: discountAmount,
+          commissionDiscount: state.isStackingAllowed ? state.commissionDiscount : 0.0,
         );
         emit(newState.copyWith(amountToPay: newState.totalWithDebt.clamp(0, double.infinity)));
       },
@@ -612,27 +764,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
   }
 
   void selectVoucher(VoucherModel voucher) {
-    // --- TÍNH TOÁN THÔNG TIN THÙNG ĐỂ ÁP DỤNG MUA X TẶNG Y ---
-    int totalItemsInCases = 0;
-    double totalCasesValue = 0;
-    
-    for (var item in state.checkoutItems) {
-      if (item.quantityPerPackage > 1) {
-        totalItemsInCases += item.quantity;
-        totalCasesValue += item.subtotal;
-      }
-    }
-    
-    double averageCasePrice = totalItemsInCases > 0 
-        ? (totalCasesValue / totalItemsInCases) 
-        : 0.0;
-
-    final discountAmount = voucher.calculateDiscount(
-      state.subtotal, 
-      totalItemsInCases: totalItemsInCases,
-      averageCasePrice: averageCasePrice,
-    );
-    // --- KẾT THÚC TÍNH TOÁN ---
+    final discountAmount = calculateVoucherDiscount(voucher, state.checkoutItems, state.subtotal);
 
     final newState = state.copyWith(
       status: CheckoutStatus.success,
@@ -673,11 +805,12 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     }
 
     final currentDebt = agentWithDetails.debtAmount;
-    final initialTotal = currentDebt; // Chỉ có công nợ ban đầu
+    final pendingDebt = await _calculatePendingDebt(agentWithDetails.id);
 
     // --- TẢI DANH SÁCH VOUCHER KHẢ DỤNG ---
     final voucherResult = await _voucherRepository.getActiveVouchers();
     _allActiveVouchers = voucherResult.getOrElse(() => []);
+    await _loadCreatorRolesCache(_allActiveVouchers);
     
     // --- KIỂM TRA QUYỀN LỢI KHUYẾN MÃI ---
     final isVoucherAllowed = await _checkIfPromotionAllowed(agentWithDetails, isDiscount: false);
@@ -690,11 +823,14 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     // --------------------------------------
 
     // --- TẢI CẤU HÌNH VAT VÀ CỘNG DỒN CHIẾT KHẤU ---
-    double vatPercentage = 10.0;
     bool isStackingAllowed = false;
     try {
       final policy = await _adminSettingsRepository.getDiscountPolicy();
-      vatPercentage = policy.vatPercentage;
+      _seasonalDiscountEnabledCache = policy.seasonalDiscountEnabled;
+      _seasonalDiscountRateCache = policy.seasonalDiscountRate;
+      _seasonalDiscountStartCache = policy.seasonalDiscountStart;
+      _seasonalDiscountEndCache = policy.seasonalDiscountEnd;
+      
       isStackingAllowed = await _checkIfStackingAllowed(agentWithDetails);
     } catch (e) {
       developer.log("Error loading config: $e", name: "CheckoutCubit");
@@ -712,10 +848,12 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       shippingFee: 0.0,
       discount: 0.0,
       commissionDiscount: 0.0,
+      seasonalDiscount: 0.0,
       currentDebt: currentDebt, // <-- Đã lấy đúng công nợ
+      pendingDebt: pendingDebt,
       forceVoucherToNull: true,
       availableVouchers: availableVouchers,
-      vatPercentage: vatPercentage,
+      vatPercentage: 0.0, // Đặt hộ thì VAT = 0%
       isStackingAllowed: isStackingAllowed,
     ));
     
@@ -785,14 +923,20 @@ class CheckoutCubit extends Cubit<CheckoutState> {
         ? _filterVouchers(items, currentUser, _allowPromotionDuringCommitmentCache) 
         : <VoucherModel>[];
 
-    // --- TÍNH TOÁN CHIẾT KHẤU THỜI VỤ (1/5 - 30/6/2026) ---
+    // --- TÍNH TOÁN CHIẾT KHẤU THỜI VỤ ĐỘNG ---
     double newSeasonalDiscount = 0.0;
-    final now = DateTime.now();
-    final startPromo = DateTime(2026, 5, 1);
-    final endPromo = DateTime(2026, 6, 30, 23, 59, 59);
-    // Nếu KHÔNG tham gia chương trình cam kết thì mới được hưởng 5%
-    if (now.isAfter(startPromo) && now.isBefore(endPromo) && currentUser.activeRewardProgram != 'sales_commitment') {
-      newSeasonalDiscount = subtotal * 0.05;
+    if (state.placeOrderForAgent == null) {
+      final now = DateTime.now();
+      bool isInPromoPeriod = true;
+      if (_seasonalDiscountStartCache != null && now.isBefore(_seasonalDiscountStartCache!)) {
+        isInPromoPeriod = false;
+      }
+      if (_seasonalDiscountEndCache != null && now.isAfter(_seasonalDiscountEndCache!)) {
+        isInPromoPeriod = false;
+      }
+      if (_seasonalDiscountEnabledCache && isInPromoPeriod && currentUser.activeRewardProgram != 'sales_commitment') {
+        newSeasonalDiscount = subtotal * _seasonalDiscountRateCache;
+      }
     }
     
     // Kiểm tra xem voucher đang áp dụng có còn hợp lệ không

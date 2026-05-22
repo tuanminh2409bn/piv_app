@@ -128,7 +128,6 @@ class _MainScreenState extends State<MainScreen> {
 }
 
   void _showReferralPromptDialog(BuildContext context) {
-    // ... Giữ nguyên hàm này ...
     final profileCubit = context.read<ProfileCubit>();
     final formKey = GlobalKey<FormState>();
     final codeController = TextEditingController();
@@ -136,7 +135,7 @@ class _MainScreenState extends State<MainScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => BlocProvider.value(
+      builder: (dialogContext) => BlocProvider.value(
         value: profileCubit,
         child: AlertDialog(
           title: const Text('Chào mừng bạn!'),
@@ -160,7 +159,7 @@ class _MainScreenState extends State<MainScreen> {
                       icon: const Icon(Icons.qr_code_scanner),
                       tooltip: 'Quét mã QR',
                       onPressed: () async {
-                        final scannedCode = await Navigator.of(context).push<String?>(QrScannerPage.route());
+                        final scannedCode = await Navigator.of(dialogContext).push<String?>(QrScannerPage.route());
                         if (scannedCode != null && scannedCode.isNotEmpty) {
                           codeController.text = scannedCode;
                         }
@@ -176,7 +175,7 @@ class _MainScreenState extends State<MainScreen> {
               child: const Text('BỎ QUA'),
               onPressed: () {
                 profileCubit.dismissReferralPrompt();
-                Navigator.of(context).pop();
+                Navigator.of(dialogContext).pop();
               },
             ),
             ElevatedButton(
@@ -184,10 +183,10 @@ class _MainScreenState extends State<MainScreen> {
               onPressed: () {
                 if (codeController.text.trim().isNotEmpty) {
                   profileCubit.submitReferralCode(codeController.text.trim());
-                  Navigator.of(context).pop();
+                  Navigator.of(dialogContext).pop();
                 } else {
                   profileCubit.dismissReferralPrompt();
-                  Navigator.of(context).pop();
+                  Navigator.of(dialogContext).pop();
                 }
               },
             ),

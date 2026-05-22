@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/admin/data/models/discount_policy_model.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_discount_settings_cubit.dart';
@@ -53,6 +54,11 @@ class _DiscountSettingsFormState extends State<_DiscountSettingsForm> with Singl
   late TabController _tabController;
   late DiscountPolicyModel _policy;
   late TextEditingController _vatController;
+  late TextEditingController _seasonalRateController;
+  late TextEditingController _startDateController;
+  late TextEditingController _endDateController;
+  DateTime? _startDate;
+  DateTime? _endDate;
 
   @override
   void initState() {
@@ -60,27 +66,38 @@ class _DiscountSettingsFormState extends State<_DiscountSettingsForm> with Singl
     _tabController = TabController(length: 2, vsync: this);
     _policy = widget.initialPolicy;
     _vatController = TextEditingController(text: _policy.vatPercentage.toString());
+    _seasonalRateController = TextEditingController(text: (_policy.seasonalDiscountRate * 100).toStringAsFixed(1));
+    _startDate = _policy.seasonalDiscountStart;
+    _endDate = _policy.seasonalDiscountEnd;
+    _startDateController = TextEditingController(
+      text: _startDate != null ? DateFormat('dd/MM/yyyy').format(_startDate!) : '',
+    );
+    _endDateController = TextEditingController(
+      text: _endDate != null ? DateFormat('dd/MM/yyyy').format(_endDate!) : '',
+    );
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     _vatController.dispose();
+    _seasonalRateController.dispose();
+    _startDateController.dispose();
+    _endDateController.dispose();
     super.dispose();
   }
 
   void _saveSettings() {
     final double? vat = double.tryParse(_vatController.text);
-    if (vat != null) {
-      _policy = DiscountPolicyModel(
-        agent1: _policy.agent1,
-        agent2: _policy.agent2,
-        agent1DueDays: _policy.agent1DueDays,
-        agent2DueDays: _policy.agent2DueDays,
-        agent1PromotionConfig: _policy.agent1PromotionConfig,
-        agent2PromotionConfig: _policy.agent2PromotionConfig,
+    final double? seasonalRate = double.tryParse(_seasonalRateController.text);
+    if (vat != null && seasonalRate != null) {
+      _policy = _policy.copyWith(
         vatPercentage: vat,
-        globalAllowVoucherStacking: _policy.globalAllowVoucherStacking,
+        seasonalDiscountRate: seasonalRate / 100,
+        seasonalDiscountStart: _startDate,
+        seasonalDiscountEnd: _endDate,
+        clearSeasonalDiscountStart: _startDate == null,
+        clearSeasonalDiscountEnd: _endDate == null,
       );
     }
     context.read<AdminDiscountSettingsCubit>().updateSettings(_policy);
@@ -89,46 +106,25 @@ class _DiscountSettingsFormState extends State<_DiscountSettingsForm> with Singl
 
   void _updatePolicy(AgentPolicy updatedAgentPolicy, bool isAgent1) {
     setState(() {
-      _policy = DiscountPolicyModel(
-        agent1: isAgent1 ? updatedAgentPolicy : _policy.agent1,
-        agent2: isAgent1 ? _policy.agent2 : updatedAgentPolicy,
-        agent1DueDays: _policy.agent1DueDays,
-        agent2DueDays: _policy.agent2DueDays,
-        agent1PromotionConfig: _policy.agent1PromotionConfig,
-        agent2PromotionConfig: _policy.agent2PromotionConfig,
-        vatPercentage: _policy.vatPercentage,
-        globalAllowVoucherStacking: _policy.globalAllowVoucherStacking,
-      );
+      _policy = isAgent1 
+          ? _policy.copyWith(agent1: updatedAgentPolicy) 
+          : _policy.copyWith(agent2: updatedAgentPolicy);
     });
   }
 
   void _updateDueDaysPolicy(AgentDueDaysPolicy updatedAgentDueDaysPolicy, bool isAgent1) {
     setState(() {
-      _policy = DiscountPolicyModel(
-        agent1: _policy.agent1,
-        agent2: _policy.agent2,
-        agent1DueDays: isAgent1 ? updatedAgentDueDaysPolicy : _policy.agent1DueDays,
-        agent2DueDays: isAgent1 ? _policy.agent2DueDays : updatedAgentDueDaysPolicy,
-        agent1PromotionConfig: _policy.agent1PromotionConfig,
-        agent2PromotionConfig: _policy.agent2PromotionConfig,
-        vatPercentage: _policy.vatPercentage,
-        globalAllowVoucherStacking: _policy.globalAllowVoucherStacking,
-      );
+      _policy = isAgent1 
+          ? _policy.copyWith(agent1DueDays: updatedAgentDueDaysPolicy) 
+          : _policy.copyWith(agent2DueDays: updatedAgentDueDaysPolicy);
     });
   }
 
   void _updatePromotionPolicy(AgentPromotionConfig updatedPromotionConfig, bool isAgent1) {
     setState(() {
-      _policy = DiscountPolicyModel(
-        agent1: _policy.agent1,
-        agent2: _policy.agent2,
-        agent1DueDays: _policy.agent1DueDays,
-        agent2DueDays: _policy.agent2DueDays,
-        agent1PromotionConfig: isAgent1 ? updatedPromotionConfig : _policy.agent1PromotionConfig,
-        agent2PromotionConfig: isAgent1 ? _policy.agent2PromotionConfig : updatedPromotionConfig,
-        vatPercentage: _policy.vatPercentage,
-        globalAllowVoucherStacking: _policy.globalAllowVoucherStacking,
-      );
+      _policy = isAgent1 
+          ? _policy.copyWith(agent1PromotionConfig: updatedPromotionConfig) 
+          : _policy.copyWith(agent2PromotionConfig: updatedPromotionConfig);
     });
   }
 
@@ -161,31 +157,147 @@ class _DiscountSettingsFormState extends State<_DiscountSettingsForm> with Singl
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Expanded(
-                    child: Text('Cho phép cộng dồn Voucher & Chiết khấu:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    child: Text('Cho phép cộng dồn Voucher & Chiết khấu:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                   ),
                   Switch(
                     value: _policy.globalAllowVoucherStacking,
                     onChanged: (val) {
                       setState(() {
-                        _policy = DiscountPolicyModel(
-                          agent1: _policy.agent1,
-                          agent2: _policy.agent2,
-                          agent1DueDays: _policy.agent1DueDays,
-                          agent2DueDays: _policy.agent2DueDays,
-                          agent1PromotionConfig: _policy.agent1PromotionConfig,
-                          agent2PromotionConfig: _policy.agent2PromotionConfig,
-                          vatPercentage: _policy.vatPercentage,
-                          globalAllowVoucherStacking: val,
-                        );
+                        _policy = _policy.copyWith(globalAllowVoucherStacking: val);
                       });
                     },
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              Card(
+                color: Colors.green.shade50,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  side: BorderSide(color: Colors.green.shade100, width: 1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.campaign, color: Colors.green.shade700),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Khuyến mãi thời vụ',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green),
+                              ),
+                            ],
+                          ),
+                          Switch(
+                            value: _policy.seasonalDiscountEnabled,
+                            activeColor: Colors.green.shade700,
+                            onChanged: (val) {
+                              setState(() {
+                                _policy = _policy.copyWith(seasonalDiscountEnabled: val);
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                      if (_policy.seasonalDiscountEnabled) ...[
+                        const Divider(height: 16),
+                        Row(
+                          children: [
+                            const Expanded(
+                              flex: 4,
+                              child: Text('Tỷ lệ chiết khấu thời vụ (%):', style: TextStyle(fontWeight: FontWeight.w600)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 3,
+                              child: TextField(
+                                controller: _seasonalRateController,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: const InputDecoration(
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _startDateController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Ngày bắt đầu',
+                                  border: OutlineInputBorder(),
+                                  suffixIcon: Icon(Icons.calendar_today, size: 18),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                ),
+                                readOnly: true,
+                                onTap: () async {
+                                  final pickedDate = await showDatePicker(
+                                    context: context,
+                                    initialDate: _startDate ?? DateTime.now(),
+                                    firstDate: DateTime(2020),
+                                    lastDate: DateTime(2100),
+                                  );
+                                  if (pickedDate != null) {
+                                    setState(() {
+                                      _startDate = DateTime(pickedDate.year, pickedDate.month, pickedDate.day, 0, 0, 0);
+                                      _startDateController.text = DateFormat('dd/MM/yyyy').format(_startDate!);
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _endDateController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Ngày kết thúc',
+                                  border: OutlineInputBorder(),
+                                  suffixIcon: Icon(Icons.calendar_today, size: 18),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                ),
+                                readOnly: true,
+                                onTap: () async {
+                                  final pickedDate = await showDatePicker(
+                                    context: context,
+                                    initialDate: _endDate ?? DateTime.now(),
+                                    firstDate: DateTime(2020),
+                                    lastDate: DateTime(2100),
+                                  );
+                                  if (pickedDate != null) {
+                                    setState(() {
+                                      _endDate = DateTime(pickedDate.year, pickedDate.month, pickedDate.day, 23, 59, 59);
+                                      _endDateController.text = DateFormat('dd/MM/yyyy').format(_endDate!);
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
             ],
           ),

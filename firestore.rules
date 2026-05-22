@@ -52,7 +52,12 @@ service cloud.firestore {
                       'paidAmount',
                       'remainingDebt',
                       'discount',
-                      'appliedVoucherCode'
+                      'appliedVoucherCode',
+                      'finalTotal',
+                      'commissionDiscount',
+                      'seasonalDiscount',
+                      'vatPercentage',
+                      'vatAmount'
                     ])) || 
                     (request.resource.data.status == 'rejected' &&
                     resource.data.status == 'pending_approval' &&
@@ -106,12 +111,12 @@ service cloud.firestore {
            (isAccountant() &&
              request.auth.uid != userId &&
              resource.data.role != 'admin' &&
-             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['useGeneralPrice', 'hiddenProductIds'])
+             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['useGeneralPrice', 'hiddenProductIds', 'customPromotionConfig', 'agentsCustomPromotionConfig'])
            ) ||
            (
              isSalesRep() &&
              (resource.data.salesRepId == request.auth.uid || resource.data.status == 'pending_approval') &&
-             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['useGeneralPrice', 'hiddenProductIds'])
+             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['useGeneralPrice', 'hiddenProductIds', 'customPromotionConfig', 'agentsCustomPromotionConfig'])
            );
                       
       match /notifications/{notificationId} {

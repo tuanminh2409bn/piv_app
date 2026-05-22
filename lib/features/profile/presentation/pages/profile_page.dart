@@ -481,7 +481,7 @@ class ProfileView extends StatelessWidget {
 
     showDialog(
       context: context,
-      builder: (_) => BlocProvider.value(
+      builder: (dialogContext) => BlocProvider.value(
         value: profileCubit,
         child: AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -505,7 +505,7 @@ class ProfileView extends StatelessWidget {
                 IconButton.filledTonal(
                   icon: const Icon(Icons.qr_code_scanner),
                   onPressed: () async {
-                    final scannedCode = await Navigator.of(context)
+                    final scannedCode = await Navigator.of(dialogContext)
                         .push<String?>(QrScannerPage.route());
                     if (scannedCode != null && scannedCode.isNotEmpty) {
                       codeController.text = scannedCode;
@@ -517,13 +517,14 @@ class ProfileView extends StatelessWidget {
           ),
           actions: <Widget>[
             TextButton(
-                child: const Text('HỦY'), onPressed: () => Navigator.of(context).pop()),
+                child: const Text('HỦY'),
+                onPressed: () => Navigator.of(dialogContext).pop()),
             ElevatedButton(
               child: const Text('XÁC NHẬN'),
               onPressed: () {
                 if (formKey.currentState!.validate()) {
                   profileCubit.submitReferralCode(codeController.text.trim());
-                  Navigator.of(context).pop();
+                  Navigator.of(dialogContext).pop();
                 }
               },
             ),

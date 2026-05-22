@@ -529,7 +529,8 @@ class ProductGridItem extends StatelessWidget {
                           quantity: quantity,
                           quantityPerPackage: selectedOption.quantityPerPackage,
                           caseUnitName: selectedOption.name,
-                          categoryId: product.categoryId));
+                          categoryId: product.categoryId,
+                          productType: product.productType));
                     }
                   },
                   child: const Text('XÁC NHẬN',

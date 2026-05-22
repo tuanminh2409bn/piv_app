@@ -19,7 +19,16 @@ abstract class OrderRepository {
   Future<Either<Failure, Unit>> updateCommissionStatus(String commissionId, String newStatus, String confirmedById);
   Future<Either<Failure, List<CommissionModel>>> getCommissionsBySalesRepId(String salesRepId, {DateTime? startDate, DateTime? endDate});
   Future<Either<Failure, List<OrderModel>>> getOrdersForSalesRepByAgent({required String salesRepId, required String agentId});
-  Future<Either<Failure, Unit>> approveOrder(String orderId, {required double paidAmount, required double voucherDiscount, String? appliedVoucherCode});
+  Future<Either<Failure, Unit>> approveOrder(
+    String orderId, {
+    required double paidAmount,
+    required double voucherDiscount,
+    String? appliedVoucherCode,
+    double? commissionDiscount,
+    double? seasonalDiscount,
+    double? vatPercentage,
+    double? vatAmount,
+  });
   Future<Either<Failure, Unit>> rejectOrder({required String orderId, required String reason});
   Future<Either<Failure, Unit>> confirmOrderPayment(String orderId);
   Future<Either<Failure, PaymentInfoModel>> getPaymentInfo();

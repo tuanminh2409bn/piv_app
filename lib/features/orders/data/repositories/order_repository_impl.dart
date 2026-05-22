@@ -222,11 +222,15 @@ class OrderRepositoryImpl implements OrderRepository {
 
   @override
   Future<Either<Failure, Unit>> approveOrder(
-      String orderId, {
-        required double paidAmount,
-        required double voucherDiscount,
-        String? appliedVoucherCode,
-      }) async {
+    String orderId, {
+    required double paidAmount,
+    required double voucherDiscount,
+    String? appliedVoucherCode,
+    double? commissionDiscount,
+    double? seasonalDiscount,
+    double? vatPercentage,
+    double? vatAmount,
+  }) async {
     try {
       final orderRef = _firestore.collection('orders').doc(orderId);
 
@@ -238,30 +242,35 @@ class OrderRepositoryImpl implements OrderRepository {
 
         final orderData = orderSnapshot.data() as Map<String, dynamic>;
         
-        // Lấy các thành phần cơ bản để tính toán lại cho chính xác
         final double subtotal = (orderData['subtotal'] as num?)?.toDouble() ?? 0.0;
         final double shippingFee = (orderData['shippingFee'] as num?)?.toDouble() ?? 0.0;
-        final double commissionDiscount = (orderData['commissionDiscount'] as num?)?.toDouble() ?? 0.0;
         final double orderDebtAmount = (orderData['debtAmount'] as num?)?.toDouble() ?? 0.0;
 
-        // Tính toán lại Final Total để đảm bảo trừ hết các khoản chiết khấu/voucher
-        // Lưu ý: voucherDiscount truyền vào hàm là tổng giảm giá voucher áp dụng cho đơn này
-        final double calculatedFinalTotal = subtotal + shippingFee - commissionDiscount - voucherDiscount;
+        final double finalCommissionDiscount = commissionDiscount ?? ((orderData['commissionDiscount'] as num?)?.toDouble() ?? 0.0);
+        final double finalSeasonalDiscount = seasonalDiscount ?? ((orderData['seasonalDiscount'] as num?)?.toDouble() ?? 0.0);
+        final double finalVatPercentage = vatPercentage ?? ((orderData['vatPercentage'] as num?)?.toDouble() ?? 10.0);
 
-        // Tính công nợ còn lại
+        final double finalTotalBeforeVat = (subtotal + shippingFee - voucherDiscount - finalCommissionDiscount - finalSeasonalDiscount).clamp(0, double.infinity);
+        final double finalVatAmount = vatAmount ?? (finalTotalBeforeVat * (finalVatPercentage / 100));
+        final double calculatedFinalTotal = finalTotalBeforeVat + finalVatAmount;
+
         final double newRemainingDebt = calculatedFinalTotal + orderDebtAmount - paidAmount;
 
         final Map<String, dynamic> dataToUpdate = {
           'status': 'pending',
           'approvedAt': FieldValue.serverTimestamp(),
           'paidAmount': paidAmount,
-          'finalTotal': calculatedFinalTotal, // Cập nhật lại finalTotal cho chắc chắn
+          'finalTotal': calculatedFinalTotal,
           'remainingDebt': newRemainingDebt.clamp(0, double.infinity),
           'discount': voucherDiscount,
           'appliedVoucherCode': appliedVoucherCode,
+          'commissionDiscount': finalCommissionDiscount,
+          'seasonalDiscount': finalSeasonalDiscount,
+          'vatPercentage': finalVatPercentage,
+          'vatAmount': finalVatAmount,
         };
         transaction.update(orderRef, dataToUpdate);
-        developer.log('Approved order $orderId. Recalculated FinalTotal: $calculatedFinalTotal (Sub: $subtotal, Ship: $shippingFee, Com: $commissionDiscount, Voucher: $voucherDiscount). Set paid: $paidAmount, newRemainingDebt: $newRemainingDebt', name: 'OrderRepository');
+        developer.log('Approved order $orderId. Recalculated FinalTotal: $calculatedFinalTotal (Sub: $subtotal, Ship: $shippingFee, Com: $finalCommissionDiscount, Seasonal: $finalSeasonalDiscount, Voucher: $voucherDiscount, VAT: $finalVatAmount). Set paid: $paidAmount, newRemainingDebt: $newRemainingDebt', name: 'OrderRepository');
       });
 
       return const Right(unit);

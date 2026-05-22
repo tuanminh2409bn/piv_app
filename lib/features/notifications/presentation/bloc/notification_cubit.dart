@@ -25,8 +25,8 @@ class NotificationCubit extends Cubit<NotificationState> {
           _currentUserId = authState.user.id;
           fetchNotifications(); // Bắt đầu lấy thông báo
         }
-      } else if (authState is AuthUnauthenticated) {
-        // Nếu người dùng đăng xuất, hủy lắng nghe và reset state
+      } else {
+        // Nếu người dùng đăng xuất hoặc trạng thái khác, hủy lắng nghe và reset state
         _notificationSubscription?.cancel();
         _currentUserId = null;
         emit(NotificationInitial());

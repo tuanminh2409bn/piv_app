@@ -5,6 +5,7 @@ import 'dart:developer' as developer;
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:piv_app/data/models/order_model.dart';
+import 'package:piv_app/data/models/order_item_model.dart';
 import 'package:piv_app/data/models/payment_info_model.dart';
 import 'package:piv_app/data/models/user_model.dart';
 // +++ THÊM IMPORT VOUCHER +++
@@ -16,6 +17,9 @@ import 'package:piv_app/features/orders/domain/repositories/order_repository.dar
 import 'package:piv_app/features/profile/domain/repositories/user_profile_repository.dart';
 import 'package:piv_app/features/returns/data/models/return_request_model.dart';
 import 'package:piv_app/features/returns/domain/repositories/return_repository.dart';
+import 'package:piv_app/features/admin/domain/repositories/admin_settings_repository.dart';
+import 'package:piv_app/features/admin/data/models/discount_policy_model.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 part 'order_detail_state.dart';
 
@@ -23,10 +27,11 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
   final OrderRepository _orderRepository;
   final UserProfileRepository _userProfileRepository;
   final ReturnRepository _returnRepository;
-  // +++ THÊM DEPENDENCY +++
   final VoucherRepository _voucherRepository;
-  final AuthBloc _authBloc; // Cần AuthBloc để lấy userId và userRole khi apply voucher
-  // +++ KẾT THÚC THÊM +++
+  final AuthBloc _authBloc;
+  final AdminSettingsRepository _adminSettingsRepository;
+  final FirebaseFunctions _functions;
+
   StreamSubscription<OrderModel>? _orderSubscription;
   StreamSubscription<ReturnRequestModel>? _returnRequestSubscription;
 
@@ -34,17 +39,17 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
     required OrderRepository orderRepository,
     required UserProfileRepository userProfileRepository,
     required ReturnRepository returnRepository,
-    // +++ THÊM VÀO CONSTRUCTOR +++
     required VoucherRepository voucherRepository,
     required AuthBloc authBloc,
-    // +++ KẾT THÚC THÊM +++
+    required AdminSettingsRepository adminSettingsRepository,
+    required FirebaseFunctions functions,
   })  : _orderRepository = orderRepository,
         _userProfileRepository = userProfileRepository,
         _returnRepository = returnRepository,
-  // +++ GÁN DEPENDENCY +++
         _voucherRepository = voucherRepository,
         _authBloc = authBloc,
-  // +++ KẾT THÚC GÁN +++
+        _adminSettingsRepository = adminSettingsRepository,
+        _functions = functions,
         super(const OrderDetailState());
 
   // --- listenToOrderDetail giữ nguyên logic load order ban đầu ---
@@ -122,6 +127,11 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
           voucherDiscount: currentVoucherDiscount,
         ));
 
+        // Nếu đơn hàng đang chờ duyệt, thực hiện tính toán lại
+        if (order.status == 'pending_approval') {
+          await _recalculateAndLoadVouchers(order);
+        }
+
         // Chỉ fetch payment info lần đầu hoặc khi cần
         if (order.paymentStatus == 'unpaid' && state.paymentInfo == null) {
           _fetchPaymentInfo();
@@ -146,12 +156,302 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
   }
 
   // +++ HÀM MỚI: applyVoucher +++
+  Future<void> _recalculateAndLoadVouchers(OrderModel order) async {
+    try {
+      final agentResult = await _userProfileRepository.getUserProfile(order.userId);
+      final agent = agentResult.fold((l) => null, (r) => r);
+      if (agent == null) return;
+
+      final policy = await _adminSettingsRepository.getDiscountPolicy();
+
+      double commissionDiscount = 0.0;
+      final isDiscountAllowed = await _checkIfPromotionAllowed(agent, isDiscount: true, policy: policy);
+      final allowPromotionDuringCommitment = await _checkIfPromotionAllowedDuringCommitment(agent, policy: policy);
+
+      bool shouldCalculateDiscount = isDiscountAllowed && order.items.isNotEmpty;
+      if (agent.activeRewardProgram == 'sales_commitment' && !allowPromotionDuringCommitment) {
+        shouldCalculateDiscount = false;
+      }
+
+      if (shouldCalculateDiscount) {
+        try {
+          final HttpsCallable callable = _functions.httpsCallable('calculateOrderDiscount');
+          final itemsPayload = order.items.map((item) => {
+            'productId': item.productId,
+            'subtotal': item.price * item.quantityPerPackage * item.quantity,
+          }).toList();
+          final response = await callable.call({'items': itemsPayload, 'agentId': agent.id});
+          commissionDiscount = (response.data['discount'] as num).toDouble();
+        } catch (e) {
+          developer.log("Error recalculating commission discount: $e", name: "OrderDetailCubit");
+        }
+      }
+
+      double seasonalDiscount = 0.0;
+      if (order.items.isNotEmpty) {
+        final now = DateTime.now();
+        bool isInPromoPeriod = true;
+        if (policy.seasonalDiscountStart != null && now.isBefore(policy.seasonalDiscountStart!)) {
+          isInPromoPeriod = false;
+        }
+        if (policy.seasonalDiscountEnd != null && now.isAfter(policy.seasonalDiscountEnd!)) {
+          isInPromoPeriod = false;
+        }
+        if (policy.seasonalDiscountEnabled && isInPromoPeriod && agent.activeRewardProgram != 'sales_commitment') {
+          seasonalDiscount = order.subtotal * policy.seasonalDiscountRate;
+        }
+      }
+
+      final isVoucherAllowed = await _checkIfPromotionAllowed(agent, isDiscount: false, policy: policy);
+      List<VoucherModel> availableVouchers = [];
+      if (isVoucherAllowed) {
+        final voucherResult = await _voucherRepository.getActiveVouchers();
+        final allActiveVouchers = voucherResult.getOrElse(() => []);
+        
+        final Map<String, String> creatorRolesCache = {};
+        final creatorIds = allActiveVouchers.map((v) => v.createdBy).where((id) => id.isNotEmpty).toSet();
+        await Future.wait(creatorIds.map((id) async {
+          final profileResult = await _userProfileRepository.getUserProfile(id);
+          profileResult.fold(
+            (failure) => null,
+            (userProfile) => creatorRolesCache[id] = userProfile.role,
+          );
+        }));
+
+        availableVouchers = _filterVouchers(order.items, agent, allowPromotionDuringCommitment, allActiveVouchers, creatorRolesCache);
+      }
+
+      final isStackingAllowed = await _checkIfStackingAllowed(agent, policy: policy);
+      double currentVoucherDiscount = state.voucherDiscount;
+      double finalCommission = (state.appliedVoucher != null && !isStackingAllowed) ? 0.0 : commissionDiscount;
+
+      final double subtotal = order.subtotal;
+      final double shippingFee = order.shippingFee;
+      final double finalTotalBeforeVat = (subtotal + shippingFee - currentVoucherDiscount - finalCommission - seasonalDiscount).clamp(0, double.infinity);
+      final double vatPercentage = policy.vatPercentage;
+      final double vatAmount = finalTotalBeforeVat * (vatPercentage / 100);
+      final double finalTotal = finalTotalBeforeVat + vatAmount;
+
+      final double remainingDebt = finalTotal + agent.debtAmount;
+
+      emit(state.copyWith(
+        recalculatedCommissionDiscount: finalCommission,
+        recalculatedSeasonalDiscount: seasonalDiscount,
+        recalculatedVatPercentage: vatPercentage,
+        recalculatedVatAmount: vatAmount,
+        recalculatedFinalTotal: finalTotal,
+        recalculatedRemainingDebt: remainingDebt,
+        availableVouchers: availableVouchers,
+      ));
+    } catch (e) {
+      developer.log("Error in _recalculateAndLoadVouchers: $e", name: "OrderDetailCubit");
+    }
+  }
+
+  Future<void> _updateRecalculatedValues(OrderModel order) async {
+    try {
+      final agentResult = await _userProfileRepository.getUserProfile(order.userId);
+      final agent = agentResult.fold((l) => null, (r) => r);
+      if (agent == null) return;
+
+      final policy = await _adminSettingsRepository.getDiscountPolicy();
+
+      double commissionDiscount = 0.0;
+      final isDiscountAllowed = await _checkIfPromotionAllowed(agent, isDiscount: true, policy: policy);
+      final allowPromotionDuringCommitment = await _checkIfPromotionAllowedDuringCommitment(agent, policy: policy);
+
+      bool shouldCalculateDiscount = isDiscountAllowed && order.items.isNotEmpty;
+      if (agent.activeRewardProgram == 'sales_commitment' && !allowPromotionDuringCommitment) {
+        shouldCalculateDiscount = false;
+      }
+
+      if (shouldCalculateDiscount) {
+        try {
+          final HttpsCallable callable = _functions.httpsCallable('calculateOrderDiscount');
+          final itemsPayload = order.items.map((item) => {
+            'productId': item.productId,
+            'subtotal': item.price * item.quantityPerPackage * item.quantity,
+          }).toList();
+          final response = await callable.call({'items': itemsPayload, 'agentId': agent.id});
+          commissionDiscount = (response.data['discount'] as num).toDouble();
+        } catch (e) {
+          developer.log("Error recalculating commission discount: $e", name: "OrderDetailCubit");
+        }
+      }
+
+      double seasonalDiscount = 0.0;
+      if (order.items.isNotEmpty) {
+        final now = DateTime.now();
+        bool isInPromoPeriod = true;
+        if (policy.seasonalDiscountStart != null && now.isBefore(policy.seasonalDiscountStart!)) {
+          isInPromoPeriod = false;
+        }
+        if (policy.seasonalDiscountEnd != null && now.isAfter(policy.seasonalDiscountEnd!)) {
+          isInPromoPeriod = false;
+        }
+        if (policy.seasonalDiscountEnabled && isInPromoPeriod && agent.activeRewardProgram != 'sales_commitment') {
+          seasonalDiscount = order.subtotal * policy.seasonalDiscountRate;
+        }
+      }
+
+      final isStackingAllowed = await _checkIfStackingAllowed(agent, policy: policy);
+      double currentVoucherDiscount = state.voucherDiscount;
+      double finalCommission = (state.appliedVoucher != null && !isStackingAllowed) ? 0.0 : commissionDiscount;
+
+      final double subtotal = order.subtotal;
+      final double shippingFee = order.shippingFee;
+      final double finalTotalBeforeVat = (subtotal + shippingFee - currentVoucherDiscount - finalCommission - seasonalDiscount).clamp(0, double.infinity);
+      final double vatPercentage = policy.vatPercentage;
+      final double vatAmount = finalTotalBeforeVat * (vatPercentage / 100);
+      final double finalTotal = finalTotalBeforeVat + vatAmount;
+
+      final double remainingDebt = finalTotal + agent.debtAmount;
+
+      emit(state.copyWith(
+        recalculatedCommissionDiscount: finalCommission,
+        recalculatedSeasonalDiscount: seasonalDiscount,
+        recalculatedVatPercentage: vatPercentage,
+        recalculatedVatAmount: vatAmount,
+        recalculatedFinalTotal: finalTotal,
+        recalculatedRemainingDebt: remainingDebt,
+      ));
+    } catch (e) {
+      developer.log("Error in _updateRecalculatedValues: $e", name: "OrderDetailCubit");
+    }
+  }
+
+  Future<bool> _checkIfStackingAllowed(UserModel agent, {required DiscountPolicyModel policy}) async {
+    if (agent.allowVoucherStacking != null) {
+      return agent.allowVoucherStacking!;
+    }
+    if (agent.salesRepId != null && agent.salesRepId!.isNotEmpty) {
+      final salesRepResult = await _userProfileRepository.getUserProfile(agent.salesRepId!);
+      final salesRep = salesRepResult.fold((l) => null, (r) => r);
+      if (salesRep != null && salesRep.agentsAllowVoucherStacking != null) {
+        return salesRep.agentsAllowVoucherStacking!;
+      }
+    }
+    return policy.globalAllowVoucherStacking;
+  }
+
+  Future<bool> _checkIfPromotionAllowed(UserModel agent, {required bool isDiscount, required DiscountPolicyModel policy}) async {
+    if (agent.customPromotionConfig != null) {
+      final key = isDiscount ? 'allowDiscount' : 'allowVoucher';
+      if (agent.customPromotionConfig![key] != null) {
+        return agent.customPromotionConfig![key] as bool;
+      }
+    }
+    if (agent.salesRepId != null && agent.salesRepId!.isNotEmpty) {
+      final salesRepResult = await _userProfileRepository.getUserProfile(agent.salesRepId!);
+      final salesRep = salesRepResult.fold((l) => null, (r) => r);
+      if (salesRep != null && salesRep.agentsCustomPromotionConfig != null) {
+        final key = isDiscount ? 'allowDiscount' : 'allowVoucher';
+        if (salesRep.agentsCustomPromotionConfig![key] != null) {
+          return salesRep.agentsCustomPromotionConfig![key] as bool;
+        }
+      }
+    }
+    final AgentPromotionConfig globalPromotion = (agent.role == 'agent_1') ? policy.agent1PromotionConfig : policy.agent2PromotionConfig;
+    return isDiscount ? globalPromotion.allowDiscount : globalPromotion.allowVoucher;
+  }
+
+  Future<bool> _checkIfPromotionAllowedDuringCommitment(UserModel agent, {required DiscountPolicyModel policy}) async {
+    if (agent.customPromotionConfig != null && agent.customPromotionConfig!['allowPromotionDuringCommitment'] != null) {
+      return agent.customPromotionConfig!['allowPromotionDuringCommitment'] as bool;
+    }
+    if (agent.salesRepId != null && agent.salesRepId!.isNotEmpty) {
+      final salesRepResult = await _userProfileRepository.getUserProfile(agent.salesRepId!);
+      final salesRep = salesRepResult.fold((l) => null, (r) => r);
+      if (salesRep != null && salesRep.agentsCustomPromotionConfig != null && salesRep.agentsCustomPromotionConfig!['allowPromotionDuringCommitment'] != null) {
+        return salesRep.agentsCustomPromotionConfig!['allowPromotionDuringCommitment'] as bool;
+      }
+    }
+    final AgentPromotionConfig globalPromotion = (agent.role == 'agent_1') ? policy.agent1PromotionConfig : policy.agent2PromotionConfig;
+    return globalPromotion.allowPromotionDuringCommitment;
+  }
+
+  List<VoucherModel> _filterVouchers(List<OrderItemModel> items, UserModel user, bool allowPromotionDuringCommitment, List<VoucherModel> allActiveVouchers, Map<String, String> creatorRolesCache) {
+    if (user.activeRewardProgram == 'sales_commitment' && !allowPromotionDuringCommitment) {
+      return [];
+    }
+
+    final cartCategories = items.map((i) => i.productType ?? i.categoryId).toSet();
+    final hasFoliar = cartCategories.contains('foliar_fertilizer');
+    final hasRoot = cartCategories.contains('root_fertilizer');
+
+    final totalFoliarQty = items
+        .where((item) => (item.productType ?? item.categoryId) == 'foliar_fertilizer')
+        .fold<int>(0, (sum, item) => sum + item.quantity);
+    final totalRootQty = items
+        .where((item) => (item.productType ?? item.categoryId) == 'root_fertilizer')
+        .fold<int>(0, (sum, item) => sum + item.quantity);
+    final totalQtyAll = items.fold<int>(0, (sum, item) => sum + item.quantity);
+
+    final foliarSubtotal = items
+        .where((item) => (item.productType ?? item.categoryId) == 'foliar_fertilizer')
+        .fold<double>(0.0, (sum, item) => sum + (item.price * item.quantityPerPackage * item.quantity));
+    final rootSubtotal = items
+        .where((item) => (item.productType ?? item.categoryId) == 'root_fertilizer')
+        .fold<double>(0.0, (sum, item) => sum + (item.price * item.quantityPerPackage * item.quantity));
+    final totalSubtotal = items.fold<double>(0.0, (sum, item) => sum + (item.price * item.quantityPerPackage * item.quantity));
+
+    return allActiveVouchers.where((v) {
+      if (v.maxUses != 0 && v.usedCount >= v.maxUses) return false;
+      
+      double applicableSubtotal = totalSubtotal;
+      int applicableQuantity = totalQtyAll;
+
+      if (v.applicableCategory == 'foliar_fertilizer') {
+        applicableSubtotal = foliarSubtotal;
+        applicableQuantity = totalFoliarQty;
+      } else if (v.applicableCategory == 'root_fertilizer') {
+        applicableSubtotal = rootSubtotal;
+        applicableQuantity = totalRootQty;
+      }
+
+      if (v.applicableCategory == 'foliar_fertilizer' && !hasFoliar) return false;
+      if (v.applicableCategory == 'root_fertilizer' && !hasRoot) return false;
+
+      if (applicableSubtotal < v.minOrderValue) return false;
+      if (v.minQuantity != null && applicableQuantity < v.minQuantity!) return false;
+
+      if (v.excludedUserIds.contains(user.id)) return false;
+      if (user.salesRepId != null && v.excludedSalesRepIds.contains(user.salesRepId)) return false;
+
+      final creatorRole = creatorRolesCache[v.createdBy];
+      if (creatorRole == 'sales_rep' && user.salesRepId != v.createdBy) return false;
+
+      bool isTargeted = false;
+      switch (v.targetType) {
+        case 'all':
+          isTargeted = true;
+          break;
+        case 'agent_1':
+          isTargeted = user.role == 'agent_1';
+          break;
+        case 'agent_2':
+          isTargeted = user.role == 'agent_2';
+          break;
+        case 'specific_agents':
+          isTargeted = v.targetUserIds.contains(user.id);
+          break;
+        case 'specific_sales_reps':
+          isTargeted = user.salesRepId != null && v.targetSalesRepIds.contains(user.salesRepId);
+          break;
+        default:
+          isTargeted = true;
+      }
+      if (!isTargeted) return false;
+
+      return true;
+    }).toList();
+  }
+
   Future<void> applyVoucher(String code) async {
     if (code.isEmpty || state.order == null) return;
-    // Chỉ cho phép áp dụng voucher khi đang chờ duyệt
     if (state.order!.status != 'pending_approval') {
       emit(state.copyWith(status: OrderDetailStatus.voucherError, errorMessage: 'Không thể áp dụng voucher cho đơn hàng này.', clearError: false));
-      emit(state.copyWith(status: OrderDetailStatus.success, clearError: true)); // Reset status về success
+      emit(state.copyWith(status: OrderDetailStatus.success, clearError: true));
       return;
     }
 
@@ -162,10 +462,8 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
       emit(state.copyWith(status: OrderDetailStatus.error, errorMessage: 'Lỗi xác thực người dùng.'));
       return;
     }
-    // Cần userId và userRole để kiểm tra điều kiện voucher
     final userId = authState.user.id;
     final userRole = authState.user.role;
-    // Cần subtotal của đơn hàng để tính toán giảm giá
     final subtotal = state.order!.subtotal;
 
     final result = await _voucherRepository.applyVoucher(
@@ -173,39 +471,37 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
       userId: userId,
       userRole: userRole,
       subtotal: subtotal,
-      cartCategoryIds: state.order!.items.map((i) => i.categoryId).toList(),
+      cartCategoryIds: state.order!.items.map((i) => i.productType ?? i.categoryId).toList(),
     );
 
     result.fold(
-          (failure) {
+      (failure) {
         emit(state.copyWith(status: OrderDetailStatus.voucherError, errorMessage: failure.message, clearError: false));
-        emit(state.copyWith(status: OrderDetailStatus.success, clearError: true)); // Reset status về success
+        emit(state.copyWith(status: OrderDetailStatus.success, clearError: true));
       },
-          (voucher) {
-        // --- TÍNH TOÁN THÔNG TIN THÙNG ĐỂ ÁP DỤNG MUA X TẶNG Y ---
-        int totalItemsInCases = 0;
-        double totalCasesValue = 0;
-        
-        if (state.order != null) {
-          for (var item in state.order!.items) {
-            // Kiểm tra nếu item này là bán theo thùng
-            if (item.quantityPerPackage > 1) {
-              totalItemsInCases += item.quantity;
-              totalCasesValue += (item.price * item.quantityPerPackage * item.quantity);
-            }
-          }
+      (voucher) async {
+        int applicableQuantity = state.order!.items.fold<int>(0, (sum, item) => sum + item.quantity);
+        if (voucher.applicableCategory == 'foliar_fertilizer') {
+          applicableQuantity = state.order!.items
+              .where((item) => (item.productType ?? item.categoryId) == 'foliar_fertilizer')
+              .fold<int>(0, (sum, item) => sum + item.quantity);
+        } else if (voucher.applicableCategory == 'root_fertilizer') {
+          applicableQuantity = state.order!.items
+              .where((item) => (item.productType ?? item.categoryId) == 'root_fertilizer')
+              .fold<int>(0, (sum, item) => sum + item.quantity);
         }
-        
-        double averageCasePrice = totalItemsInCases > 0 
-            ? (totalCasesValue / totalItemsInCases) 
-            : 0.0;
 
-        final discountAmount = voucher.calculateDiscount(
-          subtotal, 
-          totalItemsInCases: totalItemsInCases,
-          averageCasePrice: averageCasePrice,
-        );
-        // --- KẾT THÚC TÍNH TOÁN ---
+        if (voucher.minQuantity != null && applicableQuantity < voucher.minQuantity!) {
+          emit(state.copyWith(
+            status: OrderDetailStatus.voucherError,
+            errorMessage: 'Số lượng sản phẩm áp dụng chưa đạt tối thiểu để dùng mã này (yêu cầu tối thiểu ${voucher.minQuantity} thùng).',
+            clearError: false,
+          ));
+          emit(state.copyWith(status: OrderDetailStatus.success, clearError: true));
+          return;
+        }
+
+        final discountAmount = _calculateVoucherDiscount(voucher, state.order!.items, subtotal);
 
         emit(state.copyWith(
           status: OrderDetailStatus.success,
@@ -213,57 +509,91 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
           voucherDiscount: discountAmount,
         ));
         developer.log("Applied voucher ${voucher.id}, discount: $discountAmount", name: "OrderDetailCubit");
+        
+        await _updateRecalculatedValues(state.order!);
       },
     );
   }
-  // +++ KẾT THÚC HÀM MỚI +++
 
-  // +++ HÀM MỚI: removeVoucher +++
+  double _calculateVoucherDiscount(VoucherModel voucher, List<OrderItemModel> items, double subtotal) {
+    double applicableSubtotal = subtotal;
+    if (voucher.applicableCategory == 'foliar_fertilizer') {
+      applicableSubtotal = items
+          .where((item) => (item.productType ?? item.categoryId) == 'foliar_fertilizer')
+          .fold<double>(0.0, (sum, item) => sum + item.subtotal);
+    } else if (voucher.applicableCategory == 'root_fertilizer') {
+      applicableSubtotal = items
+          .where((item) => (item.productType ?? item.categoryId) == 'root_fertilizer')
+          .fold<double>(0.0, (sum, item) => sum + item.subtotal);
+    }
+
+    int totalItemsInCases = 0;
+    double totalCasesValue = 0;
+    
+    for (var item in items) {
+      final category = item.productType ?? item.categoryId;
+      if (voucher.applicableCategory == 'all' || category == voucher.applicableCategory) {
+        if (item.quantityPerPackage > 1) {
+          totalItemsInCases += item.quantity;
+          totalCasesValue += (item.price * item.quantityPerPackage * item.quantity);
+        }
+      }
+    }
+    
+    double averageCasePrice = totalItemsInCases > 0 
+        ? (totalCasesValue / totalItemsInCases) 
+        : 0.0;
+
+    return voucher.calculateDiscount(
+      applicableSubtotal, 
+      totalItemsInCases: totalItemsInCases,
+      averageCasePrice: averageCasePrice,
+    );
+  }
+
   void removeVoucher() {
-    // Chỉ cho phép xóa voucher khi đang chờ duyệt
     if (state.order?.status != 'pending_approval') return;
 
     emit(state.copyWith(
       status: OrderDetailStatus.success,
-      forceVoucherToNull: true, // Sử dụng flag để xóa voucher và discount
+      forceVoucherToNull: true,
       voucherDiscount: 0.0,
     ));
     developer.log("Removed voucher", name: "OrderDetailCubit");
+    
+    if (state.order != null) {
+      _updateRecalculatedValues(state.order!);
+    }
   }
-  // +++ KẾT THÚC HÀM MỚI +++
 
-  // --- SỬA HÀM approveOrder ---
   Future<void> approveOrder({required double paidAmount}) async {
     if (state.order?.id == null) return;
-    // Chỉ cho phép duyệt khi đang chờ duyệt
     if (state.order!.status != 'pending_approval') return;
 
     emit(state.copyWith(status: OrderDetailStatus.updating));
 
-    // Lấy thông tin voucher từ state
     final voucherCode = state.appliedVoucher?.id;
     final voucherDiscount = state.voucherDiscount;
 
     final result = await _orderRepository.approveOrder(
       state.order!.id!,
       paidAmount: paidAmount,
-      // Truyền thông tin voucher
       voucherDiscount: voucherDiscount,
       appliedVoucherCode: voucherCode,
+      commissionDiscount: state.recalculatedCommissionDiscount,
+      seasonalDiscount: state.recalculatedSeasonalDiscount,
+      vatPercentage: state.recalculatedVatPercentage,
+      vatAmount: state.recalculatedVatAmount,
     );
 
     result.fold(
-          (failure) => emit(state.copyWith(
-          status: OrderDetailStatus.error, errorMessage: failure.message)),
-          (_) {
-        // Stream tự cập nhật, không cần emit gì ở đây
-        // Quan trọng: Sau khi duyệt thành công, nên reset voucher state của cubit
-        // vì voucher đã được lưu vào order trên Firestore rồi.
+      (failure) => emit(state.copyWith(
+        status: OrderDetailStatus.error, errorMessage: failure.message)),
+      (_) {
         emit(state.copyWith(forceVoucherToNull: true, voucherDiscount: 0.0));
       },
     );
   }
-  // --- KẾT THÚC SỬA ---
 
 
   Future<void> rejectOrder(String reason) async {

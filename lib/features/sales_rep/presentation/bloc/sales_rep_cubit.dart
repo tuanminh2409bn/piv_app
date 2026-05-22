@@ -24,7 +24,7 @@ class SalesRepCubit extends Cubit<SalesRepState> {
       if (authState is AuthAuthenticated && authState.user.isSalesRep) {
         _currentSalesRepId = authState.user.id;
         _watchMyAgents();
-      } else if (authState is AuthUnauthenticated) {
+      } else {
         _currentSalesRepId = '';
         _agentsSubscription?.cancel();
         emit(const SalesRepState());

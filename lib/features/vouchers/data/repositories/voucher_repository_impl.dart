@@ -132,23 +132,30 @@ class VoucherRepositoryImpl implements VoucherRepository {
       final userDoc = await _firestore.collection('users').doc(userId).get();
       final userData = userDoc.data();
       final salesRepId = userData?['salesRepId'];
+      final userRole = userData?['role'];
 
-      if (voucher.targetType == 'specific_agents') {
+      // Kiểm tra người tạo: Nếu người tạo là NVKD, thì chỉ áp dụng cho đại lý của NVKD đó.
+      final creatorDoc = await _firestore.collection('users').doc(voucher.createdBy).get();
+      final creatorRole = creatorDoc.data()?['role'];
+      if (creatorRole == 'sales_rep' && salesRepId != voucher.createdBy) {
+         return Left(ServerFailure('Mã voucher này chỉ áp dụng cho đại lý thuộc quản lý của NVKD đã tạo ra nó.'));
+      }
+
+      if (voucher.targetType == 'agent_1') {
+        if (userRole != 'agent_1') {
+          return Left(ServerFailure('Mã voucher này chỉ áp dụng cho Đại lý cấp 1 (C1).'));
+        }
+      } else if (voucher.targetType == 'agent_2') {
+        if (userRole != 'agent_2') {
+          return Left(ServerFailure('Mã voucher này chỉ áp dụng cho Đại lý cấp 2 (C2).'));
+        }
+      } else if (voucher.targetType == 'specific_agents') {
         if (!voucher.targetUserIds.contains(userId)) {
           return Left(ServerFailure('Mã voucher này không áp dụng cho tài khoản của bạn.'));
         }
       } else if (voucher.targetType == 'specific_sales_reps') {
         if (salesRepId == null || !voucher.targetSalesRepIds.contains(salesRepId)) {
           return Left(ServerFailure('Mã voucher này không áp dụng cho đại lý thuộc quản lý của bạn.'));
-        }
-      } else {
-        // targetType == 'all'
-        // Nếu người tạo là NVKD, thì 'all' có nghĩa là tất cả đại lý CỦA NVKD ĐÓ.
-        // Cần lấy thông tin người tạo để biết họ là Admin hay NVKD.
-        final creatorDoc = await _firestore.collection('users').doc(voucher.createdBy).get();
-        final creatorRole = creatorDoc.data()?['role'];
-        if (creatorRole == 'sales_rep' && salesRepId != voucher.createdBy) {
-           return Left(ServerFailure('Mã voucher này chỉ áp dụng cho đại lý của NVKD đã tạo ra nó.'));
         }
       }
 
