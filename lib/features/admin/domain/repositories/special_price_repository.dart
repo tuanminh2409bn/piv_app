@@ -1,3 +1,4 @@
+import 'package:piv_app/data/models/bulk_price_request_model.dart';
 import 'package:piv_app/data/models/price_request_model.dart';
 import 'package:piv_app/data/models/special_price_model.dart';
 
@@ -15,4 +16,10 @@ abstract class SpecialPriceRepository {
   Future<void> approveRequest(PriceRequestModel request, String adminId);
   Future<void> rejectRequest(String requestId, String reason);
   Future<void> cancelRequest(String requestId); // Mới
+
+  // Bulk price adjustment requests
+  Future<void> createBulkPriceRequest(BulkPriceRequestModel request);
+  Stream<List<BulkPriceRequestModel>> watchPendingBulkRequests();
+  Future<void> approveBulkRequest(String requestId, String adminId, String adminName);
+  Future<void> rejectBulkRequest(String requestId, String reason);
 }

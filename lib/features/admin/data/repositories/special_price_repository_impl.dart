@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:piv_app/data/models/bulk_price_request_model.dart';
 import 'package:piv_app/data/models/special_price_model.dart';
 import 'package:piv_app/data/models/price_request_model.dart';
 import 'package:piv_app/features/admin/domain/repositories/special_price_repository.dart';
@@ -146,6 +147,44 @@ class SpecialPriceRepositoryImpl implements SpecialPriceRepository {
   @override
   Future<void> rejectRequest(String requestId, String reason) async {
     await firestore.collection('price_requests').doc(requestId).update({
+      'status': 'rejected',
+      'rejectionReason': reason,
+      'rejectedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // --- Bulk Price Request Implementation ---
+  
+  @override
+  Future<void> createBulkPriceRequest(BulkPriceRequestModel request) async {
+    await firestore.collection('bulk_price_requests').add(request.toMap());
+  }
+
+  @override
+  Stream<List<BulkPriceRequestModel>> watchPendingBulkRequests() {
+    return firestore
+        .collection('bulk_price_requests')
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => BulkPriceRequestModel.fromSnapshot(doc))
+            .toList());
+  }
+
+  @override
+  Future<void> approveBulkRequest(String requestId, String adminId, String adminName) async {
+    await firestore.collection('bulk_price_requests').doc(requestId).update({
+      'status': 'approved',
+      'approvedBy': adminId,
+      'approvedByName': adminName,
+      'approvedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
+  Future<void> rejectBulkRequest(String requestId, String reason) async {
+    await firestore.collection('bulk_price_requests').doc(requestId).update({
       'status': 'rejected',
       'rejectionReason': reason,
       'rejectedAt': FieldValue.serverTimestamp(),

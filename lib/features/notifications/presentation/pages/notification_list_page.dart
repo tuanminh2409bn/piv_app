@@ -1,5 +1,7 @@
 //lib/features/notifications/presentation/pages/notification_list_page.dart
 
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:piv_app/common/widgets/empty_state_widget.dart';
@@ -84,6 +86,7 @@ class NotificationListPage extends StatelessWidget {
       case 'commitment_approved':
       case 'commitment_created':
       case 'commitment_details_set':
+      case 'commitment_proposal':
         Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SalesCommitmentPage()));
         break;
       case 'commitment_cancelled':
@@ -111,7 +114,7 @@ class NotificationListPage extends StatelessWidget {
 
       // Các loại thông báo khác không cần điều hướng (chỉ cần xem)
       default:
-        print('Không có hành động điều hướng cho loại thông báo: $type');
+        developer.log('Không có hành động điều hướng cho loại thông báo: $type', name: 'NotificationListPage');
         break;
     }
   }

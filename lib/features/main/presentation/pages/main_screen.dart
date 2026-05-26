@@ -13,6 +13,10 @@ import 'package:piv_app/features/products/presentation/pages/all_categories_page
 import 'package:piv_app/features/profile/presentation/pages/qr_scanner_page.dart';
 import 'package:piv_app/features/quick_order/presentation/pages/quick_order_page.dart';
 import 'package:piv_app/features/main/presentation/widgets/glass_bottom_navigation.dart';
+import 'package:intl/intl.dart';
+import 'package:piv_app/core/theme/app_theme.dart';
+import 'package:piv_app/features/sales_commitment/presentation/bloc/agent/sales_commitment_agent_cubit.dart';
+import 'package:piv_app/data/models/sales_commitment_model.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -26,6 +30,9 @@ class _MainScreenState extends State<MainScreen> {
 
   final HomeCubit _homeCubit = sl<HomeCubit>();
   final ProfileCubit _profileCubit = sl<ProfileCubit>();
+  final SalesCommitmentAgentCubit _salesCommitmentAgentCubit = sl<SalesCommitmentAgentCubit>();
+
+  bool _isCommitmentDialogShowing = false;
 
   late final List<Widget> _widgetOptions;
 
@@ -41,6 +48,12 @@ class _MainScreenState extends State<MainScreen> {
         child: const ProfilePage(),
       ),
     ];
+  }
+
+  @override
+  void dispose() {
+    _salesCommitmentAgentCubit.close();
+    super.dispose();
   }
 
   void _onItemTapped(int index) {
@@ -63,6 +76,7 @@ class _MainScreenState extends State<MainScreen> {
       providers: [
         BlocProvider.value(value: _homeCubit),
         BlocProvider.value(value: _profileCubit),
+        BlocProvider.value(value: _salesCommitmentAgentCubit),
       ],
       child: MultiBlocListener(
         listeners: [
@@ -84,6 +98,21 @@ class _MainScreenState extends State<MainScreen> {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (mounted) {
                     _showReferralPromptDialog(context);
+                  }
+                });
+              }
+            },
+          ),
+          BlocListener<SalesCommitmentAgentCubit, SalesCommitmentAgentState>(
+            listener: (context, state) {
+              // Chỉ trigger khi status == success (bỏ qua loading để tránh re-trigger)
+              if (state.status == SalesCommitmentAgentStatus.success &&
+                  state.activeCommitment != null &&
+                  state.activeCommitment!.status == 'proposed_to_agent' &&
+                  !_isCommitmentDialogShowing) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    _showCommitmentProposalDialog(context, state.activeCommitment!);
                   }
                 });
               }
@@ -194,5 +223,148 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
     );
+  }
+
+  void _showCommitmentProposalDialog(BuildContext context, SalesCommitmentModel commitment) {
+    if (_isCommitmentDialogShowing) return;
+    _isCommitmentDialogShowing = true;
+
+    final currencyFormatter = NumberFormat.decimalPattern('vi_VN');
+    final dateFormatter = DateFormat('dd/MM/yyyy');
+
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Bắt buộc đồng ý hoặc từ chối
+      builder: (dialogContext) {
+        return BlocProvider.value(
+          value: _salesCommitmentAgentCubit,
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(Icons.mark_email_unread_outlined, color: AppTheme.primaryGreen),
+                const SizedBox(width: 8),
+                const Text(
+                  'Đề xuất Cam kết mới',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryGreen,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Bạn nhận được đề xuất cam kết từ ${commitment.commitmentDetails?.setByUserName ?? 'Công ty'}:',
+                    style: const TextStyle(fontSize: 14, color: AppTheme.textDark),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryGreen.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.2)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Mức cam kết:', style: TextStyle(fontWeight: FontWeight.w500)),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                '${currencyFormatter.format(commitment.targetAmount)} VNĐ',
+                                style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                                textAlign: TextAlign.end,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Thời gian:', style: TextStyle(fontWeight: FontWeight.w500)),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                '${dateFormatter.format(commitment.startDate)} - ${dateFormatter.format(commitment.endDate)}',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                textAlign: TextAlign.end,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Chi tiết quyền lợi & phần thưởng:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textGrey),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      commitment.commitmentDetails?.text ?? 'Không có chi tiết.',
+                      style: const TextStyle(fontSize: 13, color: AppTheme.textDark, height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  // Pop trước để flag vẫn còn true trong lúc loading state được xử lý
+                  Navigator.of(dialogContext).pop();
+                  _salesCommitmentAgentCubit.respondToCommitmentProposal(
+                    commitmentId: commitment.id,
+                    isAccepted: false,
+                  );
+                },
+                child: const Text('TỪ CHỐI', style: TextStyle(color: AppTheme.errorRed, fontWeight: FontWeight.bold)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  // Pop trước để flag vẫn còn true trong lúc loading state được xử lý
+                  Navigator.of(dialogContext).pop();
+                  _salesCommitmentAgentCubit.respondToCommitmentProposal(
+                    commitmentId: commitment.id,
+                    isAccepted: true,
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryGreen,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('ĐỒNG Ý', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+      },
+    // Reset flag CHỈ khi dialog đã đóng hoàn toàn (sau animation pop)
+    ).then((_) {
+      if (mounted) {
+        setState(() {
+          _isCommitmentDialogShowing = false;
+        });
+      }
+    });
   }
 }

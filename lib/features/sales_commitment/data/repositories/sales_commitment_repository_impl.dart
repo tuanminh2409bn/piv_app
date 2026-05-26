@@ -159,7 +159,7 @@ class SalesCommitmentRepositoryImpl implements SalesCommitmentRepository {
     return _firestore
         .collection('sales_commitments')
         .where('userId', isEqualTo: userId)
-        .where('status', whereIn: ['active', 'pending_cancellation', 'pending_approval']) // Include pending_approval
+        .where('status', whereIn: ['active', 'pending_cancellation', 'pending_approval', 'proposed_to_agent'])
         .limit(1)
         .snapshots()
         .map((snapshot) {

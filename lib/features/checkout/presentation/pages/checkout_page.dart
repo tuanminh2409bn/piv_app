@@ -611,6 +611,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
               padding: const EdgeInsets.only(top: 8.0),
               child: _buildSummaryRow('Chiết khấu đại lý', '-${currencyFormatter.format(state.commissionDiscount)}', valueColor: Colors.green),
             ),
+
+          if (state.seasonalDiscount > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: _buildSummaryRow('🌟 Khuyến mãi thời vụ', '-${currencyFormatter.format(state.seasonalDiscount)}', valueColor: Colors.green),
+            ),
           
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),

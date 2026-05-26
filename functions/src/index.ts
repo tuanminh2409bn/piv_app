@@ -563,7 +563,7 @@ export const onOrderStatusUpdate = onDocumentUpdated(
     if (!beforeData || !afterData || beforeData.status === afterData.status) return;
 
     const orderId = event.params.orderId;
-    const {userId, total, status: newStatus, salesRepId, shippingAddress, placedBy, shippingDate, appliedVoucherCode, discount, commissionDiscount, paidAmount, items} = afterData;
+    const {userId, total, status: newStatus, salesRepId, shippingAddress, placedBy, shippingDate, appliedVoucherCode, discount, commissionDiscount, seasonalDiscount, paidAmount, items} = afterData;
     const oldStatus = beforeData.status;
 
     if (newStatus === "completed" && oldStatus !== "completed") {
@@ -585,7 +585,8 @@ export const onOrderStatusUpdate = onDocumentUpdated(
       // Tính toán lại tổng đơn thực tế bao gồm phí ship, voucher, chiết khấu và VAT
       const shippingFee = Number(afterData.shippingFee) || 0;
       const vatPercentage = Number(afterData.vatPercentage) || 0;
-      const preTax = Math.max(0, confirmedSubtotal + shippingFee - (discount || 0) - (commissionDiscount || 0));
+      // FIX: Bao gồm cả seasonalDiscount trong công thức tính
+      const preTax = Math.max(0, confirmedSubtotal + shippingFee - (discount || 0) - (commissionDiscount || 0) - (seasonalDiscount || 0));
       const calcVat = preTax * (vatPercentage / 100);
       const actualTotal = preTax + calcVat;
       // -----------------------------------------------------------------------
@@ -664,7 +665,20 @@ export const onOrderStatusUpdate = onDocumentUpdated(
         }
       }
 
-      // Logic cam kết doanh số và vòng quay... (giữ nguyên nhưng dùng actualTotal nếu cần)
+      // --- CẬP NHẬT TIẾN TRÌNH CAM KẾT DOANH SỐ ---
+      // CHỈ tính khi ĐẠI LÝ ĐÃ XÁC NHẬN THANH TOÁN (paymentStatus = 'paid')
+      // Nếu chưa 'paid', hàm onOrderPaymentStatusUpdate sẽ xử lý khi kế toán xác nhận.
+      if (afterData.paymentStatus === "paid" && afterData.isCommitmentCounted !== true) {
+        try {
+          await _updateCommitmentProgress(userId, orderId, actualTotal);
+          logger.info(`Commitment updated for order ${orderId} on completion (payment already confirmed).`);
+        } catch (commitmentError) {
+          logger.error(`Error updating sales commitment progress for order ${orderId}:`, commitmentError);
+        }
+      } else {
+        logger.info(`Order ${orderId} completed. paymentStatus=${afterData.paymentStatus}, isCommitmentCounted=${afterData.isCommitmentCounted}. Commitment will be updated on payment confirmation.`);
+      }
+      // -----------------------------------------------
 
       // --- CẬP NHẬT CÔNG NỢ DỰA TRÊN GIÁ TRỊ THỰC GIAO ---
       const debtAmountToAdd = actualTotal - (paidAmount || 0);
@@ -823,6 +837,167 @@ export const onOrderStatusUpdate = onDocumentUpdated(
       await Promise.all(savePromises);
     }
   });
+
+// ===================================================================
+// HELPER: CẬP NHẬT TIẾN TRÌNH CAM KẾT DOANH SỐ (dùng chung)
+// Được gọi từ onOrderStatusUpdate và onOrderPaymentStatusUpdate
+// ===================================================================
+async function _updateCommitmentProgress(
+  userId: string,
+  orderId: string,
+  actualTotal: number
+): Promise<void> {
+  const commitmentSnapshot = await db.collection("sales_commitments")
+    .where("userId", "==", userId)
+    .where("status", "in", ["active", "pending_cancellation"])
+    .limit(1)
+    .get();
+
+  if (commitmentSnapshot.empty) {
+    logger.info(`No active commitment for user ${userId}. Skipping.`);
+    return;
+  }
+
+  const commitmentDoc = commitmentSnapshot.docs[0];
+  const commitmentData = commitmentDoc.data();
+  const newCurrentAmount = (commitmentData.currentAmount || 0) + actualTotal;
+  const targetAmount = commitmentData.targetAmount || 0;
+
+  // Đánh dấu đơn hàng đã được tính vào cam kết (chống double-count)
+  await db.collection("orders").doc(orderId).update({isCommitmentCounted: true});
+
+  if (newCurrentAmount >= targetAmount && targetAmount > 0) {
+    // Đạt mục tiêu → hoàn thành cam kết
+    await commitmentDoc.ref.update({
+      currentAmount: newCurrentAmount,
+      status: "completed",
+      completedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    // Cập nhật lại user.activeRewardProgram về null
+    await db.collection("users").doc(userId).update({
+      activeRewardProgram: admin.firestore.FieldValue.delete(),
+    });
+    // Gửi thông báo hoàn thành cam kết
+    const agentDoc = await db.collection("users").doc(userId).get();
+    const agentToken = agentDoc.data()?.fcmToken;
+    const completedTitle = "🎉 Chúc mừng! Đạt cam kết doanh số";
+    const completedBody = `Bạn đã hoàn thành cam kết doanh số với ${new Intl.NumberFormat("vi-VN").format(newCurrentAmount)} / ${new Intl.NumberFormat("vi-VN").format(targetAmount)} VNĐ!`;
+    const completedType = "commitment_completed";
+    if (agentToken) {
+      await sendPushNotification([agentToken], completedTitle, completedBody, {type: completedType, commitmentId: commitmentDoc.id});
+    }
+    await saveNotificationToFirestore(userId, completedTitle, completedBody, completedType, {commitmentId: commitmentDoc.id});
+    logger.info(`Commitment ${commitmentDoc.id} COMPLETED. currentAmount: ${newCurrentAmount}, target: ${targetAmount}`);
+  } else {
+    // Chưa đạt mục tiêu → cập nhật số tiền hiện tại
+    await commitmentDoc.ref.update({
+      currentAmount: newCurrentAmount,
+    });
+    logger.info(`Commitment ${commitmentDoc.id} progress updated. currentAmount: ${newCurrentAmount}, target: ${targetAmount}`);
+  }
+}
+
+// ===================================================================
+// FUNCTION 6b: CẬP NHẬT CAM KẾT KHI KẾ TOÁN XÁC NHẬN NHẬN TIỀN
+// Trigger khi paymentStatus thay đổi thành 'paid' trên đơn đã 'completed'
+// ===================================================================
+export const onOrderPaymentStatusUpdate = onDocumentUpdated(
+  {document: "orders/{orderId}", region: "asia-southeast1"},
+  async (event) => {
+    const beforeData = event.data?.before.data();
+    const afterData = event.data?.after.data();
+    if (!beforeData || !afterData) return;
+
+    // Chỉ xử lý khi paymentStatus thực sự thay đổi
+    if (beforeData.paymentStatus === afterData.paymentStatus) return;
+    // Chỉ xử lý khi chuyển thành 'paid'
+    if (afterData.paymentStatus !== "paid") return;
+    // Chỉ tính khi đơn đã hoàn thành
+    if (afterData.status !== "completed") return;
+    // Chống double-count: đã được tính từ onOrderStatusUpdate rồi thì bỏ qua
+    if (afterData.isCommitmentCounted === true) return;
+
+    const orderId = event.params.orderId;
+    const {
+      userId,
+      items,
+      discount: voucherDiscount,
+      commissionDiscount,
+      seasonalDiscount: seasonal,
+      shippingFee,
+      vatPercentage,
+    } = afterData;
+
+    // Tính actualTotal dựa trên confirmedQuantity (số lượng hàng thực giao)
+    let confirmedSubtotal = 0;
+    if (items && Array.isArray(items)) {
+      for (const item of items) {
+        const price = Number(item.price) || 0;
+        const qtyPerPkg = Number(item.quantityPerPackage) || 1;
+        const confirmedQty = Number(item.confirmedQuantity) || 0;
+        const confirmedLooseQty = Number(item.confirmedLooseQuantity) || 0;
+        const totalUnits = (confirmedQty * qtyPerPkg) + confirmedLooseQty;
+        confirmedSubtotal += price * totalUnits;
+      }
+    }
+
+    const fee = Number(shippingFee) || 0;
+    const vat = Number(vatPercentage) || 0;
+    const preTax = Math.max(
+      0,
+      confirmedSubtotal + fee
+      - (voucherDiscount || 0)
+      - (commissionDiscount || 0)
+      - (seasonal || 0)
+    );
+    const actualTotal = preTax + preTax * (vat / 100);
+
+    logger.info(`onOrderPaymentStatusUpdate: Order ${orderId} (status=completed) confirmed paid. Updating commitment for user ${userId}. actualTotal=${actualTotal}`);
+
+    try {
+      await _updateCommitmentProgress(userId, orderId, actualTotal);
+    } catch (err) {
+      logger.error(`Error in onOrderPaymentStatusUpdate for order ${orderId}:`, err);
+    }
+  }
+);
+
+// ===================================================================
+// FUNCTION 6c: MIGRATION - Đánh dấu đơn cũ đã được tính cam kết
+// Admin gọi 1 lần sau khi deploy để tránh double-count cho đơn cũ
+// ===================================================================
+export const migrateCommitmentCountedFlag = onCall(
+  {region: "asia-southeast1"},
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
+    const uid = request.auth.uid;
+    const userDoc = await db.collection("users").doc(uid).get();
+    if (userDoc.data()?.role !== "admin") {
+      throw new HttpsError("permission-denied", "Chỉ admin mới có thể thực hiện migration này.");
+    }
+
+    // Lấy tất cả đơn đã hoàn thành và chưa được đánh dấu
+    const snapshot = await db.collection("orders")
+      .where("status", "==", "completed")
+      .get();
+
+    let markedCount = 0;
+    const updatePromises: Promise<any>[] = [];
+
+    for (const doc of snapshot.docs) {
+      if (doc.data().isCommitmentCounted !== true) {
+        updatePromises.push(
+          doc.ref.update({isCommitmentCounted: true})
+        );
+        markedCount++;
+      }
+    }
+
+    await Promise.all(updatePromises);
+    logger.info(`Migration migrateCommitmentCountedFlag: Đã đánh dấu ${markedCount} đơn hoàn thành.`);
+    return {success: true, markedCount};
+  }
+);
 
 // ===================================================================
 // FUNCTION 7: GỬI THÔNG BÁO KHI CÓ BÀI VIẾT MỚI
@@ -1103,6 +1278,498 @@ export const adjustProductPrices = onCall(
 );
 
 // ===================================================================
+// FUNCTION 8B: ĐIỀU CHỈNH GIÁ HÀNG LOẠT (GENERAL + SPECIAL)
+// ===================================================================
+export const adjustBulkPrices = onCall(
+  {region: "asia-southeast1"},
+  async (request: CallableRequest) => {
+    // 1. Kiểm tra xác thực & quyền admin
+    if (!request.auth) throw new HttpsError("unauthenticated", "Yêu cầu xác thực.");
+    const senderId = request.auth.uid;
+    const senderDoc = await db.collection("users").doc(senderId).get();
+    const senderRole = senderDoc.data()?.role;
+
+    if (senderRole !== "admin") {
+      throw new HttpsError("permission-denied", "Chỉ Admin mới có quyền thực hiện hành động này.");
+    }
+
+    // 2. Trích xuất tham số
+    const {
+      priceType,
+      adjustmentType,
+      adjustmentValue,
+      productTarget,
+      agentTarget,
+      salesRepId,
+      specificAgentIds,
+      excludedAgentIds,
+    } = request.data;
+
+    if (!priceType || !adjustmentType || adjustmentValue === undefined || !productTarget || !agentTarget) {
+      throw new HttpsError("invalid-argument", "Thiếu tham số yêu cầu.");
+    }
+
+    if (!["general", "special_adjust", "special_from_general"].includes(priceType)) {
+      throw new HttpsError("invalid-argument", "priceType không hợp lệ.");
+    }
+    if (!["percentage", "amount"].includes(adjustmentType)) {
+      throw new HttpsError("invalid-argument", "adjustmentType không hợp lệ.");
+    }
+    if (!["all", "foliar_fertilizer", "root_fertilizer"].includes(productTarget)) {
+      throw new HttpsError("invalid-argument", "productTarget không hợp lệ.");
+    }
+    if (!["all", "agent_1", "agent_2", "sales_rep_group", "specific"].includes(agentTarget)) {
+      throw new HttpsError("invalid-argument", "agentTarget không hợp lệ.");
+    }
+    if (agentTarget === "sales_rep_group" && !salesRepId) {
+      throw new HttpsError("invalid-argument", "Cần cung cấp salesRepId khi agentTarget là 'sales_rep_group'.");
+    }
+    if (agentTarget === "specific" && (!specificAgentIds || !Array.isArray(specificAgentIds) || specificAgentIds.length === 0)) {
+      throw new HttpsError("invalid-argument", "Cần cung cấp specificAgentIds khi agentTarget là 'specific'.");
+    }
+
+    const excludedSet = new Set<string>(Array.isArray(excludedAgentIds) ? excludedAgentIds : []);
+
+    // Helper: tính giá mới
+    const calcNewPrice = (oldPrice: number): number => {
+      let newPrice = oldPrice;
+      if (adjustmentType === "percentage") {
+        newPrice = oldPrice * (1 + adjustmentValue / 100);
+      } else if (adjustmentType === "amount") {
+        newPrice = oldPrice + adjustmentValue;
+      }
+      return Math.max(0, Math.round(newPrice));
+    };
+
+    // Helper: lấy sản phẩm theo productTarget
+    const getProducts = async (): Promise<admin.firestore.QuerySnapshot> => {
+      let productsQuery: admin.firestore.Query = db.collection("products");
+      if (productTarget === "foliar_fertilizer") {
+        productsQuery = productsQuery.where("productType", "==", "foliar_fertilizer");
+      } else if (productTarget === "root_fertilizer") {
+        productsQuery = productsQuery.where("productType", "==", "root_fertilizer");
+      }
+      return productsQuery.get();
+    };
+
+    // Helper: lấy danh sách đại lý theo agentTarget (trả về cả tên)
+    interface AgentInfo { id: string; name: string; }
+    const getTargetAgents = async (): Promise<AgentInfo[]> => {
+      let agents: AgentInfo[] = [];
+
+      if (agentTarget === "specific") {
+        // Lấy tên từ Firestore cho specificAgentIds
+        const ids = specificAgentIds as string[];
+        const chunks: string[][] = [];
+        for (let i = 0; i < ids.length; i += 30) {
+          chunks.push(ids.slice(i, i + 30));
+        }
+        for (const chunk of chunks) {
+          const snap = await db.collection("users").where(admin.firestore.FieldPath.documentId(), "in", chunk).get();
+          snap.docs.forEach((doc) => {
+            agents.push({ id: doc.id, name: (doc.data().displayName || doc.data().email || doc.id) as string });
+          });
+        }
+      } else if (agentTarget === "sales_rep_group") {
+        const agentsSnap = await db.collection("users")
+          .where("status", "==", "active")
+          .where("salesRepId", "==", salesRepId)
+          .where("role", "in", ["agent_1", "agent_2"])
+          .get();
+        agents = agentsSnap.docs.map((doc) => ({
+          id: doc.id,
+          name: (doc.data().displayName || doc.data().email || doc.id) as string,
+        }));
+      } else if (agentTarget === "all") {
+        const agentsSnap = await db.collection("users")
+          .where("status", "==", "active")
+          .where("role", "in", ["agent_1", "agent_2"])
+          .get();
+        agents = agentsSnap.docs.map((doc) => ({
+          id: doc.id,
+          name: (doc.data().displayName || doc.data().email || doc.id) as string,
+        }));
+      } else {
+        // agentTarget === 'agent_1' hoặc 'agent_2'
+        const agentsSnap = await db.collection("users")
+          .where("status", "==", "active")
+          .where("role", "==", agentTarget)
+          .get();
+        agents = agentsSnap.docs.map((doc) => ({
+          id: doc.id,
+          name: (doc.data().displayName || doc.data().email || doc.id) as string,
+        }));
+      }
+
+      // Loại bỏ các đại lý bị loại trừ
+      return agents.filter((a) => !excludedSet.has(a.id));
+    };
+
+    // Helper: lấy role của đại lý theo ID
+    const getAgentRoles = async (agentIds: string[]): Promise<Map<string, string>> => {
+      const roleMap = new Map<string, string>();
+      // Firestore "in" query giới hạn 30 phần tử, chia nhỏ
+      const chunks: string[][] = [];
+      for (let i = 0; i < agentIds.length; i += 30) {
+        chunks.push(agentIds.slice(i, i + 30));
+      }
+      for (const chunk of chunks) {
+        const snap = await db.collection("users").where(admin.firestore.FieldPath.documentId(), "in", chunk).get();
+        snap.docs.forEach((doc) => {
+          roleMap.set(doc.id, doc.data().role as string);
+        });
+      }
+      return roleMap;
+    };
+
+    // Helper: commit nhiều batch (Firestore giới hạn 500 thao tác / batch)
+    interface BatchOp {
+      type: "set" | "update";
+      ref: admin.firestore.DocumentReference;
+      data: any;
+    }
+
+    const executeBatchOps = async (ops: BatchOp[]): Promise<void> => {
+      const BATCH_LIMIT = 499;
+      for (let i = 0; i < ops.length; i += BATCH_LIMIT) {
+        const batch = db.batch();
+        const slice = ops.slice(i, i + BATCH_LIMIT);
+        for (const op of slice) {
+          if (op.type === "set") {
+            batch.set(op.ref, op.data);
+          } else {
+            batch.update(op.ref, op.data);
+          }
+        }
+        await batch.commit();
+      }
+    };
+
+    let affectedCount = 0;
+    let targetAgentNames: string[] = []; // Lưu tên đại lý để hiển thị trong thông báo
+
+    // ============================================================
+    // 3. priceType === 'general': Điều chỉnh giá chung
+    // ============================================================
+    if (priceType === "general") {
+      const snapshot = await getProducts();
+      if (snapshot.empty) {
+        return {success: true, message: "Không tìm thấy sản phẩm nào phù hợp để điều chỉnh.", count: 0};
+      }
+
+      const batchOps: BatchOp[] = [];
+      const rolesToUpdate = (agentTarget === "all" || agentTarget === "sales_rep_group" || agentTarget === "specific")
+        ? ["agent_1", "agent_2"]
+        : [agentTarget];
+
+      // Nếu có excludedAgentIds, cần lưu giá cũ cho các đại lý bị loại trừ
+      const excludedAgents: Array<{id: string; role: string; name: string}> = [];
+      if (excludedSet.size > 0) {
+        const excludedIds = [...excludedSet];
+        const chunks: string[][] = [];
+        for (let i = 0; i < excludedIds.length; i += 30) {
+          chunks.push(excludedIds.slice(i, i + 30));
+        }
+        for (const chunk of chunks) {
+          const snap = await db.collection("users").where(admin.firestore.FieldPath.documentId(), "in", chunk).get();
+          snap.docs.forEach((doc) => {
+            const role = doc.data().role as string;
+            if (rolesToUpdate.includes(role)) {
+              excludedAgents.push({
+                id: doc.id,
+                role,
+                name: (doc.data().displayName || doc.data().email || doc.id) as string,
+              });
+            }
+          });
+        }
+      }
+
+      // Lấy tên đại lý cho thông báo (trường hợp general)
+      if (agentTarget === "all" && excludedAgents.length > 0) {
+        targetAgentNames = [`toàn bộ đại lý, loại trừ: ${excludedAgents.map((a) => a.name).join(", ")}`];
+      } else if (agentTarget !== "all") {
+        // Lấy tên đại lý cho specific hoặc sales_rep_group
+        const allTargetAgents = await getTargetAgents();
+        targetAgentNames = allTargetAgents.map((a) => a.name);
+      }
+
+      snapshot.forEach((doc) => {
+        const product = doc.data();
+        const packingOptions = product.packingOptions as any[];
+        if (!packingOptions || !Array.isArray(packingOptions)) return;
+
+        let hasChange = false;
+        const newPackingOptions = packingOptions.map((option) => {
+          const prices = option.prices || {};
+          const newPrices = {...prices};
+
+          rolesToUpdate.forEach((role) => {
+            if (prices[role] !== undefined) {
+              const oldPrice = Number(prices[role]);
+              newPrices[role] = calcNewPrice(oldPrice);
+              hasChange = true;
+            }
+          });
+
+          return {...option, prices: newPrices};
+        });
+
+        if (hasChange) {
+          batchOps.push({type: "update", ref: doc.ref, data: {packingOptions: newPackingOptions}});
+          affectedCount++;
+
+          // Tạo special price cho các đại lý bị loại trừ (giữ giá cũ)
+          for (const excluded of excludedAgents) {
+            const oldPrice = packingOptions[0]?.prices?.[excluded.role];
+            if (oldPrice !== undefined) {
+              const specialPriceRef = db.collection("users")
+                .doc(excluded.id)
+                .collection("special_prices")
+                .doc(doc.id);
+              batchOps.push({
+                type: "set",
+                ref: specialPriceRef,
+                data: {
+                  userId: excluded.id,
+                  productId: doc.id,
+                  price: Number(oldPrice),
+                  updatedBy: senderId,
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                },
+              });
+            }
+          }
+        }
+      });
+
+      if (batchOps.length > 0) {
+        await executeBatchOps(batchOps);
+
+        // Cập nhật useGeneralPrice = false cho các đại lý bị loại trừ nếu có special price mới
+        if (excludedAgents.length > 0) {
+          const flagOps: BatchOp[] = excludedAgents.map((agent) => ({
+            type: "update" as const,
+            ref: db.collection("users").doc(agent.id),
+            data: {useGeneralPrice: false},
+          }));
+          await executeBatchOps(flagOps);
+        }
+      }
+    }
+
+    // ============================================================
+    // 4. priceType === 'special_adjust': Điều chỉnh giá đặc biệt hiện có
+    // ============================================================
+    else if (priceType === "special_adjust") {
+      const targetAgents = await getTargetAgents();
+      if (targetAgents.length === 0) {
+        return {success: true, message: "Không tìm thấy đại lý nào phù hợp.", count: 0};
+      }
+      targetAgentNames = targetAgents.map((a) => a.name);
+      const targetAgentIds = targetAgents.map((a) => a.id);
+
+      // Lấy danh sách productId phù hợp với productTarget
+      const productsSnap = await getProducts();
+      if (productsSnap.empty) {
+        return {success: true, message: "Không tìm thấy sản phẩm nào phù hợp.", count: 0};
+      }
+      const productIdSet = new Set(productsSnap.docs.map((doc) => doc.id));
+
+      const batchOps: BatchOp[] = [];
+
+      for (const agentId of targetAgentIds) {
+        const specialPricesSnap = await db.collection("users")
+          .doc(agentId)
+          .collection("special_prices")
+          .get();
+
+        if (specialPricesSnap.empty) continue;
+
+        for (const spDoc of specialPricesSnap.docs) {
+          // Chỉ điều chỉnh sản phẩm phù hợp productTarget
+          if (!productIdSet.has(spDoc.id)) continue;
+
+          const spData = spDoc.data();
+          const oldPrice = Number(spData.price || 0);
+          const newPrice = calcNewPrice(oldPrice);
+
+          batchOps.push({
+            type: "set",
+            ref: spDoc.ref,
+            data: {
+              userId: agentId,
+              productId: spDoc.id,
+              price: newPrice,
+              updatedBy: senderId,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+          });
+          affectedCount++;
+        }
+      }
+
+      if (batchOps.length > 0) {
+        await executeBatchOps(batchOps);
+      }
+    }
+
+    // ============================================================
+    // 5. priceType === 'special_from_general': Tạo giá đặc biệt từ giá chung
+    // ============================================================
+    else if (priceType === "special_from_general") {
+      const targetAgents = await getTargetAgents();
+      if (targetAgents.length === 0) {
+        return {success: true, message: "Không tìm thấy đại lý nào phù hợp.", count: 0};
+      }
+      targetAgentNames = targetAgents.map((a) => a.name);
+      const targetAgentIds = targetAgents.map((a) => a.id);
+
+      const productsSnap = await getProducts();
+      if (productsSnap.empty) {
+        return {success: true, message: "Không tìm thấy sản phẩm nào phù hợp.", count: 0};
+      }
+
+      // Lấy role của từng đại lý
+      const roleMap = await getAgentRoles(targetAgentIds);
+
+      const batchOps: BatchOp[] = [];
+      const agentsNeedFlagUpdate = new Set<string>();
+
+      for (const agentId of targetAgentIds) {
+        const agentRole = roleMap.get(agentId);
+        if (!agentRole) continue;
+
+        for (const productDoc of productsSnap.docs) {
+          const product = productDoc.data();
+          const packingOptions = product.packingOptions as any[];
+          if (!packingOptions || !Array.isArray(packingOptions) || packingOptions.length === 0) continue;
+
+          // Lấy giá chung cho role của đại lý từ packingOptions[0]
+          const generalPrice = packingOptions[0]?.prices?.[agentRole];
+          if (generalPrice === undefined) continue;
+
+          const oldPrice = Number(generalPrice);
+          const newPrice = calcNewPrice(oldPrice);
+
+          const specialPriceRef = db.collection("users")
+            .doc(agentId)
+            .collection("special_prices")
+            .doc(productDoc.id);
+
+          batchOps.push({
+            type: "set",
+            ref: specialPriceRef,
+            data: {
+              userId: agentId,
+              productId: productDoc.id,
+              price: newPrice,
+              updatedBy: senderId,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+          });
+          affectedCount++;
+          agentsNeedFlagUpdate.add(agentId);
+        }
+      }
+
+      if (batchOps.length > 0) {
+        await executeBatchOps(batchOps);
+
+        // Cập nhật useGeneralPrice = false cho các đại lý đã tạo special price
+        const flagOps: BatchOp[] = [...agentsNeedFlagUpdate].map((agentId) => ({
+          type: "update" as const,
+          ref: db.collection("users").doc(agentId),
+          data: {useGeneralPrice: false},
+        }));
+        if (flagOps.length > 0) {
+          await executeBatchOps(flagOps);
+        }
+      }
+    }
+
+    // ============================================================
+    // 6. Gửi thông báo cho các bên liên quan
+    // ============================================================
+    if (affectedCount > 0) {
+      const typeText = adjustmentType === "percentage"
+        ? `${adjustmentValue}%`
+        : `${new Intl.NumberFormat("vi-VN", {style: "currency", currency: "VND"}).format(adjustmentValue)}`;
+      const actionText = adjustmentValue >= 0 ? "nâng" : "hạ";
+      const targetText = productTarget === "all"
+        ? "toàn bộ mặt hàng"
+        : (productTarget === "foliar_fertilizer" ? "phân bón lá" : "phân bón gốc");
+
+      let priceTypeText = "";
+      if (priceType === "general") {
+        priceTypeText = "giá chung";
+      } else if (priceType === "special_adjust") {
+        priceTypeText = "giá đặc biệt";
+      } else {
+        priceTypeText = "giá đặc biệt (từ giá chung)";
+      }
+
+      // Tạo danh sách tên đại lý cho thông báo
+      let agentText = "";
+      if (targetAgentNames.length > 0) {
+        // Hiển thị tên cụ thể (tối đa 5 đại lý)
+        const MAX_NAMES = 5;
+        if (targetAgentNames.length <= MAX_NAMES) {
+          agentText = targetAgentNames.join(", ");
+        } else {
+          const shown = targetAgentNames.slice(0, MAX_NAMES).join(", ");
+          agentText = `${shown} ...và ${targetAgentNames.length - MAX_NAMES} đại lý khác`;
+        }
+      } else if (agentTarget === "all") {
+        agentText = "toàn bộ đại lý";
+      } else if (agentTarget === "agent_1") {
+        agentText = "đại lý cấp 1";
+      } else if (agentTarget === "agent_2") {
+        agentText = "đại lý cấp 2";
+      } else if (agentTarget === "sales_rep_group") {
+        agentText = "nhóm đại lý của NVKD";
+      } else {
+        agentText = "đại lý được chỉ định";
+      }
+
+      const title = "🔔 Thông báo điều chỉnh giá hàng loạt";
+      const body = `Hệ thống vừa ${actionText} ${priceTypeText} ${typeText.replace("-", "")} cho ${targetText} của ${agentText}. Vui lòng kiểm tra lại bảng giá mới.`;
+      const type = "price_adjustment";
+      const dataPayload = {type, productTarget, agentTarget, priceType};
+
+      // Xác định người nhận thông báo
+      const rolesToNotify = ["admin", "accountant", "sales_rep"];
+      if (agentTarget === "all") {
+        rolesToNotify.push("agent_1", "agent_2");
+      } else if (agentTarget === "agent_1" || agentTarget === "agent_2") {
+        rolesToNotify.push(agentTarget);
+      } else {
+        // sales_rep_group hoặc specific: gửi cho cả 2 loại đại lý
+        rolesToNotify.push("agent_1", "agent_2");
+      }
+
+      const recipients = await getRecipientsByRoles(rolesToNotify);
+      if (recipients.length > 0) {
+        const tokens = recipients.map((r) => r.token).filter((t): t is string => !!t);
+        if (tokens.length > 0) {
+          await sendPushNotification(tokens, title, body, dataPayload);
+        }
+        const savePromises = recipients.map((r) => saveNotificationToFirestore(r.id, title, body, type, dataPayload));
+        await Promise.all(savePromises);
+      }
+    }
+
+    // 7. Trả về kết quả
+    const priceTypeLabel = priceType === "general" ? "giá chung" : (priceType === "special_adjust" ? "giá đặc biệt" : "giá đặc biệt từ giá chung");
+    return {
+      success: true,
+      message: `Đã điều chỉnh ${priceTypeLabel} cho ${affectedCount} ${priceType === "general" ? "sản phẩm" : "mục giá"}.`,
+      count: affectedCount,
+    };
+  }
+);
+
+
 // FUNCTION 9: NVKD DUYỆT ĐẠI LÝ (Không thay đổi)
 // ===================================================================
 export const approveAgentBySalesRep = onCall({region: "asia-southeast1"}, async (request: CallableRequest) => {
@@ -2709,10 +3376,11 @@ export const checkOverdueOrderDiscounts = onSchedule({
       // Bỏ qua nếu đơn hàng đã được thanh toán
       if (order.paymentStatus === "paid") continue;
 
-      // Tính tổng chiết khấu/voucher
+      // Tính tổng chiết khấu/voucher (bao gồm cả khuyến mãi thời vụ)
       const discount = Number(order.discount) || 0;
       const commissionDiscount = Number(order.commissionDiscount) || 0;
-      const totalDiscount = discount + commissionDiscount;
+      const seasonalDiscountAmt = Number(order.seasonalDiscount) || 0;
+      const totalDiscount = discount + commissionDiscount + seasonalDiscountAmt;
 
       // Bỏ qua nếu không có chiết khấu nào
       if (totalDiscount <= 0) continue;
@@ -2779,6 +3447,7 @@ export const checkOverdueOrderDiscounts = onSchedule({
             metadata: {
               discountReclaimed: discount,
               commissionDiscountReclaimed: commissionDiscount,
+              seasonalDiscountReclaimed: seasonalDiscountAmt,
             },
           });
         });

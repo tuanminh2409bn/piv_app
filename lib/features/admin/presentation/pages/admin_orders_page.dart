@@ -236,6 +236,92 @@ class _AdminOrdersViewState extends State<_AdminOrdersView> {
               _buildInfoRow('Khách hàng:', customerName, isBold: true),
               _buildInfoRow('Số điện thoại:', order.shippingAddress.phoneNumber),
               _buildInfoRow('Thanh toán:', _getPaymentStatusText(order.paymentStatus), valueColor: _getPaymentStatusColor(order.paymentStatus)),
+
+              // --- SẢN PHẨM TRONG ĐƠN HÀNG ---
+              if (order.items.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.inventory_2_outlined, size: 14, color: Colors.grey.shade600),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Sản phẩm (${order.items.length})',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ...order.items.take(3).map((item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: Image.network(
+                                item.imageUrl,
+                                width: 36,
+                                height: 36,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade200,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Icon(Icons.image_not_supported_outlined, size: 18, color: Colors.grey.shade400),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.productName,
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    '${item.quantity} ${item.packaging} × ${currencyFormatter.format(item.price)}/${item.unit}',
+                                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              currencyFormatter.format(item.subtotal),
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade800),
+                            ),
+                          ],
+                        ),
+                      )),
+                      if (order.items.length > 3)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            '+${order.items.length - 3} sản phẩm khác...',
+                            style: TextStyle(fontSize: 11, color: AppTheme.primaryGreen, fontStyle: FontStyle.italic),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+              // --- KẾT THÚC SẢN PHẨM ---
+
               const SizedBox(height: 12),
               _buildInfoRow(
                 isDebtPayment ? 'Số tiền trả nợ:' : 'Tổng tiền:', 

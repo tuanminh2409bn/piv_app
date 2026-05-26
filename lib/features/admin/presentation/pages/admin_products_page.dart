@@ -7,6 +7,7 @@ import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/features/admin/presentation/bloc/admin_products_cubit.dart';
 import 'package:piv_app/features/admin/presentation/pages/admin_product_form_page.dart';
 import 'package:piv_app/features/admin/presentation/pages/price_adjustment_page.dart';
+import 'package:piv_app/features/admin/presentation/pages/bulk_price_requests_page.dart';
 import 'package:piv_app/features/home/data/models/product_model.dart';
 import 'package:piv_app/features/auth/presentation/bloc/auth_bloc.dart';
 
@@ -24,6 +25,8 @@ class AdminProductsPage extends StatelessWidget {
           final authState = context.read<AuthBloc>().state;
           final bool isAdmin =
               authState is AuthAuthenticated && authState.user.role == 'admin';
+          final bool canAdjustPrices = authState is AuthAuthenticated &&
+              ['admin', 'accountant', 'sales_rep'].contains(authState.user.role);
 
           return Scaffold(
             appBar: ModalRoute.of(context)?.canPop ?? false
@@ -32,13 +35,20 @@ class AdminProductsPage extends StatelessWidget {
                     actions: [
                       if (isAdmin)
                         IconButton(
+                          icon: const Icon(Icons.approval_outlined),
+                          tooltip: 'Yêu cầu điều chỉnh giá chờ duyệt',
+                          onPressed: () {
+                            Navigator.of(context).push(BulkPriceRequestsPage.route());
+                          },
+                        ),
+                      if (canAdjustPrices)
+                        IconButton(
                           icon: const Icon(Icons.price_change_outlined),
                           tooltip: 'Điều chỉnh giá hàng loạt',
                           onPressed: () {
                             Navigator.of(context)
                                 .push(PriceAdjustmentPage.route())
                                 .then((_) {
-                              // Bây giờ context này đã nằm dưới BlocProvider nên sẽ tìm thấy Cubit
                               context.read<AdminProductsCubit>().fetchAllProducts();
                             });
                           },
@@ -75,8 +85,46 @@ class AdminProductsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isTab = !(ModalRoute.of(context)?.canPop ?? false);
+    final authState = context.read<AuthBloc>().state;
+    final bool isAdmin = authState is AuthAuthenticated && authState.user.role == 'admin';
+    final bool canAdjustPrices = authState is AuthAuthenticated &&
+        ['admin', 'accountant', 'sales_rep'].contains(authState.user.role);
+
     return Column(
       children: [
+        // Khi dùng như tab (không có AppBar), hiện nút hành động inline
+        if (isTab && canAdjustPrices)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.price_change_outlined, size: 18),
+                    label: const Text('Điều chỉnh giá', style: TextStyle(fontSize: 13)),
+                    onPressed: () {
+                      Navigator.of(context).push(PriceAdjustmentPage.route()).then((_) {
+                        context.read<AdminProductsCubit>().fetchAllProducts();
+                      });
+                    },
+                  ),
+                ),
+                if (isAdmin) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.approval_outlined, size: 18),
+                      label: const Text('YC chờ duyệt', style: TextStyle(fontSize: 13)),
+                      onPressed: () {
+                        Navigator.of(context).push(BulkPriceRequestsPage.route());
+                      },
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: TextField(

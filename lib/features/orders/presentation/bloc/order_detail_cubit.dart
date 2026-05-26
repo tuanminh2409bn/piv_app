@@ -197,7 +197,7 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
         if (policy.seasonalDiscountEnd != null && now.isAfter(policy.seasonalDiscountEnd!)) {
           isInPromoPeriod = false;
         }
-        if (policy.seasonalDiscountEnabled && isInPromoPeriod && agent.activeRewardProgram != 'sales_commitment') {
+        if (policy.seasonalDiscountEnabled && isInPromoPeriod && (agent.activeRewardProgram != 'sales_commitment' || allowPromotionDuringCommitment)) {
           seasonalDiscount = order.subtotal * policy.seasonalDiscountRate;
         }
       }
@@ -289,7 +289,7 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
         if (policy.seasonalDiscountEnd != null && now.isAfter(policy.seasonalDiscountEnd!)) {
           isInPromoPeriod = false;
         }
-        if (policy.seasonalDiscountEnabled && isInPromoPeriod && agent.activeRewardProgram != 'sales_commitment') {
+        if (policy.seasonalDiscountEnabled && isInPromoPeriod && (agent.activeRewardProgram != 'sales_commitment' || allowPromotionDuringCommitment)) {
           seasonalDiscount = order.subtotal * policy.seasonalDiscountRate;
         }
       }

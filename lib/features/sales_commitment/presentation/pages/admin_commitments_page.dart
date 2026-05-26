@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:piv_app/core/di/injection_container.dart';
 import 'package:piv_app/data/models/sales_commitment_model.dart';
 import 'package:piv_app/features/sales_commitment/presentation/bloc/admin/sales_commitment_admin_cubit.dart';
@@ -40,10 +41,77 @@ class AdminCommitmentsView extends StatefulWidget {
 class _AdminCommitmentsViewState extends State<AdminCommitmentsView> {
   String? _filterId;
 
+  bool _isMigrating = false;
+
   @override
   void initState() {
     super.initState();
     _filterId = widget.highlightCommitmentId;
+  }
+
+  Future<void> _runMigration(BuildContext ctx) async {
+    final confirmed = await showDialog<bool>(
+      context: ctx,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Flexible(child: Text('Migration dữ liệu')),
+          ],
+        ),
+        content: const Text(
+          'Thao tác này sẽ đánh dấu TẤT CẢ đơn hàng đã hoàn thành (status=completed) là đã tính tiến trình cam kết.\n\nChỉ cần chạy 1 LẦN sau khi deploy phiên bản mới để tránh tính trùng.\n\nBạn xác nhận chạy migration không?',
+          style: TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('Chạy Migration'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !ctx.mounted) return;
+
+    setState(() => _isMigrating = true);
+    try {
+      final functions = FirebaseFunctions.instanceFor(region: 'asia-southeast1');
+      final result = await functions
+          .httpsCallable('migrateCommitmentCountedFlag')
+          .call();
+      final markedCount = result.data['markedCount'] ?? 0;
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(
+            content: Text('✅ Migration hoàn thành: đã đánh dấu $markedCount đơn hàng.'),
+            backgroundColor: Colors.green.shade700,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } catch (e) {
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(
+            content: Text('❌ Lỗi migration: $e'),
+            backgroundColor: Colors.red.shade700,
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isMigrating = false);
+    }
   }
 
   @override
@@ -57,7 +125,38 @@ class _AdminCommitmentsViewState extends State<AdminCommitmentsView> {
                   TextButton(
                     onPressed: () => setState(() => _filterId = null),
                     child: const Text('Xem tất cả', style: TextStyle(color: Colors.white)),
-                  )
+                  ),
+                // Nút migration - ẩn trong popup menu
+                PopupMenuButton<String>(
+                  icon: _isMigrating
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.more_vert),
+                  tooltip: 'Tuỳ chọn',
+                  onSelected: (value) {
+                    if (value == 'migrate' && !_isMigrating) {
+                      _runMigration(context);
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: 'migrate',
+                      child: Row(
+                        children: [
+                          Icon(Icons.update, color: Colors.orange),
+                          SizedBox(width: 8),
+                          Text('Migration dữ liệu cũ'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ],
             )
           : null,
@@ -229,6 +328,7 @@ class CommitmentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currencyFormatter = NumberFormat.currency(locale: 'vi_VN', symbol: '');
+    final dateFormat = DateFormat('dd/MM/yyyy');
     final progress = (commitment.currentAmount / (commitment.targetAmount == 0 ? 1 : commitment.targetAmount)).clamp(0.0, 1.0);
     
     final authState = context.read<AuthBloc>().state;
@@ -240,6 +340,11 @@ class CommitmentCard extends StatelessWidget {
     final bool isExpired = commitment.status == 'expired';
     final bool isPendingCancellation = commitment.status == 'pending_cancellation';
     final bool isPendingApproval = commitment.status == 'pending_approval';
+
+    // Tính số ngày còn lại
+    final now = DateTime.now();
+    final daysRemaining = commitment.endDate.difference(now).inDays;
+    final bool isActive = !isCompleted && !isCancelled && !isExpired;
 
     Color cardColor = Colors.white;
     if (isCancelled || isExpired) cardColor = Colors.grey.shade100;
@@ -280,6 +385,59 @@ class CommitmentCard extends StatelessWidget {
                 _buildStatusBadge(isCompleted, isCancelled, isExpired, isPendingCancellation, isPendingApproval),
               ],
             ),
+
+            // --- NGÀY THÁNG CAM KẾT ---
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: isActive ? Colors.blue.shade50 : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: isActive ? Colors.blue.shade100 : Colors.grey.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_month_outlined, size: 16, color: isActive ? Colors.blue.shade700 : Colors.grey),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${dateFormat.format(commitment.startDate)} → ${dateFormat.format(commitment.endDate)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isActive ? Colors.blue.shade800 : Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                  if (isActive && !isPendingApproval)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: daysRemaining <= 7 
+                            ? Colors.red.shade100 
+                            : daysRemaining <= 30 
+                                ? Colors.orange.shade100 
+                                : Colors.green.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        daysRemaining > 0 ? 'Còn $daysRemaining ngày' : 'Hết hạn hôm nay',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: daysRemaining <= 7 
+                              ? Colors.red.shade800 
+                              : daysRemaining <= 30 
+                                  ? Colors.orange.shade800 
+                                  : Colors.green.shade800,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // --- KẾT THÚC NGÀY THÁNG ---
+
             const SizedBox(height: 16),
 
             if (!isCompleted && !isCancelled && !isExpired && !isPendingApproval) ...[

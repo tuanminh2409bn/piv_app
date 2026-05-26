@@ -92,4 +92,15 @@ abstract class AdminRepository {
     required String productTarget,
     required String agentTarget,
   });
+
+  Future<Either<Failure, Map<String, dynamic>>> adjustBulkPrices({
+    required String priceType,
+    required String adjustmentType,
+    required double adjustmentValue,
+    required String productTarget,
+    required String agentTarget,
+    String? salesRepId,
+    List<String>? specificAgentIds,
+    List<String>? excludedAgentIds,
+  });
 }

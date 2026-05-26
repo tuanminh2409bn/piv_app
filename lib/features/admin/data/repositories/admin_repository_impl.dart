@@ -585,4 +585,34 @@ class AdminRepositoryImpl implements AdminRepository {
       return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
     }
   }
+
+  @override
+  Future<Either<Failure, Map<String, dynamic>>> adjustBulkPrices({
+    required String priceType,
+    required String adjustmentType,
+    required double adjustmentValue,
+    required String productTarget,
+    required String agentTarget,
+    String? salesRepId,
+    List<String>? specificAgentIds,
+    List<String>? excludedAgentIds,
+  }) async {
+    try {
+      final result = await _functions.httpsCallable('adjustBulkPrices').call({
+        'priceType': priceType,
+        'adjustmentType': adjustmentType,
+        'adjustmentValue': adjustmentValue,
+        'productTarget': productTarget,
+        'agentTarget': agentTarget,
+        if (salesRepId != null) 'salesRepId': salesRepId,
+        if (specificAgentIds != null) 'specificAgentIds': specificAgentIds,
+        if (excludedAgentIds != null) 'excludedAgentIds': excludedAgentIds,
+      });
+      return Right(Map<String, dynamic>.from(result.data));
+    } on FirebaseFunctionsException catch (e) {
+      return Left(ServerFailure(e.message ?? 'Lỗi khi điều chỉnh giá'));
+    } catch (e) {
+      return Left(ServerFailure('Lỗi không xác định: ${e.toString()}'));
+    }
+  }
 }

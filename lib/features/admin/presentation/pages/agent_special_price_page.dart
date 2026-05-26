@@ -278,13 +278,19 @@ class _PriceInputCell extends StatefulWidget {
 class _PriceInputCellState extends State<_PriceInputCell> {
   late TextEditingController _controller;
   final FocusNode _focusNode = FocusNode();
+  final _formatter = NumberFormat.decimalPattern('vi_VN');
+
+  String _formatNumber(int value) {
+    if (value <= 0) return '';
+    return _formatter.format(value);
+  }
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(
         text: widget.initialValue != null && widget.initialValue! > 0
-            ? widget.initialValue!.toInt().toString()
+            ? _formatNumber(widget.initialValue!.toInt())
             : '');
     _focusNode.addListener(_onFocusChange);
   }
@@ -295,7 +301,7 @@ class _PriceInputCellState extends State<_PriceInputCell> {
     // Sync external changes (e.g. reset or load) ONLY if not focused
     if (widget.initialValue != oldWidget.initialValue && !_focusNode.hasFocus) {
        final newText = (widget.initialValue != null && widget.initialValue! > 0)
-           ? widget.initialValue!.toInt().toString()
+           ? _formatNumber(widget.initialValue!.toInt())
            : '';
        if (_controller.text != newText) {
          _controller.text = newText;
@@ -337,7 +343,10 @@ class _PriceInputCellState extends State<_PriceInputCell> {
               focusNode: _focusNode,
               enabled: widget.enabled,
               keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                _ThousandSeparatorInputFormatter(),
+              ],
               decoration: InputDecoration(
                 hintText: 'Nhập giá (0 để xóa)',
                 contentPadding:
@@ -356,3 +365,35 @@ class _PriceInputCellState extends State<_PriceInputCell> {
     );
   }
 }
+
+/// TextInputFormatter tự động thêm dấu chấm phân cách hàng nghìn
+class _ThousandSeparatorInputFormatter extends TextInputFormatter {
+  static final _formatter = NumberFormat.decimalPattern('vi_VN');
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    // Loại bỏ tất cả dấu chấm cũ để lấy số thuần
+    final digitsOnly = newValue.text.replaceAll('.', '');
+    if (digitsOnly.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+    final number = int.tryParse(digitsOnly);
+    if (number == null) return oldValue;
+
+    final formatted = _formatter.format(number);
+
+    // Tính vị trí con trỏ mới: dựa trên số ký tự từ bên phải
+    final oldCursorFromRight = oldValue.text.length - oldValue.selection.end;
+    final newCursorPosition = formatted.length - oldCursorFromRight;
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(
+        offset: newCursorPosition.clamp(0, formatted.length),
+      ),
+    );
+  }
+}
+

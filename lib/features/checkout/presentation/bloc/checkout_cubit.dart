@@ -531,9 +531,23 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     final userProfileResult = await _userProfileRepository.getUserProfile(_currentUserId);
     final user = userProfileResult.getOrElse(() => authState.user);
 
-    final addresses = user.addresses;
+    List<AddressModel> addresses = user.addresses;
     AddressModel? defaultAddress;
-    if (addresses.isNotEmpty) {
+    if (addresses.isEmpty && user.currentAddress != null && user.currentAddress!.isNotEmpty) {
+      // Tự động tạo địa chỉ mặc định từ thông tin hồ sơ đại lý
+      final autoAddress = AddressModel(
+        recipientName: user.displayName ?? '',
+        phoneNumber: user.phoneNumber ?? '',
+        street: user.currentAddress!,
+        ward: '',
+        city: '',
+        isDefault: true,
+      );
+      await _userProfileRepository.addAddress(_currentUserId, autoAddress);
+      addresses = [autoAddress];
+      defaultAddress = autoAddress;
+      developer.log('CheckoutCubit: Auto-created default address from currentAddress', name: 'CheckoutCubit');
+    } else if (addresses.isNotEmpty) {
       try {
         defaultAddress = addresses.firstWhere((a) => a.isDefault);
       } catch (e) {
@@ -597,7 +611,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       if (_seasonalDiscountEndCache != null && now.isAfter(_seasonalDiscountEndCache!)) {
         isInPromoPeriod = false;
       }
-      if (_seasonalDiscountEnabledCache && isInPromoPeriod && user.activeRewardProgram != 'sales_commitment') {
+      if (_seasonalDiscountEnabledCache && isInPromoPeriod && (user.activeRewardProgram != 'sales_commitment' || allowPromotionDuringCommitment)) {
         newSeasonalDiscount = subtotal * _seasonalDiscountRateCache;
       }
     }
@@ -640,9 +654,10 @@ class CheckoutCubit extends Cubit<CheckoutState> {
 
     // Không tính chiết khấu đại lý nếu đã có voucher được áp dụng và không được phép cộng dồn
     if (state.appliedVoucher != null && !state.isStackingAllowed) {
-      if (state.commissionDiscount != 0.0) {
-        emit(state.copyWith(commissionDiscount: 0.0));
-      }
+      final clearedState = state.commissionDiscount != 0.0
+          ? state.copyWith(commissionDiscount: 0.0)
+          : state;
+      emit(clearedState.copyWith(amountToPay: clearedState.totalWithDebt.clamp(0, double.infinity)));
       return;
     }
 
@@ -795,12 +810,27 @@ class CheckoutCubit extends Cubit<CheckoutState> {
     }
     final UserModel agentWithDetails = agentProfileResult.getOrElse(() => agent);
 
+    List<AddressModel> agentAddresses = agentWithDetails.addresses;
     AddressModel? defaultAddress;
-    if (agentWithDetails.addresses.isNotEmpty) {
+    if (agentAddresses.isEmpty && agentWithDetails.currentAddress != null && agentWithDetails.currentAddress!.isNotEmpty) {
+      // Tự động tạo địa chỉ mặc định từ thông tin hồ sơ đại lý
+      final autoAddress = AddressModel(
+        recipientName: agentWithDetails.displayName ?? '',
+        phoneNumber: agentWithDetails.phoneNumber ?? '',
+        street: agentWithDetails.currentAddress!,
+        ward: '',
+        city: '',
+        isDefault: true,
+      );
+      await _userProfileRepository.addAddress(agentWithDetails.id, autoAddress);
+      agentAddresses = [autoAddress];
+      defaultAddress = autoAddress;
+      developer.log('CheckoutCubit: Auto-created default address for agent ${agentWithDetails.displayName}', name: 'CheckoutCubit');
+    } else if (agentAddresses.isNotEmpty) {
       try {
-        defaultAddress = agentWithDetails.addresses.firstWhere((a) => a.isDefault);
+        defaultAddress = agentAddresses.firstWhere((a) => a.isDefault);
       } catch (e) {
-        defaultAddress = agentWithDetails.addresses.first;
+        defaultAddress = agentAddresses.first;
       }
     }
 
@@ -839,7 +869,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
 
     emit(state.copyWith(
       status: CheckoutStatus.success,
-      addresses: agentWithDetails.addresses,
+      addresses: agentAddresses,
       selectedAddress: defaultAddress,
       placeOrderForAgent: agentWithDetails,
       placeOrderForUserId: agentWithDetails.id,
@@ -934,7 +964,7 @@ class CheckoutCubit extends Cubit<CheckoutState> {
       if (_seasonalDiscountEndCache != null && now.isAfter(_seasonalDiscountEndCache!)) {
         isInPromoPeriod = false;
       }
-      if (_seasonalDiscountEnabledCache && isInPromoPeriod && currentUser.activeRewardProgram != 'sales_commitment') {
+      if (_seasonalDiscountEnabledCache && isInPromoPeriod && (currentUser.activeRewardProgram != 'sales_commitment' || _allowPromotionDuringCommitmentCache)) {
         newSeasonalDiscount = subtotal * _seasonalDiscountRateCache;
       }
     }

@@ -210,7 +210,7 @@ class _OrderSuccessPageState extends State<OrderSuccessPage> {
             (route) => route.isFirst
         );
       },
-      child: const Text('XEM ĐƠN HÀNG', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, letterSpacing: 0.5)),
+      child: const Text('XEM ĐƠN HÀNG VÀ\nTHANH TOÁN', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, letterSpacing: 0.5)),
     );
   }
 }

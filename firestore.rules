@@ -256,6 +256,12 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+  match /bulk_price_requests/{requestId} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update, delete: if isAdmin();
+    }
+
   match /debtTransactions/{transactionId} {
       allow read: if isStaff() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow write: if isAdmin();

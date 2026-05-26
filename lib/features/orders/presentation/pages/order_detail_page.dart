@@ -151,7 +151,7 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                       order: order, 
                       totalAmountToHandle: order.status == 'pending_approval'
                           ? (state.recalculatedFinalTotal + order.debtAmount).clamp(0.0, double.infinity)
-                          : (order.finalTotal + order.debtAmount - state.voucherDiscount).clamp(0.0, double.infinity), 
+                          : (order.finalTotal + order.debtAmount).clamp(0.0, double.infinity), 
                       voucherDiscount: state.voucherDiscount,
                       state: state,
                     )
@@ -281,7 +281,7 @@ class _OrderDetailViewState extends State<OrderDetailView> {
           final order = state.order!;
           final totalAmountToHandle = order.status == 'pending_approval'
               ? (state.recalculatedFinalTotal + order.debtAmount).clamp(0.0, double.infinity)
-              : (order.finalTotal + order.debtAmount - state.voucherDiscount)
+              : (order.finalTotal + order.debtAmount)
                   .clamp(0.0, double.infinity);
 
           return Stack(
@@ -651,7 +651,12 @@ class _PaymentSummary extends StatelessWidget {
 
     final double displayTotalBeforeVat = (order.status == 'pending_approval' && state != null)
         ? (order.subtotal + order.shippingFee - voucherDiscount - displayCommission - displaySeasonal).clamp(0.0, double.infinity)
-        : order.total;
+        : (order.finalTotal - displayVatAmount).clamp(0.0, double.infinity); // finalTotal - VAT = đúng thành tiền trước thuế
+
+    // Giảm giá voucher: dùng đúng nguồn tuỳ theo trạng thái đơn hàng
+    final double displayVoucherDiscount = (order.status == 'pending_approval' && state != null)
+        ? voucherDiscount        // Voucher do kế toán áp dụng khi duyệt
+        : order.discount;        // Voucher gốc khi đại lý đặt hàng
 
     final double displayFinalTotal = (order.status == 'pending_approval' && state != null)
         ? state!.recalculatedFinalTotal
@@ -664,9 +669,11 @@ class _PaymentSummary extends StatelessWidget {
           const SizedBox(height: 8),
           _row('Phí vận chuyển', formatter.format(order.shippingFee)),
           const SizedBox(height: 8),
-          if (voucherDiscount > 0)
-            _row('Giảm giá voucher', '- ${formatter.format(voucherDiscount)}',
+          if (displayVoucherDiscount > 0) ...[
+            const SizedBox(height: 8),
+            _row('Giảm giá voucher', '- ${formatter.format(displayVoucherDiscount)}',
                 color: Colors.green.shade700),
+          ],
           if (displayCommission > 0) ...[
             const SizedBox(height: 8),
             _row('Chiết khấu', '- ${formatter.format(displayCommission)}',

@@ -126,7 +126,11 @@ class SalesCommitmentAgentCubit extends Cubit<SalesCommitmentAgentState> {
         if (isAccepted) {
           _authBloc.add(AuthUserRefreshRequested());
         }
-        emit(state.copyWith(status: SalesCommitmentAgentStatus.success));
+        // Xóa activeCommitment ngay lập tức để tránh BlocListener re-trigger popup
+        emit(state.copyWith(
+          status: SalesCommitmentAgentStatus.success,
+          forceCommitmentToNull: true,
+        ));
       },
     );
   }

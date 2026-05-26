@@ -224,6 +224,7 @@ class NotificationService {
         final commitmentId = data['commitmentId'];
         navigator.push(AdminCommitmentsPage.route(commitmentId: commitmentId));
         break;
+      case 'commitment_proposal':
       case 'commitment_approved':
       case 'commitment_created':
       case 'commitment_details_set':
