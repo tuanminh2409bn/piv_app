@@ -44,10 +44,27 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  // Wrap in try-catch: Safari iOS may not support background messaging
+  try {
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  } catch (e) {
+    developer.log("FirebaseMessaging background handler failed: $e", name: "MainWeb");
+  }
 
   await di.initializeDependencies();
-  await di.sl<NotificationService>().init();
+
+  // Don't block app startup on notification service
+  // Safari iOS doesn't fully support Push API in browser mode,
+  // so FCM requestPermission() can hang/fail and block runApp()
+  di.sl<NotificationService>().init().timeout(
+    const Duration(seconds: 5),
+    onTimeout: () {
+      developer.log("NotificationService init timed out, skipping", name: "MainWeb");
+    },
+  ).catchError((e) {
+    developer.log("NotificationService init failed: $e", name: "MainWeb");
+  });
+
   await initializeDateFormatting('vi_VN', null);
 
   Bloc.observer = di.sl<AppBlocObserver>();

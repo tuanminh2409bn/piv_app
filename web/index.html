@@ -16,12 +16,13 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="PIV - Ứng dụng phân bón chất lượng cao">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="piv_app">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PIV">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
@@ -29,98 +30,170 @@
 
   <title>PIV</title>
   <link rel="manifest" href="manifest.json">
-  
-  
+
   <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
+
+  <!-- Preconnect to critical origins for faster loading -->
+  <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com">
+
+  <!-- Preload critical assets for faster rendering -->
+  <link rel="preload" href="flutter_bootstrap.js" as="script">
+
   <style id="splash-screen-style">
-    html {
-      height: 100%
-    }
-
-    body {
+    html, body {
       margin: 0;
-      min-height: 100%;
+      padding: 0;
+      height: 100%;
+      width: 100%;
       background-color: #FFFFFF;
-          background-size: 100% 100%;
+      overflow: hidden;
     }
 
-    .center {
-      margin: 0;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      -ms-transform: translate(-50%, -50%);
-      transform: translate(-50%, -50%);
-    }
-
-    .contain {
-      display:block;
-      width:100%; height:100%;
-      object-fit: contain;
-    }
-
-    .stretch {
-      display:block;
-      width:100%; height:100%;
-    }
-
-    .cover {
-      display:block;
-      width:100%; height:100%;
-      object-fit: cover;
-    }
-
-    .bottom {
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      -ms-transform: translate(-50%, 0);
-      transform: translate(-50%, 0);
-    }
-
-    .bottomLeft {
-      position: absolute;
-      bottom: 0;
+    /* Full-screen splash overlay */
+    #splash-overlay {
+      position: fixed;
+      top: 0;
       left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #FFFFFF;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      transition: opacity 0.3s ease;
     }
 
-    .bottomRight {
-      position: absolute;
-      bottom: 0;
-      right: 0;
+    #splash-overlay img {
+      max-width: 180px;
+      height: auto;
+    }
+
+    /* Loading spinner - always centered below logo */
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid #e0e0e0;
+      border-top-color: #4CAF50;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-top: 32px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      color: #999;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+
+    /* Timeout fallback */
+    #timeout-fallback {
+      display: none;
+      text-align: center;
+      margin-top: 20px;
+    }
+
+    #timeout-fallback p {
+      color: #666;
+      font-size: 14px;
+      margin: 0 0 16px 0;
+    }
+
+    #reload-btn {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 12px 32px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #reload-btn:active {
+      background-color: #388E3C;
     }
   </style>
-  <script id="splash-screen-script">
-    function removeSplashFromWeb() {
-      document.getElementById("splash")?.remove();
-      document.getElementById("splash-branding")?.remove();
-      document.body.style.background = "transparent";
-    }
-  </script>
 </head>
 <body>
-  <picture id="splash">
-      <source srcset="splash/img/light-1x.png 1x, splash/img/light-2x.png 2x, splash/img/light-3x.png 3x, splash/img/light-4x.png 4x" media="(prefers-color-scheme: light)">
-      <source srcset="splash/img/dark-1x.png 1x, splash/img/dark-2x.png 2x, splash/img/dark-3x.png 3x, splash/img/dark-4x.png 4x" media="(prefers-color-scheme: dark)">
-      <img class="center" aria-hidden="true" src="splash/img/light-1x.png" alt="">
-  </picture>
-  
-  
-  
-  
-  
-  
-  <script src="flutter_bootstrap.js" async=""></script>
+  <!-- Single splash overlay -->
+  <div id="splash-overlay">
+    <picture>
+        <source srcset="splash/img/light-1x.png 1x, splash/img/light-2x.png 2x, splash/img/light-3x.png 3x, splash/img/light-4x.png 4x" media="(prefers-color-scheme: light)">
+        <source srcset="splash/img/dark-1x.png 1x, splash/img/dark-2x.png 2x, splash/img/dark-3x.png 3x, splash/img/dark-4x.png 4x" media="(prefers-color-scheme: dark)">
+        <img aria-hidden="true" src="splash/img/light-1x.png" alt="">
+    </picture>
+    <div class="spinner"></div>
+    <div class="loading-text">Đang tải ứng dụng...</div>
+    <div id="timeout-fallback">
+      <p>Tải trang mất nhiều thời gian hơn bình thường.</p>
+      <button id="reload-btn" onclick="window.location.reload()">Tải lại trang</button>
+    </div>
+  </div>
 
+  <script>
+    (function() {
+      var _loadTimeout, _pollInterval, _observer, _removed = false;
+
+      function removeOverlay() {
+        if (_removed) return;
+        _removed = true;
+        if (_loadTimeout) clearTimeout(_loadTimeout);
+        if (_pollInterval) clearInterval(_pollInterval);
+        if (_observer) _observer.disconnect();
+
+        var overlay = document.getElementById('splash-overlay');
+        if (overlay) {
+          overlay.style.opacity = '0';
+          setTimeout(function() { overlay.remove(); }, 350);
+        }
+      }
+
+      function isFlutterRendered() {
+        return document.querySelector('flutter-view, flt-glass-pane, flt-scene-host, flt-scene');
+      }
+
+      // Check immediately (in case Flutter already rendered)
+      if (isFlutterRendered()) {
+        removeOverlay();
+        return;
+      }
+
+      // Method 1: MutationObserver (works on Chrome)
+      try {
+        _observer = new MutationObserver(function() {
+          if (isFlutterRendered()) removeOverlay();
+        });
+        _observer.observe(document.body, { childList: true, subtree: true });
+      } catch (e) {}
+
+      // Method 2: Polling fallback (works on Safari)
+      _pollInterval = setInterval(function() {
+        if (isFlutterRendered()) removeOverlay();
+      }, 300);
+
+      // Timeout: show reload button after 20 seconds
+      _loadTimeout = setTimeout(function() {
+        var spinner = document.querySelector('.spinner');
+        var loadText = document.querySelector('.loading-text');
+        var fallback = document.getElementById('timeout-fallback');
+        if (spinner) spinner.style.display = 'none';
+        if (loadText) loadText.style.display = 'none';
+        if (fallback) fallback.style.display = 'block';
+      }, 20000);
+    })();
+  </script>
+
+  <script src="flutter_bootstrap.js" async=""></script>
 
 </body></html>

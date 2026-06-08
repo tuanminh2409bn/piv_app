@@ -716,7 +716,7 @@ class _PaymentSummary extends StatelessWidget {
               isBold: true, size: 16, color: AppTheme.primaryGreen),
         ],
         const SizedBox(height: 8),
-        _row('Đã thanh toán (đơn này)', formatter.format(order.paidAmount),
+        _row('Khách hàng dự kiến thanh toán', formatter.format(order.paidAmount),
             isBold: true, color: Colors.blue.shade700),
         const SizedBox(height: 8),
         _row(

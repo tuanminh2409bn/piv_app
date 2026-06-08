@@ -573,7 +573,9 @@ export const onOrderStatusUpdate = onDocumentUpdated(
         for (const item of items) {
           const price = Number(item.price) || 0;
           const qtyPerPkg = Number(item.quantityPerPackage) || 1;
-          const confirmedQty = Number(item.confirmedQuantity) || 0;
+          const confirmedQty = item.confirmedQuantity !== undefined && item.confirmedQuantity !== null
+            ? Number(item.confirmedQuantity)
+            : (Number(item.quantity) || 0); // Fallback to original quantity
           const confirmedLooseQty = Number(item.confirmedLooseQuantity) || 0;
 
           // Tổng số đơn vị lẻ thực giao = (Số thùng * Quy cách) + Số lẻ
@@ -626,7 +628,9 @@ export const onOrderStatusUpdate = onDocumentUpdated(
             if (productInfo) {
               const price = Number(item.price) || 0;
               const qtyPerPkg = Number(item.quantityPerPackage) || 1;
-              const confirmedQty = Number(item.confirmedQuantity) || 0;
+              const confirmedQty = item.confirmedQuantity !== undefined && item.confirmedQuantity !== null
+                ? Number(item.confirmedQuantity)
+                : (Number(item.quantity) || 0); // Fallback to original quantity
               const confirmedLooseQty = Number(item.confirmedLooseQuantity) || 0;
 
               const totalUnits = (confirmedQty * qtyPerPkg) + confirmedLooseQty;
@@ -704,17 +708,24 @@ export const onOrderStatusUpdate = onDocumentUpdated(
 
       try {
         await db.runTransaction(async (transaction) => {
-          // Lưu paymentDueDate vào order
-          transaction.update(orderRef, {paymentDueDate: paymentDueDate});
+          let debtDocExists = false;
+          let userDocData: any = null;
 
           if (debtAmountToAdd !== 0) {
             const debtDoc = await transaction.get(debtTransactionRef);
-            if (debtDoc.exists) return;
+            debtDocExists = debtDoc.exists;
+            if (!debtDocExists) {
+              const userDoc = await transaction.get(userRef);
+              if (!userDoc.exists) throw new Error(`User ${userId} not found!`);
+              userDocData = userDoc.data();
+            }
+          }
 
-            const userDoc = await transaction.get(userRef);
-            if (!userDoc.exists) throw new Error(`User ${userId} not found!`);
+          // === ALL WRITES MUST BE EXECUTED AFTER READS ===
+          transaction.update(orderRef, {paymentDueDate: paymentDueDate});
 
-            const currentDebt = (userDoc.data()?.debtAmount as number) || 0;
+          if (debtAmountToAdd !== 0 && !debtDocExists) {
+            const currentDebt = (userDocData?.debtAmount as number) || 0;
             const newDebt = currentDebt + debtAmountToAdd;
 
             transaction.update(userRef, {debtAmount: newDebt});
@@ -898,8 +909,8 @@ async function _updateCommitmentProgress(
 }
 
 // ===================================================================
-// FUNCTION 6b: CẬP NHẬT CAM KẾT KHI KẾ TOÁN XÁC NHẬN NHẬN TIỀN
-// Trigger khi paymentStatus thay đổi thành 'paid' trên đơn đã 'completed'
+// FUNCTION 6b: CẬP NHẬT CÔNG NỢ VÀ CAM KẾT KHI KẾ TOÁN XÁC NHẬN NHẬN TIỀN
+// Trigger khi paymentStatus thay đổi thành 'paid'
 // ===================================================================
 export const onOrderPaymentStatusUpdate = onDocumentUpdated(
   {document: "orders/{orderId}", region: "asia-southeast1"},
@@ -912,10 +923,6 @@ export const onOrderPaymentStatusUpdate = onDocumentUpdated(
     if (beforeData.paymentStatus === afterData.paymentStatus) return;
     // Chỉ xử lý khi chuyển thành 'paid'
     if (afterData.paymentStatus !== "paid") return;
-    // Chỉ tính khi đơn đã hoàn thành
-    if (afterData.status !== "completed") return;
-    // Chống double-count: đã được tính từ onOrderStatusUpdate rồi thì bỏ qua
-    if (afterData.isCommitmentCounted === true) return;
 
     const orderId = event.params.orderId;
     const {
@@ -928,13 +935,18 @@ export const onOrderPaymentStatusUpdate = onDocumentUpdated(
       vatPercentage,
     } = afterData;
 
-    // Tính actualTotal dựa trên confirmedQuantity (số lượng hàng thực giao)
+    const orderRef = db.collection("orders").doc(orderId);
+    const userRef = db.collection("users").doc(userId);
+
+    // Tính actualTotal dựa trên confirmedQuantity (với fallback về quantity gốc nếu chưa được set)
     let confirmedSubtotal = 0;
     if (items && Array.isArray(items)) {
       for (const item of items) {
         const price = Number(item.price) || 0;
         const qtyPerPkg = Number(item.quantityPerPackage) || 1;
-        const confirmedQty = Number(item.confirmedQuantity) || 0;
+        const confirmedQty = item.confirmedQuantity !== undefined && item.confirmedQuantity !== null
+          ? Number(item.confirmedQuantity)
+          : (Number(item.quantity) || 0); // Fallback to original quantity
         const confirmedLooseQty = Number(item.confirmedLooseQuantity) || 0;
         const totalUnits = (confirmedQty * qtyPerPkg) + confirmedLooseQty;
         confirmedSubtotal += price * totalUnits;
@@ -952,12 +964,73 @@ export const onOrderPaymentStatusUpdate = onDocumentUpdated(
     );
     const actualTotal = preTax + preTax * (vat / 100);
 
-    logger.info(`onOrderPaymentStatusUpdate: Order ${orderId} (status=completed) confirmed paid. Updating commitment for user ${userId}. actualTotal=${actualTotal}`);
+    // Tính tổng tiền khách cần thanh toán thực tế cho đơn hàng này:
+    // Tổng số tiền khách phải thanh toán là (Tiền đơn hàng thực giao + Công nợ cũ tại thời điểm đặt đơn)
+    const debtAmountAtOrder = Number(afterData.debtAmount) || 0;
+    const totalNeededToPay = Math.max(0, actualTotal + debtAmountAtOrder);
+
+    // Số tiền khách đã thanh toán được ghi nhận trước đó (ví dụ tại checkout hoặc duyệt)
+    const previousPaidAmount = Number(afterData.paidAmount) || 0;
+
+    // Số tiền cần thanh toán thêm/thực tế nhận được lúc này
+    const amountToPay = Math.max(0, totalNeededToPay - previousPaidAmount);
+
+    logger.info(`onOrderPaymentStatusUpdate: Order ${orderId} confirmed paid. totalNeededToPay=${totalNeededToPay}, previousPaidAmount=${previousPaidAmount}, amountToPay=${amountToPay}`);
 
     try {
-      await _updateCommitmentProgress(userId, orderId, actualTotal);
+      await db.runTransaction(async (transaction) => {
+        if (afterData.status === "completed") {
+          let userDocData: any = null;
+
+          if (amountToPay > 0) {
+            const userDoc = await transaction.get(userRef);
+            if (userDoc.exists) {
+              userDocData = userDoc.data();
+            }
+          }
+
+          // === ALL WRITES MUST BE EXECUTED AFTER READS ===
+          transaction.update(orderRef, {
+            paidAmount: totalNeededToPay,
+            remainingDebt: 0,
+          });
+
+          if (amountToPay > 0 && userDocData) {
+            const currentDebt = Number(userDocData.debtAmount) || 0;
+            const newDebt = currentDebt - amountToPay;
+            transaction.update(userRef, {debtAmount: newDebt});
+
+            // Ghi nhận giao dịch công nợ
+            const debtTransactionRef = db.collection("debtTransactions").doc(`payment_${orderId}`);
+            transaction.set(debtTransactionRef, {
+              userId: userId,
+              amount: -amountToPay, // Số âm là giảm nợ
+              type: "debt_payment",
+              description: `Thanh toán đơn hàng #${orderId.substring(0, 8).toUpperCase()}`,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              orderId: orderId,
+              metadata: {
+                actualTotal: actualTotal,
+                debtAmountAtOrder: debtAmountAtOrder,
+                totalNeededToPay: totalNeededToPay,
+                previousPaidAmount: previousPaidAmount,
+                amountPaid: amountToPay,
+              },
+            });
+          }
+        }
+      });
     } catch (err) {
-      logger.error(`Error in onOrderPaymentStatusUpdate for order ${orderId}:`, err);
+      logger.error(`Failed to update paidAmount or debt on payment status update for order ${orderId}:`, err);
+    }
+
+    // Cập nhật tiến trình cam kết doanh số (chỉ tính cho đơn đã hoàn thành)
+    if (afterData.status === "completed" && afterData.isCommitmentCounted !== true) {
+      try {
+        await _updateCommitmentProgress(userId, orderId, actualTotal);
+      } catch (err) {
+        logger.error(`Error in onOrderPaymentStatusUpdate commitment for order ${orderId}:`, err);
+      }
     }
   }
 );
